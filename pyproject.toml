@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "logbuddy"
+version = "0.1.0"
+description = ""
+authors = ["Jiri Podivin <jpodivin@gmail.com>"]
+license = "Apache-2.0"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+langchain = "^0.1.12"
+requests = "^2.31.0"
+llama-cpp-python = "^0.2.56"
+tiktoken = "^0.6.0"
+beautifulsoup4 = "^4.12.3"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+logbuddy = 'logbuddy.logbuddy:main'
