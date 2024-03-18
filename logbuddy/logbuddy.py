@@ -41,7 +41,7 @@ class RegexRater:
     def __init__(self):
         pattern = BAD_STRINGS.split()
         pattern = f".*({'|'.join(pattern)}).*"
-        self.pattern = re.compile(pattern, re.IGNORECASE)
+        self.pattern = re.compile(pattern, re.IGNORECASE | re.DOTALL)
 
     def __call__(self, log: str) -> str:
         if re.match(self.pattern, log):
@@ -143,7 +143,7 @@ def main():
     log = requests.get(args.url).text
 
     chunks = rate_chunks(log, rater)
-    log_summary = create_extract(chunks, neighbors=True)
+    log_summary = create_extract(chunks)
 
     ratio = len(log_summary.split('\n'))/len(log.split('\n'))
 
