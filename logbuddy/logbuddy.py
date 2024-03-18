@@ -63,14 +63,15 @@ class LLMRater:
         prompt = SUMMARIZE_PROPT_TEMPLATE.format(log)
         out = self.model(prompt, max_tokens=7, grammar=self.grammar)
         out = f"{out['choices'][0]['text']}\n"
+        return out
 
 
-def download_model(url: str) -> None:
+def download_model(url: str) -> str:
     path = os.path.join(
         os.path.expanduser(CACHE_LOC), url.split('/')[-1])
 
     if not os.path.exists(path):
-        file, status = urlretrieve(url, path)
+        path, status = urlretrieve(url, path)
 
     return path
 
@@ -90,7 +91,7 @@ def rate_chunks(
     return results
 
 
-def create_extract(chunks: list[str], neighbors: bool = False) -> str:
+def create_extract(chunks: list[tuple], neighbors: bool = False) -> str:
 
     interesting = []
     summary = ""
