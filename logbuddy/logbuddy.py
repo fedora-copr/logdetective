@@ -78,7 +78,7 @@ def download_model(url: str) -> str:
 
 def rate_chunks(
         log: str, model: Union[LLMRater, RegexRater],
-        n_lines: int = 10) -> list[tuple]:
+        n_lines: int = 2) -> list[tuple]:
 
     results = []
     log_lines = log.split("\n")
@@ -118,6 +118,7 @@ def main():
     parser.add_argument("url", type=str, default="")
     parser.add_argument("-M", "--model", type=str, default=DEFAULT_ADVISOR)
     parser.add_argument("-S", "--summarizer", type=str, default="regex")
+    parser.add_argument("-N","--n_lines", type=int, default=5)
     args = parser.parse_args()
 
     if not os.path.exists(CACHE_LOC):
@@ -139,11 +140,11 @@ def main():
     model = Llama(
         model_path=model_pth,
         n_ctx=0,
-        verbose=False)
+        verbose=True,)
 
     log = requests.get(args.url).text
 
-    chunks = rate_chunks(log, rater)
+    chunks = rate_chunks(log, rater, args.n_lines)
     log_summary = create_extract(chunks)
 
     ratio = len(log_summary.split('\n'))/len(log.split('\n'))
