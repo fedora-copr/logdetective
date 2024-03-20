@@ -6,18 +6,22 @@ import numpy as np
 import re
 from typing import Union
 from urllib.request import urlretrieve
+import drain3
+from drain3.template_miner_config import TemplateMinerConfig
+
 
 DEFAULT_ADVISOR = "https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/mistral-7b-instruct-v0.2.Q4_K_S.gguf?download=true"
 
 DEFAULT_LLM_RATER = "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_S.gguf?download=true"
 
 PROMPT_TEMPLATE = """
-Following is a summary of a log file from an RPM build.
-Identify reason for build failure, if any, and recommend solution:
+Given following log snippets, and nothing else, explain what build failure, if any occured during build of this package?
 
 {}
 
-Reason for build failure and proposed solution:
+Analysis of the failure must be in a format of [X] : [Y], where [X] is a log snippet, and [Y] is the explanation.
+
+Analysis:
 
 """
 
@@ -66,6 +70,21 @@ class LLMRater:
         return out
 
 
+class DrainRater:
+
+    def __init__(self):
+        config = TemplateMinerConfig()
+        config.load(f"{os.path.dirname(__file__)}/drain3.ini")
+        self.miner = drain3.TemplateMiner(config=config)
+
+    def __call__(self, log: str) -> str:
+        for line in log.splitlines():
+            self.miner.add_log_message(line)
+        sorted_clusters = sorted(self.miner.drain.clusters, key=lambda it: it.size, reverse=True)
+        out = "\n".join([c.get_template() for c in sorted_clusters])
+        return out
+
+
 def download_model(url: str) -> str:
     path = os.path.join(
         os.path.expanduser(CACHE_LOC), url.split('/')[-1])
@@ -77,7 +96,7 @@ def download_model(url: str) -> str:
 
 
 def rate_chunks(
-        log: str, model: Union[LLMRater, RegexRater],
+        log: str, model: Union[LLMRater, RegexRater, DrainRater],
         n_lines: int = 2) -> list[tuple]:
 
     results = []
@@ -131,6 +150,8 @@ def main():
 
     if args.summarizer == "regex":
         rater = RegexRater()
+    elif args.summarizer == "drain":
+        rater = DrainRater()
     elif os.path.isfile(args.summarizer):
         rater = LLMRater(args.summarizer)
     else:
@@ -143,9 +164,11 @@ def main():
         verbose=True,)
 
     log = requests.get(args.url).text
-
-    chunks = rate_chunks(log, rater, args.n_lines)
-    log_summary = create_extract(chunks)
+    if args.summarizer == "drain":
+        log_summary = rater(log)
+    else:
+        chunks = rate_chunks(log, rater, args.n_lines)
+        log_summary = create_extract(chunks)
 
     ratio = len(log_summary.split('\n'))/len(log.split('\n'))
 
