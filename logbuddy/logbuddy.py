@@ -15,11 +15,14 @@ DEFAULT_ADVISOR = "https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF
 DEFAULT_LLM_RATER = "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_S.gguf?download=true"
 
 PROMPT_TEMPLATE = """
-Given following log snippets, and nothing else, explain what build failure, if any occured during build of this package?
+Given following log snippets, and nothing else, explain what failure, if any occured during build of this package.
+Ignore strings wrapped in <: :>, such as <:*:>.
 
 {}
 
 Analysis of the failure must be in a format of [X] : [Y], where [X] is a log snippet, and [Y] is the explanation.
+
+Finally, drawing on information from all snippets, provide complete explanation of the issue.
 
 Analysis:
 
