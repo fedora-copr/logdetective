@@ -15,11 +15,11 @@ To analyze a log file, run the script with the following command line arguments:
 - url (required): The URL of the log file to be analyzed.
 - --model: The path or URL of the language model for analysis. If not provided, it will use a predefined one (Mistral-7B-Instruct-v0.2-GGUF).
 - --summarizer (optional, default: "drain"): Choose between LLM and Drain template miner as the log summarizer. You can also provide the path to an existing language model file instead of using a URL.
-- --n_lines (optional, default: 5): The number of lines per chunk for LLM analysis.
+- --n_lines (optional, default: 5): The number of lines per chunk for LLM analysis. This only makes sense when you are summarizing with LLM.
 
 Example usage:
 
-    logbuddy https://example.com/logs.txt --model=https://mymodel.co/model_file --summarizer=drain --nlines=10
+    logbuddy https://example.com/logs.txt --model https://mymodel.co/model_file --summarizer drain --nlines 10
 
 
 Development
