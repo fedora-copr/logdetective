@@ -22,22 +22,18 @@ Example usage:
     logbuddy https://example.com/logs.txt --model https://mymodel.co/model_file --summarizer drain --nlines 10
 
 
-Development
------------
-
-To develop the script, clone this repository and install dependencies using pip:
-
-git clone https://github.com/yourusername/logbuddy.git
-cd logbuddy
-pip install -r requirements.txt .
-
-
-Make changes to the code as needed and run pre-commit.
-
 Contributing
 ------------
 
 Contributions are welcome! Please submit a pull request if you have any improvements or new features to add. Make sure your changes pass all existing tests before submitting.
+
+To develop the script, clone this repository and install dependencies using pip:
+
+    git clone https://github.com/yourusername/logbuddy.git
+    cd logbuddy
+    pip install -r requirements.txt .
+
+Make changes to the code as needed and run pre-commit.
 
 License
 -------
