@@ -6,7 +6,7 @@ import numpy as np
 from urllib.request import urlretrieve
 import drain3
 from drain3.template_miner_config import TemplateMinerConfig
-
+import logging
 
 DEFAULT_ADVISOR = "https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/mistral-7b-instruct-v0.2.Q4_K_S.gguf?download=true"
 
@@ -39,15 +39,17 @@ Answer:
 
 CACHE_LOC = "~/.cache/logbuddy/"
 
+LOG = logging.getLogger("logbuddy")
+
 class LLMExtractor:
     """
     A class that extracts relevant information from logs using a language model.
     """
-    def __init__(self, model_path: str):
+    def __init__(self, model_path: str, verbose: bool):
         self.model = Llama(
             model_path=model_path,
             n_ctx=0,
-            verbose=False)
+            verbose=verbose)
         self.grammar = LlamaGrammar.from_string(
             "root ::= (\"Yes\" | \"No\")", verbose=False)
 
@@ -92,14 +94,17 @@ class LLMExtractor:
 class DrainExtractor:
     """A class that extracts information from logs using a template miner algorithm.
     """
-    def __init__(self):
+    def __init__(self, verbose: bool = False):
         config = TemplateMinerConfig()
         config.load(f"{os.path.dirname(__file__)}/drain3.ini")
+        config.profiling_enabled = verbose
         self.miner = drain3.TemplateMiner(config=config)
+        self.verbose = verbose
 
     def __call__(self, log: str) -> str:
         for line in log.splitlines():
-            self.miner.add_log_message(line)
+            procesed_line = self.miner.add_log_message(line)
+            LOG.info(procesed_line)
         sorted_clusters = sorted(self.miner.drain.clusters, key=lambda it: it.size, reverse=True)
         out = "\n".join([c.get_template() for c in sorted_clusters])
         return out
@@ -143,8 +148,10 @@ def main():
     parser.add_argument("-M", "--model", type=str, default=DEFAULT_ADVISOR)
     parser.add_argument("-S", "--summarizer", type=str, default="drain")
     parser.add_argument("-N","--n_lines", type=int, default=5)
-    args = parser.parse_args()
+    parser.add_argument("-v", "--verbose", action='count', default=0)
 
+    args = parser.parse_args()
+    LOG.setLevel(args.verbose)
     if not os.path.exists(CACHE_LOC):
         os.makedirs(os.path.expanduser(CACHE_LOC), exist_ok=True)
 
@@ -154,9 +161,9 @@ def main():
         model_pth = args.model
 
     if args.summarizer == "drain":
-        extractor = DrainExtractor()
+        extractor = DrainExtractor(args.verbose > 1)
     elif os.path.isfile(args.summarizer):
-        extractor = LLMExtractor(args.summarizer)
+        extractor = LLMExtractor(args.summarizer, args.verbose > 1)
     else:
         summarizer_pth = download_model(args.summarizer)
         extractor = LLMExtractor(summarizer_pth)
@@ -164,15 +171,16 @@ def main():
     model = Llama(
         model_path=model_pth,
         n_ctx=0,
-        verbose=True,)
+        verbose=args.verbose > 2)
 
     log = requests.get(args.url).text
     log_summary = extractor(log)
 
     ratio = len(log_summary.split('\n'))/len(log.split('\n'))
 
-    print(f"Log summary: \n{log_summary}")
-    print(f"Compression ratio: {ratio}")
+    LOG.info(f"Log summary: \n{log_summary}")
+    LOG.info(f"Compression ratio: {ratio}")
+
     print(f"Explanation: \n{process_log(log_summary, model)}")
 
 
