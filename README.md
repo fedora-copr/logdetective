@@ -27,7 +27,7 @@ Contributing
 
 Contributions are welcome! Please submit a pull request if you have any improvements or new features to add. Make sure your changes pass all existing tests before submitting.
 
-To develop the script, clone this repository and install dependencies using pip:
+To develop logbuddy, you should fork this repository, clone your fork, and install dependencies using pip:
 
     git clone https://github.com/yourusername/logbuddy.git
     cd logbuddy
