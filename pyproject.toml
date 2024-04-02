@@ -1,11 +1,11 @@
 [tool.poetry]
-name = "logbuddy"
+name = "logdetective"
 version = "0.1.0"
 description = ""
 authors = ["Jiri Podivin <jpodivin@gmail.com>"]
 license = "Apache-2.0"
 readme = "README.md"
-include = ["logbuddy/drain3.ini"]
+include = ["logdetective/drain3.ini"]
 
 [tool.poetry.dependencies]
 python = "^3.11"
@@ -19,4 +19,5 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-logbuddy = 'logbuddy.logbuddy:main'
+logdetective = 'logdetective.logdetective:main'
+
