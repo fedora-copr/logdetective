@@ -19,7 +19,7 @@ To analyze a log file, run the script with the following command line arguments:
 
 Example usage:
 
-    logbuddy https://example.com/logs.txt --model https://mymodel.co/model_file --summarizer drain --nlines 10
+    logdetective https://example.com/logs.txt --model https://mymodel.co/model_file --summarizer drain --nlines 10
 
 
 Contributing
@@ -27,10 +27,10 @@ Contributing
 
 Contributions are welcome! Please submit a pull request if you have any improvements or new features to add. Make sure your changes pass all existing tests before submitting.
 
-To develop logbuddy, you should fork this repository, clone your fork, and install dependencies using pip:
+To develop logdetective, you should fork this repository, clone your fork, and install dependencies using pip:
 
-    git clone https://github.com/yourusername/logbuddy.git
-    cd logbuddy
+    git clone https://github.com/yourusername/logdetective.git
+    cd logdetective
     pip install -r requirements.txt .
 
 Make changes to the code as needed and run pre-commit.

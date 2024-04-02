@@ -37,9 +37,9 @@ Answer:
 
 """
 
-CACHE_LOC = "~/.cache/logbuddy/"
+CACHE_LOC = "~/.cache/logdetective/"
 
-LOG = logging.getLogger("logbuddy")
+LOG = logging.getLogger("logdetective")
 
 class LLMExtractor:
     """
@@ -143,7 +143,7 @@ def process_log(log: str, model: Llama) -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser("logbuddy")
+    parser = argparse.ArgumentParser("logdetective")
     parser.add_argument("url", type=str, default="")
     parser.add_argument("-M", "--model", type=str, default=DEFAULT_ADVISOR)
     parser.add_argument("-S", "--summarizer", type=str, default="drain")
