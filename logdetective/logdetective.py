@@ -94,19 +94,26 @@ class LLMExtractor:
 class DrainExtractor:
     """A class that extracts information from logs using a template miner algorithm.
     """
-    def __init__(self, verbose: bool = False):
+    def __init__(self, verbose: bool = False, context: bool = False):
         config = TemplateMinerConfig()
         config.load(f"{os.path.dirname(__file__)}/drain3.ini")
         config.profiling_enabled = verbose
         self.miner = drain3.TemplateMiner(config=config)
         self.verbose = verbose
+        self.context = context
 
     def __call__(self, log: str) -> str:
-        for line in log.splitlines():
+        out = ""
+        lines = log.splitlines()
+        for line in lines:
             procesed_line = self.miner.add_log_message(line)
             LOG.info(procesed_line)
         sorted_clusters = sorted(self.miner.drain.clusters, key=lambda it: it.size, reverse=True)
-        out = "\n".join([c.get_template() for c in sorted_clusters])
+        for i in range(len(lines)):
+            cluster = self.miner.match(lines[i], "always")
+            if cluster in sorted_clusters:
+                out += f"{lines[i]}\n"
+                sorted_clusters.remove(cluster)
         return out
 
 
@@ -161,7 +168,7 @@ def main():
         model_pth = args.model
 
     if args.summarizer == "drain":
-        extractor = DrainExtractor(args.verbose > 1)
+        extractor = DrainExtractor(args.verbose > 1, context=True)
     elif os.path.isfile(args.summarizer):
         extractor = LLMExtractor(args.summarizer, args.verbose > 1)
     else:
@@ -177,7 +184,6 @@ def main():
     log_summary = extractor(log)
 
     ratio = len(log_summary.split('\n'))/len(log.split('\n'))
-
     LOG.info(f"Log summary: \n{log_summary}")
     LOG.info(f"Compression ratio: {ratio}")
 
