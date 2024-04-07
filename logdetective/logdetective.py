@@ -41,6 +41,25 @@ CACHE_LOC = "~/.cache/logdetective/"
 
 LOG = logging.getLogger("logdetective")
 
+
+def get_chunks(text: str):
+    """Split log into chunks according to heuristic
+    based on whitespace and backslash presence.
+    """
+    text_len = len(text)
+    i = 0
+    chunk = ""
+    while i < text_len:
+        chunk += text[i]
+        if text[i] == '\n':
+            if i+1 < text_len and (text[i+1].isspace() or text[i-1] == "\\"):
+                i += 1
+                continue
+            yield chunk
+            chunk = ""
+        i += 1
+
+
 class LLMExtractor:
     """
     A class that extracts relevant information from logs using a language model.
@@ -104,15 +123,14 @@ class DrainExtractor:
 
     def __call__(self, log: str) -> str:
         out = ""
-        lines = log.splitlines()
-        for line in lines:
-            procesed_line = self.miner.add_log_message(line)
+        for chunk in get_chunks(log):
+            procesed_line = self.miner.add_log_message(chunk)
             LOG.info(procesed_line)
         sorted_clusters = sorted(self.miner.drain.clusters, key=lambda it: it.size, reverse=True)
-        for i in range(len(lines)):
-            cluster = self.miner.match(lines[i], "always")
+        for chunk in get_chunks(log):
+            cluster = self.miner.match(chunk, "always")
             if cluster in sorted_clusters:
-                out += f"{lines[i]}\n"
+                out += f"{chunk}\n"
                 sorted_clusters.remove(cluster)
         return out
 
