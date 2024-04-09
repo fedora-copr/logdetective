@@ -1,5 +1,5 @@
-Log Buddy
-=========
+Log Detective
+=============
 
 A Python tool to analyze logs using Language Model (LLM) and Drain template miner.
 
