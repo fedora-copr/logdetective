@@ -147,6 +147,7 @@ def download_model(url: str) -> str:
     path = os.path.join(
         os.path.expanduser(CACHE_LOC), url.split('/')[-1])
 
+    LOG.info(f"Downloading model from {url} to {path}")
     if not os.path.exists(path):
         path, status = urlretrieve(url, path)
 
