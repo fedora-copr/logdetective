@@ -19,7 +19,7 @@ To analyze a log file, run the script with the following command line arguments:
 
 Example usage:
 
-    logdetective https://example.com/logs.txt --model https://mymodel.co/model_file --summarizer drain --nlines 10
+    logdetective https://example.com/logs.txt --model https://mymodel.co/model_file --summarizer drain --n_lines 10
 
 
 Contributing
@@ -31,7 +31,7 @@ To develop logdetective, you should fork this repository, clone your fork, and i
 
     git clone https://github.com/yourusername/logdetective.git
     cd logdetective
-    pip install -r requirements.txt .
+    pip install .
 
 Make changes to the code as needed and run pre-commit.
 
