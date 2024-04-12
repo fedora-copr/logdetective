@@ -6,6 +6,9 @@ A Python tool to analyze logs using a Language Model (LLM) and Drain template mi
 Installation
 ------------
 
+    # optionaly when you prefer system packages
+    dnf install python3-jsonpickle python3-tiktoken
+    # install all remaining packages
     pip install .
 
 Usage
