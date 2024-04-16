@@ -22,7 +22,7 @@ To analyze a log file, run the script with the following command line arguments:
 
 Example usage:
 
-    logdetective https://example.com/logs.txt --model https://mymodel.co/model_file --summarizer drain --n_lines 10
+    ~/.local/bin/logdetective https://example.com/logs.txt
 
 
 Contributing
