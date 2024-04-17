@@ -13,6 +13,7 @@ requests = "^2.31.0"
 llama-cpp-python = "^0.2.56"
 tiktoken = "^0.6.0"
 drain3 = "^0.9.11"
+progress = "*"
 
 [build-system]
 requires = ["poetry-core"]
@@ -20,4 +21,3 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 logdetective = 'logdetective.logdetective:main'
-
