@@ -38,6 +38,15 @@ To develop logdetective, you should fork this repository, clone your fork, and i
 
 Make changes to the code as needed and run pre-commit.
 
+Tests
+-----
+
+The [tox][https://github.com/tox-dev/tox] is used to manage tests. Please install `tox` package into your distribution and run:
+
+    tox
+
+This will create a virtual environment with dependencies and run all the tests. For more information follow the tox help.
+
 License
 -------
 
