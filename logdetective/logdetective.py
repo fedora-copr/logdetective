@@ -1,17 +1,20 @@
-import requests
 import argparse
-import os
-from llama_cpp import Llama, LlamaGrammar
-import numpy as np
-from urllib.request import urlretrieve
-import drain3
-from drain3.template_miner_config import TemplateMinerConfig
 import logging
+import os
 import sys
-import progressbar
+from urllib.request import urlretrieve
 
+import drain3
+import numpy as np
+import progressbar
+import requests
+from drain3.template_miner_config import TemplateMinerConfig
+from llama_cpp import Llama, LlamaGrammar
+
+# pylint: disable=line-too-long
 DEFAULT_ADVISOR = "https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/mistral-7b-instruct-v0.2.Q4_K_S.gguf?download=true"
 
+# pylint: disable=line-too-long
 DEFAULT_LLM_RATER = "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_S.gguf?download=true"
 
 PROMPT_TEMPLATE = """
@@ -45,6 +48,7 @@ LOG = logging.getLogger("logdetective")
 
 
 class MyProgressBar():
+    """Show progress when downloading model."""
     def __init__(self):
         self.pbar = None
 
@@ -96,7 +100,11 @@ class LLMExtractor:
         return out
 
     def rate_chunks(self, log: str, n_lines: int = 2) -> list[tuple]:
-
+        """Scan log by the model and store results.
+        
+        :param log: log file content
+        :param n_lines: How many lines should the model take into consideration
+        """
         results = []
         log_lines = log.split("\n")
 
@@ -111,9 +119,11 @@ class LLMExtractor:
 
 
     def create_extract(self, chunks: list[tuple], neighbors: bool = False) -> str:
-
+        """Extract interesting chunks from the model processing.
+        """
         interesting = []
         summary = ""
+        # pylint: disable=consider-using-enumerate
         for i in range(len(chunks)):
             if chunks[i][1].startswith("Yes"):
                 interesting.append(i)
@@ -165,12 +175,12 @@ def download_model(url: str, verbose: bool = False) -> str:
     path = os.path.join(
         os.path.expanduser(CACHE_LOC), url.split('/')[-1])
 
-    LOG.info(f"Downloading model from {url} to {path}")
+    LOG.info("Downloading model from %s to %s", url, path)
     if not os.path.exists(path):
         if verbose:
-            path, status = urlretrieve(url, path, MyProgressBar())
+            path, _status = urlretrieve(url, path, MyProgressBar())
         else:
-            path, status = urlretrieve(url, path)
+            path, _status = urlretrieve(url, path)
 
     return path
 
@@ -190,6 +200,7 @@ def process_log(log: str, model: Llama) -> str:
 
 
 def main():
+    """Main execution function."""
     parser = argparse.ArgumentParser("logdetective")
     parser.add_argument("url", type=str, default="")
     parser.add_argument("-M", "--model", type=str, default=DEFAULT_ADVISOR)
@@ -226,7 +237,7 @@ def main():
         extractor = LLMExtractor(args.summarizer, args.verbose > 1)
     else:
         summarizer_pth = download_model(args.summarizer, not args.quiet)
-        extractor = LLMExtractor(summarizer_pth)
+        extractor = LLMExtractor(summarizer_pth, args.verbose > 1)
 
     LOG.info("Getting summary")
     model = Llama(
@@ -234,12 +245,12 @@ def main():
         n_ctx=0,
         verbose=args.verbose > 2)
 
-    log = requests.get(args.url).text
+    log = requests.get(args.url, timeout=60).text
     log_summary = extractor(log)
 
     ratio = len(log_summary.split('\n'))/len(log.split('\n'))
-    LOG.debug(f"Log summary: \n{log_summary}")
-    LOG.info(f"Compression ratio: {ratio}")
+    LOG.debug("Log summary: \n %s", log_summary)
+    LOG.info("Compression ratio: %s", ratio)
 
     LOG.info("Analyzing the text")
     print(f"Explanation: \n{process_log(log_summary, model)}")

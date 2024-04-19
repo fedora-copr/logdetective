@@ -21,3 +21,9 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 logdetective = 'logdetective.logdetective:main'
+
+[tool.pylint]
+disable = [
+    "missing-module-docstring",
+    "too-few-public-methods"
+]
