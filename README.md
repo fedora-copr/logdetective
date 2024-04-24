@@ -41,7 +41,7 @@ Make changes to the code as needed and run pre-commit.
 Tests
 -----
 
-The [tox][https://github.com/tox-dev/tox] is used to manage tests. Please install `tox` package into your distribution and run:
+The [tox](https://github.com/tox-dev/tox) is used to manage tests. Please install `tox` package into your distribution and run:
 
     tox
 
