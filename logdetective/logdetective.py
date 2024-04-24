@@ -54,7 +54,7 @@ class MyProgressBar():
 
     def __call__(self, block_num, block_size, total_size):
         if not self.pbar:
-            self.pbar=progressbar.ProgressBar(maxval=total_size)
+            self.pbar = progressbar.ProgressBar(maxval=total_size)
             self.pbar.start()
 
         downloaded = block_num * block_size
@@ -74,7 +74,7 @@ def get_chunks(text: str):
     while i < text_len:
         chunk += text[i]
         if text[i] == '\n':
-            if i+1 < text_len and (text[i+1].isspace() or text[i-1] == "\\"):
+            if i + 1 < text_len and (text[i + 1].isspace() or text[i - 1] == "\\"):
                 i += 1
                 continue
             yield chunk
@@ -101,7 +101,7 @@ class LLMExtractor:
 
     def rate_chunks(self, log: str, n_lines: int = 2) -> list[tuple]:
         """Scan log by the model and store results.
-        
+
         :param log: log file content
         :param n_lines: How many lines should the model take into consideration
         """
@@ -109,14 +109,13 @@ class LLMExtractor:
         log_lines = log.split("\n")
 
         for i in range(0, len(log_lines), n_lines):
-            block = '\n'.join(log_lines[i:i+n_lines])
+            block = '\n'.join(log_lines[i:i + n_lines])
             prompt = SUMMARIZE_PROPT_TEMPLATE.format(log)
             out = self.model(prompt, max_tokens=7, grammar=self.grammar)
             out = f"{out['choices'][0]['text']}\n"
             results.append((block, out))
 
         return results
-
 
     def create_extract(self, chunks: list[tuple], neighbors: bool = False) -> str:
         """Extract interesting chunks from the model processing.
@@ -128,7 +127,7 @@ class LLMExtractor:
             if chunks[i][1].startswith("Yes"):
                 interesting.append(i)
                 if neighbors:
-                    interesting.extend([max(i-1, 0), min(i+1, len(chunks)-1)])
+                    interesting.extend([max(i - 1, 0), min(i + 1, len(chunks) - 1)])
 
         interesting = np.unique(interesting)
 
@@ -205,12 +204,11 @@ def main():
     parser.add_argument("url", type=str, default="")
     parser.add_argument("-M", "--model", type=str, default=DEFAULT_ADVISOR)
     parser.add_argument("-S", "--summarizer", type=str, default="drain")
-    parser.add_argument("-N","--n_lines", type=int, default=5)
+    parser.add_argument("-N", "--n_lines", type=int, default=5)
     parser.add_argument("-v", "--verbose", action='count', default=0)
     parser.add_argument("-q", "--quiet", action='store_true')
 
     args = parser.parse_args()
-
 
     if args.verbose and args.quiet:
         sys.stderr.write("Error: --quiet and --verbose is mutually exclusive.\n")
@@ -248,7 +246,7 @@ def main():
     log = requests.get(args.url, timeout=60).text
     log_summary = extractor(log)
 
-    ratio = len(log_summary.split('\n'))/len(log.split('\n'))
+    ratio = len(log_summary.split('\n')) / len(log.split('\n'))
     LOG.debug("Log summary: \n %s", log_summary)
     LOG.info("Compression ratio: %s", ratio)
 

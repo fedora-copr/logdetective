@@ -47,6 +47,14 @@ The [tox](https://github.com/tox-dev/tox) is used to manage tests. Please instal
 
 This will create a virtual environment with dependencies and run all the tests. For more information follow the tox help.
 
+To run only a specific test execute this:
+
+    tox run -e style # to run flake8
+
+or
+
+    tox run -e lint # to run pylint
+
 License
 -------
 
