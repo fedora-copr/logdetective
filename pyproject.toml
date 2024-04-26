@@ -39,6 +39,8 @@ logdetective = 'logdetective.logdetective:main'
 
 [tool.pylint]
 disable = [
+    "inconsistent-return-statements",
     "missing-module-docstring",
-    "too-few-public-methods"
+    "too-few-public-methods",
+    "unspecified-encoding",
 ]
