@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import argparse
 import subprocess
+import sys
 
 
 NAME = "logdetective"
@@ -48,6 +49,30 @@ def create_tag(version):
     subprocess.run(["git", "tag", f"{NAME}-{version}"], check=True)
 
 
+def run_checks():
+    """Run checks on the code and check lock file."""
+    ok = True
+    print("Running poetry lock check")
+    try:
+        subprocess.run(["poetry", "check", "--lock"],
+                       check=True,
+                       stdout=sys.stdout, stderr=sys.stderr)
+    except subprocess.CalledProcessError:
+        print("Poetry lock file is not up to date!", file=sys.stderr)
+        ok = False
+
+    print("Running tests")
+    try:
+        subprocess.run(["tox"],
+                       check=True,
+                       stdout=sys.stdout, stderr=sys.stderr)
+    except subprocess.CalledProcessError:
+        print("Tests failed!", file=sys.stderr)
+        ok = False
+
+    return ok
+
+
 if __name__ == "__main__":
     # Parse arguments
     parse = argparse.ArgumentParser("bumpver.py",
@@ -57,7 +82,17 @@ if __name__ == "__main__":
     parse.add_argument("--version", action="store", default=None,
                        dest="version", help="""Set a specific version. Without this argument the
                        patch version bump will be automatically used.""")
+    parse.add_argument("--no-check", action="store_false",
+                       default=True, dest="check",
+                       help="Disable checks on the code and lock file before commit.")
     args = parse.parse_args()
+
+    # Run checks before version bump
+    if args.check:
+        if not run_checks():
+            print("\nChecks returned error!", file=sys.stderr)
+            print("If you want to bypass checks use '--no-check' argument.")
+            sys.exit(1)
 
     # Bump the project version
     new_version = bump_version(args.version)
