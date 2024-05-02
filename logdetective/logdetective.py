@@ -64,6 +64,23 @@ class MyProgressBar():
             self.pbar.finish()
 
 
+def chunk_continues(text: str, index: int) -> bool:
+    """Set of heuristics for determining whether or not
+    does the current chunk of log text continue on next line.
+    """
+    conditionals = [
+        lambda i, string: string[i + 1].isspace(),
+        lambda i, string: string[i - 1] == "\\"
+    ]
+
+    for c in conditionals:
+        y = c(index, text)
+        if y:
+            return True
+
+    return False
+
+
 def get_chunks(text: str):
     """Split log into chunks according to heuristic
     based on whitespace and backslash presence.
@@ -74,7 +91,7 @@ def get_chunks(text: str):
     while i < text_len:
         chunk += text[i]
         if text[i] == '\n':
-            if i + 1 < text_len and (text[i + 1].isspace() or text[i - 1] == "\\"):
+            if i + 1 < text_len and chunk_continues(text, i):
                 i += 1
                 continue
             yield chunk
