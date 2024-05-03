@@ -6,6 +6,9 @@ authors = ["Jiri Podivin <jpodivin@gmail.com>"]
 license = "Apache-2.0"
 readme = "README.md"
 include = ["logdetective/drain3.ini"]
+packages = [
+    { include = "logdetective" }
+]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
@@ -35,6 +38,9 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 logdetective = 'logdetective.logdetective:main'
+
+[tool.poetry.extras]
+server = ["fastapi", "pydantic"]
 
 [tool.pylint]
 disable = [
