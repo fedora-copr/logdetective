@@ -24,6 +24,10 @@ Example usage:
 
     logdetective https://example.com/logs.txt
 
+Or if the log file is stored locally:
+
+    logdetective ./data/logs.txt
+
 
 Contributing
 ------------
