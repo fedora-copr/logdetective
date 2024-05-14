@@ -6,6 +6,22 @@ A Python tool to analyze logs using a Language Model (LLM) and Drain template mi
 Installation
 ------------
 
+The logdetective project is published on the the the the the [Pypi repository](https://pypi.org/project/logdetective/). The `pip` tool can be used for installation.
+
+First, ensure that the necessary dependencies for the `llama-cpp-python` project are installed. For Fedora, install `gcc-c++`:
+
+    # for Fedora it will be:
+    dnf install gcc-c++
+
+**From Pypi repository**
+
+Then, install the `logdetective` project using pip:
+
+    # then install logdetective project
+    pip install logdetective
+
+**Local repository install**
+
     # optionaly when you prefer system packages
     dnf install python3-jsonpickle python3-tiktoken
     # install all remaining packages
