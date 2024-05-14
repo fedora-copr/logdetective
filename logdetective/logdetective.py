@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 from urllib.request import urlretrieve
+from urllib.parse import urlparse
 
 import drain3
 import numpy as np
@@ -215,6 +216,24 @@ def process_log(log: str, model: Llama) -> str:
     return model(PROMPT_TEMPLATE.format(log), max_tokens=0)["choices"][0]["text"]
 
 
+def retrieve_log_content(log_path):
+    """Get content of the file on the log_path path."""
+    parsed_url = urlparse(log_path)
+    log = ""
+
+    if not parsed_url.scheme:
+        if not os.path.exists(log_path):
+            raise ValueError(f"Local log {log_path} doesn't exist!")
+
+        with open(log_path, "rt") as f:
+            log = f.read()
+
+    else:
+        log = requests.get(log_path, timeout=60).text
+
+    return log
+
+
 def main():
     """Main execution function."""
     parser = argparse.ArgumentParser("logdetective")
@@ -260,7 +279,7 @@ def main():
         n_ctx=0,
         verbose=args.verbose > 2)
 
-    log = requests.get(args.url, timeout=60).text
+    log = retrieve_log_content(args.url)
     log_summary = extractor(log)
 
     ratio = len(log_summary.split('\n')) / len(log.split('\n'))
