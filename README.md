@@ -22,9 +22,6 @@ Then, install the `logdetective` project using pip:
 
 **Local repository install**
 
-    # optionaly when you prefer system packages
-    dnf install python3-jsonpickle python3-tiktoken
-    # install all remaining packages
     pip install .
 
 Usage
