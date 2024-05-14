@@ -22,7 +22,7 @@ To analyze a log file, run the script with the following command line arguments:
 
 Example usage:
 
-    ~/.local/bin/logdetective https://example.com/logs.txt
+    logdetective https://example.com/logs.txt
 
 
 Contributing
