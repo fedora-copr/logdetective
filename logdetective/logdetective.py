@@ -32,7 +32,7 @@ Analysis:
 
 """
 
-SUMMARIZE_PROPT_TEMPLATE = """
+SUMMARIZE_PROMPT_TEMPLATE = """
 Does following log contain error or issue?
 
 Log:
@@ -128,7 +128,7 @@ class LLMExtractor:
 
         for i in range(0, len(log_lines), n_lines):
             block = '\n'.join(log_lines[i:i + n_lines])
-            prompt = SUMMARIZE_PROPT_TEMPLATE.format(log)
+            prompt = SUMMARIZE_PROMPT_TEMPLATE.format(log)
             out = self.model(prompt, max_tokens=7, grammar=self.grammar)
             out = f"{out['choices'][0]['text']}\n"
             results.append((block, out))
@@ -169,8 +169,8 @@ class DrainExtractor:
     def __call__(self, log: str) -> str:
         out = ""
         for chunk in get_chunks(log):
-            procesed_line = self.miner.add_log_message(chunk)
-            LOG.debug(procesed_line)
+            processed_line = self.miner.add_log_message(chunk)
+            LOG.debug(processed_line)
         sorted_clusters = sorted(self.miner.drain.clusters, key=lambda it: it.size, reverse=True)
         for chunk in get_chunks(log):
             cluster = self.miner.match(chunk, "always")
