@@ -42,6 +42,70 @@ Or if the log file is stored locally:
     logdetective ./data/logs.txt
 
 
+Real Example
+------------
+Let's have a look at a real world example. Log Detective can work with any logs though we optimize it for build logs.
+
+We're going to analyze a failed build of a python-based library that happened in Fedora Koji buildsystem:
+```
+$ logdetective https://kojipkgs.fedoraproject.org//work/tasks/8157/117788157/build.log
+Explanation:
+[Child return code was: 0] : The rpm build process executed successfully without any errors until the 'check' phase.
+
+[wamp/test/test_wamp_component_aio.py::test_asyncio_component] : Pytest found
+two tests marked with '@pytest.mark.asyncio' but they are not async functions.
+This warning can be ignored unless the tests are intended to be run
+asynchronously.
+
+[wamp/test/test_wamp_component_aio.py::test_asyncio_component_404] : Another
+Pytest warning for the same issue as test_asyncio_component.
+
+[-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html] :
+This line is not related to the error, but it is a reminder to refer to Pytest
+documentation for handling warnings.
+
+[=========================== short test summary info
+============================] : This section shows the summary of tests that
+were executed. It shows the number of tests passed, failed, skipped,
+deselected, and warnings.
+
+[FAILED wamp/test/test_wamp_cryptosign.py::TestSigVectors::test_vectors] : A
+failed test is reported with the name of the test file, the name of the test
+method, and the name of the test case that failed. In this case,
+TestSigVectors::test_vectors failed.
+
+[FAILED
+websocket/test/test_websocket_protocol.py::WebSocketClientProtocolTests::test_auto_ping]
+: Another failed test is reported with the same format as the previous test. In
+this case, it is WebSocketClientProtocolTests::test_auto_ping that failed.
+
+[FAILED websocket/test/test_websocket_protocol.py::WebSocketServerProtocolTests::test_interpolate_server_status_template]
+: A third failed test is reported with the same format as the previous tests.
+In this case, it is
+WebSocketServerProtocolTests::test_interpolate_server_status_template that
+failed.
+
+[FAILED websocket/test/test_websocket_protocol.py::WebSocketServerProtocolTests::test_sendClose_reason_with_no_code]
+: Another failed test is reported. This time it is
+WebSocketServerProtocolTests::test_sendClose_reason_with_no_code.
+
+[FAILED websocket/test/test_websocket_protocol.py::WebSocketServerProtocolTests::test_sendClose_str_reason]
+: Another failed test is reported with the same test file and test method name,
+but a different test case name: test_sendClose_str_reason.
+
+[==== 13 failed, 195 passed, 64 skipped, 13 deselected, 2 warnings in 6.55s
+=====] : This is the summary of all tests that were executed, including the
+number of tests that passed, failed, were skipped, deselected, or produced
+warnings. In this case, there were 13 failed tests among a total of 211 tests.
+
+[error: Bad exit status from /var/tmp/rpm-tmp.8C0L25 (%check)] : An error
+message is reported indicating that the 'check' phase of the rpm build process
+failed with a bad exit status.
+```
+
+It looks like a wall of text. Similar to any log. The main difference is that here we have the most significant lines of a logfile wrapped in `[ ] : ` and followed by textual explanation of the log text done by mistral 7b.
+
+
 Contributing
 ------------
 
