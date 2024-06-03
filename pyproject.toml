@@ -26,7 +26,6 @@ issues = "https://github.com/fedora-copr/logdetective/issues"
 python = "^3.11"
 requests = "^2.31.0"
 llama-cpp-python = "^0.2.56"
-tiktoken = "^0.6.0"
 drain3 = "^0.9.11"
 progressbar2 = ">=3.53.2"
 
