@@ -1,33 +1,14 @@
 import logging
 import os
 from urllib.parse import urlparse
-from urllib.request import urlretrieve
 
 import requests
-import progressbar
 
 from llama_cpp import Llama
-from logdetective.constants import CACHE_LOC, PROMPT_TEMPLATE
+from logdetective.constants import PROMPT_TEMPLATE
 
 
 LOG = logging.getLogger("logdetective")
-
-
-class MyProgressBar():
-    """Show progress when downloading model."""
-    def __init__(self):
-        self.pbar = None
-
-    def __call__(self, block_num, block_size, total_size):
-        if not self.pbar:
-            self.pbar = progressbar.ProgressBar(maxval=total_size)
-            self.pbar.start()
-
-        downloaded = block_num * block_size
-        if downloaded < total_size:
-            self.pbar.update(downloaded)
-        else:
-            self.pbar.finish()
 
 
 def chunk_continues(text: str, index: int) -> bool:
@@ -65,38 +46,24 @@ def get_chunks(text: str):
         i += 1
 
 
-def download_model(url: str, verbose: bool = False) -> str:
-    """ Downloads a language model from a given URL and saves it to the cache directory.
-
-    Args:
-        url (str): The URL of the language model to be downloaded.
-
-    Returns:
-        str: The local file path of the downloaded language model.
-    """
-    path = os.path.join(
-        os.path.expanduser(CACHE_LOC), url.split('/')[-1])
-
-    LOG.info("Downloading model from %s to %s", url, path)
-    if not os.path.exists(path):
-        if verbose:
-            path, _status = urlretrieve(url, path, MyProgressBar())
-        else:
-            path, _status = urlretrieve(url, path)
-
-    return path
-
-
-def initialize_model(model_pth: str, verbose: bool) -> Llama:
+def initialize_model(model_pth: str, filename_suffix: str = ".gguf", verbose: bool = False) -> Llama:
     """Initialize Llama class for inference.
     Args:
-        model_pth (str): path to gguf model file
+        model_pth (str): path to gguf model file or Hugging Face name
+        filename_suffix (str): suffix of the model file name to be pulled from Hugging Face
         verbose (bool): level of verbosity for llamacpp
     """
-    model = Llama(
-        model_path=model_pth,
-        n_ctx=0,  # Maximum context for the model
-        verbose=verbose)
+    if os.path.isfile(model_pth):
+        model = Llama(
+            model_path=model_pth,
+            n_ctx=0,  # Maximum context for the model
+            verbose=verbose)
+    else:
+        model = Llama.from_pretrained(
+            model_pth,
+            f"*{filename_suffix}",
+            n_ctx=0,  # Maximum context for the model
+            verbose=verbose)
 
     return model
 

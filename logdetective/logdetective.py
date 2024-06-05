@@ -3,8 +3,8 @@ import logging
 import os
 import sys
 
-from logdetective.constants import DEFAULT_ADVISOR, CACHE_LOC
-from logdetective.utils import download_model, process_log, initialize_model, retrieve_log_content
+from logdetective.constants import DEFAULT_ADVISOR
+from logdetective.utils import process_log, initialize_model, retrieve_log_content
 from logdetective.extractors import LLMExtractor, DrainExtractor
 
 LOG = logging.getLogger("logdetective")
@@ -15,8 +15,13 @@ def main():
     parser = argparse.ArgumentParser("logdetective")
     parser.add_argument("file", type=str,
                         default="", help="The URL or path to the log file to be analyzed.")
-    parser.add_argument("-M", "--model", help="The path or URL of the language model for analysis.",
+    parser.add_argument("-M", "--model",
+                        help="The path or Hugging Face name of the language model for analysis.",
                         type=str, default=DEFAULT_ADVISOR)
+    parser.add_argument("-F", "--filename_suffix",
+                        help="Suffix of the model file name to be retrieved from Hugging Face.\
+                            Makes sense only if the model is specified with Hugging Face name.",
+                        default="Q4_K_S.gguf")
     parser.add_argument("-S", "--summarizer", type=str, default="drain",
                         help="Choose between LLM and Drain template miner as the log summarizer.\
                                 LLM must be specified as path to a model, URL or local file.")
@@ -33,32 +38,29 @@ def main():
     if args.verbose and args.quiet:
         sys.stderr.write("Error: --quiet and --verbose is mutually exclusive.\n")
         sys.exit(2)
+
+    # Logging facility setup
     log_level = logging.INFO
     if args.verbose >= 1:
         log_level = logging.DEBUG
     if args.quiet:
         log_level = 0
+
     logging.basicConfig(stream=sys.stdout)
     LOG.setLevel(log_level)
 
-    if not os.path.exists(CACHE_LOC):
-        os.makedirs(os.path.expanduser(CACHE_LOC), exist_ok=True)
+    # Primary model initialization
+    model = initialize_model(args.model, filename_suffix=args.filename_suffix,
+                             verbose=args.verbose > 2)
 
-    if not os.path.isfile(args.model):
-        model_pth = download_model(args.model, not args.quiet)
-    else:
-        model_pth = args.model
-
+    # Log file summarizer selection and initialization
     if args.summarizer == "drain":
         extractor = DrainExtractor(args.verbose > 1, context=True, max_clusters=args.n_clusters)
-    elif os.path.isfile(args.summarizer):
-        extractor = LLMExtractor(args.summarizer, args.verbose > 1, args.n_lines)
     else:
-        summarizer_pth = download_model(args.summarizer, not args.quiet)
-        extractor = LLMExtractor(summarizer_pth, args.verbose > 1)
+        summarizer_model = initialize_model(args.summarizer, verbose=args.verbose > 2)
+        extractor = LLMExtractor(summarizer_model, args.verbose > 1)
 
     LOG.info("Getting summary")
-    model = initialize_model(model_pth, args.verbose > 2)
 
     log = retrieve_log_content(args.file)
     log_summary = extractor(log)
