@@ -1,6 +1,6 @@
 
 # pylint: disable=line-too-long
-DEFAULT_ADVISOR = "https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/mistral-7b-instruct-v0.2.Q4_K_S.gguf?download=true"
+DEFAULT_ADVISOR = "TheBloke/Mistral-7B-Instruct-v0.2-GGUF"
 
 PROMPT_TEMPLATE = """
 Given following log snippets, and nothing else, explain what failure, if any, occured during build of this package.
@@ -25,5 +25,3 @@ Log:
 Answer:
 
 """
-
-CACHE_LOC = "~/.cache/logdetective/"
