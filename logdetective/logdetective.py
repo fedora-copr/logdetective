@@ -1,6 +1,5 @@
 import argparse
 import logging
-import os
 import sys
 
 from logdetective.constants import DEFAULT_ADVISOR
