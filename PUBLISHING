@@ -1,0 +1,26 @@
+# Publishing new release
+
+New releases must be published on PyPi, ideally through github action,
+although manual release management is also permissible.
+In all cases, make sure to follow rules of [semantic versioning](https://semver.org).
+
+New releases should be created in two stages.
+
+## Release patch workflow:
+
+1. Create new branch with name indicating it contains new release, e.g. `release-v5.7.1`.
+2. Increment version in pyproject.toml using `poetry version` command. Use appropriate rule.
+3. Commit the change in pyproject.toml.
+4. Push the change, open PR and wait for approval.
+
+## Github workflow:
+
+1. Open releases dialog in repo main page.
+2. Click on "Draft new release" button.
+3. Create new tag for your release, if there isn't one already.
+   Tag must begin with character "v", e.g. `v5.7.1`.
+4. Set name for your release to match the tag.
+5. Generate release notes or supply them manually.
+6. Upload build artefacts, at very least the wheel build.
+7. Make sure that the release name matches the "version" field in pyproject.toml
+8. Publish the release.
