@@ -16,7 +16,7 @@ jobs:
       # Regex by https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
       - name: Check semver
         run: |
-          echo "${{ GITHUB_REF }}" | grep -q -P "^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"
+          echo "${{ github.ref }}" | grep -q -P "^/refs/tags/(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"
           || exit 1
       - name: Set token for pypi
         run: poetry config pypi-token.pypi "${{ secrets.PYPI_TOKEN_CI }}"
