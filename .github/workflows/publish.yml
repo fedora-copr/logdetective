@@ -6,18 +6,18 @@ jobs:
   pypi_release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v2
+      # Regex by https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
+      - name: Check semver
+        run: |
+          echo "${{ github.ref }}" | grep -q -P "^refs/tags/(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"
+          || exit 1
       - name: Install Poetry
         run: curl -sSL https://install.python-poetry.org | python -
       - name: Add Poetry to path
         run: echo "${HOME}/.poetry/bin" >> $GITHUB_PATH
       - run: poetry install
-      # Regex by https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
-      - name: Check semver
-        run: |
-          echo "${{ github.ref }}" | grep -q -P "^/refs/tags/(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"
-          || exit 1
       - name: Set token for pypi
         run: poetry config pypi-token.pypi "${{ secrets.PYPI_TOKEN_CI }}"
       - name: Build and publish package
