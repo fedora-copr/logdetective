@@ -10,7 +10,7 @@ jobs:
       - uses: actions/setup-python@v2
       # Regex by https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
       - name: Check semver
-        run: |
+        run: >
           echo "${{ github.ref }}" | grep -q -P "^refs/tags/v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"
           || exit 1
       - name: Install Poetry
