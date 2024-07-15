@@ -3,7 +3,7 @@ import logging
 import sys
 
 from logdetective.constants import DEFAULT_ADVISOR
-from logdetective.utils import process_log, initialize_model, retrieve_log_content
+from logdetective.utils import process_log, initialize_model, retrieve_log_content, format_snippets
 from logdetective.extractors import LLMExtractor, DrainExtractor
 
 LOG = logging.getLogger("logdetective")
@@ -64,11 +64,15 @@ def main():
     log = retrieve_log_content(args.file)
     log_summary = extractor(log)
 
-    ratio = len(log_summary.split('\n')) / len(log.split('\n'))
-    LOG.debug("Log summary: \n %s", log_summary)
+    ratio = len(log_summary) / len(log.split('\n'))
+
     LOG.info("Compression ratio: %s", ratio)
 
     LOG.info("Analyzing the text")
+
+    log_summary = format_snippets(log_summary)
+    LOG.info("Log summary: \n %s", log_summary)
+
     print(f"Explanation: \n{process_log(log_summary, model)}")
 
 

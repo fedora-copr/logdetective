@@ -37,7 +37,7 @@ async def analyze_log(build_log: BuildLog):
     log = requests.get(build_log.url, timeout=int(LOG_SOURCE_REQUEST_TIMEOUT)).text
     log_summary = extractor(log)
 
-    ratio = len(log_summary.split('\n')) / len(log.split('\n'))
+    ratio = len(log_summary) / len(log.split('\n'))
     LOG.debug("Log summary: \n %s", log_summary)
     LOG.info("Compression ratio: %s", ratio)
 

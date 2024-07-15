@@ -81,6 +81,7 @@ def process_log(log: str, model: Llama) -> str:
     """
     return model(PROMPT_TEMPLATE.format(log), max_tokens=0)["choices"][0]["text"]
 
+
 def retrieve_log_content(log_path: str) -> str:
     """Get content of the file on the log_path path."""
     parsed_url = urlparse(log_path)
@@ -97,3 +98,18 @@ def retrieve_log_content(log_path: str) -> str:
         log = requests.get(log_path, timeout=60).text
 
     return log
+
+
+def format_snippets(snippets: list[str]) -> str:
+    """Format snippets, giving them separator, id and finally
+    concatenating them.
+    """
+    summary = ""
+    for i, s in enumerate(snippets):
+        summary += f"""
+        Snippet No. {i}:
+
+        {s}
+        ================
+        """
+    return summary
