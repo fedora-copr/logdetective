@@ -21,7 +21,7 @@ class LLMExtractor:
         self.grammar = LlamaGrammar.from_string(
             "root ::= (\"Yes\" | \"No\")", verbose=False)
 
-    def __call__(self, log: str, n_lines: int = 2, neighbors: bool = False) -> str:
+    def __call__(self, log: str, n_lines: int = 2, neighbors: bool = False) -> list[str]:
         chunks = self.rate_chunks(log)
         out = self.create_extract(chunks, neighbors)
         return out
@@ -43,11 +43,11 @@ class LLMExtractor:
 
         return results
 
-    def create_extract(self, chunks: list[tuple], neighbors: bool = False) -> str:
+    def create_extract(self, chunks: list[tuple], neighbors: bool = False) -> list[str]:
         """Extract interesting chunks from the model processing.
         """
         interesting = []
-        summary = ""
+        summary = []
         # pylint: disable=consider-using-enumerate
         for i in range(len(chunks)):
             if chunks[i][1].startswith("Yes"):
@@ -58,7 +58,7 @@ class LLMExtractor:
         interesting = set(interesting)
 
         for i in interesting:
-            summary += chunks[i][0] + "\n"
+            summary.append(chunks[i][0])
 
         return summary
 
@@ -75,8 +75,8 @@ class DrainExtractor:
         self.verbose = verbose
         self.context = context
 
-    def __call__(self, log: str) -> str:
-        out = ""
+    def __call__(self, log: str) -> list[str]:
+        out = []
         for chunk in get_chunks(log):
             processed_line = self.miner.add_log_message(chunk)
             LOG.debug(processed_line)
@@ -84,6 +84,6 @@ class DrainExtractor:
         for chunk in get_chunks(log):
             cluster = self.miner.match(chunk, "always")
             if cluster in sorted_clusters:
-                out += f"{chunk}\n"
+                out.append(chunk)
                 sorted_clusters.remove(cluster)
         return out
