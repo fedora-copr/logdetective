@@ -66,7 +66,12 @@ def main():
 
     LOG.info("Getting summary")
 
-    log = retrieve_log_content(args.file)
+    try:
+        log = retrieve_log_content(args.file)
+    except ValueError as e:
+        # file does not exists
+        LOG.error(e)
+        sys.exit(4)
     log_summary = extractor(log)
 
     ratio = len(log_summary.split('\n')) / len(log.split('\n'))
