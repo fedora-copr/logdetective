@@ -49,8 +49,13 @@ def main():
     LOG.setLevel(log_level)
 
     # Primary model initialization
-    model = initialize_model(args.model, filename_suffix=args.filename_suffix,
-                             verbose=args.verbose > 2)
+    try:
+        model = initialize_model(args.model, filename_suffix=args.filename_suffix,
+                                 verbose=args.verbose > 2)
+    except ValueError as e:
+        LOG.error(e)
+        LOG.error("You likely do not have enough memory to load the AI model")
+        sys.exit(3)
 
     # Log file summarizer selection and initialization
     if args.summarizer == "drain":
