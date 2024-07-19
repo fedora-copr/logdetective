@@ -5,6 +5,11 @@ on:
 jobs:
   pypi_release:
     runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/logdetective
+    permissions:
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v2
@@ -18,7 +23,7 @@ jobs:
       - name: Add Poetry to path
         run: echo "${HOME}/.poetry/bin" >> $GITHUB_PATH
       - run: poetry install
-      - name: Set token for pypi
-        run: poetry config pypi-token.pypi "${{ secrets.PYPI_TOKEN_CI }}"
-      - name: Build and publish package
-        run: poetry publish --build
+      - name: Build package
+        run: poetry build
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
