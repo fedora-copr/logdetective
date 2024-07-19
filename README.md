@@ -1,6 +1,10 @@
 Log Detective
 =============
 
+[![PyPI - Version](https://img.shields.io/pypi/v/logdetective?color=blue)][PyPI Releases]
+
+[PyPI Releases]: https://pypi.org/project/logdetective/#history
+
 A Python tool to analyze logs using a Language Model (LLM) and Drain template miner.
 
 Installation
