@@ -4,9 +4,6 @@ import subprocess
 import sys
 
 
-NAME = "logdetective"
-
-
 def call_poetry(bump_rule):
     """Call poetry tool to bump the version."""
     # Bump the version based on the bump rule
@@ -46,7 +43,7 @@ def commit(version):
 
 def create_tag(version):
     """Create a git tag for the new version."""
-    subprocess.run(["git", "tag", f"{NAME}-{version}"], check=True)
+    subprocess.run(["git", "tag", f"v{version}"], check=True)
 
 
 def run_checks():
