@@ -10,14 +10,18 @@ A Python tool to analyze logs using a Language Model (LLM) and Drain template mi
 Installation
 ------------
 
+** Fedora 40+ **
+
+    dnf install logdetective
+
+**From Pypi repository**
+
 The logdetective project is published on the the the the the [Pypi repository](https://pypi.org/project/logdetective/). The `pip` tool can be used for installation.
 
 First, ensure that the necessary dependencies for the `llama-cpp-python` project are installed. For Fedora, install `gcc-c++`:
 
     # for Fedora it will be:
     dnf install gcc-c++
-
-**From Pypi repository**
 
 Then, install the `logdetective` project using pip:
 
@@ -49,6 +53,7 @@ Or if the log file is stored locally:
 Example you want to use a different model:
 
     logdetective https://example.com/logs.txt --model https://huggingface.co/QuantFactory/Meta-Llama-3-8B-Instruct-GGUF/resolve/main/Meta-Llama-3-8B-Instruct.Q5_K_S.gguf?download=true
+    logdetective https://example.com/logs.txt --model QuantFactory/Meta-Llama-3-8B-Instruct-GGUF
 
 
 Real Example
