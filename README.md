@@ -55,6 +55,10 @@ Example you want to use a different model:
     logdetective https://example.com/logs.txt --model https://huggingface.co/QuantFactory/Meta-Llama-3-8B-Instruct-GGUF/resolve/main/Meta-Llama-3-8B-Instruct.Q5_K_S.gguf?download=true
     logdetective https://example.com/logs.txt --model QuantFactory/Meta-Llama-3-8B-Instruct-GGUF
 
+Note that streaming with some models (notably Meta-Llama-3 is broken) is broken and can be workarounded by `no-stream` option:
+
+    logdetective https://example.com/logs.txt --model QuantFactory/Meta-Llama-3-8B-Instruct-GGUF --no-stream
+
 
 Real Example
 ------------
