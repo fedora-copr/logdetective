@@ -1,0 +1,24 @@
+version: "3"
+services:
+  llama-cpp:
+    build:
+      context: .
+    hostname: llama-cpp-server
+    command: "python3 -m llama_cpp.server --model /models/mistral-7b-instruct-v0.2.Q4_K_M.gguf --host 0.0.0.0 --port 8090"
+    stdin_open: true
+    tty: true
+    ports:
+      - 8090:8090
+  server:
+    build:
+      context: .
+    hostname: logdetective-server
+    stdin_open: true
+    tty: true
+    volumes:
+      - .:/src/:z
+    ports:
+      - 8080:8080
+    environment:
+      LLAMA_CPP_SERVER: "http://llama-cpp-server"
+      LLAMA_CPP_SERVER_PORT: "8090"
