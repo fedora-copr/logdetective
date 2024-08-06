@@ -21,6 +21,7 @@ def main():
                         help="Suffix of the model file name to be retrieved from Hugging Face.\
                             Makes sense only if the model is specified with Hugging Face name.",
                         default="Q4_K_S.gguf")
+    parser.add_argument("-n", "--no-stream", action='store_true')
     parser.add_argument("-S", "--summarizer", type=str, default="drain",
                         help="Choose between LLM and Drain template miner as the log summarizer.\
                                 LLM must be specified as path to a model, URL or local file.")
@@ -83,7 +84,18 @@ def main():
     log_summary = format_snippets(log_summary)
     LOG.info("Log summary: \n %s", log_summary)
 
-    print(f"Explanation: \n{process_log(log_summary, model)}")
+    stream = True
+    if args.no_stream:
+        stream = False
+    response = process_log(log_summary, model, stream)
+    print("Explanation:")
+    if args.no_stream:
+        print(response["choices"][0]["text"])
+    else:
+        # Stream the output
+        for chunk in response:
+            delta = chunk['choices'][0]['text']
+            print(delta, end='', flush=True)
 
 
 if __name__ == "__main__":
