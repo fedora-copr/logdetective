@@ -1,17 +1,16 @@
 FROM fedora:40
+# Fedora's llama-cpp-python is segfaulting on the mistral model we use :/
 RUN dnf install -y fastapi-cli python3-fastapi python3-requests python3-drain3 python3-pip python3-pydantic-settings python3-starlette+full \
-    && pip3 install sse-starlette starlette-context huggingface_hub[cli] \
+       gcc gcc-c++ python3-scikit-build git-core \
+    && dnf clean all
+# the newest 0.2.86 fails to build, it seems vendored llama-cpp is missing in the archive
+RUN pip3 install llama_cpp_python==0.2.85 sse-starlette starlette-context \
     && mkdir /src
 
-# we need to bind mount models: this takes a lot of time to download and makes the image huge
-RUN mkdir /models \
-    && huggingface-cli download TheBloke/Mistral-7B-Instruct-v0.2-GGUF mistral-7b-instruct-v0.2.Q4_K_M.gguf --local-dir /models --local-dir-use-symlinks False
-
-# Fedora's llama-cpp-python is segfaulting on the mistral model above :/
-RUN dnf install -y gcc gcc-c++ python3-scikit-build \
-    && pip3 install -U llama_cpp_python
+# uncomment below if you need to download the model, otherwise just bindmount your local
+# models inside the container
+# RUN pip3 install huggingface_hub[cli] \
+#     && mkdir /models \
+#     && huggingface-cli download TheBloke/Mistral-7B-Instruct-v0.2-GGUF mistral-7b-instruct-v0.2.Q4_K_M.gguf --local-dir /models --local-dir-use-symlinks False
 
 COPY ./logdetective/ /src/logdetective/
-
-# --no-reload: doesn't work in a container - `PermissionError: Permission denied (os error 13) about ["/proc"]`
-CMD ["fastapi", "dev", "/src/logdetective/server.py", "--host", "0.0.0.0", "--port", "8080", "--no-reload"]
