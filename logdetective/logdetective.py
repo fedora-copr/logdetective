@@ -8,9 +8,8 @@ from logdetective.extractors import LLMExtractor, DrainExtractor
 
 LOG = logging.getLogger("logdetective")
 
-
-def main():
-    """Main execution function."""
+def setup_args():
+    """ Setup argument parser and return arguments. """
     parser = argparse.ArgumentParser("logdetective")
     parser.add_argument("file", type=str,
                         default="", help="The URL or path to the log file to be analyzed.")
@@ -33,7 +32,12 @@ def main():
                             This only makes sense when you are summarizing with Drain")
     parser.add_argument("-v", "--verbose", action='count', default=0)
     parser.add_argument("-q", "--quiet", action='store_true')
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def main():
+    """Main execution function."""
+    args = setup_args()
 
     if args.verbose and args.quiet:
         sys.stderr.write("Error: --quiet and --verbose is mutually exclusive.\n")
