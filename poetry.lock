@@ -296,12 +296,12 @@ testing-libs = ["demjson", "simplejson", "ujson", "yajl"]
 
 [[package]]
 name = "llama-cpp-python"
-version = "0.2.86"
+version = "0.2.85"
 description = "Python bindings for the llama.cpp library"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "llama_cpp_python-0.2.86.tar.gz", hash = "sha256:343ffc9306149bcd1073f918bac5e8db7267e82dd7105353ca10c341be141d92"},
+    {file = "llama_cpp_python-0.2.85.tar.gz", hash = "sha256:31476c2f4331784d3681f9bcd366cc4666ba97ab128bffbd23cb90ee2cebff21"},
 ]
 
 [package.dependencies]
@@ -587,4 +587,4 @@ server = []
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "96bd9fe0687058a6eb4df5f8adabbd86eb191227802ad8e7cb8332cf2980f070"
+content-hash = "c88bd0caa7c823eff88f58b1a76f383ccefe0dfeea91c17eb3869570d51a65e6"
