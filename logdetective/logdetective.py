@@ -8,9 +8,8 @@ from logdetective.extractors import LLMExtractor, DrainExtractor
 
 LOG = logging.getLogger("logdetective")
 
-
-def main():
-    """Main execution function."""
+def setup_args():
+    """ Setup argument parser and return arguments. """
     parser = argparse.ArgumentParser("logdetective")
     parser.add_argument("file", type=str,
                         default="", help="The URL or path to the log file to be analyzed.")
@@ -21,6 +20,7 @@ def main():
                         help="Suffix of the model file name to be retrieved from Hugging Face.\
                             Makes sense only if the model is specified with Hugging Face name.",
                         default="Q4_K_S.gguf")
+    parser.add_argument("-n", "--no-stream", action='store_true')
     parser.add_argument("-S", "--summarizer", type=str, default="drain",
                         help="Choose between LLM and Drain template miner as the log summarizer.\
                                 LLM must be specified as path to a model, URL or local file.")
@@ -32,7 +32,12 @@ def main():
                             This only makes sense when you are summarizing with Drain")
     parser.add_argument("-v", "--verbose", action='count', default=0)
     parser.add_argument("-q", "--quiet", action='store_true')
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def main():
+    """Main execution function."""
+    args = setup_args()
 
     if args.verbose and args.quiet:
         sys.stderr.write("Error: --quiet and --verbose is mutually exclusive.\n")
@@ -83,7 +88,18 @@ def main():
     log_summary = format_snippets(log_summary)
     LOG.info("Log summary: \n %s", log_summary)
 
-    print(f"Explanation: \n{process_log(log_summary, model)}")
+    stream = True
+    if args.no_stream:
+        stream = False
+    response = process_log(log_summary, model, stream)
+    print("Explanation:")
+    if args.no_stream:
+        print(response["choices"][0]["text"])
+    else:
+        # Stream the output
+        for chunk in response:
+            delta = chunk['choices'][0]['text']
+            print(delta, end='', flush=True)
 
 
 if __name__ == "__main__":
