@@ -163,8 +163,9 @@ Requests can then be made with post requests, for example:
 
 We also have a Containerfile and composefile to run the logdetective server and llama server in containers.
 
-Before doing `docker-compose up`, make sure to set `MODELS_PATH` environment variable and point to a directory with your local model files:
+Before doing `podman-compose up`, make sure to set `MODELS_PATH` environment variable and point to a directory with your local model files:
 ```
+$ export MODELS_PATH=/path/to/models/
 $ ll $MODELS_PATH
 -rw-r--r--. 1 tt tt 3.9G apr 10 17:18  mistral-7b-instruct-v0.2.Q4_K_S.gguf
 ```
