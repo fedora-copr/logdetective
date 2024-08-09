@@ -153,13 +153,24 @@ or
 Server
 ------
 
-FastApi based server is implemented in `logdetective/server.py`. In order to run in a development mode,
+FastApi based server is implemented in `logdetective/server.py`. In order to run it in a development mode,
 simply start llama-cpp-python server with your chosen model as described in llama-cpp-python [docs](https://llama-cpp-python.readthedocs.io/en/latest/server/#running-the-server).
 
 Afterwards, start the logdetective server with `fastapi dev logdetective/server.py --port 8080`.
 Requests can then be made with post requests, for example:
 
     curl --header "Content-Type: application/json" --request POST --data '{"url":"<YOUR_URL_HERE>"}' http://localhost:8080/analyze
+
+We also have a Containerfile and composefile to run the logdetective server and llama server in containers.
+
+Before doing `podman-compose up`, make sure to set `MODELS_PATH` environment variable and point to a directory with your local model files:
+```
+$ export MODELS_PATH=/path/to/models/
+$ ll $MODELS_PATH
+-rw-r--r--. 1 tt tt 3.9G apr 10 17:18  mistral-7b-instruct-v0.2.Q4_K_S.gguf
+```
+
+If the variable is not set, `./models` is mounted inside by default.
 
 
 License
