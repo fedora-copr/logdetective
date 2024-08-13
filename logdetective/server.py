@@ -2,7 +2,7 @@ import logging
 import os
 import json
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 import requests
@@ -35,7 +35,19 @@ async def analyze_log(build_log: BuildLog):
 
     LOG.info("Getting summary")
 
-    log = requests.get(build_log.url, timeout=int(LOG_SOURCE_REQUEST_TIMEOUT)).text
+    try:
+        log_request = requests.get(build_log.url, timeout=int(LOG_SOURCE_REQUEST_TIMEOUT))
+    except requests.RequestException as ex:
+        raise HTTPException(
+            status_code=400,
+            detail=f"We couldn't obtain the logs: {ex}") from ex
+
+    if not log_request.ok:
+        raise HTTPException(status_code=400,
+                            detail="Something went wrong while getting the logs: "
+                                   f"[{log_request.status_code}] {log_request.text}")
+
+    log = log_request.text
     log_summary = extractor(log)
 
     ratio = len(log_summary) / len(log.split('\n'))
@@ -47,11 +59,21 @@ async def analyze_log(build_log: BuildLog):
             "prompt": PROMPT_TEMPLATE.format(log_summary),
             "max_tokens": "0"}
 
-    # Expects llama-cpp server to run on LLM_CPP_SERVER_ADDRESS:LLM_CPP_SERVER_PORT
-    response = requests.post(
-        f"{LLM_CPP_SERVER_ADDRESS}:{LLM_CPP_SERVER_PORT}/v1/completions",
-        headers={"Content-Type":"application/json"},
-        data=json.dumps(data),
-        timeout=int(LLM_CPP_SERVER_TIMEOUT))
+    try:
+        # Expects llama-cpp server to run on LLM_CPP_SERVER_ADDRESS:LLM_CPP_SERVER_PORT
+        response = requests.post(
+            f"{LLM_CPP_SERVER_ADDRESS}:{LLM_CPP_SERVER_PORT}/v1/completions",
+            headers={"Content-Type":"application/json"},
+            data=json.dumps(data),
+            timeout=int(LLM_CPP_SERVER_TIMEOUT))
+    except requests.RequestException as ex:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Llama-cpp query failed: {ex}") from ex
 
+    if not log_request.ok:
+        raise HTTPException(
+            status_code=400,
+            detail="Something went wrong while getting a response from the llama server: "
+                   f"[{log_request.status_code}] {log_request.text}")
     return response.text
