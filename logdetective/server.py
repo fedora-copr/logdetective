@@ -20,7 +20,8 @@ LOG = logging.getLogger("logdetective")
 
 app = FastAPI()
 
-LLM_CPP_SERVER_ADDRESS = os.environ.get("LLAMA_CPP_SERVER", " http://localhost")
+LLM_CPP_HOST = os.environ.get("LLAMA_CPP_HOST", "localhost")
+LLM_CPP_SERVER_ADDRESS = f"http://{LLM_CPP_HOST}"
 LLM_CPP_SERVER_PORT = os.environ.get("LLAMA_CPP_SERVER_PORT", 8000)
 LLM_CPP_SERVER_TIMEOUT = os.environ.get("LLAMA_CPP_SERVER_TIMEOUT", 600)
 LOG_SOURCE_REQUEST_TIMEOUT = os.environ.get("LOG_SOURCE_REQUEST_TIMEOUT", 60)
