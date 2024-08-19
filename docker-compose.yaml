@@ -13,6 +13,11 @@ services:
       - "${LLAMA_CPP_SERVER_PORT:-8000}:${LLAMA_CPP_SERVER_PORT:-8000}"
     volumes:
       - ${MODELS_PATH-./models}:/models:Z
+    # these 4 lines are needed for CUDA acceleration
+    # devices:
+    #   - nvidia.com/gpu=all
+    # security_opt:
+    #   - "label=disable"
   server:
     build:
       context: .

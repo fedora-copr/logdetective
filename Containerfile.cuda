@@ -1,0 +1,19 @@
+FROM fedora:39
+# make sure nvidia driver match on host and in the container
+RUN dnf install -y python3-requests python3-pip gcc gcc-c++ python3-scikit-build git-core \
+    && echo "[cuda-fedora39-x86_64]" >> /etc/yum.repos.d/cuda.repo \
+    && echo "name=cuda-fedora39-x86_64" >> /etc/yum.repos.d/cuda.repo \
+    && echo "baseurl=https://developer.download.nvidia.com/compute/cuda/repos/fedora39/x86_64" >> /etc/yum.repos.d/cuda.repo \
+    && echo "enabled=1" >> /etc/yum.repos.d/cuda.repo \
+    && echo "gpgcheck=1" >> /etc/yum.repos.d/cuda.repo \
+    && echo "gpgkey=https://developer.download.nvidia.com/compute/cuda/repos/fedora39/x86_64/D42D0685.pub" >> /etc/yum.repos.d/cuda.repo \
+    && dnf module enable -y nvidia-driver:555-dkms \
+    && dnf install -y cuda-compiler-12-5 cuda-toolkit-12-5 nvidia-driver-cuda-libs \
+    && dnf clean all
+ENV CMAKE_ARGS="-DGGML_CUDA=on"
+ENV PATH=${PATH}:/usr/local/cuda-12.5/bin/
+# some of these are either not in F39 or have old version
+RUN pip3 install llama_cpp_python==0.2.85 starlette drain3 sse-starlette starlette-context \
+    pydantic-settings fastapi[standard] \
+    && mkdir /src
+COPY ./logdetective/ /src/logdetective/logdetective
