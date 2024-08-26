@@ -1,6 +1,6 @@
 
 # pylint: disable=line-too-long
-DEFAULT_ADVISOR = "TheBloke/Mistral-7B-Instruct-v0.2-GGUF"
+DEFAULT_ADVISOR = "fedora-copr/Mistral-7B-Instruct-v0.2-GGUF"
 
 PROMPT_TEMPLATE = """
 Given following log snippets, and nothing else, explain what failure, if any, occured during build of this package.
