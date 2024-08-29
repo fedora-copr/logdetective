@@ -100,6 +100,7 @@ def main():
         for chunk in response:
             delta = chunk['choices'][0]['text']
             print(delta, end='', flush=True)
+        print()
 
 
 if __name__ == "__main__":
