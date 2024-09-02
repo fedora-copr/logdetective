@@ -16,6 +16,7 @@ jobs:
       - name: VCS Diff Lint
         uses: fedora-copr/vcs-diff-lint-action@v1
         id: VCS_Diff_Lint
+        install_rpm_packages: ["python3-numpy"]
 
       - name: Upload artifact with detected defects in SARIF format
         uses: actions/upload-artifact@v4

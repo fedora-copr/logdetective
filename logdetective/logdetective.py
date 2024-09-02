@@ -3,7 +3,8 @@ import logging
 import sys
 
 from logdetective.constants import DEFAULT_ADVISOR
-from logdetective.utils import process_log, initialize_model, retrieve_log_content, format_snippets
+from logdetective.utils import (
+    process_log, initialize_model, retrieve_log_content, format_snippets, compute_certainty)
 from logdetective.extractors import LLMExtractor, DrainExtractor
 
 LOG = logging.getLogger("logdetective")
@@ -92,15 +93,21 @@ def main():
     if args.no_stream:
         stream = False
     response = process_log(log_summary, model, stream)
+    probs = []
     print("Explanation:")
     if args.no_stream:
         print(response["choices"][0]["text"])
+        probs = response["choices"][0]["logprobs"]["top_logprobs"]
     else:
         # Stream the output
         for chunk in response:
+            if isinstance(chunk["choices"][0]["logprobs"], dict):
+                probs.extend(chunk["choices"][0]["logprobs"]["top_logprobs"])
             delta = chunk['choices'][0]['text']
             print(delta, end='', flush=True)
-        print()
+    certainty = compute_certainty(probs)
+
+    print(f"\nResponse certainty: {certainty:.2f}%\n")
 
 
 if __name__ == "__main__":

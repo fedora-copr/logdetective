@@ -31,6 +31,7 @@ requests = "^2.31.0"
 llama-cpp-python = "^0.2.56,!=0.2.86"
 drain3 = "^0.9.11"
 huggingface-hub = ">0.23.2"
+numpy = "^1.26.0"
 
 [build-system]
 requires = ["poetry-core"]
