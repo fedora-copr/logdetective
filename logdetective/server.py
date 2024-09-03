@@ -9,7 +9,7 @@ import requests
 
 from logdetective.constants import PROMPT_TEMPLATE
 from logdetective.extractors import DrainExtractor
-
+from logdetective.utils import validate_url
 
 class BuildLog(BaseModel):
     """Model of data submitted to API.
@@ -30,22 +30,30 @@ LOG_SOURCE_REQUEST_TIMEOUT = os.environ.get("LOG_SOURCE_REQUEST_TIMEOUT", 60)
 async def analyze_log(build_log: BuildLog):
     """Provide endpoint for log file submission and analysis.
     Request must be in form {"url":"<YOUR_URL_HERE>"}.
+    URL must be valid for the request to be passed to the LLM server.
+    Meaning that it must contain appropriate scheme, path and netloc,
+    while lacking  result, params or query fields.
     """
     extractor = DrainExtractor(verbose=True, context=True, max_clusters=8)
 
     LOG.info("Getting summary")
+    # Perform basic validation of the URL
+    if validate_url(url=build_log.url):
+        try:
+            log_request = requests.get(build_log.url, timeout=int(LOG_SOURCE_REQUEST_TIMEOUT))
+        except requests.RequestException as ex:
+            raise HTTPException(
+                status_code=400,
+                detail=f"We couldn't obtain the logs: {ex}") from ex
 
-    try:
-        log_request = requests.get(build_log.url, timeout=int(LOG_SOURCE_REQUEST_TIMEOUT))
-    except requests.RequestException as ex:
-        raise HTTPException(
-            status_code=400,
-            detail=f"We couldn't obtain the logs: {ex}") from ex
-
-    if not log_request.ok:
+        if not log_request.ok:
+            raise HTTPException(status_code=400,
+                                detail="Something went wrong while getting the logs: "
+                                    f"[{log_request.status_code}] {log_request.text}")
+    else:
+        LOG.error("Invalid URL received ")
         raise HTTPException(status_code=400,
-                            detail="Something went wrong while getting the logs: "
-                                   f"[{log_request.status_code}] {log_request.text}")
+                            detail=f"Invalid log URL: {build_log.url}")
 
     log = log_request.text
     log_summary = extractor(log)
