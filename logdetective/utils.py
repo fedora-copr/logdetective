@@ -86,7 +86,9 @@ def process_log(log: str, model: Llama, stream: bool) -> str:
 
 
 def retrieve_log_content(log_path: str) -> str:
-    """Get content of the file on the log_path path."""
+    """Get content of the file on the log_path path.
+    Path is assumed to be valid URL if it has a scheme.
+    Otherwise it attempts to pull it from local filesystem."""
     parsed_url = urlparse(log_path)
     log = ""
 
@@ -116,3 +118,18 @@ def format_snippets(snippets: list[str]) -> str:
         ================
         """
     return summary
+
+
+def validate_url(url: str) -> bool:
+    """Validate incoming URL to be at least somewhat sensible for log files
+    Only http and https protocols permitted. No result, params or query fields allowed.
+    Either netloc or path must have non-zero length.
+    """
+    result = urlparse(url)
+    if result.scheme not in ['http', 'https']:
+        return False
+    if any([result.params, result.query, result.fragment]):
+        return False
+    if not (result.path or result.netloc):
+        return False
+    return True
