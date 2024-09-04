@@ -53,6 +53,9 @@ def initialize_model(model_pth: str, filename_suffix: str = ".gguf", verbose: bo
         filename_suffix (str): suffix of the model file name to be pulled from Hugging Face
         verbose (bool): level of verbosity for llamacpp
     """
+
+    LOG.info("Loading model from %s", model_pth)
+
     if os.path.isfile(model_pth):
         model = Llama(
             model_path=model_pth,
