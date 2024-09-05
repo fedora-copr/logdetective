@@ -84,8 +84,10 @@ def compute_certainty(probs: List[Dict[str, float] | None]) -> float:
 
     top_logprobs = [
         np.exp(x) * 100 for e in probs if isinstance(e, dict) for x in e.values()]
-
-    return np.median(top_logprobs, axis=0)
+    certainty = np.median(top_logprobs, axis=0)
+    if np.isnan(certainty):
+        raise ValueError("NaN certainty of answer")
+    return certainty
 
 
 def process_log(log: str, model: Llama, stream: bool) -> (
