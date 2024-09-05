@@ -30,3 +30,16 @@ Log:
 Answer:
 
 """
+
+SNIPPET_PROMPT_TEMPLATE = """
+Analyse following RPM build log snippet.
+Analysis of the snippets must be in a format of [X] : [Y], where [X] is a log snippet, and [Y] is the explanation.
+Snippets themselves must not be altered in any way whatsoever.
+
+Snippet:
+
+{}
+
+Analysis:
+
+"""
