@@ -10,7 +10,7 @@ A Python tool to analyze logs using a Language Model (LLM) and Drain template mi
 Installation
 ------------
 
-** Fedora 40+ **
+**Fedora 40+**
 
     dnf install logdetective
 
