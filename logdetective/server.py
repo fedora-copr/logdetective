@@ -1,10 +1,10 @@
 import json
 import logging
 import os
-from typing import List
+from typing import List, Annotated
 
 from llama_cpp import CreateCompletionResponse
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Header
 from pydantic import BaseModel
 
 import requests
@@ -44,13 +44,42 @@ class StagedResponse(Response):
 
 LOG = logging.getLogger("logdetective")
 
-app = FastAPI()
 
 LLM_CPP_HOST = os.environ.get("LLAMA_CPP_HOST", "localhost")
 LLM_CPP_SERVER_ADDRESS = f"http://{LLM_CPP_HOST}"
 LLM_CPP_SERVER_PORT = os.environ.get("LLAMA_CPP_SERVER_PORT", 8000)
 LLM_CPP_SERVER_TIMEOUT = os.environ.get("LLAMA_CPP_SERVER_TIMEOUT", 600)
 LOG_SOURCE_REQUEST_TIMEOUT = os.environ.get("LOG_SOURCE_REQUEST_TIMEOUT", 60)
+API_TOKEN = os.environ.get("LOGDETECTIVE_TOKEN", None)
+
+def requires_token_when_set(authentication: Annotated[str | None, Header()] = None):
+    """
+    FastAPI Depend function that expects a header named Authentication
+
+    If LOGDETECTIVE_TOKEN env var is set, validate the client-supplied token
+    otherwise ignore it
+    """
+    if not API_TOKEN:
+        LOG.info("LOGDETECTIVE_TOKEN env var not set, authentication disabled")
+        # no token required, means local dev environment
+        return
+    token = None
+    if authentication:
+        try:
+            token = authentication.split(" ", 1)[1]
+        except (ValueError, IndexError):
+            LOG.warning(
+                "Authentication header has invalid structure (%s), it should be 'Bearer TOKEN'",
+                authentication)
+            # eat the exception and raise 401 below
+            token = None
+        if token == API_TOKEN:
+            return
+    LOG.info("LOGDETECTIVE_TOKEN env var is set (%s), clien token = %s",
+             API_TOKEN, token)
+    raise HTTPException(status_code=401, detail=f"Token {token} not valid.")
+
+app = FastAPI(dependencies=[Depends(requires_token_when_set)])
 
 
 def process_url(url: str) -> str:
