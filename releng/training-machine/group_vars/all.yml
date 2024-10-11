@@ -1,0 +1,43 @@
+---
+aws_new_instance:
+  # make sure you have [logdetective] sections in ~/.aws/config and
+  # ~/.aws/credentials
+  profile: logdetective
+  name: logdetective02
+
+  ## region: eu-west-1
+  ## #image: ami-00050c079abc52c85  # F40
+  ## #nah: https://gitlab.com/fedora/websites-apps/fedora-websites/fedora-websites-3.0/-/issues/317
+  ## image: ami-0d97c9cabbb22e54a  # F39
+  ## infra_subnet: subnet-0fe1d4e0e304de666
+  ## ssh_key: ansible key
+  ## # https://github.com/fedora-copr/logdetective/issues/77#issuecomment-2413459002
+  ## security_group: sg-0a454bd8f70a679ce
+  ## # created semi-manually by praiskup, already has appropriate ipv{4,6}
+  ## eni: eni-09b10ec80f846224c
+  ## elastic_ip: 52.18.47.238
+  ## ipv6: 2a05:d018:117:3003:7f90:e534:a956:f7f4
+
+  region: us-east-1
+  # doh! https://gitlab.com/fedora/websites-apps/fedora-websites/fedora-websites-3.0/-/issues/317
+  image: ami-0746fc234df9c1ee0  # inherited from copr-be-dev
+  infra_subnet: subnet-0995f6a466849f4c3  # a
+  # infra_subnet: subnet-09c74a3e6420a206b  # b
+  # infra_subnet: subnet-08cadf5a14b530ac4  # c
+  # infra_subnet: subnet-01d4e967ab5e78005  # d
+  # infra_subnet: subnet-07b0b3168a353e3ee  # e
+  ssh_key: Ansible Key
+  security_group: sg-00ec53e746bfe2b00
+  # created semi-manually by praiskup, already has appropriate ipv{4,6}
+  eni: eni-00262174ef1654ef8
+  elastic_ip: 34.235.77.11
+  ipv6: 2600:1f18:8ee:ae00:8e6a:db65:9812:8e10
+
+  ## See discussion https://github.com/fedora-copr/logdetective/issues/77 and slack
+  instance_type: p3.16xlarge
+  #instance_type: p2.16xlarge
+  #instance_type: g5.48xlarge
+  #instance_type: p3dn.24xlarge
+  # this one is not well prepared, created via wizzard
+  root_volume_size: 60
+  # created semi-manually by praiskup, already has appropriate ipv{4,6}
