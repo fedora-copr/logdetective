@@ -176,6 +176,11 @@ $ ll $MODELS_PATH
 
 If the variable is not set, `./models` is mounted inside by default.
 
+Model can be downloaded by:
+```
+$ curl -L -o models/mistral-7b-instruct-v0.2.Q4_K_S.gguf https://huggingface.co/fedora-copr/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/ggml-model-Q4_K_S.gguf
+```
+
 
 License
 -------
