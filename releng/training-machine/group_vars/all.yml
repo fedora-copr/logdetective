@@ -32,6 +32,7 @@ aws_new_instance:
   eni: eni-00262174ef1654ef8
   elastic_ip: 34.235.77.11
   ipv6: 2600:1f18:8ee:ae00:8e6a:db65:9812:8e10
+  data_volume: vol-0ac5c6795372104ab
 
   ## See discussion https://github.com/fedora-copr/logdetective/issues/77 and slack
   instance_type: p3.16xlarge

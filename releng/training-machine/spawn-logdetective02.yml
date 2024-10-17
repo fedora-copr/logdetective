@@ -55,6 +55,16 @@
         - aws_new_instance.eni is not defined
         - aws_new_instance.ipv6 is defined
 
+    - name: attach the data volume
+      amazon.aws.ec2_vol:
+        instance: "{{ instances_started.instances[0].instance_id }}"
+        id: "{{ aws_new_instance.data_volume }}"
+        device_name: sdc
+      when:
+        - aws_new_instance.data_volume is defined
+      tags:
+        - volume
+
     - name: print ipv4
       debug:
         msg:
