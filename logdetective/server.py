@@ -5,8 +5,8 @@ from typing import List, Annotated
 
 from llama_cpp import CreateCompletionResponse
 from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-
 import requests
 
 from logdetective.constants import PROMPT_TEMPLATE, SNIPPET_PROMPT_TEMPLATE
@@ -120,7 +120,7 @@ def mine_logs(log: str) -> List[str]:
 
     return log_summary
 
-def submit_text(text: str, max_tokens: int = 0, log_probs: int = 1):
+async def submit_text(text: str, max_tokens: int = 0, log_probs: int = 1, stream: bool = False):
     """Submit prompt to LLM.
     max_tokens: number of tokens to be produces, 0 indicates run until encountering EOS
     log_probs: number of token choices to produce log probs for
@@ -129,7 +129,8 @@ def submit_text(text: str, max_tokens: int = 0, log_probs: int = 1):
     data = {
             "prompt": text,
             "max_tokens": str(max_tokens),
-            "logprobs": str(log_probs)}
+            "logprobs": str(log_probs),
+            "stream": stream}
 
     try:
         # Expects llama-cpp server to run on LLM_CPP_SERVER_ADDRESS:LLM_CPP_SERVER_PORT
@@ -137,24 +138,27 @@ def submit_text(text: str, max_tokens: int = 0, log_probs: int = 1):
             f"{LLM_CPP_SERVER_ADDRESS}:{LLM_CPP_SERVER_PORT}/v1/completions",
             headers={"Content-Type":"application/json"},
             data=json.dumps(data),
-            timeout=int(LLM_CPP_SERVER_TIMEOUT))
+            timeout=int(LLM_CPP_SERVER_TIMEOUT),
+            stream=stream)
     except requests.RequestException as ex:
         raise HTTPException(
             status_code=400,
             detail=f"Llama-cpp query failed: {ex}") from ex
-
-    if not response.ok:
-        raise HTTPException(
-            status_code=400,
-            detail="Something went wrong while getting a response from the llama server: "
-                f"[{response.status_code}] {response.text}")
-    try:
-        response = json.loads(response.text)
-    except UnicodeDecodeError as ex:
-        LOG.error("Error encountered while parsing llama server response: %s", ex)
-        raise HTTPException(
-            status_code=400,
-            detail=f"Couldn't parse the response.\nError: {ex}\nData: {response.text}") from ex
+    if not stream:
+        if not response.ok:
+            raise HTTPException(
+                status_code=400,
+                detail="Something went wrong while getting a response from the llama server: "
+                    f"[{response.status_code}] {response.text}")
+        try:
+            response = json.loads(response.text)
+        except UnicodeDecodeError as ex:
+            LOG.error("Error encountered while parsing llama server response: %s", ex)
+            raise HTTPException(
+                status_code=400,
+                detail=f"Couldn't parse the response.\nError: {ex}\nData: {response.text}") from ex
+    else:
+        return response
 
     return CreateCompletionResponse(response)
 
@@ -169,7 +173,8 @@ async def analyze_log(build_log: BuildLog):
     """
     log_text = process_url(build_log.url)
     log_summary = mine_logs(log_text)
-    response = submit_text(PROMPT_TEMPLATE.format(log_summary))
+    response = await submit_text(PROMPT_TEMPLATE.format(log_summary))
+    certainty = 0
 
     if "logprobs" in response["choices"][0]:
         try:
@@ -219,3 +224,18 @@ async def analyze_log_staged(build_log: BuildLog):
 
     return StagedResponse(
         explanation=final_analysis, snippets=analyzed_snippets, response_certainty=certainty)
+
+
+@app.post("/analyze/stream", response_class=StreamingResponse)
+async def analyze_log_stream(build_log: BuildLog):
+    """Stream response endpoint for Logdetective.
+    Request must be in form {"url":"<YOUR_URL_HERE>"}.
+    URL must be valid for the request to be passed to the LLM server.
+    Meaning that it must contain appropriate scheme, path and netloc,
+    while lacking  result, params or query fields.
+    """
+    log_text = process_url(build_log.url)
+    log_summary = mine_logs(log_text)
+    stream = await submit_text(PROMPT_TEMPLATE.format(log_summary), stream=True)
+
+    return StreamingResponse(stream)
