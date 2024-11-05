@@ -121,7 +121,8 @@ def mine_logs(log: str) -> List[str]:
 
     return log_summary
 
-async def submit_text(text: str, max_tokens: int = 0, log_probs: int = 1, stream: bool = False):
+async def submit_text(text: str, max_tokens: int = 0, log_probs: int = 1, stream: bool = False,
+                      model: str = "default-model"):
     """Submit prompt to LLM.
     max_tokens: number of tokens to be produces, 0 indicates run until encountering EOS
     log_probs: number of token choices to produce log probs for
@@ -131,7 +132,8 @@ async def submit_text(text: str, max_tokens: int = 0, log_probs: int = 1, stream
             "prompt": text,
             "max_tokens": str(max_tokens),
             "logprobs": str(log_probs),
-            "stream": stream}
+            "stream": stream,
+            "model": model}
 
     try:
         # Expects llama-cpp server to run on LLM_CPP_SERVER_ADDRESS:LLM_CPP_SERVER_PORT
