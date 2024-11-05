@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -201,13 +202,11 @@ async def analyze_log_staged(build_log: BuildLog):
     log_text = process_url(build_log.url)
     log_summary = mine_logs(log_text)
 
-    analyzed_snippets = []
+    # Process snippets asynchronously
+    analyzed_snippets = await asyncio.gather(
+        *[submit_text(SNIPPET_PROMPT_TEMPLATE.format(s)) for s in log_summary])
 
-    for snippet in log_summary:
-        response = submit_text(SNIPPET_PROMPT_TEMPLATE.format(snippet))
-        analyzed_snippets.append(response)
-
-    final_analysis = submit_text(
+    final_analysis = await submit_text(
         PROMPT_TEMPLATE.format([e["choices"][0]["text"] for e in analyzed_snippets]))
 
     certainty = 0
