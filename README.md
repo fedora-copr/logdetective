@@ -165,7 +165,7 @@ Requests can then be made with post requests, for example:
 
     curl --header "Content-Type: application/json" --request POST --data '{"url":"<YOUR_URL_HERE>"}' http://localhost:8080/analyze
 
-For more accurate responses, you can use `/analyze/staged` endpoint. This will submit snippets to model for individual analysis first
+For more accurate responses, you can use `/analyze/staged` endpoint. This will submit snippets to model for individual analysis first.
 Afterwards the model outputs are used to construct final prompt. This will take substantially longer, compared to plain `/analyze`
 
     curl --header "Content-Type: application/json" --request POST --data '{"url":"<YOUR_URL_HERE>"}' http://localhost:8080/analyze/staged
