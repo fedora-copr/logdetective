@@ -27,7 +27,7 @@ issues = "https://github.com/fedora-copr/logdetective/issues"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-requests = "^2.31.0"
+requests = ">0.2.31"
 llama-cpp-python = ">0.2.56,!=0.2.86"
 drain3 = "^0.9.11"
 huggingface-hub = ">0.23.2"
