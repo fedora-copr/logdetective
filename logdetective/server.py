@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import os
-from typing import List, Annotated
+from typing import List, Annotated, Dict
 
 from llama_cpp import CreateCompletionResponse
 from fastapi import FastAPI, HTTPException, Depends, Header
@@ -10,7 +10,9 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import requests
 
-from logdetective.constants import PROMPT_TEMPLATE, SNIPPET_PROMPT_TEMPLATE
+from logdetective.constants import (
+    PROMPT_TEMPLATE, SNIPPET_PROMPT_TEMPLATE,
+    PROMPT_TEMPLATE_STAGED, SNIPPET_DELIMITER)
 from logdetective.extractors import DrainExtractor
 from logdetective.utils import validate_url, compute_certainty
 
@@ -38,10 +40,10 @@ class StagedResponse(Response):
     explanation: CreateCompletionResponse
         https://llama-cpp-python.readthedocs.io/en/latest/api-reference/#llama_cpp.llama_types.CreateCompletionResponse
     response_certainty: float
-    snippets: list of CreateCompletionResponse
+    snippets:
+        list of dictionaries { 'snippet' : '<original_text>, 'comment': CreateCompletionResponse }
     """
-    snippets: List[CreateCompletionResponse]
-
+    snippets: List[Dict[str, str | CreateCompletionResponse]]
 
 LOG = logging.getLogger("logdetective")
 
@@ -208,10 +210,18 @@ async def analyze_log_staged(build_log: BuildLog):
     analyzed_snippets = await asyncio.gather(
         *[submit_text(SNIPPET_PROMPT_TEMPLATE.format(s)) for s in log_summary])
 
-    final_analysis = await submit_text(
-        PROMPT_TEMPLATE.format([e["choices"][0]["text"] for e in analyzed_snippets]))
+    analyzed_snippets = [
+        {"snippet":e[0], "comment":e[1]} for e in zip(log_summary, analyzed_snippets)]
+
+    final_prompt = PROMPT_TEMPLATE_STAGED.format(
+        [f"[{e["snippet"]}] : [{e["comment"]["choices"][0]["text"]}]\n{SNIPPET_DELIMITER}\n"
+        for e in analyzed_snippets])
+
+    print("PROMPT TEST: \n", final_prompt, "+++++++++++")
+    final_analysis = await submit_text(final_prompt)
 
     certainty = 0
+
     if "logprobs" in final_analysis["choices"][0]:
         try:
             certainty = compute_certainty(
