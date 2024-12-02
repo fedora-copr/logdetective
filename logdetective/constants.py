@@ -32,9 +32,7 @@ Answer:
 """
 
 SNIPPET_PROMPT_TEMPLATE = """
-Analyse following RPM build log snippet.
-Analysis of the snippets must be in a format of [X] : [Y], where [X] is a log snippet, and [Y] is the explanation.
-Snippets themselves must not be altered in any way whatsoever.
+Analyse following RPM build log snippet. Decribe contents accurately, without speculation or suggestions for resolution.
 
 Snippet:
 
@@ -43,3 +41,22 @@ Snippet:
 Analysis:
 
 """
+
+PROMPT_TEMPLATE_STAGED = """
+Given following log snippets, their explanation, and nothing else, explain what failure, if any, occured during build of this package.
+
+Snippets are in a format of [X] : [Y], where [X] is a log snippet, and [Y] is the explanation.
+
+Snippets are delimited with '================'.
+
+Drawing on information from all snippets, provide complete explanation of the issue and recommend solution.
+
+Snippets:
+
+{}
+
+Analysis:
+
+"""
+
+SNIPPET_DELIMITER = '================'
