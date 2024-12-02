@@ -9,6 +9,7 @@ from logdetective.extractors import LLMExtractor, DrainExtractor
 
 LOG = logging.getLogger("logdetective")
 
+
 def setup_args():
     """ Setup argument parser and return arguments. """
     parser = argparse.ArgumentParser("logdetective")

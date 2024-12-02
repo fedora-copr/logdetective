@@ -16,7 +16,7 @@ class LLMExtractor:
     A class that extracts relevant information from logs using a language model.
     """
     def __init__(self, model: Llama, n_lines: int = 2):
-        self.model =  model
+        self.model = model
         self.n_lines = n_lines
         self.grammar = LlamaGrammar.from_string(
             "root ::= (\"Yes\" | \"No\")", verbose=False)
