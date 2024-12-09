@@ -214,10 +214,10 @@ async def analyze_log_staged(build_log: BuildLog):
         {"snippet":e[0], "comment":e[1]} for e in zip(log_summary, analyzed_snippets)]
 
     final_prompt = PROMPT_TEMPLATE_STAGED.format(
-        [f"[{e["snippet"]}] : [{e["comment"]["choices"][0]["text"]}]\n{SNIPPET_DELIMITER}\n"
-        for e in analyzed_snippets])
+        f"\n{SNIPPET_DELIMITER}\n".join([
+            f"[{e["snippet"]}] : [{e["comment"]["choices"][0]["text"]}]"
+        for e in analyzed_snippets]))
 
-    print("PROMPT TEST: \n", final_prompt, "+++++++++++")
     final_analysis = await submit_text(final_prompt)
 
     certainty = 0
