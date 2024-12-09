@@ -16,6 +16,7 @@ from logdetective.constants import (
 from logdetective.extractors import DrainExtractor
 from logdetective.utils import validate_url, compute_certainty
 
+
 class BuildLog(BaseModel):
     """Model of data submitted to API.
     """
@@ -47,13 +48,13 @@ class StagedResponse(Response):
 
 LOG = logging.getLogger("logdetective")
 
-
 LLM_CPP_HOST = os.environ.get("LLAMA_CPP_HOST", "localhost")
 LLM_CPP_SERVER_ADDRESS = f"http://{LLM_CPP_HOST}"
 LLM_CPP_SERVER_PORT = os.environ.get("LLAMA_CPP_SERVER_PORT", 8000)
 LLM_CPP_SERVER_TIMEOUT = os.environ.get("LLAMA_CPP_SERVER_TIMEOUT", 600)
 LOG_SOURCE_REQUEST_TIMEOUT = os.environ.get("LOG_SOURCE_REQUEST_TIMEOUT", 60)
 API_TOKEN = os.environ.get("LOGDETECTIVE_TOKEN", None)
+
 
 def requires_token_when_set(authentication: Annotated[str | None, Header()] = None):
     """
@@ -82,6 +83,7 @@ def requires_token_when_set(authentication: Annotated[str | None, Header()] = No
              API_TOKEN, token)
     raise HTTPException(status_code=401, detail=f"Token {token} not valid.")
 
+
 app = FastAPI(dependencies=[Depends(requires_token_when_set)])
 
 
@@ -99,7 +101,7 @@ def process_url(url: str) -> str:
         if not log_request.ok:
             raise HTTPException(status_code=400,
                                 detail="Something went wrong while getting the logs: "
-                                    f"[{log_request.status_code}] {log_request.text}")
+                                f"[{log_request.status_code}] {log_request.text}")
     else:
         LOG.error("Invalid URL received ")
         raise HTTPException(status_code=400,
@@ -120,8 +122,8 @@ def mine_logs(log: str) -> List[str]:
     LOG.debug("Log summary: \n %s", log_summary)
     LOG.info("Compression ratio: %s", ratio)
 
-
     return log_summary
+
 
 async def submit_text(text: str, max_tokens: int = 0, log_probs: int = 1, stream: bool = False,
                       model: str = "default-model"):
@@ -131,17 +133,17 @@ async def submit_text(text: str, max_tokens: int = 0, log_probs: int = 1, stream
     """
     LOG.info("Analyzing the text")
     data = {
-            "prompt": text,
-            "max_tokens": str(max_tokens),
-            "logprobs": str(log_probs),
-            "stream": stream,
-            "model": model}
+        "prompt": text,
+        "max_tokens": str(max_tokens),
+        "logprobs": str(log_probs),
+        "stream": stream,
+        "model": model}
 
     try:
         # Expects llama-cpp server to run on LLM_CPP_SERVER_ADDRESS:LLM_CPP_SERVER_PORT
         response = requests.post(
             f"{LLM_CPP_SERVER_ADDRESS}:{LLM_CPP_SERVER_PORT}/v1/completions",
-            headers={"Content-Type":"application/json"},
+            headers={"Content-Type": "application/json"},
             data=json.dumps(data),
             timeout=int(LLM_CPP_SERVER_TIMEOUT),
             stream=stream)
@@ -154,7 +156,7 @@ async def submit_text(text: str, max_tokens: int = 0, log_probs: int = 1, stream
             raise HTTPException(
                 status_code=400,
                 detail="Something went wrong while getting a response from the llama server: "
-                    f"[{response.status_code}] {response.text}")
+                       f"[{response.status_code}] {response.text}")
         try:
             response = json.loads(response.text)
         except UnicodeDecodeError as ex:
