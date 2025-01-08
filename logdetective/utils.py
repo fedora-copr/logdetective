@@ -80,6 +80,8 @@ def compute_certainty(probs: List[Dict[str, float] | None]) -> float:
     In this case it's just a matter of applying inverse operation exp.
     Of course that leaves you with a value in range <0, 1> so it needs to be multiplied by 100.
     Simply put, this is the most straightforward way to get the numbers out.
+
+    This function is used in the server codebase.
     """
 
     top_logprobs = [

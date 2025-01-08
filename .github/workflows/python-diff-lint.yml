@@ -19,6 +19,7 @@ jobs:
         with:
           install_rpm_packages: |
             python3-numpy
+            python3-pytest
           linter_tags: |
             pylint
             ruff
