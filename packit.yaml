@@ -1,0 +1,44 @@
+---
+downstream_package_name: python-logdetective
+upstream_package_name: logdetective
+specfile_path: python-logdetective.spec
+upstream_tag_template: 'v{version}'
+upstream_project_url: https://github.com/fedora-copr/logdetective
+copy_upstream_release_description: false
+srpm_build_deps:
+- poetry
+actions:
+  post-upstream-clone:
+    # rawhide specfile will be the source of truth: we don't need to have the specfile upstream
+    - curl -Lvso python-logdetective.spec https://src.fedoraproject.org/rpms/python-logdetective/raw/main/f/python-logdetective.spec
+  create-archive:
+    - poetry build -f sdist
+    - bash -c "ls -1t ./dist/*.tar.gz | head -n 1"
+  get-current-version:
+    - poetry version -s
+
+jobs:
+  - job: pull_from_upstream
+    trigger: release
+    dist_git_branches:
+      - rawhide
+  - job: copr_build
+    trigger: pull_request
+    targets:
+      - fedora-all
+  - job: tests
+    trigger: pull_request
+    targets:
+      - fedora-all
+  # downstream automation:
+  - job: koji_build
+    trigger: commit
+    allowed_committers: ['packit', 'msuchy']
+    dist_git_branches:
+      - fedora-all
+
+  - job: bodhi_update
+    trigger: commit
+    dist_git_branches:
+      - fedora-all
+
