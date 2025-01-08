@@ -19,6 +19,9 @@ jobs:
         with:
           install_rpm_packages: |
             python3-numpy
+          linter_tags: |
+            pylint
+            ruff
 
       - name: Upload artifact with detected defects in SARIF format
         uses: actions/upload-artifact@v4
