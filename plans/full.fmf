@@ -1,0 +1,5 @@
+summary: Run logdetective tests
+discover:
+  how: fmf
+execute:
+  how: tmt
