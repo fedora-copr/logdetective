@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+/server/fullchain.pem
+/server/privkey.pem
+/server/cert.pem
+
 # C extensions
 *.so
 
