@@ -578,4 +578,4 @@ server = []
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "5978586333c2929b4718c34225ab461b7f44d2ba120b50f559fb752f854b6ded"
+content-hash = "cb64f9bb7d885a456e3491768a6da28167e1fa0dfde4f7c4f7bbbdc1af42ecc2"
