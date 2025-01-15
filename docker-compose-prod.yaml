@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: ./Containerfile.cuda
     hostname: "${LLAMA_CPP_HOST}"
-    command: "python3 -m llama_cpp.server --model ${MODEL_FILEPATH} --host 0.0.0.0 --port ${LLAMA_CPP_SERVER_PORT} --n_gpu_layers ${LLM_NGPUS:-0} --n_ctx 32768"
+    command: "python3 -m llama_cpp.server --model ${MODEL_FILEPATH} --host 0.0.0.0 --port ${LLAMA_CPP_SERVER_PORT} --n_gpu_layers ${LLM_NGPUS:-0} --n_ctx ${N_CTX:-32768}"
     stdin_open: true
     tty: true
     env_file: .env
