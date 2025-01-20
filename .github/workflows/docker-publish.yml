@@ -1,4 +1,4 @@
-name: Docker
+name: Docker Build and Publish
 
 # This workflow uses actions that are not certified by GitHub.
 # They are provided by a third-party and are governed by
@@ -12,7 +12,7 @@ on:
     tags: [ 'v*.*.*' ]
   pull_request:
     branches: [ "main" ]
-
+  workflow_dispatch:
 env:
   REGISTRY: quay.io
   IMAGE_NAME: logdetective/runtime
@@ -32,13 +32,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Install the cosign tool except on PR
+      # Install and test the cosign tool except on PR
       # https://github.com/sigstore/cosign-installer
       - name: Install cosign
         if: ${{ github.event_name != 'pull_request' && contains(github.ref, 'refs/tags/') }}
-        uses: sigstore/cosign-installer@6e04d228eb30da1757ee4e1dd75a0ec73a653e06 #v3.1.1
-        with:
-          cosign-release: 'v2.1.1'
+        uses: sigstore/cosign-installer@v3.6.0
+      - name: Check install!
+        if: ${{ github.event_name != 'pull_request' && contains(github.ref, 'refs/tags/') }}
+        run: cosign version
 
       # Set up BuildKit Docker container builder to be able to build
       # multi-platform images and export cache
@@ -58,7 +59,7 @@ jobs:
 
       # Extract metadata (tags, labels) for Docker
       # https://github.com/docker/metadata-action
-      - name: Extract Docker metadata
+      - name: Extract metadata
         id: meta
         uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934 # v5.0.0
         with:
@@ -70,7 +71,7 @@ jobs:
 
       # Extract metadata (tags, labels) for Docker cuda image
       # https://github.com/docker/metadata-action
-      - name: Extract Docker metadata
+      - name: Extract metadata for cuda image
         id: meta-cuda
         uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934 # v5.0.0
         with:
@@ -128,11 +129,11 @@ jobs:
       # repository is public to avoid leaking data.  If you would like to publish
       # transparency data even for private images, pass --force to cosign below.
       # https://github.com/sigstore/cosign
-      - name: Sign the published Docker image
+      - name: Sign the published Docker cuda image
         if: ${{ github.event_name != 'pull_request' && contains(github.ref, 'refs/tags/') }}
         env:
           # https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable
-          TAGS: ${{ steps.meta.outputs.tags }}
+          TAGS: ${{ steps.meta-cuda.outputs.tags }}
           DIGEST: ${{ steps.build-image-cuda.outputs.digest }}
         # This step uses the identity token to provision an ephemeral certificate
         # against the sigstore community Fulcio instance.
