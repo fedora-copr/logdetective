@@ -30,7 +30,7 @@ class Response(BaseModel):
         https://llama-cpp-python.readthedocs.io/en/latest/api-reference/#llama_cpp.llama_types.CreateCompletionResponse
     response_certainty: float
     """
-    explanation: CreateCompletionResponse
+    explanation: Dict
     response_certainty: float
 
 
@@ -44,7 +44,8 @@ class StagedResponse(Response):
     snippets:
         list of dictionaries { 'snippet' : '<original_text>, 'comment': CreateCompletionResponse }
     """
-    snippets: List[Dict[str, str | CreateCompletionResponse]]
+    snippets: List[Dict[str, str | Dict]]
+
 
 LOG = logging.getLogger("logdetective")
 
@@ -125,7 +126,7 @@ def mine_logs(log: str) -> List[str]:
     return log_summary
 
 
-async def submit_text(text: str, max_tokens: int = 0, log_probs: int = 1, stream: bool = False,
+async def submit_text(text: str, max_tokens: int = -1, log_probs: int = 1, stream: bool = False,
                       model: str = "default-model"):
     """Submit prompt to LLM.
     max_tokens: number of tokens to be produces, 0 indicates run until encountering EOS
@@ -134,8 +135,8 @@ async def submit_text(text: str, max_tokens: int = 0, log_probs: int = 1, stream
     LOG.info("Analyzing the text")
     data = {
         "prompt": text,
-        "max_tokens": str(max_tokens),
-        "logprobs": str(log_probs),
+        "max_tokens": max_tokens,
+        "logprobs": log_probs,
         "stream": stream,
         "model": model}
 
@@ -186,13 +187,13 @@ async def analyze_log(build_log: BuildLog):
     if "logprobs" in response["choices"][0]:
         try:
             certainty = compute_certainty(
-                response["choices"][0]["logprobs"]["top_logprobs"])
+                response["choices"][0]["logprobs"]["content"][0]["top_logprobs"])
         except ValueError as ex:
             LOG.error("Error encountered while computing certainty: %s", ex)
             raise HTTPException(
                 status_code=400,
                 detail=f"Couldn't compute certainty with data:\n"
-                f"{response["choices"][0]["logprobs"]["top_logprobs"]}") from ex
+                f"{response["choices"][0]["logprobs"]["content"][0]["top_logprobs"]}") from ex
 
     return Response(explanation=response, response_certainty=certainty)
 
@@ -213,27 +214,27 @@ async def analyze_log_staged(build_log: BuildLog):
         *[submit_text(SNIPPET_PROMPT_TEMPLATE.format(s)) for s in log_summary])
 
     analyzed_snippets = [
-        {"snippet":e[0], "comment":e[1]} for e in zip(log_summary, analyzed_snippets)]
+        {"snippet": e[0], "comment": e[1]} for e in zip(log_summary, analyzed_snippets)]
 
     final_prompt = PROMPT_TEMPLATE_STAGED.format(
         f"\n{SNIPPET_DELIMITER}\n".join([
             f"[{e["snippet"]}] : [{e["comment"]["choices"][0]["text"]}]"
-        for e in analyzed_snippets]))
+            for e in analyzed_snippets]))
 
     final_analysis = await submit_text(final_prompt)
-
+    print(final_analysis)
     certainty = 0
 
     if "logprobs" in final_analysis["choices"][0]:
         try:
             certainty = compute_certainty(
-                final_analysis["choices"][0]["logprobs"]["top_logprobs"])
+                final_analysis["choices"][0]["logprobs"]["content"][0]["top_logprobs"])
         except ValueError as ex:
             LOG.error("Error encountered while computing certainty: %s", ex)
             raise HTTPException(
                 status_code=400,
                 detail=f"Couldn't compute certainty with data:\n"
-                f"{final_analysis["choices"][0]["logprobs"]["top_logprobs"]}") from ex
+                f"{final_analysis["choices"][0]["logprobs"]["content"][0]["top_logprobs"]}") from ex
 
     return StagedResponse(
         explanation=final_analysis, snippets=analyzed_snippets, response_certainty=certainty)

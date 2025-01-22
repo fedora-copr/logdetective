@@ -10,7 +10,7 @@ RUN dnf install -y python3-requests python3-pip gcc gcc-c++ python3-scikit-build
     && dnf module enable -y nvidia-driver:555-dkms \
     && dnf install -y cuda-compiler-12-6 cuda-toolkit-12-6 nvidia-driver-cuda-libs cmake \
     && dnf clean all
-ENV LLAMACPP_VER="b4501"
+ENV LLAMACPP_VER="96f405393461062450692430e4916809bf71c3c4"
 ENV PATH=${PATH}:/usr/local/cuda-12.6/bin/
 
 # Clone, checkout, build and move llama.cpp server to path
