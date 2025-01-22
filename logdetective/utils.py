@@ -74,7 +74,7 @@ def initialize_model(model_pth: str, filename_suffix: str = ".gguf", verbose: bo
     return model
 
 
-def compute_certainty(probs: List[Dict[str, float] | None]) -> float:
+def compute_certainty(probs: List[Dict]) -> float:
     """Compute certainty of repsponse based on average logit probability.
     Log probability is log(p), isn't really readable for most people, especially in compound.
     In this case it's just a matter of applying inverse operation exp.
@@ -85,7 +85,8 @@ def compute_certainty(probs: List[Dict[str, float] | None]) -> float:
     """
 
     top_logprobs = [
-        np.exp(x) * 100 for e in probs if isinstance(e, dict) for x in e.values()]
+        np.exp(e["logprob"]) * 100 for e in probs]
+
     certainty = np.median(top_logprobs, axis=0)
     if np.isnan(certainty):
         raise ValueError("NaN certainty of answer")
