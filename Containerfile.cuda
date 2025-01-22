@@ -14,9 +14,10 @@ ENV LLAMACPP_VER="96f405393461062450692430e4916809bf71c3c4"
 ENV PATH=${PATH}:/usr/local/cuda-12.6/bin/
 
 # Clone, checkout, build and move llama.cpp server to path
+# for some reason, cmake doesn't pick up stuff from ENV
 RUN git clone https://github.com/ggerganov/llama.cpp.git && \
     cd llama.cpp && \
     git checkout $LLAMACPP_VER && \
-    cmake -B build -DGGML_CUDA=ON && \
+    cmake -B build -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=75 && \
     cmake --build build --config Release -j 4 -t llama-server && \
     mv ./build/bin/llama-server /usr/bin/llama-server
