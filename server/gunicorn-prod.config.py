@@ -6,6 +6,6 @@ workers = 2
 timeout = 120
 # write to stdout
 accesslog = '-'
-certfile = "/src/server/cert.pem"
-keyfile = "/src/server/privkey.pem"
-ca_certs = "/src/server/fullchain.pem"
+# certfile = "/src/server/cert.pem"
+# keyfile = "/src/server/privkey.pem"
+# ca_certs = "/src/server/fullchain.pem"
