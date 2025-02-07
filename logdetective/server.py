@@ -114,7 +114,7 @@ def process_url(url: str) -> str:
 def mine_logs(log: str) -> List[str]:
     """Extract snippets from log text
     """
-    extractor = DrainExtractor(verbose=True, context=True, max_clusters=8)
+    extractor = DrainExtractor(verbose=True, context=True, max_clusters=16)
 
     LOG.info("Getting summary")
     log_summary = extractor(log)
