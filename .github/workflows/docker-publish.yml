@@ -35,10 +35,10 @@ jobs:
       # Install and test the cosign tool except on PR
       # https://github.com/sigstore/cosign-installer
       - name: Install cosign
-        if: ${{ github.event_name != 'pull_request' && contains(github.ref, 'refs/tags/') }}
+        if: ${{ github.event_name != 'pull_request' }}
         uses: sigstore/cosign-installer@v3.6.0
       - name: Check install!
-        if: ${{ github.event_name != 'pull_request' && contains(github.ref, 'refs/tags/') }}
+        if: ${{ github.event_name != 'pull_request' }}
         run: cosign version
 
       # Set up BuildKit Docker container builder to be able to build
@@ -50,7 +50,7 @@ jobs:
       # Login against a Docker registry except on PR
       # https://github.com/docker/login-action
       - name: Log into registry ${{ env.REGISTRY }}
-        if: ${{ github.event_name != 'pull_request' && contains(github.ref, 'refs/tags/') }}
+        if: ${{ github.event_name != 'pull_request' }}
         uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
         with:
           registry: ${{ env.REGISTRY }}
@@ -65,7 +65,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=semver,pattern={{version}}
+            type=semver,pattern={{version}},enable=${{ github.event_name == 'push' && contains(github.ref, 'refs/tags/') }}
             type=sha
             type=raw,value=latest
 
@@ -77,7 +77,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=semver,pattern={{version}},suffix=-cuda
+            type=semver,pattern={{version}},suffix=-cuda,enable=${{ github.event_name == 'push' && contains(github.ref, 'refs/tags/') }}
             type=sha,suffix=-cuda
             type=raw,value=latest,suffix=-cuda
 
@@ -90,7 +90,7 @@ jobs:
           context: .
           file: Containerfile
           tags: ${{ steps.meta.outputs.tags }}
-          push: ${{ github.event_name != 'pull_request' && contains(github.ref, 'refs/tags/') }}
+          push: ${{ github.event_name != 'pull_request' }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -103,7 +103,7 @@ jobs:
         with:
           context: .
           file: Containerfile.cuda
-          push: ${{ github.event_name != 'pull_request' && contains(github.ref, 'refs/tags/') }}
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta-cuda.outputs.tags }}
           labels: ${{ steps.meta-cuda.outputs.labels }}
           cache-from: type=gha
@@ -115,7 +115,7 @@ jobs:
       # transparency data even for private images, pass --force to cosign below.
       # https://github.com/sigstore/cosign
       - name: Sign the published Docker image
-        if: ${{ github.event_name != 'pull_request' && contains(github.ref, 'refs/tags/') }}
+        if: ${{ github.event_name != 'pull_request' }}
         env:
           # https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable
           TAGS: ${{ steps.meta.outputs.tags }}
@@ -130,7 +130,7 @@ jobs:
       # transparency data even for private images, pass --force to cosign below.
       # https://github.com/sigstore/cosign
       - name: Sign the published Docker cuda image
-        if: ${{ github.event_name != 'pull_request' && contains(github.ref, 'refs/tags/') }}
+        if: ${{ github.event_name != 'pull_request' }}
         env:
           # https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable
           TAGS: ${{ steps.meta-cuda.outputs.tags }}
