@@ -34,4 +34,4 @@ services:
     working_dir: /src
     # --no-reload: doesn't work in a container - `PermissionError: Permission denied (os error 13) about ["/proc"]`
     # command: fastapi run /src/logdetective/server.py --host 0.0.0.0 --port $LOGDETECTIVE_SERVER_PORT --no-reload
-    command: ["gunicorn", "-c", "/src/server/gunicorn-prod.config.py", "logdetective.server:app"]
+    command: ["gunicorn", "-c", "/src/server/gunicorn-prod.config.py", "logdetective.server.server:app"]
