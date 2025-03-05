@@ -15,10 +15,17 @@ LOG = logging.getLogger("logdetective")
 def chunk_continues(text: str, index: int) -> bool:
     """Set of heuristics for determining whether or not
     does the current chunk of log text continue on next line.
+
+    Following rules are checked, in order:
+    * is the next character is whitespace
+    * is the previous character backslash '\\'
+    * is the previous character colon ':'
+
     """
     conditionals = [
         lambda i, string: string[i + 1].isspace(),
-        lambda i, string: string[i - 1] == "\\"
+        lambda i, string: string[i - 1] == "\\",
+        lambda i, string: string[i - 1] == ":"
     ]
 
     for c in conditionals:
