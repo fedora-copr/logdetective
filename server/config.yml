@@ -1,0 +1,7 @@
+inference:
+  max_tokens: -1
+  log_probs: 1
+extractor:
+  context: true
+  max_clusters: 32
+  verbose: false

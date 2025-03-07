@@ -35,15 +35,17 @@ huggingface-hub = ">0.23.2"
 # we need to support both versions
 numpy = ">=1.26.0"
 
+[tool.poetry.group.server.dependencies]
+fastapi = "^0.115.8"
+pydantic = "^2.10.6"
+pyyaml = "^6.0.2"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 logdetective = 'logdetective.logdetective:main'
-
-[tool.poetry.extras]
-server = ["fastapi", "pydantic"]
 
 [tool.pylint]
 disable = [
