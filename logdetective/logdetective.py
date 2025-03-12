@@ -96,14 +96,20 @@ def main():
     response = process_log(log_summary, model, stream)
     probs = []
     print("Explanation:")
+    # We need to extract top token probability from the response
+    # CreateCompletionResponse structure of llama-cpp-python.
+    # `compute_certainty` function expects list of dictionaries with form
+    # { 'logprob': <float> } as expected from the OpenAI API.
+
     if args.no_stream:
         print(response["choices"][0]["text"])
-        probs = response["choices"][0]["logprobs"]["top_logprobs"]
+        probs = [{'logprob': e} for e in response['choices'][0]['logprobs']['token_logprobs']]
+
     else:
         # Stream the output
         for chunk in response:
             if isinstance(chunk["choices"][0]["logprobs"], dict):
-                probs.extend(chunk["choices"][0]["logprobs"]["top_logprobs"])
+                probs.append({'logprob': chunk["choices"][0]["logprobs"]['token_logprobs'][0]})
             delta = chunk['choices'][0]['text']
             print(delta, end='', flush=True)
     certainty = compute_certainty(probs)
