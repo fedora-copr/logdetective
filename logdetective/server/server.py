@@ -29,7 +29,7 @@ LLM_CPP_SERVER_TIMEOUT = os.environ.get("LLAMA_CPP_SERVER_TIMEOUT", 600)
 LOG_SOURCE_REQUEST_TIMEOUT = os.environ.get("LOG_SOURCE_REQUEST_TIMEOUT", 60)
 API_TOKEN = os.environ.get("LOGDETECTIVE_TOKEN", None)
 SERVER_CONFIG_PATH = os.environ.get("LOGDETECTIVE_SERVER_CONF", None)
-
+LLM_API_TOKEN = os.environ.get("LLM_API_TOKEN", None)
 
 SERVER_CONFIG = load_server_config(SERVER_CONFIG_PATH)
 
@@ -126,11 +126,16 @@ async def submit_text(
         "model": model,
     }
 
+    headers = {"Content-Type": "application/json"}
+
+    if LLM_API_TOKEN:
+        headers["Authorization"] = f"Bearer {LLM_API_TOKEN}"
+
     try:
         # Expects llama-cpp server to run on LLM_CPP_SERVER_ADDRESS:LLM_CPP_SERVER_PORT
         response = requests.post(
             f"{LLM_CPP_SERVER_ADDRESS}:{LLM_CPP_SERVER_PORT}/v1/completions",
-            headers={"Content-Type": "application/json"},
+            headers=headers,
             data=json.dumps(data),
             timeout=int(LLM_CPP_SERVER_TIMEOUT),
             stream=stream,
