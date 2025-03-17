@@ -1,7 +1,7 @@
 version: "3"
 services:
   llama-cpp:
-    image: logdetective/runtime:latest-cuda
+    image: quay.io/logdetective/runtime:latest-cuda
     build:
       context: .
       dockerfile: ./Containerfile.cuda
@@ -18,7 +18,7 @@ services:
     devices:
       - nvidia.com/gpu=all
   server:
-    image: logdetective/runtime:latest
+    image: quay.io/logdetective/runtime:latest
     build:
       context: .
       dockerfile: ./Containerfile
