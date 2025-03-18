@@ -2,9 +2,8 @@ import asyncio
 import json
 import logging
 import os
-from typing import List, Annotated
+from typing import List, Annotated, Dict, Any
 
-from llama_cpp import CreateCompletionResponse
 from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.responses import StreamingResponse
 import requests
@@ -17,7 +16,7 @@ from logdetective.constants import (
 )
 from logdetective.extractors import DrainExtractor
 from logdetective.utils import validate_url, compute_certainty
-from logdetective.server.models import BuildLog, Response, StagedResponse
+from logdetective.server.models import BuildLog, Response, StagedResponse, Explanation
 from logdetective.server.utils import load_server_config
 
 LOG = logging.getLogger("logdetective")
@@ -106,35 +105,21 @@ def mine_logs(log: str) -> List[str]:
     return log_summary
 
 
-async def submit_text(
-    text: str,
-    max_tokens: int = -1,
-    log_probs: int = 1,
-    stream: bool = False,
-    model: str = "default-model",
-):
-    """Submit prompt to LLM.
-    max_tokens: number of tokens to be produces, 0 indicates run until encountering EOS
-    log_probs: number of token choices to produce log probs for
+async def submit_to_llm_endpoint(
+    url: str, data: Dict[str, Any], headers: Dict[str, str], stream: bool
+) -> Any:
+    """Send request to selected API endpoint. Verifying successful request unless
+    the using the stream response.
+
+    url:
+    data:
+    headers:
+    stream:
     """
-    LOG.info("Analyzing the text")
-    data = {
-        "prompt": text,
-        "max_tokens": max_tokens,
-        "logprobs": log_probs,
-        "stream": stream,
-        "model": model,
-    }
-
-    headers = {"Content-Type": "application/json"}
-
-    if LLM_API_TOKEN:
-        headers["Authorization"] = f"Bearer {LLM_API_TOKEN}"
-
     try:
         # Expects llama-cpp server to run on LLM_CPP_SERVER_ADDRESS:LLM_CPP_SERVER_PORT
         response = requests.post(
-            f"{LLM_CPP_SERVER_ADDRESS}:{LLM_CPP_SERVER_PORT}/v1/completions",
+            url,
             headers=headers,
             data=json.dumps(data),
             timeout=int(LLM_CPP_SERVER_TIMEOUT),
@@ -159,10 +144,114 @@ async def submit_text(
                 status_code=400,
                 detail=f"Couldn't parse the response.\nError: {ex}\nData: {response.text}",
             ) from ex
-    else:
-        return response
 
-    return CreateCompletionResponse(response)
+    return response
+
+
+async def submit_text(
+    text: str,
+    max_tokens: int = -1,
+    log_probs: int = 1,
+    stream: bool = False,
+    model: str = "default-model",
+    api_endpoint: str = "/chat/completions",
+) -> Explanation:
+    """Submit prompt to LLM using a selected endpoint.
+    max_tokens: number of tokens to be produces, 0 indicates run until encountering EOS
+    log_probs: number of token choices to produce log probs for
+    """
+    LOG.info("Analyzing the text")
+
+    headers = {"Content-Type": "application/json"}
+
+    if LLM_API_TOKEN:
+        headers["Authorization"] = f"Bearer {LLM_API_TOKEN}"
+
+    if api_endpoint == "/chat/completions":
+        return await submit_text_chat_completions(
+            text, headers, max_tokens, log_probs > 0, stream, model
+        )
+    return await submit_text_completions(
+        text, headers, max_tokens, log_probs, stream, model
+    )
+
+
+async def submit_text_completions(
+    text: str,
+    headers: dict,
+    max_tokens: int = -1,
+    log_probs: int = 1,
+    stream: bool = False,
+    model: str = "default-model",
+) -> Explanation:
+    """Submit prompt to OpenAI API completions endpoint.
+    max_tokens: number of tokens to be produces, 0 indicates run until encountering EOS
+    log_probs: number of token choices to produce log probs for
+    """
+    LOG.info("Submitting to /v1/completions endpoint")
+    data = {
+        "prompt": text,
+        "max_tokens": max_tokens,
+        "logprobs": log_probs,
+        "stream": stream,
+        "model": model,
+    }
+
+    response = await submit_to_llm_endpoint(
+        f"{LLM_CPP_SERVER_ADDRESS}:{LLM_CPP_SERVER_PORT}/v1/completions",
+        data,
+        headers,
+        stream,
+    )
+
+    return Explanation(
+        text=response["choices"][0]["text"], logprobs=response["choices"][0]["logprobs"]
+    )
+
+
+async def submit_text_chat_completions(
+    text: str,
+    headers: dict,
+    max_tokens: int = -1,
+    log_probs: int = 1,
+    stream: bool = False,
+    model: str = "default-model",
+) -> Explanation:
+    """Submit prompt to OpenAI API /chat/completions endpoint.
+    max_tokens: number of tokens to be produces, 0 indicates run until encountering EOS
+    log_probs: number of token choices to produce log probs for
+    """
+    LOG.info("Submitting to /v1/chat/completions endpoint")
+
+    data = {
+        "messages": [
+            {
+                "role": "user",
+                "content": text,
+            }
+        ],
+        "max_tokens": max_tokens,
+        "logprobs": log_probs,
+        "stream": stream,
+        "model": model,
+    }
+
+    response = await submit_to_llm_endpoint(
+        f"{LLM_CPP_SERVER_ADDRESS}:{LLM_CPP_SERVER_PORT}/v1/chat/completions",
+        data,
+        headers,
+        stream,
+    )
+
+    if stream:
+        return Explanation(
+            text=response["choices"][0]["delta"]["content"],
+            logprobs=response["choices"][0]["logprobs"]["content"],
+        )
+    return Explanation(
+        text=response["choices"][0]["message"]["content"],
+        logprobs=response["choices"][0]["logprobs"]["content"],
+    )
 
 
 @app.post("/analyze", response_model=Response)
@@ -175,20 +264,21 @@ async def analyze_log(build_log: BuildLog):
     """
     log_text = process_url(build_log.url)
     log_summary = mine_logs(log_text)
-    response = await submit_text(PROMPT_TEMPLATE.format(log_summary))
+    response = await submit_text(
+        PROMPT_TEMPLATE.format(log_summary),
+        api_endpoint=SERVER_CONFIG.inference.api_endpoint,
+    )
     certainty = 0
 
-    if "logprobs" in response["choices"][0]:
+    if response.logprobs is not None:
         try:
-            certainty = compute_certainty(
-                response["choices"][0]["logprobs"]["content"][0]["top_logprobs"]
-            )
+            certainty = compute_certainty(response.logprobs)
         except ValueError as ex:
             LOG.error("Error encountered while computing certainty: %s", ex)
             raise HTTPException(
                 status_code=400,
                 detail=f"Couldn't compute certainty with data:\n"
-                f"{response['choices'][0]['logprobs']['content'][0]['top_logprobs']}",
+                f"{response.logprobs}",
             ) from ex
 
     return Response(explanation=response, response_certainty=certainty)
@@ -207,7 +297,13 @@ async def analyze_log_staged(build_log: BuildLog):
 
     # Process snippets asynchronously
     analyzed_snippets = await asyncio.gather(
-        *[submit_text(SNIPPET_PROMPT_TEMPLATE.format(s)) for s in log_summary]
+        *[
+            submit_text(
+                SNIPPET_PROMPT_TEMPLATE.format(s),
+                api_endpoint=SERVER_CONFIG.inference.api_endpoint,
+            )
+            for s in log_summary
+        ]
     )
 
     analyzed_snippets = [
@@ -216,28 +312,25 @@ async def analyze_log_staged(build_log: BuildLog):
 
     final_prompt = PROMPT_TEMPLATE_STAGED.format(
         f"\n{SNIPPET_DELIMITER}\n".join(
-            [
-                f"[{e['snippet']}] : [{e['comment']['choices'][0]['text']}]"
-                for e in analyzed_snippets
-            ]
+            [f"[{e["snippet"]}] : [{e["comment"].text}]" for e in analyzed_snippets]
         )
     )
 
-    final_analysis = await submit_text(final_prompt)
-    print(final_analysis)
+    final_analysis = await submit_text(
+        final_prompt, api_endpoint=SERVER_CONFIG.inference.api_endpoint
+    )
+
     certainty = 0
 
-    if "logprobs" in final_analysis["choices"][0]:
+    if final_analysis.logprobs:
         try:
-            certainty = compute_certainty(
-                final_analysis["choices"][0]["logprobs"]["content"][0]["top_logprobs"]
-            )
+            certainty = compute_certainty(final_analysis.logprobs)
         except ValueError as ex:
             LOG.error("Error encountered while computing certainty: %s", ex)
             raise HTTPException(
                 status_code=400,
                 detail=f"Couldn't compute certainty with data:\n"
-                f"{final_analysis['choices'][0]['logprobs']['content'][0]['top_logprobs']}",
+                f"{final_analysis.logprobs}",
             ) from ex
 
     return StagedResponse(
@@ -257,6 +350,13 @@ async def analyze_log_stream(build_log: BuildLog):
     """
     log_text = process_url(build_log.url)
     log_summary = mine_logs(log_text)
-    stream = await submit_text(PROMPT_TEMPLATE.format(log_summary), stream=True)
+    headers = {"Content-Type": "application/json"}
+
+    if LLM_API_TOKEN:
+        headers["Authorization"] = f"Bearer {LLM_API_TOKEN}"
+
+    stream = await submit_text_chat_completions(
+        PROMPT_TEMPLATE.format(log_summary), stream=True, headers=headers
+    )
 
     return StreamingResponse(stream)

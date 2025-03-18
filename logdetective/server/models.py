@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Literal
 from pydantic import BaseModel
 
 
@@ -8,15 +8,22 @@ class BuildLog(BaseModel):
     url: str
 
 
+class Explanation(BaseModel):
+    """Model of snippet or general log explanation from Log Detective
+    """
+
+    text: str
+    logprobs: Optional[List[Dict]] = None
+
+
 class Response(BaseModel):
     """Model of data returned by Log Detective API
 
-    explanation: CreateCompletionResponse
-        https://llama-cpp-python.readthedocs.io/en/latest/api-reference/#llama_cpp.llama_types.CreateCompletionResponse
+    explanation: Explanation
     response_certainty: float
     """
 
-    explanation: Dict
+    explanation: Explanation
     response_certainty: float
 
 
@@ -24,14 +31,13 @@ class StagedResponse(Response):
     """Model of data returned by Log Detective API when called when staged response
     is requested. Contains list of reponses to prompts for individual snippets.
 
-    explanation: CreateCompletionResponse
-        https://llama-cpp-python.readthedocs.io/en/latest/api-reference/#llama_cpp.llama_types.CreateCompletionResponse
+    explanation: Explanation
     response_certainty: float
     snippets:
         list of dictionaries { 'snippet' : '<original_text>, 'comment': CreateCompletionResponse }
     """
 
-    snippets: List[Dict[str, str | Dict]]
+    snippets: List[Dict[str, str | Explanation]]
 
 
 class InferenceConfig(BaseModel):
@@ -39,6 +45,7 @@ class InferenceConfig(BaseModel):
 
     max_tokens: int = -1
     log_probs: int = 1
+    api_endpoint: Optional[Literal["/chat/completions", "/completions"]] = "/chat/completions"
 
     def __init__(self, data: Optional[dict] = None):
         super().__init__()
@@ -47,6 +54,7 @@ class InferenceConfig(BaseModel):
 
         self.max_tokens = data.get("max_tokens", -1)
         self.log_probs = data.get("log_probs", 1)
+        self.api_endpoint = data.get("api_endpoint", "/chat/completions")
 
 
 class ExtractorConfig(BaseModel):
