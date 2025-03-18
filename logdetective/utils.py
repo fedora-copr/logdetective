@@ -7,7 +7,7 @@ import requests
 
 from llama_cpp import Llama, CreateCompletionResponse, CreateCompletionStreamResponse
 from logdetective.constants import PROMPT_TEMPLATE, SNIPPET_DELIMITER
-
+from logdetective.server.models import AnalyzedSnippet
 
 LOG = logging.getLogger("logdetective")
 
@@ -175,11 +175,11 @@ def format_snippets(snippets: list[str] | list[Tuple[int, str]]) -> str:
     return summary
 
 
-def format_analyzed_snippets(snippets: list[Dict]) -> str:
+def format_analyzed_snippets(snippets: list[AnalyzedSnippet]) -> str:
     """Format snippets for submission into staged prompt."""
     summary = f"\n{SNIPPET_DELIMITER}\n".join(
         [
-            f"[{e['snippet']}] at line [{e["line_number"]}]: [{e['comment']['choices'][0]['text']}]"
+            f"[{e.text}] at line [{e.line_number}]: [{e.explanation.text}]"
             for e in snippets
         ]
     )
