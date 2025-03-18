@@ -2,11 +2,18 @@ import asyncio
 import json
 import logging
 import os
+import re
+import zipfile
+from pathlib import PurePath
+from tempfile import TemporaryFile
 from typing import List, Annotated, Tuple
 
+
 from llama_cpp import CreateCompletionResponse
-from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header
 from fastapi.responses import StreamingResponse
+from fastapi.responses import Response as BasicResponse
+import gitlab
 import requests
 
 from logdetective.constants import (
@@ -21,7 +28,7 @@ from logdetective.utils import (
     format_snippets,
     format_analyzed_snippets,
 )
-from logdetective.server.models import BuildLog, Response, StagedResponse
+from logdetective.server.models import BuildLog, JobHook, Response, StagedResponse
 from logdetective.server.utils import load_server_config
 
 LOG = logging.getLogger("logdetective")
@@ -36,6 +43,9 @@ SERVER_CONFIG_PATH = os.environ.get("LOGDETECTIVE_SERVER_CONF", None)
 LLM_API_TOKEN = os.environ.get("LLM_API_TOKEN", None)
 
 SERVER_CONFIG = load_server_config(SERVER_CONFIG_PATH)
+
+MR_REGEX = re.compile(r"refs/merge-requests/(\d+)/merge")
+FAILURE_LOG_REGEX = re.compile(r"(\w*\.log)")
 
 
 def requires_token_when_set(authentication: Annotated[str | None, Header()] = None):
@@ -69,6 +79,9 @@ def requires_token_when_set(authentication: Annotated[str | None, Header()] = No
 
 
 app = FastAPI(dependencies=[Depends(requires_token_when_set)])
+app.gitlab_conn = gitlab.Gitlab(
+    url=SERVER_CONFIG.gitlab.url, private_token=SERVER_CONFIG.gitlab.api_token
+)
 
 
 def process_url(url: str) -> str:
@@ -261,3 +274,169 @@ async def analyze_log_stream(build_log: BuildLog):
     stream = await submit_text(PROMPT_TEMPLATE.format(log_summary), stream=True)
 
     return StreamingResponse(stream)
+
+
+@app.post("/webhook/gitlab/job_events")
+async def receive_gitlab_job_event_webhook(
+    job_hook: JobHook, background_tasks: BackgroundTasks
+):
+    """Webhook endpoint for receiving job_events notifications from GitLab
+    https://docs.gitlab.com/user/project/integrations/webhook_events/#job-events
+    lists the full specification for the messages sent for job events."""
+
+    # Handle the message in the background so we can return 200 immediately
+    background_tasks.add_task(process_gitlab_job_event, job_hook)
+
+    # No return value or body is required for a webhook.
+    # 204: No Content
+    return BasicResponse(status_code=204)
+
+
+async def process_gitlab_job_event(job_hook):
+    """Handle a received job_event webhook from GitLab"""
+    LOG.debug("Received webhook message:\n%s", job_hook)
+
+    # Look up the project this job belongs to
+    project = await asyncio.to_thread(app.gitlab_conn.projects.get, job_hook.project_id)
+
+    # check if this project is on the opt-in list
+    if project.name not in SERVER_CONFIG.general.packages:
+        LOG.info("Ignoring unrecognized package %s", project.name)
+        return
+    LOG.info("Processing failed job for %s", project.name)
+
+    # Retrieve data about the job from the GitLab API
+    job = await asyncio.to_thread(project.jobs.get, job_hook.build_id)
+
+    # Retrieve the pipeline that started this job
+    pipeline = await asyncio.to_thread(project.pipelines.get, job_hook.pipeline_id)
+
+    # Verify this is a merge request
+    if pipeline.source != "merge_request_event":
+        LOG.info("Not a merge request pipeline. Ignoring.")
+        return
+
+    # Extract the merge-request ID from the job
+    match = MR_REGEX.search(pipeline.ref)
+    if not match:
+        LOG.error(
+            "Pipeline source is merge_request_event but no merge request ID was provided."
+        )
+        return
+    merge_request_id = int(match.group(1))
+
+    # Retrieve the build logs from the merge request artifacts and preprocess them
+    preprocessed_log = await retrieve_and_preprocess_koji_logs(job)
+
+    # Submit log to Log Detective and await the results.
+    response = await submit_log_to_llm(preprocessed_log)
+    preprocessed_log.close()
+
+    # Add the Log Detective response as a comment to the merge request
+    await comment_on_mr(merge_request_id, response)
+
+
+async def retrieve_and_preprocess_koji_logs(job):
+    """Download logs from the merge request artifacts
+
+    This function will retrieve the build logs and do some minimal
+    preprocessing to determine which log is relevant for analysis.
+
+    returns: An open, file-like object containing the log contents to be sent
+    for processing by Log Detective. The calling function is responsible for
+    closing this object."""
+
+    # Create a temporary file to store the downloaded log zipfile.
+    # This will be automatically deleted when the last reference into it
+    # (returned by this function) is closed.
+    tempfile = TemporaryFile(mode="w+b")
+    await asyncio.to_thread(job.artifacts, streamed=True, action=tempfile.write)
+    tempfile.seek(0)
+
+    failed_arches = {}
+    artifacts_zip = zipfile.ZipFile(tempfile, mode="r")
+    for zipinfo in artifacts_zip.infolist():
+        if zipinfo.filename.endswith("task_failed.log"):
+            # The koji logs store this file in two places: 1) in the
+            # directory with the failed architecture and 2) in the parent
+            # directory. We actually want to ignore the one in the parent
+            # directory, since the rest of the information is in the
+            # specific task directory.
+            # The paths look like `kojilogs/noarch-XXXXXX/task_failed.log`
+            # or `kojilogs/noarch-XXXXXX/x86_64-XXXXXX/task_failed.log`
+            path = PurePath(zipinfo.filename)
+            if len(path.parts) <= 3:
+                continue
+
+            # Extract the architecture from the immediate parent path
+            architecture = path.parent.parts[-1].split("-")[0]
+
+            # Open this file and read which log failed.
+            # The string in this log has the format
+            # `see <log> for more information`.
+            # Note: it may sometimes say
+            # `see build.log or root.log for more information`, but in
+            # that situation, we only want to handle build.log (for now),
+            # which means accepting only the first match for the regular
+            # expression.
+            with artifacts_zip.open(zipinfo.filename) as task_failed_log:
+                contents = task_failed_log.read().decode("utf-8")
+                match = FAILURE_LOG_REGEX.search(contents)
+                if not match:
+                    LOG.error(
+                        "task_failed.log does not indicate which log contains the failure."
+                    )
+                    raise SyntaxError(
+                        "task_failed.log does not indicate which log contains the failure."
+                    )
+                failure_log_name = match.group(1)
+
+            failed_arches[architecture] = PurePath(path.parent, failure_log_name)
+
+    if not failed_arches:
+        # No failed task found?
+        raise FileNotFoundError("Could not detect failed architecture.")
+
+    # First check if we only found one failed architecture
+    if len(failed_arches) == 1:
+        failed_arch = list(failed_arches.keys())[0]
+
+    else:
+        # We only want to handle one arch, so we'll check them in order of
+        # "most to least likely for the maintainer to have access to hardware"
+        # This means: x86_64 > aarch64 > ppc64le > s390x
+        if "x86_64" in failed_arches:
+            failed_arch = "x86_64"
+        elif "aarch64" in failed_arches:
+            failed_arch = "aarch64"
+        elif "ppc64le" in failed_arches:
+            failed_arch = "ppc64le"
+        elif "s390x" in failed_arches:
+            failed_arch = "s390x"
+        else:
+            # It should be impossible for us to get "noarch" here, since
+            # the only way that should happen is for a single architecture
+            # build.
+            raise FileNotFoundError("No failed architecture detected.")
+
+    LOG.debug("Failed architecture: %s", failed_arch)
+
+    log_path = failed_arches[failed_arch]
+    LOG.debug("Returning contents of %s", log_path)
+
+    # Return the log as a file-like object with .read() function
+    return artifacts_zip.open(log_path.as_posix())
+
+
+async def submit_log_to_llm(log):
+    """Stream the log to the LLM for processing"""
+    # TODO: query the LLM with the log contents  # pylint: disable=fixme
+    # This function will be implemented later; right now it does nothing.
+    LOG.debug("Log contents:\n%s", log.read())
+    return ""
+
+
+async def comment_on_mr(merge_request_id: int, response: str):  # pylint: disable=unused-argument
+    """Add the Log Detective response as a comment to the merge request"""
+    # TODO: Implement this  # pylint: disable=fixme
+    pass  # pylint: disable=unnecessary-pass
