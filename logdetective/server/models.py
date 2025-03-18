@@ -1,11 +1,39 @@
 from typing import List, Dict, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class BuildLog(BaseModel):
     """Model of data submitted to API."""
 
     url: str
+
+
+class JobHook(BaseModel):
+    """Model of Job Hook events sent from GitLab.
+    Full details of the specification are available at
+    https://docs.gitlab.com/user/project/integrations/webhook_events/#job-events
+    This model implements only the fields that we care about. The webhook
+    sends many more fields that we will ignore."""
+
+    # The unique job ID on this GitLab instance.
+    build_id: int
+
+    # The identifier of the job. We only care about 'build_rpm' and
+    # 'build_centos_stream_rpm' jobs.
+    build_name: str = Field(pattern=r"^build(_.*)?_rpm$")
+
+    # A string representing the job status. We only care about 'failed' jobs.
+    build_status: str = Field(pattern=r"^failed$")
+
+    # The kind of webhook message. We are only interested in 'build' messages
+    # which represents job tasks in a pipeline.
+    object_kind: str = Field(pattern=r"^build$")
+
+    # The unique ID of the enclosing pipeline on this GitLab instance.
+    pipeline_id: int
+
+    # The unique ID of the project triggering this event
+    project_id: int
 
 
 class Response(BaseModel):
@@ -83,6 +111,7 @@ class GitLabConfig(BaseModel):
         self.url = data.get("url", "https://gitlab.com")
         self.api_token = data.get("api_token", None)
 
+
 class GeneralConfig(BaseModel):
     """General config options for Log Detective"""
 
@@ -93,7 +122,8 @@ class GeneralConfig(BaseModel):
         if data is None:
             return
 
-        self.packages = data.get("packages", list())
+        self.packages = data.get("packages", [])
+
 
 class Config(BaseModel):
     """Model for configuration of logdetective server."""
