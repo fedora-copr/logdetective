@@ -78,5 +78,5 @@ class Config(BaseModel):
         if data is None:
             return
 
-        self.inference = InferenceConfig(data.get("inferenece"))
+        self.inference = InferenceConfig(data.get("inference"))
         self.extractor = ExtractorConfig(data.get("extractor"))
