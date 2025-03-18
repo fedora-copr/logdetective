@@ -4,6 +4,7 @@ from logdetective.utils import (
     format_snippets,
     format_analyzed_snippets,
 )
+from logdetective.server.models import AnalyzedSnippet, Explanation
 
 test_snippets = [
     # Simple
@@ -12,16 +13,15 @@ test_snippets = [
     [(10, "Snippet 1"), (120, "Snippet 1"), (240, "Snippet 1")],
 ]
 
-# Contents of "comment" follow structure of OpenAI API completions
-# response format https://platform.openai.com/docs/api-reference/completions
 test_analyzed_snippets = [
     [
-        {
-            "snippet": e[1],
-            "line_number": e[0],
-            "comment": {"choices": [{"text": f"Comment for snippet on line {e[0]}"}]},
-        }
-        for e in test_snippets[0]
+        AnalyzedSnippet(
+            text=e[1],
+            line_number=e[0],
+            explanation=Explanation(
+                text=f"Comment for snippet on line {e[0]}",
+                logprobs=[{"logprob": 66.6}, {"logprob": 99.9}, {"logprob": 1.0}]))
+        for e in test_snippets[1]
     ]
 ]
 
