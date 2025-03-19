@@ -5,3 +5,6 @@ extractor:
   context: true
   max_clusters: 32
   verbose: false
+gitlab:
+  url: https://gitlab.com
+  api_token: glpat-XXXXXX

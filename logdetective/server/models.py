@@ -69,11 +69,27 @@ class ExtractorConfig(BaseModel):
         self.verbose = data.get("verbose", False)
 
 
+class GitLabConfig(BaseModel):
+    """Model for GitLab configuration of logdetective server."""
+
+    url: str = None
+    api_token: str = None
+
+    def __init__(self, data: Optional[dict] = None):
+        super().__init__()
+        if data is None:
+            return
+
+        self.url = data.get("url", "https://gitlab.com")
+        self.api_token = data.get("api_token", None)
+
+
 class Config(BaseModel):
     """Model for configuration of logdetective server."""
 
     inference: InferenceConfig = InferenceConfig()
     extractor: ExtractorConfig = ExtractorConfig()
+    gitlab: GitLabConfig = GitLabConfig()
 
     def __init__(self, data: Optional[dict] = None):
         super().__init__()
@@ -83,3 +99,4 @@ class Config(BaseModel):
 
         self.inference = InferenceConfig(data.get("inference"))
         self.extractor = ExtractorConfig(data.get("extractor"))
+        self.gitlab = GitLabConfig(data.get("gitlab"))
