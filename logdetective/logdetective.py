@@ -68,7 +68,7 @@ def setup_args():
     return parser.parse_args()
 
 
-def main():
+def main():  # pylint: disable=too-many-statements
     """Main execution function."""
     args = setup_args()
 

@@ -39,7 +39,7 @@ class LLMExtractor:
         log_lines = log.split("\n")
 
         for i in range(0, len(log_lines), self.n_lines):
-            block = "\n".join(log_lines[i : i + self.n_lines])
+            block = "\n".join(log_lines[i: i + self.n_lines])
             prompt = SUMMARIZE_PROMPT_TEMPLATE.format(log)
             out = self.model(prompt, max_tokens=7, grammar=self.grammar)
             out = f"{out['choices'][0]['text']}\n"
