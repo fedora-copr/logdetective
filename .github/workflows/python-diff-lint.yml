@@ -25,6 +25,8 @@ jobs:
           install_rpm_packages: |
             python3-numpy
             python3-pytest
+            python3-fastapi
+            python3-gitlab
           linter_tags: |
             pylint
             ruff
