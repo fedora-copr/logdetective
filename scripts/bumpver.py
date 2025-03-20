@@ -106,7 +106,7 @@ if __name__ == "__main__":
             sys.exit(1)
 
     # Bump the project version
-    new_version = bump_version(args.version)
+    new_version = bump_version(args.version)  # pylint: disable=invalid-name
     commit(new_version)
 
     if args.tag:
