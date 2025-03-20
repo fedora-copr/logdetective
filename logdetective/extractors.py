@@ -15,13 +15,17 @@ class LLMExtractor:
     """
     A class that extracts relevant information from logs using a language model.
     """
+
     def __init__(self, model: Llama, n_lines: int = 2):
         self.model = model
         self.n_lines = n_lines
         self.grammar = LlamaGrammar.from_string(
-            "root ::= (\"Yes\" | \"No\")", verbose=False)
+            'root ::= ("Yes" | "No")', verbose=False
+        )
 
-    def __call__(self, log: str, n_lines: int = 2, neighbors: bool = False) -> list[str]:
+    def __call__(
+        self, log: str, n_lines: int = 2, neighbors: bool = False
+    ) -> list[str]:
         chunks = self.rate_chunks(log)
         out = self.create_extract(chunks, neighbors)
         return out
@@ -35,7 +39,7 @@ class LLMExtractor:
         log_lines = log.split("\n")
 
         for i in range(0, len(log_lines), self.n_lines):
-            block = '\n'.join(log_lines[i:i + self.n_lines])
+            block = "\n".join(log_lines[i : i + self.n_lines])
             prompt = SUMMARIZE_PROMPT_TEMPLATE.format(log)
             out = self.model(prompt, max_tokens=7, grammar=self.grammar)
             out = f"{out['choices'][0]['text']}\n"
@@ -44,8 +48,7 @@ class LLMExtractor:
         return results
 
     def create_extract(self, chunks: list[tuple], neighbors: bool = False) -> list[str]:
-        """Extract interesting chunks from the model processing.
-        """
+        """Extract interesting chunks from the model processing."""
         interesting = []
         summary = []
         # pylint: disable=consider-using-enumerate
@@ -64,8 +67,8 @@ class LLMExtractor:
 
 
 class DrainExtractor:
-    """A class that extracts information from logs using a template miner algorithm.
-    """
+    """A class that extracts information from logs using a template miner algorithm."""
+
     def __init__(self, verbose: bool = False, context: bool = False, max_clusters=8):
         config = TemplateMinerConfig()
         config.load(f"{os.path.dirname(__file__)}/drain3.ini")
@@ -80,7 +83,9 @@ class DrainExtractor:
         for chunk in get_chunks(log):
             processed_line = self.miner.add_log_message(chunk)
             LOG.debug(processed_line)
-        sorted_clusters = sorted(self.miner.drain.clusters, key=lambda it: it.size, reverse=True)
+        sorted_clusters = sorted(
+            self.miner.drain.clusters, key=lambda it: it.size, reverse=True
+        )
         for chunk in get_chunks(log):
             cluster = self.miner.match(chunk, "always")
             if cluster in sorted_clusters:
