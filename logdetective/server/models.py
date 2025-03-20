@@ -83,6 +83,17 @@ class GitLabConfig(BaseModel):
         self.url = data.get("url", "https://gitlab.com")
         self.api_token = data.get("api_token", None)
 
+class GeneralConfig(BaseModel):
+    """General config options for Log Detective"""
+
+    packages: List[str] = None
+
+    def __init__(self, data: Optional[dict] = None):
+        super().__init__()
+        if data is None:
+            return
+
+        self.packages = data.get("packages", list())
 
 class Config(BaseModel):
     """Model for configuration of logdetective server."""
@@ -90,6 +101,7 @@ class Config(BaseModel):
     inference: InferenceConfig = InferenceConfig()
     extractor: ExtractorConfig = ExtractorConfig()
     gitlab: GitLabConfig = GitLabConfig()
+    general: GeneralConfig = GeneralConfig()
 
     def __init__(self, data: Optional[dict] = None):
         super().__init__()
@@ -100,3 +112,4 @@ class Config(BaseModel):
         self.inference = InferenceConfig(data.get("inference"))
         self.extractor = ExtractorConfig(data.get("extractor"))
         self.gitlab = GitLabConfig(data.get("gitlab"))
+        self.general = GeneralConfig(data.get("general"))
