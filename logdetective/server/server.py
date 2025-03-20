@@ -188,7 +188,7 @@ async def analyze_log(build_log: BuildLog):
             raise HTTPException(
                 status_code=400,
                 detail=f"Couldn't compute certainty with data:\n"
-                f"{response["choices"][0]["logprobs"]["content"][0]["top_logprobs"]}",
+                f"{response['choices'][0]['logprobs']['content'][0]['top_logprobs']}",
             ) from ex
 
     return Response(explanation=response, response_certainty=certainty)
@@ -217,7 +217,7 @@ async def analyze_log_staged(build_log: BuildLog):
     final_prompt = PROMPT_TEMPLATE_STAGED.format(
         f"\n{SNIPPET_DELIMITER}\n".join(
             [
-                f"[{e["snippet"]}] : [{e["comment"]["choices"][0]["text"]}]"
+                f"[{e['snippet']}] : [{e['comment']['choices'][0]['text']}]"
                 for e in analyzed_snippets
             ]
         )
@@ -237,7 +237,7 @@ async def analyze_log_staged(build_log: BuildLog):
             raise HTTPException(
                 status_code=400,
                 detail=f"Couldn't compute certainty with data:\n"
-                f"{final_analysis["choices"][0]["logprobs"]["content"][0]["top_logprobs"]}",
+                f"{final_analysis['choices'][0]['logprobs']['content'][0]['top_logprobs']}",
             ) from ex
 
     return StagedResponse(

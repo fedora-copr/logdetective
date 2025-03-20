@@ -1,4 +1,3 @@
-
 # pylint: disable=line-too-long
 DEFAULT_ADVISOR = "fedora-copr/Mistral-7B-Instruct-v0.2-GGUF"
 
@@ -59,4 +58,4 @@ Analysis:
 
 """
 
-SNIPPET_DELIMITER = '================'
+SNIPPET_DELIMITER = "================"
