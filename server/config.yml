@@ -8,3 +8,6 @@ extractor:
 gitlab:
   url: https://gitlab.com
   api_token: glpat-XXXXXX
+general:
+  packages:
+    - osci-internal-test-package
