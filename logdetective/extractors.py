@@ -1,5 +1,6 @@
 import os
 import logging
+from typing import Tuple
 
 import drain3
 from drain3.template_miner_config import TemplateMinerConfig
@@ -78,17 +79,21 @@ class DrainExtractor:
         self.verbose = verbose
         self.context = context
 
-    def __call__(self, log: str) -> list[str]:
+    def __call__(self, log: str) -> list[Tuple[int, str]]:
         out = []
-        for chunk in get_chunks(log):
-            processed_line = self.miner.add_log_message(chunk)
-            LOG.debug(processed_line)
+        # First pass create clusters
+        for _, chunk in get_chunks(log):
+            processed_chunk = self.miner.add_log_message(chunk)
+            LOG.debug(processed_chunk)
+        # Sort found clusters by size, descending order
         sorted_clusters = sorted(
             self.miner.drain.clusters, key=lambda it: it.size, reverse=True
         )
-        for chunk in get_chunks(log):
+        # Second pass, only matching lines with clusters,
+        # to recover original text
+        for chunk_start, chunk in get_chunks(log):
             cluster = self.miner.match(chunk, "always")
             if cluster in sorted_clusters:
-                out.append(chunk)
+                out.append((chunk_start, chunk))
                 sorted_clusters.remove(cluster)
         return out

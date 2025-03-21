@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import os
-from typing import List, Annotated
+from typing import List, Annotated, Tuple
 
 from llama_cpp import CreateCompletionResponse
 from fastapi import FastAPI, HTTPException, Depends, Header
@@ -13,10 +13,14 @@ from logdetective.constants import (
     PROMPT_TEMPLATE,
     SNIPPET_PROMPT_TEMPLATE,
     PROMPT_TEMPLATE_STAGED,
-    SNIPPET_DELIMITER,
 )
 from logdetective.extractors import DrainExtractor
-from logdetective.utils import validate_url, compute_certainty
+from logdetective.utils import (
+    validate_url,
+    compute_certainty,
+    format_snippets,
+    format_analyzed_snippets,
+)
 from logdetective.server.models import BuildLog, Response, StagedResponse
 from logdetective.server.utils import load_server_config
 
@@ -90,7 +94,7 @@ def process_url(url: str) -> str:
     return log_request.text
 
 
-def mine_logs(log: str) -> List[str]:
+def mine_logs(log: str) -> List[Tuple[int, str]]:
     """Extract snippets from log text"""
     extractor = DrainExtractor(
         verbose=True, context=True, max_clusters=SERVER_CONFIG.extractor.max_clusters
@@ -175,6 +179,7 @@ async def analyze_log(build_log: BuildLog):
     """
     log_text = process_url(build_log.url)
     log_summary = mine_logs(log_text)
+    log_summary = format_snippets(log_summary)
     response = await submit_text(PROMPT_TEMPLATE.format(log_summary))
     certainty = 0
 
@@ -207,20 +212,15 @@ async def analyze_log_staged(build_log: BuildLog):
 
     # Process snippets asynchronously
     analyzed_snippets = await asyncio.gather(
-        *[submit_text(SNIPPET_PROMPT_TEMPLATE.format(s)) for s in log_summary]
+        *[submit_text(SNIPPET_PROMPT_TEMPLATE.format(s[1])) for s in log_summary]
     )
 
     analyzed_snippets = [
-        {"snippet": e[0], "comment": e[1]} for e in zip(log_summary, analyzed_snippets)
+        {"snippet": e[0][1], "line_number": e[0][0], "comment": e[1]}
+        for e in zip(log_summary, analyzed_snippets)
     ]
-
     final_prompt = PROMPT_TEMPLATE_STAGED.format(
-        f"\n{SNIPPET_DELIMITER}\n".join(
-            [
-                f"[{e['snippet']}] : [{e['comment']['choices'][0]['text']}]"
-                for e in analyzed_snippets
-            ]
-        )
+        format_analyzed_snippets(analyzed_snippets)
     )
 
     final_analysis = await submit_text(final_prompt)
@@ -257,6 +257,7 @@ async def analyze_log_stream(build_log: BuildLog):
     """
     log_text = process_url(build_log.url)
     log_summary = mine_logs(log_text)
+    log_summary = format_snippets(log_summary)
     stream = await submit_text(PROMPT_TEMPLATE.format(log_summary), stream=True)
 
     return StreamingResponse(stream)
