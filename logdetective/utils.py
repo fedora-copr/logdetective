@@ -1,12 +1,12 @@
 import logging
 import os
-from typing import Iterator, List, Dict
+from typing import Iterator, List, Dict, Tuple, Generator
 from urllib.parse import urlparse
 import numpy as np
 import requests
 
 from llama_cpp import Llama, CreateCompletionResponse, CreateCompletionStreamResponse
-from logdetective.constants import PROMPT_TEMPLATE
+from logdetective.constants import PROMPT_TEMPLATE, SNIPPET_DELIMITER
 
 
 LOG = logging.getLogger("logdetective")
@@ -36,20 +36,26 @@ def chunk_continues(text: str, index: int) -> bool:
     return False
 
 
-def get_chunks(text: str):
+def get_chunks(text: str) -> Generator[Tuple[int, str], None, None]:
     """Split log into chunks according to heuristic
     based on whitespace and backslash presence.
     """
     text_len = len(text)
     i = 0
     chunk = ""
+    # Keep track of the original and next line number
+    # every `\n` hit increases the next_line_number by one.
+    original_line_number = 0
+    next_line_number = 0
     while i < text_len:
         chunk += text[i]
         if text[i] == "\n":
+            next_line_number += 1
             if i + 1 < text_len and chunk_continues(text, i):
                 i += 1
                 continue
-            yield chunk
+            yield (original_line_number, chunk)
+            original_line_number = next_line_number + 1
             chunk = ""
         i += 1
 
@@ -142,18 +148,41 @@ def retrieve_log_content(log_path: str) -> str:
     return log
 
 
-def format_snippets(snippets: list[str]) -> str:
+def format_snippets(snippets: list[str] | list[Tuple[int, str]]) -> str:
     """Format snippets, giving them separator, id and finally
-    concatenating them.
+    concatenating them. If snippets have line number attached,
+    include that in prompt.
+
+    Line number must be first element in the tuple. Mixed format of snippets
+    is permitted, but may have impact on inference.
     """
     summary = ""
     for i, s in enumerate(snippets):
-        summary += f"""
-        Snippet No. {i}:
+        if isinstance(s, tuple):
+            summary += f"""
+            Snippet No. {i} at line #{s[0]}:
 
-        {s}
-        ================
-        """
+            {s[1]}
+            ================
+            """
+        else:
+            summary += f"""
+            Snippet No. {i}:
+
+            {s[1]}
+            ================
+            """
+    return summary
+
+
+def format_analyzed_snippets(snippets: list[Dict]) -> str:
+    """Format snippets for submission into staged prompt."""
+    summary = f"\n{SNIPPET_DELIMITER}\n".join(
+        [
+            f"[{e['snippet']}] at line [{e["line_number"]}]: [{e['comment']['choices'][0]['text']}]"
+            for e in snippets
+        ]
+    )
     return summary
 
 

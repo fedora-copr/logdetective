@@ -28,10 +28,13 @@ class StagedResponse(Response):
         https://llama-cpp-python.readthedocs.io/en/latest/api-reference/#llama_cpp.llama_types.CreateCompletionResponse
     response_certainty: float
     snippets:
-        list of dictionaries { 'snippet' : '<original_text>, 'comment': CreateCompletionResponse }
+        list of dictionaries {
+        'snippet' : '<original_text>,
+        'comment': CreateCompletionResponse,
+        'line_number': '<location_in_log>' }
     """
 
-    snippets: List[Dict[str, str | Dict]]
+    snippets: List[Dict[str, str | Dict | int]]
 
 
 class InferenceConfig(BaseModel):

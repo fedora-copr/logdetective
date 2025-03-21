@@ -31,7 +31,7 @@ Answer:
 """
 
 SNIPPET_PROMPT_TEMPLATE = """
-Analyse following RPM build log snippet. Decribe contents accurately, without speculation or suggestions for resolution.
+Analyse following RPM build log snippet. Describe contents accurately, without speculation or suggestions for resolution.
 
 Snippet:
 
