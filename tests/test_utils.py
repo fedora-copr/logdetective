@@ -1,5 +1,29 @@
 import pytest
-from logdetective.utils import compute_certainty
+from logdetective.utils import (
+    compute_certainty,
+    format_snippets,
+    format_analyzed_snippets,
+)
+
+test_snippets = [
+    # Simple
+    ["Snippet 1", "Snippet 2", "Snippet 3"],
+    # Tuples
+    [(10, "Snippet 1"), (120, "Snippet 1"), (240, "Snippet 1")],
+]
+
+# Contents of "comment" follow structure of OpenAI API completions
+# response format https://platform.openai.com/docs/api-reference/completions
+test_analyzed_snippets = [
+    [
+        {
+            "snippet": e[1],
+            "line_number": e[0],
+            "comment": {"choices": [{"text": f"Comment for snippet on line {e[0]}"}]},
+        }
+        for e in test_snippets[0]
+    ]
+]
 
 
 @pytest.mark.parametrize(
@@ -8,3 +32,15 @@ from logdetective.utils import compute_certainty
 def test_compute_certainty(probs):
     """test compute_certainty and make sure we can use numpy correctly"""
     compute_certainty(probs)
+
+
+@pytest.mark.parametrize("snippets", test_snippets)
+def test_format_snippets(snippets):
+    """Test snippet formatting with both simple snippets, and line numbers"""
+    format_snippets(snippets)
+
+
+@pytest.mark.parametrize("snippets", test_analyzed_snippets)
+def test_format_analyzed_snippets(snippets):
+    """Test snippet formatting for snippets with LLM generated explanations"""
+    format_analyzed_snippets(snippets)
