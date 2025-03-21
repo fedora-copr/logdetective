@@ -325,8 +325,13 @@ async def process_gitlab_job_event(job_hook):
         return
     merge_request_id = int(match.group(1))
 
+    LOG.debug("Retrieving log artifacts")
     # Retrieve the build logs from the merge request artifacts and preprocess them
-    preprocessed_log = await retrieve_and_preprocess_koji_logs(job)
+    try:
+        preprocessed_log = await retrieve_and_preprocess_koji_logs(job)
+    except LogsTooLargeError:
+        LOG.error("Could not retrieve logs. Too large.")
+        raise
 
     # Submit log to Log Detective and await the results.
     response = await submit_log_to_llm(preprocessed_log)
@@ -334,6 +339,10 @@ async def process_gitlab_job_event(job_hook):
 
     # Add the Log Detective response as a comment to the merge request
     await comment_on_mr(merge_request_id, response)
+
+
+class LogsTooLargeError(RuntimeError):
+    """The log archive exceeds the configured maximum size"""
 
 
 async def retrieve_and_preprocess_koji_logs(job):
@@ -345,6 +354,12 @@ async def retrieve_and_preprocess_koji_logs(job):
     returns: An open, file-like object containing the log contents to be sent
     for processing by Log Detective. The calling function is responsible for
     closing this object."""
+
+    # Make sure the file isn't too large to process.
+    if not await check_artifacts_file_size(job):
+        raise LogsTooLargeError(
+            f"Oversized logs for job {job.id} in project {job.project_id}"
+        )
 
     # Create a temporary file to store the downloaded log zipfile.
     # This will be automatically deleted when the last reference into it
@@ -426,6 +441,30 @@ async def retrieve_and_preprocess_koji_logs(job):
 
     # Return the log as a file-like object with .read() function
     return artifacts_zip.open(log_path.as_posix())
+
+
+async def check_artifacts_file_size(job):
+    """Method to determine if the artifacts are too large to process"""
+    # First, make sure that the artifacts are of a reasonable size. The
+    # zipped artifact collection will be stored in memory below. The
+    # python-gitlab library doesn't expose a way to check this value directly,
+    # so we need to interact with directly with the headers.
+    artifacts_url = f"{SERVER_CONFIG.gitlab.api_url}/projects/{job.project_id}/jobs/{job.id}/artifacts"  # pylint: disable=line-too-long
+    header_resp = await asyncio.to_thread(
+        requests.head,
+        artifacts_url,
+        allow_redirects=True,
+        headers={"Authorization": f"Bearer {SERVER_CONFIG.gitlab.api_token}"},
+        timeout=(3.07, 5),
+    )
+    content_length = int(header_resp.headers.get("content-length"))
+    LOG.debug(
+        "URL: %s, content-length: %d, max length: %d",
+        artifacts_url,
+        content_length,
+        SERVER_CONFIG.gitlab.max_artifact_size,
+    )
+    return content_length <= SERVER_CONFIG.gitlab.max_artifact_size
 
 
 async def submit_log_to_llm(log):

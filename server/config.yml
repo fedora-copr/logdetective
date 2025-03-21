@@ -8,6 +8,7 @@ extractor:
 gitlab:
   url: https://gitlab.com
   api_token: glpat-XXXXXX
+  max_artifact_size: 300
 general:
   packages:
     - osci-internal-test-package

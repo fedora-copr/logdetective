@@ -101,7 +101,11 @@ class GitLabConfig(BaseModel):
     """Model for GitLab configuration of logdetective server."""
 
     url: str = None
+    api_url: str = None
     api_token: str = None
+
+    # Maximum size of artifacts.zip in MiB. (default: 300 MiB)
+    max_artifact_size: int = 300
 
     def __init__(self, data: Optional[dict] = None):
         super().__init__()
@@ -109,7 +113,9 @@ class GitLabConfig(BaseModel):
             return
 
         self.url = data.get("url", "https://gitlab.com")
+        self.api_url = f"{self.url}/api/v4"
         self.api_token = data.get("api_token", None)
+        self.max_artifact_size = int(data.get("max_artifact_size")) * 1024 * 1024
 
 
 class GeneralConfig(BaseModel):
