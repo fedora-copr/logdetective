@@ -1,0 +1,15 @@
+name: Run Pytest
+on:
+  push:
+  pull_request:
+    branches: [main]
+jobs:
+  run_pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v2
+      - name: Install tox
+        run: pip install tox
+      - name: Run pytest
+        run: tox -e pytest
