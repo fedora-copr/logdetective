@@ -1,11 +1,39 @@
 from typing import List, Dict, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class BuildLog(BaseModel):
     """Model of data submitted to API."""
 
     url: str
+
+
+class JobHook(BaseModel):
+    """Model of Job Hook events sent from GitLab.
+    Full details of the specification are available at
+    https://docs.gitlab.com/user/project/integrations/webhook_events/#job-events
+    This model implements only the fields that we care about. The webhook
+    sends many more fields that we will ignore."""
+
+    # The unique job ID on this GitLab instance.
+    build_id: int
+
+    # The identifier of the job. We only care about 'build_rpm' and
+    # 'build_centos_stream_rpm' jobs.
+    build_name: str = Field(pattern=r"^build(_.*)?_rpm$")
+
+    # A string representing the job status. We only care about 'failed' jobs.
+    build_status: str = Field(pattern=r"^failed$")
+
+    # The kind of webhook message. We are only interested in 'build' messages
+    # which represents job tasks in a pipeline.
+    object_kind: str = Field(pattern=r"^build$")
+
+    # The unique ID of the enclosing pipeline on this GitLab instance.
+    pipeline_id: int
+
+    # The unique ID of the project triggering this event
+    project_id: int
 
 
 class Response(BaseModel):
@@ -69,11 +97,47 @@ class ExtractorConfig(BaseModel):
         self.verbose = data.get("verbose", False)
 
 
+class GitLabConfig(BaseModel):
+    """Model for GitLab configuration of logdetective server."""
+
+    url: str = None
+    api_url: str = None
+    api_token: str = None
+
+    # Maximum size of artifacts.zip in MiB. (default: 300 MiB)
+    max_artifact_size: int = 300
+
+    def __init__(self, data: Optional[dict] = None):
+        super().__init__()
+        if data is None:
+            return
+
+        self.url = data.get("url", "https://gitlab.com")
+        self.api_url = f"{self.url}/api/v4"
+        self.api_token = data.get("api_token", None)
+        self.max_artifact_size = int(data.get("max_artifact_size")) * 1024 * 1024
+
+
+class GeneralConfig(BaseModel):
+    """General config options for Log Detective"""
+
+    packages: List[str] = None
+
+    def __init__(self, data: Optional[dict] = None):
+        super().__init__()
+        if data is None:
+            return
+
+        self.packages = data.get("packages", [])
+
+
 class Config(BaseModel):
     """Model for configuration of logdetective server."""
 
     inference: InferenceConfig = InferenceConfig()
     extractor: ExtractorConfig = ExtractorConfig()
+    gitlab: GitLabConfig = GitLabConfig()
+    general: GeneralConfig = GeneralConfig()
 
     def __init__(self, data: Optional[dict] = None):
         super().__init__()
@@ -83,3 +147,5 @@ class Config(BaseModel):
 
         self.inference = InferenceConfig(data.get("inference"))
         self.extractor = ExtractorConfig(data.get("extractor"))
+        self.gitlab = GitLabConfig(data.get("gitlab"))
+        self.general = GeneralConfig(data.get("general"))

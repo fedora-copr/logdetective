@@ -34,6 +34,7 @@ huggingface-hub = ">0.23.2"
 # rawhide has numpy 2, F40 and F41 are still on 1.26
 # we need to support both versions
 numpy = ">=1.26.0"
+python-gitlab = "^5.6.0"
 
 [tool.poetry.group.server.dependencies]
 fastapi = "^0.115.8"
