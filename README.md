@@ -187,6 +187,30 @@ $ curl -L -o models/mistral-7b-instruct-v0.2.Q4_K_S.gguf https://huggingface.co/
 ```
 
 
+Our production instance
+-----------------------
+
+Our FastAPI server and model inference server run through `podman-compose` on an
+Amazon AWS intance. The VM is provisioned by an
+[ansible playbook](https://pagure.io/fedora-infra/ansible/blob/main/f/roles/logdetective/tasks/main.yml).
+
+You can control the server through:
+
+```
+cd /root/logdetective
+podman-compose -f docker-compose-prod.yaml ...
+```
+
+The `/root` directory contains valuable data. If moving to a new instance,
+please backup the whole directory and transfer it to the new instance.
+
+Fore some reason, we need to manually run this command after every reboot:
+
+```
+nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
+```
+
+
 License
 -------
 
