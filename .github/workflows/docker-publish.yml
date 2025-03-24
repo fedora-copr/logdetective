@@ -1,4 +1,4 @@
-name: Docker Build and Publish
+name: Container Image Build and Publish
 
 # This workflow uses actions that are not certified by GitHub.
 # They are provided by a third-party and are governed by
@@ -85,7 +85,7 @@ jobs:
 
       # Extract metadata (tags, labels) for Docker cuda image
       # https://github.com/docker/metadata-action
-      - name: Extract metadata for cuda image
+      - name: Extract metadata for CUDA image
         id: meta-cuda
         uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5.7.0
         with:
