@@ -4,12 +4,12 @@ import subprocess
 import sys
 
 
-def call_poetry(bump_rule):
-    """Call poetry tool to bump the version."""
+def call_hatch(bump_rule):
+    """Call hatch tool to bump the version."""
     # Bump the version based on the bump rule
-    # See poetry version --help
+    # See hatch version --help
     ret = subprocess.run(
-        ["poetry", "version", "-s", bump_rule], capture_output=True, check=True
+        ["hatch", "version", bump_rule], capture_output=True, check=True
     )
 
     return ret.stdout.decode().strip()
@@ -18,9 +18,9 @@ def call_poetry(bump_rule):
 def bump_version(target_version=None):
     """Bump pyproject.toml version."""
     if target_version:
-        version = call_poetry(target_version)
+        version = call_hatch(target_version)
     else:
-        version = call_poetry("patch")
+        version = call_hatch("patch")
 
     print(f"Version bumped to {version}")
 
@@ -51,18 +51,6 @@ def create_tag(version):
 def run_checks():
     """Run checks on the code and check lock file."""
     ok = True
-    print("Running poetry lock check")
-    try:
-        subprocess.run(
-            ["poetry", "check", "--lock"],
-            check=True,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-        )
-    except subprocess.CalledProcessError:
-        print("Poetry lock file is not up to date!", file=sys.stderr)
-        ok = False
-
     print("Running tests")
     try:
         subprocess.run(["tox"], check=True, stdout=sys.stdout, stderr=sys.stderr)

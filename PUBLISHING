@@ -9,7 +9,7 @@ New releases should be created in two stages.
 ## Release patch workflow:
 
 1. Create new branch with name indicating it contains new release, e.g. `release-v5.7.1`.
-2. Increment version in pyproject.toml using `poetry version` command. Use appropriate rule.
+2. Increment version in pyproject.toml using `hatch version` command. Use appropriate rule.
 3. Commit the change in pyproject.toml.
 4. Push the change, open PR and wait for approval.
 

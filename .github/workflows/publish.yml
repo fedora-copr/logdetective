@@ -18,12 +18,10 @@ jobs:
         run: >
           echo "${{ github.ref }}" | grep -q -P "^refs/tags/v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"
           || exit 1
-      - name: Install Poetry
-        run: curl -sSL https://install.python-poetry.org | python -
-      - name: Add Poetry to path
-        run: echo "${HOME}/.poetry/bin" >> $GITHUB_PATH
-      - run: poetry install
+      - name: Install Hatch
+        uses: pypa/hatch@install
+      - run: hatch install
       - name: Build package
-        run: poetry build
+        run: hatch build
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
