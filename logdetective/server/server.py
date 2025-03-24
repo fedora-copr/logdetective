@@ -1,6 +1,5 @@
 import asyncio
 import json
-import logging
 import os
 import re
 import zipfile
@@ -29,9 +28,8 @@ from logdetective.utils import (
     format_analyzed_snippets,
 )
 from logdetective.server.models import BuildLog, JobHook, Response, StagedResponse
-from logdetective.server.utils import load_server_config
+from logdetective.server.utils import load_server_config, get_log
 
-LOG = logging.getLogger("logdetective")
 
 LLM_CPP_HOST = os.environ.get("LLAMA_CPP_HOST", "localhost")
 LLM_CPP_SERVER_ADDRESS = f"http://{LLM_CPP_HOST}"
@@ -46,6 +44,8 @@ SERVER_CONFIG = load_server_config(SERVER_CONFIG_PATH)
 
 MR_REGEX = re.compile(r"refs/merge-requests/(\d+)/merge")
 FAILURE_LOG_REGEX = re.compile(r"(\w*\.log)")
+
+LOG = get_log(SERVER_CONFIG)
 
 
 def requires_token_when_set(authentication: Annotated[str | None, Header()] = None):
@@ -158,6 +158,7 @@ async def submit_text(
             stream=stream,
         )
     except requests.RequestException as ex:
+        LOG.error("Llama-cpp query failed: %s", ex)
         raise HTTPException(
             status_code=400, detail=f"Llama-cpp query failed: {ex}"
         ) from ex
