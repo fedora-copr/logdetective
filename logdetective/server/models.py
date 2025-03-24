@@ -1,3 +1,4 @@
+from logging import BASIC_FORMAT
 from typing import List, Dict, Optional
 from pydantic import BaseModel, Field
 
@@ -118,6 +119,25 @@ class GitLabConfig(BaseModel):
         self.max_artifact_size = int(data.get("max_artifact_size")) * 1024 * 1024
 
 
+class LogConfig(BaseModel):
+    """Logging configuration"""
+
+    name: str = "logdetective"
+    level: str | int = "INFO"
+    path: str | None = None
+    format: str = BASIC_FORMAT
+
+    def __init__(self, data: Optional[dict] = None):
+        super().__init__()
+        if data is None:
+            return
+
+        self.name = data.get("name", "logdetective")
+        self.level = data.get("level", "INFO").upper()
+        self.path = data.get("path")
+        self.format = data.get("format", BASIC_FORMAT)
+
+
 class GeneralConfig(BaseModel):
     """General config options for Log Detective"""
 
@@ -134,6 +154,7 @@ class GeneralConfig(BaseModel):
 class Config(BaseModel):
     """Model for configuration of logdetective server."""
 
+    log: LogConfig = LogConfig()
     inference: InferenceConfig = InferenceConfig()
     extractor: ExtractorConfig = ExtractorConfig()
     gitlab: GitLabConfig = GitLabConfig()
@@ -145,6 +166,7 @@ class Config(BaseModel):
         if data is None:
             return
 
+        self.log = LogConfig(data.get("log"))
         self.inference = InferenceConfig(data.get("inference"))
         self.extractor = ExtractorConfig(data.get("extractor"))
         self.gitlab = GitLabConfig(data.get("gitlab"))
