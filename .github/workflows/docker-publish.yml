@@ -69,21 +69,6 @@ jobs:
             type=sha
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
-      # Extract metadata (tags, labels) for Docker cuda image
-      # https://github.com/docker/metadata-action
-      - name: Extract metadata for cuda image
-        id: meta-cuda
-        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5.7.0
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          flavor: |
-            latest=false
-            suffix=-cuda
-          tags: |
-            type=semver,pattern={{version}}
-            type=sha
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-
       # Build Docker image with Buildx
       # https://github.com/docker/build-push-action
       - name: Build and push standard image
@@ -97,6 +82,21 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Extract metadata (tags, labels) for Docker cuda image
+      # https://github.com/docker/metadata-action
+      - name: Extract metadata for cuda image
+        id: meta-cuda
+        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5.7.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          flavor: |
+            latest=auto
+            suffix=-cuda
+          tags: |
+            type=semver,pattern={{version}}
+            type=sha
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }},suffix=-cuda
 
       # Build Docker image with Buildx
       # https://github.com/docker/build-push-action
