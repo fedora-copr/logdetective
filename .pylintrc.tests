@@ -1,0 +1,15 @@
+[MASTER]
+# Inherit from the main pylint configuration
+init-hook='import sys; sys.path.append(".")'
+
+[MESSAGES CONTROL]
+# Disable specific messages for tests and alembic code
+disable=
+    redefined-outer-name,  # Allow redefining names from outer scope (common in pytest fixtures)
+    invalid-name,          # Allow non-standard naming in tests, we may want to have name like mock_AnalyzeRequestMetrics
+    missing-docstring,     # Tests often don't need docstrings
+    protected-access,      # Tests often need to access protected members
+    too-many-arguments,    # Test functions often need many arguments
+    too-many-locals,       # Tests may use many local variables
+    unused-argument,       # Fixtures may be unused in some tests
+    no-member              # alembic code often raise this warning as in Module 'alembic.op' has no 'f' member
