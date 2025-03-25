@@ -41,4 +41,3 @@ jobs:
     trigger: commit
     dist_git_branches:
       - fedora-all
-

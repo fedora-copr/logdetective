@@ -21,6 +21,8 @@ services:
     #   - "label=disable"
   server:
     image: logdetective/runtime:latest
+    depends_on:
+      - postgres
     build:
       context: .
       dockerfile: ./Containerfile
@@ -37,3 +39,15 @@ services:
     # command: fastapi dev /src/logdetective/server.py --host 0.0.0.0 --port $LOGDETECTIVE_SERVER_PORT --no-reload
     # timeout set to 240 - 4 minutes should be enough for one LLM execution locally on a CPU
     command: ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "--timeout", "240", "logdetective.server.server:app", "-b", "0.0.0.0:$LOGDETECTIVE_SERVER_PORT"]
+
+  postgres:
+    image: quay.io/sclorg/postgresql-15-c9s
+    volumes:
+      - database_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRESQL_PORT:-5432}:${POSTGRESQL_PORT:-5432}"
+    env_file: .env
+
+volumes:
+  database_data:
+    driver: local

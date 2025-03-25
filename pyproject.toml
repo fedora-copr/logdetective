@@ -39,9 +39,12 @@ python-gitlab = ">=4.4.0"
 pydantic = {version = "^2.8.2", optional = true }
 fastapi = {version = ">=0.111.1", optional = true }
 pyyaml = {version = "^6.0.1", optional = true }
+sqlalchemy = {version = "^2.0.36", optional = true }
+psycopg2 = {version = "^2.9.9", optional = true }
+alembic = {version = "^1.13.3", optional = true }
 
 [tool.poetry.extras]
-server = ["pydantic", "fastapi", "pyyaml"]
+server = ["pydantic", "fastapi", "pyyaml", "sqlalchemy", "psycopg2"]
 
 [build-system]
 requires = ["poetry-core"]
