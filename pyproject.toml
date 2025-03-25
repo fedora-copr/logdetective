@@ -44,7 +44,7 @@ psycopg2 = {version = "^2.9.9", optional = true }
 alembic = {version = "^1.13.3", optional = true }
 
 [tool.poetry.extras]
-server = ["pydantic", "fastapi", "pyyaml", "sqlalchemy", "psycopg2"]
+server = ["pydantic", "fastapi", "pyyaml", "sqlalchemy", "psycopg2", "alembic"]
 
 [build-system]
 requires = ["poetry-core"]

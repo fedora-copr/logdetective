@@ -29,6 +29,7 @@ jobs:
             python3-gitlab
             python3-sqlalchemy
             python3-flexmock
+            python3-alembic
           linter_tags: |
             pylint
             ruff
