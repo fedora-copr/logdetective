@@ -1,6 +1,7 @@
 import datetime
-import pytest
 from contextlib import contextmanager
+
+import pytest
 from flexmock import flexmock
 
 from sqlalchemy import create_engine
