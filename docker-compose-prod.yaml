@@ -22,6 +22,8 @@ services:
     build:
       context: .
       dockerfile: ./Containerfile
+    depends_on:
+      - postgres
     hostname: logdetective-server
     stdin_open: true
     tty: true
@@ -36,3 +38,15 @@ services:
     # --no-reload: doesn't work in a container - `PermissionError: Permission denied (os error 13) about ["/proc"]`
     # command: fastapi run /src/logdetective/server.py --host 0.0.0.0 --port $LOGDETECTIVE_SERVER_PORT --no-reload
     command: ["gunicorn", "-c", "/src/server/gunicorn-prod.config.py", "logdetective.server.server:app"]
+
+  postgres:
+    image: quay.io/sclorg/postgresql-15-c9s
+    volumes:
+      - database_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRESQL_PORT:-5432}:${POSTGRESQL_PORT:-5432}"
+    env_file: .env
+
+volumes:
+  database_data:
+    driver: local

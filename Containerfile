@@ -14,9 +14,11 @@ RUN dnf install -y \
     git-core python3-gunicorn \
     python3-gitlab \
     python3-diskcache \
+    python3-sqlalchemy \
+    python3-psycopg2 \
     && dnf clean all
 # the newest 0.2.86 fails to build, it seems vendored llama-cpp is missing in the archive
-RUN pip3 install llama_cpp_python==0.2.85 sse-starlette starlette-context \
+RUN pip3 install llama_cpp_python==0.2.85 sse-starlette starlette-context\
     && mkdir /src
 
 # uncomment below if you need to download the model, otherwise just bindmount your local

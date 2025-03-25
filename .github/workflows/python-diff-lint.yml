@@ -27,6 +27,8 @@ jobs:
             python3-pytest
             python3-fastapi
             python3-gitlab
+            python3-sqlalchemy
+            python3-flexmock
           linter_tags: |
             pylint
             ruff

@@ -6,8 +6,6 @@ import zipfile
 from pathlib import PurePath
 from tempfile import TemporaryFile
 from typing import List, Annotated, Tuple
-
-
 from llama_cpp import CreateCompletionResponse
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header
 from fastapi.responses import StreamingResponse
@@ -29,6 +27,7 @@ from logdetective.utils import (
 )
 from logdetective.server.models import BuildLog, JobHook, Response, StagedResponse
 from logdetective.server.utils import load_server_config, get_log
+from logdetective.server import database, metric
 
 
 LLM_CPP_HOST = os.environ.get("LLAMA_CPP_HOST", "localhost")
@@ -78,6 +77,7 @@ def requires_token_when_set(authentication: Annotated[str | None, Header()] = No
     raise HTTPException(status_code=401, detail=f"Token {token} not valid.")
 
 
+database.init()
 app = FastAPI(dependencies=[Depends(requires_token_when_set)])
 app.gitlab_conn = gitlab.Gitlab(
     url=SERVER_CONFIG.gitlab.url, private_token=SERVER_CONFIG.gitlab.api_token
@@ -184,6 +184,7 @@ async def submit_text(
 
 
 @app.post("/analyze", response_model=Response)
+@metric.track_request()
 async def analyze_log(build_log: BuildLog):
     """Provide endpoint for log file submission and analysis.
     Request must be in form {"url":"<YOUR_URL_HERE>"}.
@@ -214,6 +215,7 @@ async def analyze_log(build_log: BuildLog):
 
 
 @app.post("/analyze/staged", response_model=StagedResponse)
+@metric.track_request()
 async def analyze_log_staged(build_log: BuildLog):
     """Provide endpoint for log file submission and analysis.
     Request must be in form {"url":"<YOUR_URL_HERE>"}.
@@ -262,6 +264,7 @@ async def analyze_log_staged(build_log: BuildLog):
 
 
 @app.post("/analyze/stream", response_class=StreamingResponse)
+@metric.track_request()
 async def analyze_log_stream(build_log: BuildLog):
     """Stream response endpoint for Logdetective.
     Request must be in form {"url":"<YOUR_URL_HERE>"}.
