@@ -251,6 +251,19 @@ Model can be downloaded from [our Hugging Space](https://huggingface.co/fedora-c
 $ curl -L -o models/mistral-7b-instruct-v0.2.Q4_K_S.gguf https://huggingface.co/fedora-copr/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/ggml-model-Q4_K_S.gguf
 ```
 
+Generate a new database revision with alembic
+---------------------------------------------
+
+Modify the database models (`logdetective/server/database/model.py).
+
+Generate a new database revision with the command:
+
+**Warning**: this command will start up a new server
+and shut it down when the operation completes.
+
+```
+CHANGE="A change comment" make alembic-generate-revision
+```
 
 Our production instance
 -----------------------

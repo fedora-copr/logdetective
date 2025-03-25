@@ -41,7 +41,7 @@ class AnalyzeRequestMetrics(Base):
         DateTime, nullable=True, comment="Timestamp when the response was sent back"
     )
     response_length = Column(
-        Integer, nullable=True, comment="Length of the response in bytes"
+        Integer, nullable=True, comment="Length of the response in chars"
     )
     response_certainty = Column(
         Float, nullable=True, comment="Certainty for generated response"
