@@ -6,16 +6,16 @@ upstream_tag_template: 'v{version}'
 upstream_project_url: https://github.com/fedora-copr/logdetective
 copy_upstream_release_description: false
 srpm_build_deps:
-- poetry
+- hatch
 actions:
   post-upstream-clone:
     # rawhide specfile will be the source of truth: we don't need to have the specfile upstream
     - curl -Lvso python-logdetective.spec https://src.fedoraproject.org/rpms/python-logdetective/raw/main/f/python-logdetective.spec
   create-archive:
-    - poetry build -f sdist
+    - hatch build -f sdist
     - bash -c "ls -1t ./dist/*.tar.gz | head -n 1"
   get-current-version:
-    - poetry version -s
+    - hatch version
 
 jobs:
   - job: pull_from_upstream
