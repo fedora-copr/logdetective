@@ -1,17 +1,16 @@
 FROM fedora:41
 # make sure nvidia driver match on host and in the container
 RUN dnf install -y python3-requests python3-pip gcc gcc-c++ python3-scikit-build git-core \
-    && echo "[cuda-fedora39-x86_64]" >> /etc/yum.repos.d/cuda.repo \
-    && echo "name=cuda-fedora39-x86_64" >> /etc/yum.repos.d/cuda.repo \
-    && echo "baseurl=https://developer.download.nvidia.com/compute/cuda/repos/fedora39/x86_64" >> /etc/yum.repos.d/cuda.repo \
+    && echo "[cuda-fedora41-x86_64]" >> /etc/yum.repos.d/cuda.repo \
+    && echo "name=cuda-fedora41-x86_64" >> /etc/yum.repos.d/cuda.repo \
+    && echo "baseurl=https://developer.download.nvidia.com/compute/cuda/repos/fedora41/x86_64" >> /etc/yum.repos.d/cuda.repo \
     && echo "enabled=1" >> /etc/yum.repos.d/cuda.repo \
     && echo "gpgcheck=1" >> /etc/yum.repos.d/cuda.repo \
-    && echo "gpgkey=https://developer.download.nvidia.com/compute/cuda/repos/fedora39/x86_64/D42D0685.pub" >> /etc/yum.repos.d/cuda.repo \
-    && dnf module enable -y nvidia-driver:560-dkms \
-    && dnf install -y cuda-compiler-12-6 cuda-toolkit-12-6 nvidia-driver-cuda nvidia-driver-cuda-libs nvidia-driver cmake \
+    && echo "gpgkey=https://developer.download.nvidia.com/compute/cuda/repos/fedora41/x86_64/D42D0685.pub" >> /etc/yum.repos.d/cuda.repo \
+    && dnf install -y cuda-compiler-12-8 cuda-toolkit-12-8 nvidia-driver-cuda nvidia-driver-cuda-libs nvidia-driver cmake \
     && dnf clean all
 ENV LLAMACPP_VER="96f405393461062450692430e4916809bf71c3c4"
-ENV PATH=${PATH}:/usr/local/cuda-12.6/bin/
+ENV PATH=${PATH}:/usr/local/cuda-12.8/bin/
 
 # Clone, checkout, build and move llama.cpp server to path
 # for some reason, cmake doesn't pick up stuff from ENV
