@@ -1,4 +1,4 @@
-FROM fedora:39
+FROM fedora:41
 # make sure nvidia driver match on host and in the container
 RUN dnf install -y python3-requests python3-pip gcc gcc-c++ python3-scikit-build git-core \
     && echo "[cuda-fedora39-x86_64]" >> /etc/yum.repos.d/cuda.repo \
