@@ -6,7 +6,7 @@ inference:
   log_probs: 1
 extractor:
   context: true
-  max_clusters: 32
+  max_clusters: 16
   verbose: false
 gitlab:
   url: https://gitlab.com
