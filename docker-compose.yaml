@@ -4,7 +4,8 @@ services:
     build:
       context: .
       dockerfile: ./Containerfile.cuda
-    hostname: "${LLAMA_CPP_HOST}"
+    # make sure to match this hostname with inference->url in server/config.yml
+    hostname: llama-cpp-server
     command: "llama-server --host 0.0.0.0 --port ${LLAMA_CPP_SERVER_PORT}"
     stdin_open: true
     tty: true

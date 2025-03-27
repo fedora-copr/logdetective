@@ -38,14 +38,10 @@ from logdetective.server.models import (
     AnalyzedSnippet,
 )
 
-LLM_CPP_HOST = os.environ.get("LLAMA_CPP_HOST", "localhost")
-LLM_CPP_SERVER_ADDRESS = f"http://{LLM_CPP_HOST}"
-LLM_CPP_SERVER_PORT = os.environ.get("LLAMA_CPP_SERVER_PORT", 8000)
 LLM_CPP_SERVER_TIMEOUT = os.environ.get("LLAMA_CPP_SERVER_TIMEOUT", 600)
 LOG_SOURCE_REQUEST_TIMEOUT = os.environ.get("LOG_SOURCE_REQUEST_TIMEOUT", 60)
 API_TOKEN = os.environ.get("LOGDETECTIVE_TOKEN", None)
 SERVER_CONFIG_PATH = os.environ.get("LOGDETECTIVE_SERVER_CONF", None)
-LLM_API_TOKEN = os.environ.get("LLM_API_TOKEN", None)
 
 SERVER_CONFIG = load_server_config(SERVER_CONFIG_PATH)
 
@@ -190,8 +186,8 @@ async def submit_text(  # pylint: disable=R0913,R0917
 
     headers = {"Content-Type": "application/json"}
 
-    if LLM_API_TOKEN:
-        headers["Authorization"] = f"Bearer {LLM_API_TOKEN}"
+    if SERVER_CONFIG.inference.api_token:
+        headers["Authorization"] = f"Bearer {SERVER_CONFIG.inference.api_token}"
 
     if api_endpoint == "/chat/completions":
         return await submit_text_chat_completions(
@@ -224,7 +220,7 @@ async def submit_text_completions(  # pylint: disable=R0913,R0917
     }
 
     response = await submit_to_llm_endpoint(
-        f"{LLM_CPP_SERVER_ADDRESS}:{LLM_CPP_SERVER_PORT}/v1/completions",
+        f"{SERVER_CONFIG.inference.url}/v1/completions",
         data,
         headers,
         stream,
@@ -263,7 +259,7 @@ async def submit_text_chat_completions(  # pylint: disable=R0913,R0917
     }
 
     response = await submit_to_llm_endpoint(
-        f"{LLM_CPP_SERVER_ADDRESS}:{LLM_CPP_SERVER_PORT}/v1/chat/completions",
+        f"{SERVER_CONFIG.inference.url}/v1/chat/completions",
         data,
         headers,
         stream,
@@ -381,8 +377,8 @@ async def analyze_log_stream(build_log: BuildLog):
     log_summary = format_snippets(log_summary)
     headers = {"Content-Type": "application/json"}
 
-    if LLM_API_TOKEN:
-        headers["Authorization"] = f"Bearer {LLM_API_TOKEN}"
+    if SERVER_CONFIG.inference.api_token:
+        headers["Authorization"] = f"Bearer {SERVER_CONFIG.inference.api_token}"
 
     stream = await submit_text_chat_completions(
         PROMPT_TEMPLATE.format(log_summary), stream=True, headers=headers
