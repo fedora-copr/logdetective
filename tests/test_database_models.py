@@ -7,7 +7,9 @@ from flexmock import flexmock
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from logdetective.server import database
+from logdetective.server.database import base
+from logdetective.server.database.base import init, destroy
+from logdetective.server.database.models import AnalyzeRequestMetrics, EndpointType
 
 
 @pytest.fixture(scope="function")
@@ -18,20 +20,20 @@ def db():
     Hopefully SqlAlchemy will manage all differences."""
     engine = create_engine("sqlite:///:memory:")
     SessionFactory = sessionmaker(autoflush=True, bind=engine)
-    flexmock(database.base, engine=engine, SessionFactory=SessionFactory)
-    database.init()
+    flexmock(base, engine=engine, SessionFactory=SessionFactory)
+    init()
     yield SessionFactory
-    database.base.destroy()
+    destroy()
 
 
 def test_create_and_update_AnalyzeRequestMetrics(db):
     with db as session_factory:
-        metrics_id = database.model.AnalyzeRequestMetrics.create(
-            endpoint=database.model.AnalyzeRequestMetrics.EndpointType.ANALYZE,
+        metrics_id = AnalyzeRequestMetrics.create(
+            endpoint=EndpointType.ANALYZE,
             log_url="https://example.com/logs/123",
         )
         assert metrics_id == 1
-        database.model.AnalyzeRequestMetrics.update(
+        AnalyzeRequestMetrics.update(
             id_=metrics_id,
             response_sent_at=datetime.datetime.now(datetime.timezone.utc),
             response_length=0,
@@ -40,7 +42,7 @@ def test_create_and_update_AnalyzeRequestMetrics(db):
 
         metrics = (
             session_factory()
-            .query(database.model.AnalyzeRequestMetrics)
+            .query(AnalyzeRequestMetrics)
             .filter_by(id=metrics_id)
             .first()
         )

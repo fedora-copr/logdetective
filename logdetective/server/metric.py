@@ -4,7 +4,8 @@ from typing import Union
 from functools import wraps
 
 from starlette.responses import StreamingResponse
-from logdetective.server import database, models
+from logdetective.server.database.models import EndpointType, AnalyzeRequestMetrics
+from logdetective.server import models
 
 
 def add_new_metrics(
@@ -16,8 +17,8 @@ def add_new_metrics(
     the endpoint from where the request was received,
     and the log for which analysis is requested.
     """
-    return database.model.AnalyzeRequestMetrics.create(
-        endpoint=database.model.AnalyzeRequestMetrics.EndpointType(api_name),
+    return AnalyzeRequestMetrics.create(
+        endpoint=EndpointType(api_name),
         log_url=build_log.url,
         request_received_at=received_at
         if received_at
@@ -49,7 +50,7 @@ def update_metrics(
     response_certainty = (
         response.response_certainty if hasattr(response, "response_certainty") else None
     )
-    database.model.AnalyzeRequestMetrics.update(
+    AnalyzeRequestMetrics.update(
         metrics_id, response_sent_at, response_length, response_certainty
     )
 
