@@ -850,4 +850,4 @@ server = ["fastapi", "pydantic", "pyyaml"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "ace7fbe8f8c72ba5e2c4bbd5bcc2c405a98f941069c8fa436858a539b1827612"
+content-hash = "fe8c8c1bfd6bea904a855070c34e79ec914935453cdae8bc3632bae6e05cba56"
