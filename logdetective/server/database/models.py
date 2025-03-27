@@ -7,17 +7,18 @@ from sqlalchemy import Column, Integer, Float, DateTime, String, Enum
 from logdetective.server.database.base import Base, transaction
 
 
+class EndpointType(enum.Enum):
+    """Different analyze endpoints"""
+
+    ANALYZE = "analyze_log"
+    ANALYZE_STAGED = "analyze_log_staged"
+    ANALYZE_STREAM = "analyze_log_stream"
+
+
 class AnalyzeRequestMetrics(Base):
     """Store data related to received requests and given responses"""
 
     __tablename__ = "analyze_request_metrics"
-
-    class EndpointType(enum.Enum):
-        """Different analyze endpoints"""
-
-        ANALYZE = "analyze_log"
-        ANALYZE_STAGED = "analyze_log_staged"
-        ANALYZE_STREAM = "analyze_log_stream"
 
     id = Column(Integer, primary_key=True)
     endpoint = Column(

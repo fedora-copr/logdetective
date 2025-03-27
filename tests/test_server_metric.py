@@ -2,7 +2,8 @@ import pytest
 from flexmock import flexmock
 from sqlalchemy.orm import session
 
-from logdetective.server import database, metric
+from logdetective.server.database.models import AnalyzeRequestMetrics
+from logdetective.server.metric import track_request
 
 
 @pytest.fixture
@@ -19,7 +20,7 @@ def mock_AnalyzeRequestMetrics():
     query = flexmock().should_receive("filter_by").and_return(all_metrics).mock()
     flexmock(session.Session).should_receive("query").and_return(query)
     flexmock(session.Session).should_receive("add").and_return()
-    flexmock(database.model.AnalyzeRequestMetrics).should_receive(
+    flexmock(AnalyzeRequestMetrics).should_receive(
         "create"
     ).once().and_return(1)
 
@@ -33,7 +34,7 @@ def mock_AnalyzeRequestMetrics():
     ],
 )
 async def test_track_request_async(build_log, mock_AnalyzeRequestMetrics, response):
-    @metric.track_request()
+    @track_request()
     async def analyze_log(build_log):
         return response
 
@@ -42,7 +43,7 @@ async def test_track_request_async(build_log, mock_AnalyzeRequestMetrics, respon
 
 @pytest.mark.asyncio
 async def test_track_request_sync(build_log, mock_AnalyzeRequestMetrics):
-    @metric.track_request()
+    @track_request()
     def analyze_log(build_log):
         return flexmock(response_certainty=37.7, explanation=[{"text": "abc"}])
 
