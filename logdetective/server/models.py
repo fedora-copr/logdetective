@@ -71,6 +71,8 @@ class InferenceConfig(BaseModel):
 
     max_tokens: int = -1
     log_probs: int = 1
+    url: str = ""
+    api_token: str = ""
 
     def __init__(self, data: Optional[dict] = None):
         super().__init__()
@@ -79,6 +81,8 @@ class InferenceConfig(BaseModel):
 
         self.max_tokens = data.get("max_tokens", -1)
         self.log_probs = data.get("log_probs", 1)
+        self.url = data.get("url", "")
+        self.api_token = data.get("api_token", "")
 
 
 class ExtractorConfig(BaseModel):
