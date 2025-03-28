@@ -19,8 +19,11 @@ if [[ $n -eq $ATTEMPTS ]]; then
     exit 1
 fi
 
+if [ "$ENV" == "production" ]; then
+    conf="/src/server/gunicorn-prod.config.py"
+else
+    conf="/src/server/gunicorn-dev.config.py"
+fi
+
 echo "Starting application server..."
-# --no-reload: doesn't work in a container - `PermissionError: Permission denied (os error 13) about ["/proc"]`
-# command: fastapi dev /src/logdetective/server.py --host 0.0.0.0 --port $LOGDETECTIVE_SERVER_PORT --no-reload
-# timeout set to 240 - 4 minutes should be enough for one LLM execution locally on a CPU
-gunicorn -k uvicorn.workers.UvicornWorker --timeout 240 logdetective.server.server:app -b 0.0.0.0:${LOGDETECTIVE_SERVER_PORT}
+exec gunicorn -c "$conf" logdetective.server.server:app
