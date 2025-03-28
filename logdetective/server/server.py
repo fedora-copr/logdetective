@@ -30,14 +30,10 @@ from logdetective.server.utils import load_server_config, get_log
 from logdetective.server.metric import track_request
 
 
-LLM_CPP_HOST = os.environ.get("LLAMA_CPP_HOST", "localhost")
-LLM_CPP_SERVER_ADDRESS = f"http://{LLM_CPP_HOST}"
-LLM_CPP_SERVER_PORT = os.environ.get("LLAMA_CPP_SERVER_PORT", 8000)
 LLM_CPP_SERVER_TIMEOUT = os.environ.get("LLAMA_CPP_SERVER_TIMEOUT", 600)
 LOG_SOURCE_REQUEST_TIMEOUT = os.environ.get("LOG_SOURCE_REQUEST_TIMEOUT", 60)
 API_TOKEN = os.environ.get("LOGDETECTIVE_TOKEN", None)
 SERVER_CONFIG_PATH = os.environ.get("LOGDETECTIVE_SERVER_CONF", None)
-LLM_API_TOKEN = os.environ.get("LLM_API_TOKEN", None)
 
 SERVER_CONFIG = load_server_config(SERVER_CONFIG_PATH)
 
@@ -144,13 +140,13 @@ async def submit_text(
 
     headers = {"Content-Type": "application/json"}
 
-    if LLM_API_TOKEN:
-        headers["Authorization"] = f"Bearer {LLM_API_TOKEN}"
-
+    if SERVER_CONFIG.inference.api_token:
+        headers["Authorization"] = f"Bearer {SERVER_CONFIG.inference.api_token}"
+    url = f"{SERVER_CONFIG.inference.api_token}/v1/completions"
     try:
         # Expects llama-cpp server to run on LLM_CPP_SERVER_ADDRESS:LLM_CPP_SERVER_PORT
         response = requests.post(
-            f"{LLM_CPP_SERVER_ADDRESS}:{LLM_CPP_SERVER_PORT}/v1/completions",
+            url,
             headers=headers,
             data=json.dumps(data),
             timeout=int(LLM_CPP_SERVER_TIMEOUT),
