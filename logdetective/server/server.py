@@ -451,11 +451,12 @@ async def process_gitlab_job_event(job_hook):
         raise
 
     # Submit log to Log Detective and await the results.
-    response = await submit_log_to_llm(preprocessed_log)
+    log_text = preprocessed_log.read().decode(encoding="utf-8")
+    staged_response = await perform_staged_analysis(log_text=log_text)
     preprocessed_log.close()
 
     # Add the Log Detective response as a comment to the merge request
-    await comment_on_mr(merge_request_id, response)
+    await comment_on_mr(merge_request_id, staged_response)
 
 
 class LogsTooLargeError(RuntimeError):
@@ -584,15 +585,11 @@ async def check_artifacts_file_size(job):
     return content_length <= SERVER_CONFIG.gitlab.max_artifact_size
 
 
-async def submit_log_to_llm(log):
-    """Stream the log to the LLM for processing"""
-    # TODO: query the LLM with the log contents  # pylint: disable=fixme
-    # This function will be implemented later; right now it does nothing.
-    LOG.debug("Log contents:\n%s", log.read())
-    return ""
-
-
-async def comment_on_mr(merge_request_id: int, response: str):  # pylint: disable=unused-argument
+async def comment_on_mr(merge_request_id: int, response: StagedResponse):
     """Add the Log Detective response as a comment to the merge request"""
-    # TODO: Implement this  # pylint: disable=fixme
-    pass  # pylint: disable=unnecessary-pass
+    LOG.debug("Primary Explanation for MR %d: %s", merge_request_id, response.explanation.text)
+
+    for snippet in response.snippets:
+        LOG.debug("")
+        LOG.debug("%d: %s", snippet.line_number, snippet.text)
+        LOG.debug("%s", snippet.explanation)
