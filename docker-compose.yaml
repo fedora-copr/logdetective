@@ -1,4 +1,3 @@
-version: "3"
 services:
   llama-cpp:
     image: quay.io/logdetective/runtime:0.3.3-cuda
