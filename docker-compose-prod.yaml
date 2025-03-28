@@ -1,50 +1,19 @@
 services:
   llama-cpp:
-    image: quay.io/logdetective/runtime:0.3.3-cuda
-    build:
-      context: .
-      dockerfile: ./Containerfile.cuda
-    hostname: "${LLAMA_CPP_HOST}"
-    command: "llama-server --host 0.0.0.0 --port ${LLAMA_CPP_SERVER_PORT}"
-    stdin_open: true
-    tty: true
-    env_file: .env
-    ports:
-      - "${LLAMA_CPP_SERVER_PORT:-8000}:${LLAMA_CPP_SERVER_PORT:-8000}"
-    volumes:
-      - ${MODELS_PATH-./models}:/models:Z
+    extends:
+      file: docker-compose.yaml
+      service: llama-cpp
     # these lines are needed for CUDA acceleration
     devices:
       - nvidia.com/gpu=all
   server:
-    image: quay.io/logdetective/runtime:0.3.3
-    build:
-      context: .
-      dockerfile: ./Containerfile
-    depends_on:
-      - postgres
-    hostname: logdetective-server
-    stdin_open: true
-    tty: true
-    volumes:
-      - .:/src/:z
-      - ./server/config.yml:/config.yml:z
-      - ./files/run_server.sh:/run_server.sh:z
-    ports:
-      - "${LOGDETECTIVE_SERVER_PORT:-8080}:${LOGDETECTIVE_SERVER_PORT:-8080}"
-    env_file: .env
-    # so gunicorn can find logdetective python module
-    # and alembic can find alembic.ini
-    working_dir: /src
-    entrypoint: ["/run_server.sh"]
-
+    extends:
+      file: docker-compose.yaml
+      service: server
   postgres:
-    image: quay.io/sclorg/postgresql-15-c9s
-    volumes:
-      - database_data:/var/lib/postgresql/data
-    ports:
-      - "${POSTGRESQL_PORT:-5432}:${POSTGRESQL_PORT:-5432}"
-    env_file: .env
+    extends:
+      file: docker-compose.yaml
+      service: postgres
 
 volumes:
   database_data:
