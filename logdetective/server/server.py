@@ -318,6 +318,12 @@ async def analyze_log_staged(build_log: BuildLog):
     while lacking  result, params or query fields.
     """
     log_text = process_url(build_log.url)
+
+    return await perform_staged_analysis(log_text=log_text)
+
+
+async def perform_staged_analysis(log_text: str) -> StagedResponse:
+    """Submit the log file snippets to the LLM and retrieve their results"""
     log_summary = mine_logs(log_text)
 
     # Process snippets asynchronously
