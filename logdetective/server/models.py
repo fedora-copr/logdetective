@@ -21,7 +21,7 @@ class JobHook(BaseModel):
 
     # The identifier of the job. We only care about 'build_rpm' and
     # 'build_centos_stream_rpm' jobs.
-    build_name: str = Field(pattern=r"^build(_.*)?_rpm$")
+    build_name: str = Field(pattern=r"^build.*rpm$")
 
     # A string representing the job status. We only care about 'failed' jobs.
     build_status: str = Field(pattern=r"^failed$")
