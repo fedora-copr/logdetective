@@ -1,9 +1,12 @@
 import asyncio
+import gitlab.v4
+import gitlab.v4.objects
+import jinja2
 import json
 import os
 import re
 import zipfile
-from pathlib import PurePath
+from pathlib import Path, PurePath
 from tempfile import TemporaryFile
 from typing import List, Annotated, Tuple, Dict, Any
 
@@ -429,6 +432,11 @@ async def process_gitlab_job_event(job_hook):
     # Retrieve data about the job from the GitLab API
     job = await asyncio.to_thread(project.jobs.get, job_hook.build_id)
 
+    # For easy retrieval later, we'll add project_name and project_url to the
+    # job object
+    job.project_name = project.name
+    job.project_url = project.web_url
+
     # Retrieve the pipeline that started this job
     pipeline = await asyncio.to_thread(project.pipelines.get, job_hook.pipeline_id)
 
@@ -449,7 +457,7 @@ async def process_gitlab_job_event(job_hook):
     LOG.debug("Retrieving log artifacts")
     # Retrieve the build logs from the merge request artifacts and preprocess them
     try:
-        preprocessed_log = await retrieve_and_preprocess_koji_logs(job)
+        log_url, preprocessed_log = await retrieve_and_preprocess_koji_logs(job)
     except LogsTooLargeError:
         LOG.error("Could not retrieve logs. Too large.")
         raise
@@ -460,22 +468,22 @@ async def process_gitlab_job_event(job_hook):
     preprocessed_log.close()
 
     # Add the Log Detective response as a comment to the merge request
-    await comment_on_mr(merge_request_id, staged_response)
+    await comment_on_mr(merge_request_id, job, log_url, staged_response)
 
 
 class LogsTooLargeError(RuntimeError):
     """The log archive exceeds the configured maximum size"""
 
 
-async def retrieve_and_preprocess_koji_logs(job):
+async def retrieve_and_preprocess_koji_logs(job: gitlab.v4.objects.ProjectJob):
     """Download logs from the merge request artifacts
 
     This function will retrieve the build logs and do some minimal
     preprocessing to determine which log is relevant for analysis.
 
-    returns: An open, file-like object containing the log contents to be sent
-    for processing by Log Detective. The calling function is responsible for
-    closing this object."""
+    returns: The URL pointing to the selected log file and an open, file-like
+    object containing the log contents to be sent for processing by Log
+    Detective. The calling function is responsible for closing this object."""
 
     # Make sure the file isn't too large to process.
     if not await check_artifacts_file_size(job):
@@ -558,11 +566,13 @@ async def retrieve_and_preprocess_koji_logs(job):
 
     LOG.debug("Failed architecture: %s", failed_arch)
 
-    log_path = failed_arches[failed_arch]
-    LOG.debug("Returning contents of %s", log_path)
+    log_path = failed_arches[failed_arch].as_posix()
+
+    log_url = f"{SERVER_CONFIG.gitlab.api_url}/projects/{job.project_id}/jobs/{job.id}/artifacts/{log_path}"
+    LOG.debug("Returning contents of %s", log_url)
 
     # Return the log as a file-like object with .read() function
-    return artifacts_zip.open(log_path.as_posix())
+    return log_url, artifacts_zip.open(log_path)
 
 
 async def check_artifacts_file_size(job):
@@ -589,11 +599,44 @@ async def check_artifacts_file_size(job):
     return content_length <= SERVER_CONFIG.gitlab.max_artifact_size
 
 
-async def comment_on_mr(merge_request_id: int, response: StagedResponse):
+async def comment_on_mr(
+    merge_request_id: int,
+    job: gitlab.v4.objects.ProjectJob,
+    log_url: str,
+    response: StagedResponse,
+):
     """Add the Log Detective response as a comment to the merge request"""
-    LOG.debug("Primary Explanation for MR %d: %s", merge_request_id, response.explanation.text)
+    LOG.debug(
+        "Primary Explanation for MR %d: %s", merge_request_id, response.explanation.text
+    )
 
-    for snippet in response.snippets:
-        LOG.debug("")
-        LOG.debug("%d: %s", snippet.line_number, snippet.text)
-        LOG.debug("%s", snippet.explanation)
+    # Get the formatted comment.
+    comment = await generate_mr_comment(job, log_url, response)
+
+    # Submit a new comment to the Merge Request using the Gitlab API
+
+
+async def generate_mr_comment(
+    job: gitlab.v4.objects.ProjectJob, log_url: str, response: StagedResponse
+) -> str:
+    """Use a template to generate a comment string to submit to Gitlab"""
+
+    # Locate and load the comment template
+    script_path = Path(__file__).resolve().parent
+    template_path = Path(script_path, "templates")
+    jinja_env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_path))
+    tpl = jinja_env.get_template("gitlab_comment.md.j2")
+
+    artifacts_url = f"{job.project_url}/-/jobs/{job.id}/artifacts/download"
+
+    # Generate the comment from the template
+    content = tpl.render(
+        package=job.project_name,
+        explanation=response.explanation.text,
+        certainty=f"{response.response_certainty:.2f}",
+        snippets=response.snippets,
+        log_url=log_url,
+        artifacts_url=artifacts_url,
+    )
+
+    return content

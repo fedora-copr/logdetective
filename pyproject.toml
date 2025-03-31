@@ -5,7 +5,10 @@ description = "Log using LLM AI to search for build/test failures and provide id
 authors = ["Jiri Podivin <jpodivin@gmail.com>"]
 license = "Apache-2.0"
 readme = "README.md"
-include = ["logdetective/drain3.ini"]
+include = [
+    "logdetective/drain3.ini",
+    "logdetective/server/templates/gitlab_comment.md.j2",
+]
 packages = [
     { include = "logdetective" }
 ]
