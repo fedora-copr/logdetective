@@ -288,6 +288,12 @@ Fore some reason, we need to manually run this command after every reboot:
 nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
 ```
 
+HTTPS certificate generated through:
+
+```
+certbot certonly --standalone -d logdetective01.fedorainfracloud.org
+```
+
 
 License
 -------

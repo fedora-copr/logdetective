@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 
 /server/fullchain.pem
+/server/chain.pem
 /server/privkey.pem
 /server/cert.pem
 
