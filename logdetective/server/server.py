@@ -634,11 +634,19 @@ async def generate_mr_comment(
 
     artifacts_url = f"{job.project_url}/-/jobs/{job.id}/artifacts/download"
 
+    if response.response_certainty >= 90:
+        emoji_face = ":slight_smile:"
+    elif response.response_certainty >= 70:
+        emoji_face = ":neutral_face:"
+    else:
+        emoji_face = ":frowning2:"
+
     # Generate the comment from the template
     content = tpl.render(
         package=job.project_name,
         explanation=response.explanation.text,
         certainty=f"{response.response_certainty:.2f}",
+        emoji_face=emoji_face,
         snippets=response.snippets,
         log_url=log_url,
         artifacts_url=artifacts_url,
