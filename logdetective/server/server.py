@@ -48,7 +48,7 @@ SERVER_CONFIG_PATH = os.environ.get("LOGDETECTIVE_SERVER_CONF", None)
 
 SERVER_CONFIG = load_server_config(SERVER_CONFIG_PATH)
 
-MR_REGEX = re.compile(r"refs/merge-requests/(\d+)/merge")
+MR_REGEX = re.compile(r"refs/merge-requests/(\d+)/.*$")
 FAILURE_LOG_REGEX = re.compile(r"(\w*\.log)")
 
 LOG = get_log(SERVER_CONFIG)
