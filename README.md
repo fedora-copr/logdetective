@@ -294,6 +294,17 @@ HTTPS certificate generated through:
 certbot certonly --standalone -d logdetective01.fedorainfracloud.org
 ```
 
+Query metrics
+-------------
+
+You can query how many requests there were in the server
+in the last given period of time using the following command:
+
+http GET "localhost:8080/metrics/analyze/requests" > /tmp/plot.svg  # defaults to the last two days
+http GET "localhost:8080/metrics/analyze/requests?hours=5" > /tmp/plot_hours.svg
+http GET "localhost:8080/metrics/analyze/requests?days=5" > /tmp/plot_days.svg
+http GET "localhost:8080/metrics/analyze/requests?weeks=5" > /tmp/plot_weeks.svg
+
 
 License
 -------

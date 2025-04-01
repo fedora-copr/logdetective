@@ -46,10 +46,11 @@ sqlalchemy = {version = "^2.0.36", optional = true }
 psycopg2-binary = {version = "^2.9.9", optional = true }
 psycopg2 = {version = "^2.9.9", optional = true }
 alembic = {version = "^1.13.3", optional = true }
+matplotlib = {version = "^3.8.4", optional = true }
 
 [tool.poetry.extras]
-server = ["pydantic", "fastapi", "pyyaml", "sqlalchemy", "psycopg2", "alembic"]
-server-testing = ["pydantic", "fastapi", "pyyaml", "sqlalchemy", "psycopg2-binary", "alembic"]
+server = ["pydantic", "fastapi", "pyyaml", "sqlalchemy", "psycopg2", "alembic", "matplotlib"]
+server-testing = ["pydantic", "fastapi", "pyyaml", "sqlalchemy", "psycopg2-binary", "alembic", "matplotlib"]
 
 [build-system]
 requires = ["poetry-core"]

@@ -20,9 +20,7 @@ def mock_AnalyzeRequestMetrics():
     query = flexmock().should_receive("filter_by").and_return(all_metrics).mock()
     flexmock(session.Session).should_receive("query").and_return(query)
     flexmock(session.Session).should_receive("add").and_return()
-    flexmock(AnalyzeRequestMetrics).should_receive(
-        "create"
-    ).once().and_return(1)
+    flexmock(AnalyzeRequestMetrics).should_receive("create").once().and_return(1)
 
 
 @pytest.mark.asyncio

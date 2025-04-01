@@ -17,6 +17,7 @@ RUN dnf install -y \
     python3-sqlalchemy \
     python3-psycopg2 \
     python3-alembic \
+    python3-matplotlib \
     && dnf clean all
 # the newest 0.2.86 fails to build, it seems vendored llama-cpp is missing in the archive
 RUN pip3 install llama_cpp_python==0.2.85 sse-starlette starlette-context \
