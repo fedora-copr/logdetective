@@ -1,7 +1,4 @@
 import asyncio
-import gitlab.v4
-import gitlab.v4.objects
-import jinja2
 import json
 import os
 import re
@@ -16,6 +13,9 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header
 from fastapi.responses import StreamingResponse
 from fastapi.responses import Response as BasicResponse
 import gitlab
+import gitlab.v4
+import gitlab.v4.objects
+import jinja2
 import requests
 
 from logdetective.constants import (
@@ -304,8 +304,7 @@ async def analyze_log(build_log: BuildLog):
             LOG.error("Error encountered while computing certainty: %s", ex)
             raise HTTPException(
                 status_code=400,
-                detail=f"Couldn't compute certainty with data:\n"
-                f"{response.logprobs}",
+                detail=f"Couldn't compute certainty with data:\n{response.logprobs}",
             ) from ex
 
     return Response(explanation=response, response_certainty=certainty)
@@ -448,7 +447,7 @@ async def process_gitlab_job_event(job_hook):
             "Pipeline source is merge_request_event but no merge request ID was provided."
         )
         return
-    merge_request_id = int(match.group(1))
+    merge_request_iid = int(match.group(1))
 
     LOG.debug("Retrieving log artifacts")
     # Retrieve the build logs from the merge request artifacts and preprocess them
@@ -464,7 +463,7 @@ async def process_gitlab_job_event(job_hook):
     preprocessed_log.close()
 
     # Add the Log Detective response as a comment to the merge request
-    await comment_on_mr(merge_request_id, job, log_url, staged_response)
+    await comment_on_mr(project, merge_request_iid, job, log_url, staged_response)
 
 
 class LogsTooLargeError(RuntimeError):
@@ -564,7 +563,7 @@ async def retrieve_and_preprocess_koji_logs(job: gitlab.v4.objects.ProjectJob):
 
     log_path = failed_arches[failed_arch].as_posix()
 
-    log_url = f"{SERVER_CONFIG.gitlab.api_url}/projects/{job.project_id}/jobs/{job.id}/artifacts/{log_path}"
+    log_url = f"{SERVER_CONFIG.gitlab.api_url}/projects/{job.project_id}/jobs/{job.id}/artifacts/{log_path}"  # pylint: disable=line-too-long
     LOG.debug("Returning contents of %s", log_url)
 
     # Return the log as a file-like object with .read() function
@@ -596,20 +595,30 @@ async def check_artifacts_file_size(job):
 
 
 async def comment_on_mr(
-    merge_request_id: int,
+    project: gitlab.v4.objects.Project,
+    merge_request_iid: int,
     job: gitlab.v4.objects.ProjectJob,
     log_url: str,
     response: StagedResponse,
 ):
     """Add the Log Detective response as a comment to the merge request"""
     LOG.debug(
-        "Primary Explanation for MR %d: %s", merge_request_id, response.explanation.text
+        "Primary Explanation for %s MR %d: %s",
+        project.name,
+        merge_request_iid,
+        response.explanation.text,
     )
 
     # Get the formatted comment.
     comment = await generate_mr_comment(job, log_url, response)
 
+    # Look up the merge request
+    merge_request = await asyncio.to_thread(
+        project.mergerequests.get, merge_request_iid
+    )
+
     # Submit a new comment to the Merge Request using the Gitlab API
+    await asyncio.to_thread(merge_request.discussions.create, {"body": comment})
 
 
 async def generate_mr_comment(
