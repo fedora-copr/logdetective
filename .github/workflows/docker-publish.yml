@@ -92,7 +92,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           flavor: |
             latest=auto
-            suffix=-cuda
+            suffix=-cuda,onlatest=true
           tags: |
             type=semver,pattern={{version}}
             type=sha
