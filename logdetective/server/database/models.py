@@ -2,7 +2,17 @@ import enum
 import datetime
 
 from typing import Optional
-from sqlalchemy import Column, Integer, Float, DateTime, String, Enum
+from sqlalchemy import (
+    Column,
+    Integer,
+    Float,
+    DateTime,
+    String,
+    Enum,
+    func,
+    select,
+    distinct,
+)
 
 from logdetective.server.database.base import Base, transaction
 
@@ -86,3 +96,83 @@ class AnalyzeRequestMetrics(Base):
             metrics.response_length = response_length
             metrics.response_certainty = response_certainty
             session.add(metrics)
+
+    @classmethod
+    def _get_requests_by_time_for_postgres(cls, start_time, end_time, time_format):
+        """func.to_char is PostgreSQL specific.
+        Let's unit tests replace this function with the SQLite version.
+        """
+        if time_format == "%Y-%m-%d":
+            pgsql_time_format = "YYYY-MM-DD"
+        else:
+            pgsql_time_format = "YYYY-MM-DD HH24"
+
+        requests_by_time_format = (
+            select(
+                cls.id,
+                func.to_char(cls.request_received_at, pgsql_time_format).label(
+                    "time_format"
+                ),
+            )
+            .filter(cls.request_received_at.between(start_time, end_time))
+            .cte("requests_by_time_format")
+        )
+        return requests_by_time_format
+
+    @classmethod
+    def _get_requests_by_time_for_sqllite(cls, start_time, end_time, time_format):
+        """func.strftime is SQLite specific.
+        Use this function in unit test using flexmock:
+
+        flexmock(AnalyzeRequestMetrics).should_receive("_get_requests_by_time_for_postgres")
+        .replace_with(AnalyzeRequestMetrics._get_requests_by_time_for_sqllite)
+        """
+        requests_by_time_format = (
+            select(
+                cls.id,
+                func.strftime(time_format, cls.request_received_at).label(
+                    "time_format"
+                ),
+            )
+            .filter(cls.request_received_at.between(start_time, end_time))
+            .cte("requests_by_time_format")
+        )
+        return requests_by_time_format
+
+    @classmethod
+    def get_requests_in_period(
+        cls,
+        start_time: datetime.datetime,
+        end_time: datetime.datetime,
+        time_format: str,
+    ) -> dict[datetime.datetime, int]:
+        """
+        Get a dictionary with request counts grouped by time units within a specified period.
+
+        Args:
+            start_time (datetime): The start of the time period to query
+            end_time (datetime): The end of the time period to query
+            time_format (str): The strftime format string to format timestamps (e.g., '%Y-%m-%d')
+
+        Returns:
+            dict[datetime, int]: A dictionary mapping datetime objects to request counts
+        """
+        with transaction(commit=False) as session:
+            requests_by_time_format = cls._get_requests_by_time_for_postgres(
+                start_time, end_time, time_format
+            )
+
+            count_requests_by_time_format = select(
+                requests_by_time_format.c.time_format,
+                func.count(distinct(requests_by_time_format.c.id)),  # pylint: disable=not-callable
+            ).group_by("time_format")
+
+            counts = session.execute(count_requests_by_time_format)
+            results = counts.fetchall()
+
+            # Convert results to a dictionary with proper datetime keys
+            counts_dict = {
+                datetime.datetime.strptime(r[0], time_format): r[1] for r in results
+            }
+
+            return counts_dict

@@ -1,6 +1,8 @@
+import datetime
 from logging import BASIC_FORMAT
 from typing import List, Dict, Optional, Literal
-from pydantic import BaseModel, Field
+
+from pydantic import BaseModel, Field, model_validator, field_validator
 
 
 class BuildLog(BaseModel):
@@ -54,6 +56,7 @@ class AnalyzedSnippet(BaseModel):
     text: original snippet text
     line_number: location of snippet in original log
     """
+
     explanation: Explanation
     text: str
     line_number: int
@@ -195,3 +198,75 @@ class Config(BaseModel):
         self.extractor = ExtractorConfig(data.get("extractor"))
         self.gitlab = GitLabConfig(data.get("gitlab"))
         self.general = GeneralConfig(data.get("general"))
+
+
+class TimePeriod(BaseModel):
+    """Specification for a period of time.
+
+    If no indication is given
+    it falls back to a 2 days period of time.
+
+    Can't be smaller than a hour"""
+
+    weeks: Optional[int] = None
+    days: Optional[int] = None
+    hours: Optional[int] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def check_exclusive_fields(cls, data):
+        """ Check that only one key between weeks, days and hours is defined"""
+        if isinstance(data, dict):
+            how_many_fields = sum(
+                1
+                for field in ["weeks", "days", "hours"]
+                if field in data and data[field] is not None
+            )
+
+            if how_many_fields == 0:
+                data["days"] = 2  # by default fallback to a 2 days period
+
+            if how_many_fields > 1:
+                raise ValueError("Only one of months, weeks, days, or hours can be set")
+
+        return data
+
+    @field_validator("weeks", "days", "hours")
+    @classmethod
+    def check_positive(cls, v):
+        """Check that the given value is positive"""
+        if v is not None and v <= 0:
+            raise ValueError("Time period must be positive")
+        return v
+
+    def get_time_period(self) -> datetime.timedelta:
+        """Get the period of time represented by this input model.
+
+        Returns:
+            datetime.timedelta: The time period as a timedelta object.
+        """
+        delta = None
+        if self.weeks:
+            delta = datetime.timedelta(weeks=self.weeks)
+        elif self.days:
+            delta = datetime.timedelta(days=self.days)
+        elif self.hours:
+            delta = datetime.timedelta(hours=self.hours)
+        return delta
+
+    def get_period_start_time(
+        self, end_time: datetime.datetime = None
+    ) -> datetime.datetime:
+        """Calculate the start time of this period based on the end time.
+
+        Args:
+            end_time (datetime.datetime, optional): The end time of the period.
+                Defaults to current UTC time if not provided.
+
+        Returns:
+            datetime.datetime: The start time of the period.
+        """
+        time = end_time or datetime.datetime.now(datetime.timezone.utc)
+        if end_time.tzinfo is None:
+            end_time = end_time.replace(tzinfo=datetime.timezone.utc)
+        return time - self.get_time_period()

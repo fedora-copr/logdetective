@@ -6,8 +6,11 @@ import zipfile
 from pathlib import Path, PurePath
 from tempfile import TemporaryFile
 from typing import List, Annotated, Tuple, Dict, Any
+from io import BytesIO
 
 
+import matplotlib
+import matplotlib.pyplot
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header
 
 from fastapi.responses import StreamingResponse
@@ -39,7 +42,9 @@ from logdetective.server.models import (
     StagedResponse,
     Explanation,
     AnalyzedSnippet,
+    TimePeriod,
 )
+from logdetective.server import plot
 
 LLM_CPP_SERVER_TIMEOUT = os.environ.get("LLAMA_CPP_SERVER_TIMEOUT", 600)
 LOG_SOURCE_REQUEST_TIMEOUT = os.environ.get("LOG_SOURCE_REQUEST_TIMEOUT", 60)
@@ -653,3 +658,19 @@ async def generate_mr_comment(
     )
 
     return content
+
+
+@app.get("/metrics/analyze/requests", response_class=StreamingResponse)
+async def show_analyze_metrics(period_since_now: TimePeriod = Depends(TimePeriod)):
+    """Show statistics for the requests received in the given period of time"""
+    fig = plot.requests_per_time(period_since_now)
+    buf = BytesIO()
+    fig.savefig(buf, format="svg", bbox_inches="tight")
+    matplotlib.pyplot.close(fig)
+
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="image/svg+xml",
+        headers={"Content-Disposition": "inline; filename=plot.svg"},
+    )

@@ -20,7 +20,9 @@ test_analyzed_snippets = [
             line_number=e[0],
             explanation=Explanation(
                 text=f"Comment for snippet on line {e[0]}",
-                logprobs=[{"logprob": 66.6}, {"logprob": 99.9}, {"logprob": 1.0}]))
+                logprobs=[{"logprob": 66.6}, {"logprob": 99.9}, {"logprob": 1.0}],
+            ),
+        )
         for e in test_snippets[1]
     ]
 ]

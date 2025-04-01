@@ -1,33 +1,17 @@
 import datetime
-from contextlib import contextmanager
 
-import pytest
 from flexmock import flexmock
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from test_helpers import (
+    DatabaseFactory,
+    populate_db_with_analyze_request_every_15_minutes_for_15_hours,
+)
 
-from logdetective.server.database import base
-from logdetective.server.database.base import init, destroy
 from logdetective.server.database.models import AnalyzeRequestMetrics, EndpointType
 
 
-@pytest.fixture(scope="function")
-@contextmanager
-def db():
-    """Create an in-memory SQLite database for testing.
-    Instead of depending on a PostgreSQL service in a separate container.
-    Hopefully SqlAlchemy will manage all differences."""
-    engine = create_engine("sqlite:///:memory:")
-    SessionFactory = sessionmaker(autoflush=True, bind=engine)
-    flexmock(base, engine=engine, SessionFactory=SessionFactory)
-    init()
-    yield SessionFactory
-    destroy()
-
-
-def test_create_and_update_AnalyzeRequestMetrics(db):
-    with db as session_factory:
+def test_create_and_update_AnalyzeRequestMetrics():
+    with DatabaseFactory().make_new_db() as session_factory:
         metrics_id = AnalyzeRequestMetrics.create(
             endpoint=EndpointType.ANALYZE,
             log_url="https://example.com/logs/123",
@@ -51,3 +35,19 @@ def test_create_and_update_AnalyzeRequestMetrics(db):
         assert metrics.log_url == "https://example.com/logs/123"
         assert metrics.response_length == 0
         assert metrics.response_certainty == 37.7
+
+
+def test_AnalyzeRequestMetrics_ger_request_in_period(
+    populate_db_with_analyze_request_every_15_minutes_for_15_hours,
+):
+    with populate_db_with_analyze_request_every_15_minutes_for_15_hours as _:
+        flexmock(AnalyzeRequestMetrics).should_receive(
+            "_get_requests_by_time_for_postgres"
+        ).replace_with(AnalyzeRequestMetrics._get_requests_by_time_for_sqllite)
+        end_time = datetime.datetime.now(datetime.timezone.utc)
+        start_time = end_time - datetime.timedelta(hours=10)
+        time_format = "%Y-%m-%d %H"
+        counts_dict = AnalyzeRequestMetrics.get_requests_in_period(
+            start_time, end_time, time_format
+        )
+        assert len(counts_dict) == 10 or len(counts_dict) == 11
