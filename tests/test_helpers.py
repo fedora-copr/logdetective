@@ -38,7 +38,7 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
         interval: datetime.timedelta = datetime.timedelta(minutes=15),
         duration: datetime.timedelta = datetime.timedelta(hours=23),
         end_time: Optional[datetime.datetime] = None,
-        endpoint_type: str = "ANALYZE",
+        endpoint_type: Optional[EndpointType] = EndpointType.ANALYZE,
         log_url: str = "https://example.com/logs/123",
     ) -> Generator:
         with self.db_factory.make_new_db() as session_factory:  # pylint: disable=contextmanager-generator-missing-cleanup
@@ -48,12 +48,31 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
             current_time = start_time
             while current_time < end_time:
                 AnalyzeRequestMetrics.create(
-                    endpoint=EndpointType[endpoint_type],
+                    endpoint=endpoint_type,
                     log_url=log_url,
                     request_received_at=current_time,
                 )
                 current_time += interval
 
+            yield session_factory
+
+    @classmethod
+    @contextmanager
+    def populate_db_and_mock_postgres(
+        cls, duration=datetime.timedelta, endpoint=EndpointType
+    ):
+        """Populate the db, one request every 15 minutes.
+        For the last duration time.
+        Mock the model class so that a SQLite query can be performed,
+        the db used for the tests runs in a SQLite db.
+        """
+        with cls().populate_db_at_regular_intervals(
+            duration=duration,
+            endpoint_type=endpoint,
+        ) as session_factory:
+            flexmock(AnalyzeRequestMetrics).should_receive(
+                "_get_requests_by_time_for_postgres"
+            ).replace_with(AnalyzeRequestMetrics._get_requests_by_time_for_sqllite)
             yield session_factory
 
 

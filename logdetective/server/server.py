@@ -45,6 +45,7 @@ from logdetective.server.models import (
     TimePeriod,
 )
 from logdetective.server import plot
+from logdetective.server.database.models import EndpointType
 
 LLM_CPP_SERVER_TIMEOUT = os.environ.get("LLAMA_CPP_SERVER_TIMEOUT", 600)
 LOG_SOURCE_REQUEST_TIMEOUT = os.environ.get("LOG_SOURCE_REQUEST_TIMEOUT", 60)
@@ -499,7 +500,7 @@ async def retrieve_and_preprocess_koji_logs(job: gitlab.v4.objects.ProjectJob):
     tempfile.seek(0)
 
     failed_arches = {}
-    artifacts_zip = zipfile.ZipFile(tempfile, mode="r")
+    artifacts_zip = zipfile.ZipFile(tempfile, mode="r")  # pylint: disable=consider-using-with
     for zipinfo in artifacts_zip.infolist():
         if zipinfo.filename.endswith("task_failed.log"):
             # The koji logs store this file in two places: 1) in the
@@ -660,10 +661,8 @@ async def generate_mr_comment(
     return content
 
 
-@app.get("/metrics/analyze/requests", response_class=StreamingResponse)
-async def show_analyze_metrics(period_since_now: TimePeriod = Depends(TimePeriod)):
-    """Show statistics for the requests received in the given period of time"""
-    fig = plot.requests_per_time(period_since_now)
+def _svg_figure_response(fig: matplotlib.figure.Figure):
+    """Create a response with the given svg figure."""
     buf = BytesIO()
     fig.savefig(buf, format="svg", bbox_inches="tight")
     matplotlib.pyplot.close(fig)
@@ -674,3 +673,21 @@ async def show_analyze_metrics(period_since_now: TimePeriod = Depends(TimePeriod
         media_type="image/svg+xml",
         headers={"Content-Disposition": "inline; filename=plot.svg"},
     )
+
+
+@app.get("/metrics/analyze/requests", response_class=StreamingResponse)
+async def show_analyze_requests(period_since_now: TimePeriod = Depends(TimePeriod)):
+    """Show statistics for the requests received in the given period of time
+    for the /analyze API endpoint."""
+    fig = plot.requests_per_time(period_since_now, EndpointType.ANALYZE)
+    return _svg_figure_response(fig)
+
+
+@app.get("/metrics/analyze/staged/requests", response_class=StreamingResponse)
+async def show_analyze_staged_requests(
+    period_since_now: TimePeriod = Depends(TimePeriod),
+):
+    """Show statistics for the requests received in the given period of time
+    for the /analyze/staged API endpoint."""
+    fig = plot.requests_per_time(period_since_now, EndpointType.ANALYZE_STAGED)
+    return _svg_figure_response(fig)
