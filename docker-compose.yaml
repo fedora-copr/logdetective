@@ -1,6 +1,6 @@
 services:
   llama-cpp:
-    image: quay.io/logdetective/runtime:0.3.3-cuda
+    image: quay.io/logdetective/inference:latest
     build:
       context: .
       dockerfile: ./Containerfile.cuda
@@ -20,7 +20,7 @@ services:
     # security_opt:
     #   - "label=disable"
   server:
-    image: quay.io/logdetective/runtime:0.3.3
+    image: quay.io/logdetective/server:latest
     depends_on:
       - postgres
     build:
