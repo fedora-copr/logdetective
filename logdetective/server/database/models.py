@@ -98,7 +98,9 @@ class AnalyzeRequestMetrics(Base):
             session.add(metrics)
 
     @classmethod
-    def _get_requests_by_time_for_postgres(cls, start_time, end_time, time_format):
+    def _get_requests_by_time_for_postgres(
+        cls, start_time, end_time, time_format, endpoint
+    ):
         """func.to_char is PostgreSQL specific.
         Let's unit tests replace this function with the SQLite version.
         """
@@ -115,12 +117,15 @@ class AnalyzeRequestMetrics(Base):
                 ),
             )
             .filter(cls.request_received_at.between(start_time, end_time))
+            .filter(cls.endpoint == endpoint)
             .cte("requests_by_time_format")
         )
         return requests_by_time_format
 
     @classmethod
-    def _get_requests_by_time_for_sqllite(cls, start_time, end_time, time_format):
+    def _get_requests_by_time_for_sqllite(
+        cls, start_time, end_time, time_format, endpoint
+    ):
         """func.strftime is SQLite specific.
         Use this function in unit test using flexmock:
 
@@ -135,6 +140,7 @@ class AnalyzeRequestMetrics(Base):
                 ),
             )
             .filter(cls.request_received_at.between(start_time, end_time))
+            .filter(cls.endpoint == endpoint)
             .cte("requests_by_time_format")
         )
         return requests_by_time_format
@@ -145,6 +151,7 @@ class AnalyzeRequestMetrics(Base):
         start_time: datetime.datetime,
         end_time: datetime.datetime,
         time_format: str,
+        endpoint: Optional[EndpointType] = EndpointType.ANALYZE,
     ) -> dict[datetime.datetime, int]:
         """
         Get a dictionary with request counts grouped by time units within a specified period.
@@ -153,13 +160,14 @@ class AnalyzeRequestMetrics(Base):
             start_time (datetime): The start of the time period to query
             end_time (datetime): The end of the time period to query
             time_format (str): The strftime format string to format timestamps (e.g., '%Y-%m-%d')
+            endpoint (EndpointType): The analyze API endpoint to query
 
         Returns:
             dict[datetime, int]: A dictionary mapping datetime objects to request counts
         """
         with transaction(commit=False) as session:
             requests_by_time_format = cls._get_requests_by_time_for_postgres(
-                start_time, end_time, time_format
+                start_time, end_time, time_format, endpoint
             )
 
             count_requests_by_time_format = select(

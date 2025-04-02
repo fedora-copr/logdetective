@@ -7,7 +7,7 @@ import matplotlib.figure
 import matplotlib.pyplot
 
 from logdetective.server import models
-from logdetective.server.database.models import AnalyzeRequestMetrics
+from logdetective.server.database.models import AnalyzeRequestMetrics, EndpointType
 
 
 class Definition:
@@ -145,7 +145,6 @@ def _add_cumulative_line_for_requests_count(
     ax2: matplotlib.figure.Axes, timestamps: numpy.array, counts: numpy.array
 ) -> None:
     """Add cumulative line on secondary y-axis"""
-
     cumulative = numpy.cumsum(counts)
     ax2.plot(timestamps, cumulative, "r-", linewidth=2, label="Cumulative")
     ax2.set_ylabel("Cumulative Requests", color="red")
@@ -153,7 +152,9 @@ def _add_cumulative_line_for_requests_count(
 
 
 def requests_per_time(
-    period_of_time: models.TimePeriod, end_time: Optional[datetime.datetime] = None
+    period_of_time: models.TimePeriod,
+    endpoint: EndpointType = EndpointType.ANALYZE,
+    end_time: Optional[datetime.datetime] = None,
 ) -> matplotlib.figure.Figure:
     """
     Generate a visualization of request counts over a specified time period.
@@ -168,6 +169,7 @@ def requests_per_time(
     Args:
         period_of_time: A TimePeriod object that defines the time period and interval
                         for the analysis (e.g., hourly, daily, weekly)
+        endpoint: One of the API endpoints
         end_time: The end time for the analysis period. If None, defaults to the current
                   UTC time
 
@@ -178,7 +180,7 @@ def requests_per_time(
     start_time = period_of_time.get_period_start_time(end_time)
     plot_def = Definition(period_of_time)
     requests_counts = AnalyzeRequestMetrics.get_requests_in_period(
-        start_time, end_time, plot_def.time_format
+        start_time, end_time, plot_def.time_format, endpoint
     )
     timestamps, counts = create_time_series_arrays(
         requests_counts, start_time, end_time, plot_def.time_delta, plot_def.time_format
@@ -191,7 +193,7 @@ def requests_per_time(
     _add_cumulative_line_for_requests_count(ax2, timestamps, counts)
 
     matplotlib.pyplot.title(
-        f"Requests received ({start_time.strftime(plot_def.time_format)} "
+        f"Requests received for API {endpoint} ({start_time.strftime(plot_def.time_format)} "
         f"to {end_time.strftime(plot_def.time_format)})"
     )
 

@@ -294,17 +294,34 @@ HTTPS certificate generated through:
 certbot certonly --standalone -d logdetective01.fedorainfracloud.org
 ```
 
-Query metrics
--------------
+Querying statistics
+-------------------
 
-You can query how many requests there were in the server
-in the last given period of time using the following command:
+You can retrieve statistics about server requests over a specified time period
+using either the `curl` command or the `http` command (provided by the `httpie` package).
 
-http GET "localhost:8080/metrics/analyze/requests" > /tmp/plot.svg  # defaults to the last two days
+When no time period is specified, the query defaults to the last 2 days:
+
+```
+http GET "localhost:8080/metrics/analyze/requests" > /tmp/plot.svg
+curl "localhost:8080/metrics/analyze/staged/requests" > /tmp/plot.svg
+```
+
+You can specify the time period in hours, days, or weeks.
+The time period:
+
+ - cannot be less than one hour
+ - cannot be negative
+ - ends at the current time (when the query is made)
+ - starts at the specified time interval before the current time.
+
+Examples:
+
+```
 http GET "localhost:8080/metrics/analyze/requests?hours=5" > /tmp/plot_hours.svg
 http GET "localhost:8080/metrics/analyze/requests?days=5" > /tmp/plot_days.svg
 http GET "localhost:8080/metrics/analyze/requests?weeks=5" > /tmp/plot_weeks.svg
-
+```
 
 License
 -------

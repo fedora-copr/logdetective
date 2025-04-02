@@ -1,10 +1,10 @@
 import datetime
 
-from flexmock import flexmock
+import pytest
 
 from test_helpers import (
     DatabaseFactory,
-    populate_db_with_analyze_request_every_15_minutes_for_15_hours,
+    PopulateDatabase,
 )
 
 from logdetective.server.database.models import AnalyzeRequestMetrics, EndpointType
@@ -37,17 +37,20 @@ def test_create_and_update_AnalyzeRequestMetrics():
         assert metrics.response_certainty == 37.7
 
 
-def test_AnalyzeRequestMetrics_ger_request_in_period(
-    populate_db_with_analyze_request_every_15_minutes_for_15_hours,
-):
-    with populate_db_with_analyze_request_every_15_minutes_for_15_hours as _:
-        flexmock(AnalyzeRequestMetrics).should_receive(
-            "_get_requests_by_time_for_postgres"
-        ).replace_with(AnalyzeRequestMetrics._get_requests_by_time_for_sqllite)
+@pytest.mark.parametrize(
+    "endpoint",
+    [EndpointType.ANALYZE, EndpointType.ANALYZE_STAGED],
+)
+def test_AnalyzeRequestMetrics_ger_request_in_period(endpoint):
+    duration = datetime.timedelta(hours=13)
+    with PopulateDatabase.populate_db_and_mock_postgres(
+        duration=duration,
+        endpoint=endpoint,
+    ) as _:
         end_time = datetime.datetime.now(datetime.timezone.utc)
         start_time = end_time - datetime.timedelta(hours=10)
         time_format = "%Y-%m-%d %H"
         counts_dict = AnalyzeRequestMetrics.get_requests_in_period(
-            start_time, end_time, time_format
+            start_time, end_time, time_format, endpoint
         )
         assert len(counts_dict) == 10 or len(counts_dict) == 11
