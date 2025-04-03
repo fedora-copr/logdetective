@@ -32,5 +32,7 @@ RUN pip3 install llama_cpp_python==0.2.85 sse-starlette starlette-context \
 COPY ./logdetective/ /src/logdetective/
 COPY ./alembic.ini /src/alembic.ini
 COPY ./alembic /src/alembic
+COPY ./files /src/files
+COPY ./server /src/server
 
 WORKDIR /src
