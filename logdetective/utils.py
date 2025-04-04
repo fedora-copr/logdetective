@@ -204,7 +204,7 @@ def validate_url(url: str) -> bool:
     return True
 
 
-def load_prompts(path: str) -> PromptConfig:
+def load_prompts(path: str | None) -> PromptConfig:
     """Load prompts from given yaml file if there is one.
     Alternatively use defaults."""
     if path:
