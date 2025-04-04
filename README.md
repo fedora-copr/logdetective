@@ -310,10 +310,22 @@ certbot certonly --standalone -d logdetective01.fedorainfracloud.org
 Querying statistics
 -------------------
 
-You can retrieve statistics about server requests over a specified time period
-using either the `curl` command or the `http` command (provided by the `httpie` package).
+You can retrieve statistics about server requests and responses over a specified time period
+using either a browser, the `curl` or the `http` command (provided by the `httpie` package).
 
 When no time period is specified, the query defaults to the last 2 days:
+
+You can view requests and responses statistics
+ - for the `/analyze` endpoint at http://localhost:8080/metrics/analyze
+ - for the `/analyze/staged` endpoint at http://localhost:8080/metrics/analyze/staged.
+
+You can retrieve single svg images at the following endpoints:
+ - `/metrics/analyze/requests`
+ - `/metrics/analyze/responses`
+ - `/metrics/analyze/staged/requests`
+ - `/metrics/analyze/stages/responses`
+
+Examples:
 
 ```
 http GET "localhost:8080/metrics/analyze/requests" > /tmp/plot.svg
@@ -322,7 +334,6 @@ curl "localhost:8080/metrics/analyze/staged/requests" > /tmp/plot.svg
 
 You can specify the time period in hours, days, or weeks.
 The time period:
-
  - cannot be less than one hour
  - cannot be negative
  - ends at the current time (when the query is made)
