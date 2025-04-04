@@ -17,12 +17,18 @@ class LLMExtractor:
     A class that extracts relevant information from logs using a language model.
     """
 
-    def __init__(self, model: Llama, n_lines: int = 2):
+    def __init__(
+        self,
+        model: Llama,
+        n_lines: int = 2,
+        prompt: str = SUMMARIZATION_PROMPT_TEMPLATE,
+    ):
         self.model = model
         self.n_lines = n_lines
         self.grammar = LlamaGrammar.from_string(
             'root ::= ("Yes" | "No")', verbose=False
         )
+        self.prompt = prompt
 
     def __call__(
         self, log: str, n_lines: int = 2, neighbors: bool = False
@@ -41,7 +47,7 @@ class LLMExtractor:
 
         for i in range(0, len(log_lines), self.n_lines):
             block = "\n".join(log_lines[i: i + self.n_lines])
-            prompt = SUMMARIZATION_PROMPT_TEMPLATE.format(log)
+            prompt = self.prompt.format(log)
             out = self.model(prompt, max_tokens=7, grammar=self.grammar)
             out = f"{out['choices'][0]['text']}\n"
             results.append((block, out))
