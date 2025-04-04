@@ -9,6 +9,7 @@ from logdetective.utils import (
     retrieve_log_content,
     format_snippets,
     compute_certainty,
+    load_prompts,
 )
 from logdetective.extractors import LLMExtractor, DrainExtractor
 
@@ -65,6 +66,9 @@ def setup_args():
     )
     parser.add_argument("-v", "--verbose", action="count", default=0)
     parser.add_argument("-q", "--quiet", action="store_true")
+    parser.add_argument(
+        "--prompts", type=str, default="", help="Path to prompt configuration file."
+    )
     return parser.parse_args()
 
 
@@ -82,6 +86,9 @@ def main():  # pylint: disable=too-many-statements
         log_level = logging.DEBUG
     if args.quiet:
         log_level = 0
+
+    # Get prompts configuration
+    prompts_configuration = load_prompts(args.prompts)
 
     logging.basicConfig(stream=sys.stdout)
     LOG.setLevel(log_level)
@@ -103,7 +110,11 @@ def main():  # pylint: disable=too-many-statements
         )
     else:
         summarizer_model = initialize_model(args.summarizer, verbose=args.verbose > 2)
-        extractor = LLMExtractor(summarizer_model, args.verbose > 1)
+        extractor = LLMExtractor(
+            summarizer_model,
+            args.verbose > 1,
+            prompts_configuration.summarization_prompt_template,
+        )
 
     LOG.info("Getting summary")
 
@@ -127,7 +138,12 @@ def main():  # pylint: disable=too-many-statements
     stream = True
     if args.no_stream:
         stream = False
-    response = process_log(log_summary, model, stream)
+    response = process_log(
+        log_summary,
+        model,
+        stream,
+        prompt_template=prompts_configuration.prompt_template,
+    )
     probs = []
     print("Explanation:")
     # We need to extract top token probability from the response
