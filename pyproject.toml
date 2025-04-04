@@ -8,7 +8,7 @@ readme = "README.md"
 include = [
     "logdetective/drain3.ini",
     "logdetective/server/templates/gitlab_comment.md.j2",
-    "logdetective/prompts.yaml",
+    "logdetective/prompts.yml",
 ]
 packages = [
     { include = "logdetective" }
