@@ -41,12 +41,10 @@ def update_metrics(
         sent_at if sent_at else datetime.datetime.now(datetime.timezone.utc)
     )
     response_length = None
-    if hasattr(response, "explanation") and "choices" in response.explanation:
-        response_length = sum(
-            len(choice["text"])
-            for choice in response.explanation["choices"]
-            if "text" in choice
-        )
+    if hasattr(response, "explanation") and isinstance(
+        response.explanation, models.Explanation
+    ):
+        response_length = len(response.explanation.text)
     response_certainty = (
         response.response_certainty if hasattr(response, "response_certainty") else None
     )

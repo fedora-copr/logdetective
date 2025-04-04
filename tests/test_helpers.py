@@ -46,13 +46,28 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
             start_time = end_time - duration
 
             current_time = start_time
+            increasing_response_time = 1
+            increasing_response_length = 500
             while current_time < end_time:
-                AnalyzeRequestMetrics.create(
+                id_ = AnalyzeRequestMetrics.create(
                     endpoint=endpoint_type,
                     log_url=log_url,
                     request_received_at=current_time,
                 )
+                response_time = current_time + datetime.timedelta(
+                    seconds=increasing_response_time
+                )
+                increasing_response_length += 500
+                AnalyzeRequestMetrics.update(
+                    id_=id_,
+                    response_sent_at=response_time,
+                    response_length=increasing_response_length,
+                    response_certainty=70,
+                )
                 current_time += interval
+                increasing_response_time += 1
+                increasing_response_time = increasing_response_time % 4
+                increasing_response_length = increasing_response_length % 5000
 
             yield session_factory
 
@@ -62,6 +77,7 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
         cls, duration=datetime.timedelta, endpoint=EndpointType
     ):
         """Populate the db, one request every 15 minutes.
+        and responses increasing for 1 hour, and then back to 1.
         For the last duration time.
         Mock the model class so that a SQLite query can be performed,
         the db used for the tests runs in a SQLite db.
@@ -72,7 +88,19 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
         ) as session_factory:
             flexmock(AnalyzeRequestMetrics).should_receive(
                 "_get_requests_by_time_for_postgres"
-            ).replace_with(AnalyzeRequestMetrics._get_requests_by_time_for_sqllite)
+            ).replace_with(AnalyzeRequestMetrics._get_requests_by_time_for_sqlite)
+
+            flexmock(AnalyzeRequestMetrics).should_receive(
+                "_get_average_responses_times_for_postgres"
+            ).replace_with(
+                AnalyzeRequestMetrics._get_average_responses_times_for_sqlite
+            )
+
+            flexmock(AnalyzeRequestMetrics).should_receive(
+                "_get_average_responses_lengths_for_postgres"
+            ).replace_with(
+                AnalyzeRequestMetrics._get_average_responses_lengths_for_sqlite
+            )
             yield session_factory
 
 

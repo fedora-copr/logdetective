@@ -709,12 +709,62 @@ def _svg_figure_response(fig: matplotlib.figure.Figure):
     )
 
 
+def _multiple_svg_figures_response(figures: list[matplotlib.figure.Figure]):
+    """Create a response with multiple svg figures."""
+    svg_contents = []
+    for i, fig in enumerate(figures):
+        buf = BytesIO()
+        fig.savefig(buf, format="svg", bbox_inches="tight")
+        matplotlib.pyplot.close(fig)
+        buf.seek(0)
+        svg_contents.append(buf.read().decode("utf-8"))
+
+    html_content = "<html><body>\n"
+    for i, svg in enumerate(svg_contents):
+        html_content += f"<div id='figure-{i}'>\n{svg}\n</div>\n"
+    html_content += "</body></html>"
+
+    return BasicResponse(content=html_content, media_type="text/html")
+
+
+@app.get("/metrics/analyze", response_class=StreamingResponse)
+async def show_analyze_metrics(period_since_now: TimePeriod = Depends(TimePeriod)):
+    """Show statistics for requests and responses in the given period of time
+    for the /analyze API endpoint."""
+    fig_requests = plot.requests_per_time(period_since_now, EndpointType.ANALYZE)
+    fig_responses = plot.average_time_per_responses(
+        period_since_now, EndpointType.ANALYZE
+    )
+    return _multiple_svg_figures_response([fig_requests, fig_responses])
+
+
 @app.get("/metrics/analyze/requests", response_class=StreamingResponse)
 async def show_analyze_requests(period_since_now: TimePeriod = Depends(TimePeriod)):
     """Show statistics for the requests received in the given period of time
     for the /analyze API endpoint."""
     fig = plot.requests_per_time(period_since_now, EndpointType.ANALYZE)
     return _svg_figure_response(fig)
+
+
+@app.get("/metrics/analyze/responses", response_class=StreamingResponse)
+async def show_analyze_responses(period_since_now: TimePeriod = Depends(TimePeriod)):
+    """Show statistics for responses given in the specified period of time
+    for the /analyze API endpoint."""
+    fig = plot.average_time_per_responses(period_since_now, EndpointType.ANALYZE)
+    return _svg_figure_response(fig)
+
+
+@app.get("/metrics/analyze/staged", response_class=StreamingResponse)
+async def show_analyze_staged_metrics(
+    period_since_now: TimePeriod = Depends(TimePeriod),
+):
+    """Show statistics for requests and responses in the given period of time
+    for the /analyze/staged API endpoint."""
+    fig_requests = plot.requests_per_time(period_since_now, EndpointType.ANALYZE_STAGED)
+    fig_responses = plot.average_time_per_responses(
+        period_since_now, EndpointType.ANALYZE_STAGED
+    )
+    return _multiple_svg_figures_response([fig_requests, fig_responses])
 
 
 @app.get("/metrics/analyze/staged/requests", response_class=StreamingResponse)
@@ -724,4 +774,14 @@ async def show_analyze_staged_requests(
     """Show statistics for the requests received in the given period of time
     for the /analyze/staged API endpoint."""
     fig = plot.requests_per_time(period_since_now, EndpointType.ANALYZE_STAGED)
+    return _svg_figure_response(fig)
+
+
+@app.get("/metrics/analyze/staged/responses", response_class=StreamingResponse)
+async def show_analyze_staged_responses(
+    period_since_now: TimePeriod = Depends(TimePeriod),
+):
+    """Show statistics for responses given in the specified period of time
+    for the /analyze/staged API endpoint."""
+    fig = plot.average_time_per_responses(period_since_now, EndpointType.ANALYZE_STAGED)
     return _svg_figure_response(fig)

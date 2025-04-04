@@ -7,7 +7,11 @@ from test_helpers import PopulateDatabase
 
 from logdetective.server import plot, models
 from logdetective.server.database.models import AnalyzeRequestMetrics, EndpointType
-from logdetective.server.plot import create_time_series_arrays, requests_per_time
+from logdetective.server.plot import (
+    create_time_series_arrays,
+    requests_per_time,
+    average_time_per_responses,
+)
 
 
 def test_week_Definition():
@@ -43,10 +47,9 @@ def test_create_time_series_arrays(endpoint):
         )
         timestamps, counts = create_time_series_arrays(
             counts_dict,
+            plot_details,
             start_time,
             end_time,
-            plot_details.time_delta,
-            plot_details.time_format,
         )
         assert len(timestamps) == len(counts) == 22 + 1
         assert (
@@ -61,48 +64,111 @@ def _save_fig(fig):
 
 
 @pytest.mark.parametrize(
-    "endpoint",
-    [EndpointType.ANALYZE, EndpointType.ANALYZE_STAGED],
+    "endpoint,plot",
+    [
+        pytest.param(
+            EndpointType.ANALYZE,
+            requests_per_time,
+            id="Requests per time for ANALYZE endpoint",
+        ),
+        pytest.param(
+            EndpointType.ANALYZE_STAGED,
+            requests_per_time,
+            id="Requests per time for ANALYZE_STAGED endpoint",
+        ),
+        pytest.param(
+            EndpointType.ANALYZE,
+            average_time_per_responses,
+            id="average time and length for ANALYZE endpoint",
+        ),
+        pytest.param(
+            EndpointType.ANALYZE_STAGED,
+            average_time_per_responses,
+            id="average time and length for ANALYZE_STAGED endpoint",
+        ),
+    ],
 )
-def test_requests_per_time_hourly(endpoint):
+def test_hourly_plots(endpoint, plot):
     duration = datetime.timedelta(hours=14)
     with PopulateDatabase.populate_db_and_mock_postgres(
         duration=duration,
         endpoint=endpoint,
     ) as _:
         period = models.TimePeriod(hours=22)
-        fig = requests_per_time(period, endpoint)
+        fig = plot(period, endpoint)
         assert fig
         _save_fig(fig)
 
 
 @pytest.mark.parametrize(
-    "endpoint",
-    [EndpointType.ANALYZE, EndpointType.ANALYZE_STAGED],
+    "endpoint,plot",
+    [
+        pytest.param(
+            EndpointType.ANALYZE,
+            requests_per_time,
+            id="Requests per time for ANALYZE endpoint",
+        ),
+        pytest.param(
+            EndpointType.ANALYZE_STAGED,
+            requests_per_time,
+            id="Requests per time for ANALYZE_STAGED endpoint",
+        ),
+        pytest.param(
+            EndpointType.ANALYZE,
+            average_time_per_responses,
+            id="average time and length for ANALYZE endpoint",
+        ),
+        pytest.param(
+            EndpointType.ANALYZE_STAGED,
+            average_time_per_responses,
+            id="average time and length for ANALYZE_STAGED endpoint",
+        ),
+    ],
 )
-def test_requests_per_time_daily(endpoint):
+def test_daily_plots(endpoint, plot):
     duration = datetime.timedelta(days=9)
     with PopulateDatabase.populate_db_and_mock_postgres(
         duration=duration,
         endpoint=endpoint,
     ) as _:
         period = models.TimePeriod(days=15)
-        fig = requests_per_time(period, endpoint)
+        fig = plot(period, endpoint)
         assert fig
         _save_fig(fig)
 
 
 @pytest.mark.parametrize(
-    "endpoint",
-    [EndpointType.ANALYZE, EndpointType.ANALYZE_STAGED],
+    "endpoint,plot",
+    [
+        pytest.param(
+            EndpointType.ANALYZE,
+            requests_per_time,
+            id="Requests per time for ANALYZE endpoint",
+        ),
+        pytest.param(
+            EndpointType.ANALYZE_STAGED,
+            requests_per_time,
+            id="Requests per time for ANALYZE_STAGED endpoint",
+        ),
+        pytest.param(
+            EndpointType.ANALYZE,
+            average_time_per_responses,
+            id="average time and length for ANALYZE endpoint",
+        ),
+        pytest.param(
+            EndpointType.ANALYZE_STAGED,
+            average_time_per_responses,
+            id="average time and length for ANALYZE_STAGED endpoint",
+        ),
+    ],
 )
-def test_requests_per_time_weekly(endpoint):
+def test_weekly_plots(endpoint, plot):
     duration = datetime.timedelta(weeks=3)
     with PopulateDatabase.populate_db_and_mock_postgres(
         duration=duration,
         endpoint=endpoint,
     ) as _:
         period = models.TimePeriod(weeks=5)
-        fig = requests_per_time(period, endpoint)
+        fig = plot(period, endpoint)
         assert fig
         _save_fig(fig)
