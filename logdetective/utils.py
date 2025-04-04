@@ -4,10 +4,13 @@ from typing import Iterator, List, Dict, Tuple, Generator
 from urllib.parse import urlparse
 import numpy as np
 import requests
+import yaml
 
 from llama_cpp import Llama, CreateCompletionResponse, CreateCompletionStreamResponse
 from logdetective.constants import PROMPT_TEMPLATE, SNIPPET_DELIMITER
 from logdetective.server.models import AnalyzedSnippet
+from logdetective.models import PromptConfig
+
 
 LOG = logging.getLogger("logdetective")
 
@@ -199,3 +202,15 @@ def validate_url(url: str) -> bool:
     if not (result.path or result.netloc):
         return False
     return True
+
+
+def load_prompts(path: str) -> PromptConfig:
+    """Load prompts from given yaml file if there is one.
+    Alternatively use defaults."""
+
+    try:
+        with open(path, "r") as file:
+            return PromptConfig(yaml.safe_load(file))
+    except FileNotFoundError:
+        print("Prompt configuration file not found, reverting to defaults.")
+    return PromptConfig()
