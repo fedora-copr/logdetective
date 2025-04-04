@@ -6,7 +6,7 @@ import drain3
 from drain3.template_miner_config import TemplateMinerConfig
 from llama_cpp import Llama, LlamaGrammar
 
-from logdetective.constants import SUMMARIZE_PROMPT_TEMPLATE
+from logdetective.constants import SUMMARIZATION_PROMPT_TEMPLATE
 from logdetective.utils import get_chunks
 
 LOG = logging.getLogger("logdetective")
@@ -41,7 +41,7 @@ class LLMExtractor:
 
         for i in range(0, len(log_lines), self.n_lines):
             block = "\n".join(log_lines[i: i + self.n_lines])
-            prompt = SUMMARIZE_PROMPT_TEMPLATE.format(log)
+            prompt = SUMMARIZATION_PROMPT_TEMPLATE.format(log)
             out = self.model(prompt, max_tokens=7, grammar=self.grammar)
             out = f"{out['choices'][0]['text']}\n"
             results.append((block, out))
