@@ -26,6 +26,11 @@ jobs:
     trigger: pull_request
     targets:
       - fedora-all
+  - job: copr_build
+    trigger: commit
+    branch: main
+    targets:
+      - fedora-all
   - job: tests
     trigger: pull_request
     targets:
