@@ -21,17 +21,13 @@ import gitlab.v4.objects
 import jinja2
 import requests
 
-from logdetective.constants import (
-    PROMPT_TEMPLATE,
-    SNIPPET_PROMPT_TEMPLATE,
-    PROMPT_TEMPLATE_STAGED,
-)
 from logdetective.extractors import DrainExtractor
 from logdetective.utils import (
     validate_url,
     compute_certainty,
     format_snippets,
     format_analyzed_snippets,
+    load_prompts,
 )
 from logdetective.server.utils import load_server_config, get_log
 from logdetective.server.metric import track_request
@@ -51,8 +47,10 @@ LLM_CPP_SERVER_TIMEOUT = os.environ.get("LLAMA_CPP_SERVER_TIMEOUT", 600)
 LOG_SOURCE_REQUEST_TIMEOUT = os.environ.get("LOG_SOURCE_REQUEST_TIMEOUT", 60)
 API_TOKEN = os.environ.get("LOGDETECTIVE_TOKEN", None)
 SERVER_CONFIG_PATH = os.environ.get("LOGDETECTIVE_SERVER_CONF", None)
+SERVER_PROMPT_PATH = os.environ.get("LOGDETECTIVE_PROMPTS", None)
 
 SERVER_CONFIG = load_server_config(SERVER_CONFIG_PATH)
+PROMPT_CONFIG = load_prompts(SERVER_PROMPT_PATH)
 
 MR_REGEX = re.compile(r"refs/merge-requests/(\d+)/.*$")
 FAILURE_LOG_REGEX = re.compile(r"(\w*\.log)")
@@ -298,7 +296,7 @@ async def analyze_log(build_log: BuildLog):
     log_summary = mine_logs(log_text)
     log_summary = format_snippets(log_summary)
     response = await submit_text(
-        PROMPT_TEMPLATE.format(log_summary),
+        PROMPT_CONFIG.prompt_template.format(log_summary),
         api_endpoint=SERVER_CONFIG.inference.api_endpoint,
     )
     certainty = 0
@@ -338,7 +336,7 @@ async def perform_staged_analysis(log_text: str) -> StagedResponse:
     analyzed_snippets = await asyncio.gather(
         *[
             submit_text(
-                SNIPPET_PROMPT_TEMPLATE.format(s),
+                PROMPT_CONFIG.snippet_prompt_template.format(s),
                 api_endpoint=SERVER_CONFIG.inference.api_endpoint,
             )
             for s in log_summary
@@ -349,7 +347,7 @@ async def perform_staged_analysis(log_text: str) -> StagedResponse:
         AnalyzedSnippet(line_number=e[0][0], text=e[0][1], explanation=e[1])
         for e in zip(log_summary, analyzed_snippets)
     ]
-    final_prompt = PROMPT_TEMPLATE_STAGED.format(
+    final_prompt = PROMPT_CONFIG.prompt_template_staged.format(
         format_analyzed_snippets(analyzed_snippets)
     )
 
@@ -395,7 +393,7 @@ async def analyze_log_stream(build_log: BuildLog):
         headers["Authorization"] = f"Bearer {SERVER_CONFIG.inference.api_token}"
 
     stream = await submit_text_chat_completions(
-        PROMPT_TEMPLATE.format(log_summary), stream=True, headers=headers
+        PROMPT_CONFIG.prompt_template.format(log_summary), stream=True, headers=headers
     )
 
     return StreamingResponse(stream)

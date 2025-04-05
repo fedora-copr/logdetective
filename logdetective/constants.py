@@ -1,3 +1,8 @@
+"""This file contains various constants to be used as a fallback
+in case other values are not specified. Prompt templates should be modified
+in prompts.yaml instead.
+"""
+
 # pylint: disable=line-too-long
 DEFAULT_ADVISOR = "fedora-copr/Mistral-7B-Instruct-v0.2-GGUF"
 
@@ -19,7 +24,7 @@ Analysis:
 
 """
 
-SUMMARIZE_PROMPT_TEMPLATE = """
+SUMMARIZATION_PROMPT_TEMPLATE = """
 Does following log contain error or issue?
 
 Log:
