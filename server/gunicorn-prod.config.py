@@ -8,6 +8,6 @@ workers = 2
 timeout = 600
 # write to stdout
 accesslog = "-"
-certfile = "/src/server/cert.pem"
-keyfile = "/src/server/privkey.pem"
-ca_certs = "/src/server/fullchain.pem"
+certfile = os.path.join(os.environ["LOGDETECTIVE_CERTDIR"], "cert.pem")
+keyfile = os.path.join(os.environ["LOGDETECTIVE_CERTDIR"], "privkey.pem")
+ca_certs = os.path.join(os.environ["LOGDETECTIVE_CERTDIR"], "fullchain.pem")
