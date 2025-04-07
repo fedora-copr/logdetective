@@ -323,6 +323,21 @@ http GET "localhost:8080/metrics/analyze/requests?days=5" > /tmp/plot_days.svg
 http GET "localhost:8080/metrics/analyze/requests?weeks=5" > /tmp/plot_weeks.svg
 ```
 
+System Prompts
+--------------
+
+Prompt templates used by Log Detective are stored in the `prompts.yml` file.
+It is possible to modify the file in place, or provide your own.
+In CLI you can override prompt templates location using `--prompts` option,
+while in the container service deployment the `LOGDETECTIVE_PROMPTS` environment variable
+is used instead.
+
+Prompts need to have a form compatible with python [format string syntax](https://docs.python.org/3/library/string.html#format-string-syntax)
+with spaces, or replacement fields marked with curly braces, `{}` left for insertion of snippets.
+
+Number of replacement fields in new prompts, must be the same as in originals.
+Although their position may be different.
+
 License
 -------
 
