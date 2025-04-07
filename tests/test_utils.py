@@ -1,10 +1,14 @@
+from unittest import mock
 import pytest
 from logdetective.utils import (
     compute_certainty,
     format_snippets,
     format_analyzed_snippets,
+    load_prompts,
 )
 from logdetective.server.models import AnalyzedSnippet, Explanation
+from logdetective.models import PromptConfig
+from logdetective import constants
 
 test_snippets = [
     # Simple
@@ -27,6 +31,12 @@ test_analyzed_snippets = [
     ]
 ]
 
+test_prompts = """
+prompt_template: This is basic template.
+
+snippet_prompt_template: This is template for snippets.
+"""
+
 
 @pytest.mark.parametrize(
     "probs", ([{"logprob": 66.6}], [{"logprob": 99.9}, {"logprob": 1.0}])
@@ -46,3 +56,31 @@ def test_format_snippets(snippets):
 def test_format_analyzed_snippets(snippets):
     """Test snippet formatting for snippets with LLM generated explanations"""
     format_analyzed_snippets(snippets)
+
+
+def test_load_prompts_wrong_path():
+    """Test behavior for case when the path doesn't lead to a any file."""
+    prompts_config = load_prompts("/there/is/nothing/to/read.yml")
+
+    assert isinstance(prompts_config, PromptConfig)
+
+    assert prompts_config.prompt_template == constants.PROMPT_TEMPLATE
+    assert prompts_config.snippet_prompt_template == constants.SNIPPET_PROMPT_TEMPLATE
+    assert prompts_config.prompt_template_staged == constants.PROMPT_TEMPLATE_STAGED
+    assert prompts_config.summarization_prompt_template == constants.SUMMARIZATION_PROMPT_TEMPLATE
+
+
+def test_load_prompts_correct_path():
+    """Test behavior for case when the path is correct and only
+    some prompts are overriden with user settings, the rest must remain
+    set to defaults in `constants`."""
+
+    with mock.patch("logdetective.utils.open", mock.mock_open(read_data=test_prompts)):
+        prompts_config = load_prompts("/there/is/nothing/to/read.yml")
+
+    assert isinstance(prompts_config, PromptConfig)
+
+    assert prompts_config.prompt_template == "This is basic template."
+    assert prompts_config.snippet_prompt_template == "This is template for snippets."
+    assert prompts_config.prompt_template_staged == constants.PROMPT_TEMPLATE_STAGED
+    assert prompts_config.summarization_prompt_template == constants.SUMMARIZATION_PROMPT_TEMPLATE
