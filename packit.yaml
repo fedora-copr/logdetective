@@ -26,11 +26,13 @@ jobs:
     trigger: pull_request
     targets:
       - fedora-all
+  # Run build on commit with OpenScanHub checks
   - job: copr_build
     trigger: commit
     branch: main
     targets:
       - fedora-all
+    osh_diff_scan_after_copr_build: true
   - job: tests
     trigger: pull_request
     targets:
