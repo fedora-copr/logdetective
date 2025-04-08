@@ -3,9 +3,9 @@ import pytest
 from logdetective.utils import (
     compute_certainty,
     format_snippets,
-    format_analyzed_snippets,
     load_prompts,
 )
+from logdetective.server.utils import format_analyzed_snippets
 from logdetective.server.models import AnalyzedSnippet, Explanation
 from logdetective.models import PromptConfig
 from logdetective import constants

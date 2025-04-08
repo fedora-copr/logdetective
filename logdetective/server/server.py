@@ -26,10 +26,13 @@ from logdetective.utils import (
     validate_url,
     compute_certainty,
     format_snippets,
-    format_analyzed_snippets,
     load_prompts,
 )
-from logdetective.server.utils import load_server_config, get_log
+from logdetective.server.utils import (
+    load_server_config,
+    get_log,
+    format_analyzed_snippets,
+)
 from logdetective.server.metric import track_request
 from logdetective.server.models import (
     BuildLog,
