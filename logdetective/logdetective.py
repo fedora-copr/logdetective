@@ -1,6 +1,7 @@
 import argparse
 import logging
 import sys
+import os
 
 from logdetective.constants import DEFAULT_ADVISOR
 from logdetective.utils import (
@@ -67,7 +68,10 @@ def setup_args():
     parser.add_argument("-v", "--verbose", action="count", default=0)
     parser.add_argument("-q", "--quiet", action="store_true")
     parser.add_argument(
-        "--prompts", type=str, default="", help="Path to prompt configuration file."
+        "--prompts",
+        type=str,
+        default=f"{os.path.dirname(__file__)}/prompts.yml",
+        help="Path to prompt configuration file."
     )
     return parser.parse_args()
 
