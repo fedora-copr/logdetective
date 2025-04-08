@@ -1,0 +1,79 @@
+= logdetective(1)
+:doctype: manpage
+:man source: logdetective 1.0
+:man manual: User Commands
+
+== NAME
+
+logdetective - Analyze and summarize log files using LLM or Drain templates
+
+== SYNOPSIS
+
+*logdetective* [_OPTIONS_] *file*
+
+== DESCRIPTION
+
+*logdetective* is a tool that analyzes log files using either a large language
+model (LLM) or the Drain log template miner. It can consume logs from a local
+path or a URL, summarize them, and cluster them for easier inspection.
+
+== POSITIONAL ARGUMENTS
+
+*file*::
+  The URL or path to the log file to be analyzed.
+
+== OPTIONS
+
+*-h*, *--help*::
+  Show this help message and exit.
+
+*-M* *MODEL*, *--model* *MODEL*::
+  The path or URL of the language model for analysis. As we are using LLama.cpp we want this to be in the gguf format. You can include the download link to the model here. If the model is already on your machine it will skip the download. (optional, default: "Mistral-7B-Instruct-v0.2-GGUF")
+
+*-F* *FILENAME_SUFFIX*, *--filename_suffix* *FILENAME_SUFFIX*::
+  Define the suffix of the model file name to retrieve from Hugging Face. This option only applies when the model is specified by name (not a path).
+
+*-n*, *--no-stream*::
+  Disable streaming output of analysis results.
+
+*-S* *SUMMARIZER*, *--summarizer* *SUMMARIZER*::
+  Choose between LLM and Drain template miner as the log summarizer. You can also provide the path to an existing language model file instead of using a URL. (optional, default: "drain")
+
+*-N* *N_LINES*, *--n_lines* *N_LINES*::
+  Number of lines per chunk for LLM analysis. Only applicable when `LLM` is used as the summarizer. (optional, default: 8)
+
+*-C* *N_CLUSTERS*, *--n_clusters* *N_CLUSTERS*::
+  Number of clusters to use with the Drain summarizer. Ignored if `LLM` summarizer is selected. (optional, default 8)
+
+*-v*, *--verbose*::
+  Enable verbose output during processing.
+
+*-q*, *--quiet*::
+  Suppress non-essential output.
+
+== EXAMPLES
+
+Example usage:
+
+  $ logdetective https://example.com/logs.txt
+
+Or if the log file is stored locally:
+
+  $ logdetective ./data/logs.txt
+
+Analyze a local log file using an LLM model:
+
+  $ logdetective -M /path/to/llm-model -S LLM -N 100 /var/log/syslog
+
+With specific models:
+
+  $ logdetective https://example.com/logs.txt --model https://huggingface.co/QuantFactory/Meta-Llama-3-8B-Instruct-GGUF/resolve/main/Meta-Llama-3-8B-Instruct.Q5_K_S.gguf?download=true
+  $ logdetective https://example.com/logs.txt --model QuantFactory/Meta-Llama-3-8B-Instruct-GGUF
+
+Cluster logs from a URL using Drain:
+
+  $ logdetective -S Drain -C 10 https://example.com/logs.txt
+
+== SEE ALSO
+
+https://logdetective.com
