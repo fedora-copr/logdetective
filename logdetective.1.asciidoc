@@ -51,6 +51,10 @@ path or a URL, summarize them, and cluster them for easier inspection.
 *-q*, *--quiet*::
   Suppress non-essential output.
 
+*--prompts* *PROMPTS*::
+  Path to prompt configuration file where you can customize prompts sent to `LLM`.
+
+
 == EXAMPLES
 
 Example usage:
