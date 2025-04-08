@@ -1,6 +1,18 @@
 import logging
 import yaml
-from logdetective.server.models import Config
+from logdetective.constants import SNIPPET_DELIMITER
+from logdetective.server.models import Config, AnalyzedSnippet
+
+
+def format_analyzed_snippets(snippets: list[AnalyzedSnippet]) -> str:
+    """Format snippets for submission into staged prompt."""
+    summary = f"\n{SNIPPET_DELIMITER}\n".join(
+        [
+            f"[{e.text}] at line [{e.line_number}]: [{e.explanation.text}]"
+            for e in snippets
+        ]
+    )
+    return summary
 
 
 def load_server_config(path: str | None) -> Config:
