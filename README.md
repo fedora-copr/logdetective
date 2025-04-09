@@ -7,6 +7,8 @@ Log Detective
 
 A Python tool to analyze logs using a Language Model (LLM) and Drain template miner.
 
+Note: if you are looking for code of website logdetective.com it is in [github.com/fedora-copr/logdetective-website](https://github.com/fedora-copr/logdetective-website).
+
 Installation
 ------------
 
