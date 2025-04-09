@@ -9,8 +9,7 @@ In this case, we are {{ certainty }}% certain of the response {{ emoji_face }}.
 <ul>
 {% for snippet in snippets %}
 <li>
-<code>
-Line {{ snippet.line_number }}: {{ snippet.text }}
+<code>Line {{ snippet.line_number }}: {{ snippet.text }}
 </code>
 {{ snippet.explanation }}
 </li>
