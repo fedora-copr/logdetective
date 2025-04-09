@@ -70,3 +70,5 @@ Analysis:
 """
 
 SNIPPET_DELIMITER = "================"
+
+DEFAULT_TEMPERATURE = 0.8
