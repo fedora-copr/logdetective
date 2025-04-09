@@ -35,4 +35,7 @@ COPY ./alembic /src/alembic
 COPY ./files /src/files
 COPY ./server /src/server
 
+COPY ./files/Current-IT-Root-CAs.pem /etc/pki/ca-trust/source/anchors/
+RUN update-ca-trust
+
 WORKDIR /src
