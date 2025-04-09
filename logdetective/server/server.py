@@ -186,7 +186,6 @@ async def submit_text(  # pylint: disable=R0913,R0917
     log_probs: int = 1,
     stream: bool = False,
     model: str = "default-model",
-    api_endpoint: str = "/chat/completions",
 ) -> Explanation:
     """Submit prompt to LLM using a selected endpoint.
     max_tokens: number of tokens to be produces, 0 indicates run until encountering EOS
@@ -199,7 +198,7 @@ async def submit_text(  # pylint: disable=R0913,R0917
     if SERVER_CONFIG.inference.api_token:
         headers["Authorization"] = f"Bearer {SERVER_CONFIG.inference.api_token}"
 
-    if api_endpoint == "/chat/completions":
+    if SERVER_CONFIG.inference.api_endpoint == "/chat/completions":
         return await submit_text_chat_completions(
             text, headers, max_tokens, log_probs > 0, stream, model
         )
@@ -300,7 +299,6 @@ async def analyze_log(build_log: BuildLog):
     log_summary = format_snippets(log_summary)
     response = await submit_text(
         PROMPT_CONFIG.prompt_template.format(log_summary),
-        api_endpoint=SERVER_CONFIG.inference.api_endpoint,
         model=SERVER_CONFIG.inference.model,
         max_tokens=SERVER_CONFIG.inference.max_tokens,
     )
@@ -342,7 +340,6 @@ async def perform_staged_analysis(log_text: str) -> StagedResponse:
         *[
             submit_text(
                 PROMPT_CONFIG.snippet_prompt_template.format(s),
-                api_endpoint=SERVER_CONFIG.inference.api_endpoint,
                 model=SERVER_CONFIG.inference.model,
                 max_tokens=SERVER_CONFIG.inference.max_tokens,
             )
@@ -360,7 +357,6 @@ async def perform_staged_analysis(log_text: str) -> StagedResponse:
 
     final_analysis = await submit_text(
         final_prompt,
-        api_endpoint=SERVER_CONFIG.inference.api_endpoint,
         model=SERVER_CONFIG.inference.model,
         max_tokens=SERVER_CONFIG.inference.max_tokens,
     )
@@ -405,7 +401,7 @@ async def analyze_log_stream(build_log: BuildLog):
     stream = await submit_text_chat_completions(
         PROMPT_CONFIG.prompt_template.format(log_summary), stream=True, headers=headers,
         model=SERVER_CONFIG.inference.model,
-        max_tokens=SERVER_CONFIG.inference.model,
+        max_tokens=SERVER_CONFIG.inference.max_tokens,
     )
 
     return StreamingResponse(stream)
