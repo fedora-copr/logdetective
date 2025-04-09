@@ -625,8 +625,8 @@ async def comment_on_mr(
         response.explanation.text,
     )
 
-    # Get the formatted comment.
-    comment = await generate_mr_comment(job, log_url, response)
+    # Get the formatted short comment.
+    short_comment = await generate_mr_comment(job, log_url, response, full=False)
 
     # Look up the merge request
     merge_request = await asyncio.to_thread(
@@ -634,11 +634,33 @@ async def comment_on_mr(
     )
 
     # Submit a new comment to the Merge Request using the Gitlab API
-    await asyncio.to_thread(merge_request.discussions.create, {"body": comment})
+    discussion = await asyncio.to_thread(
+        merge_request.discussions.create, {"body": short_comment}
+    )
+
+    # Get the ID of the first note
+    note_id = discussion.attributes["notes"][0]["id"]
+    note = discussion.notes.get(note_id)
+
+    # Update the comment with the full details
+    # We do this in a second step so we don't bombard the user's email
+    # notifications with a massive message. Gitlab doesn't send email for
+    # comment edits.
+    full_comment = await generate_mr_comment(job, log_url, response, full=True)
+    note.body = full_comment
+
+    # Pause for five seconds before sending the snippet data, otherwise
+    # Gitlab may bundle the edited message together with the creation
+    # message in email.
+    await asyncio.sleep(5)
+    await asyncio.to_thread(note.save)
 
 
 async def generate_mr_comment(
-    job: gitlab.v4.objects.ProjectJob, log_url: str, response: StagedResponse
+    job: gitlab.v4.objects.ProjectJob,
+    log_url: str,
+    response: StagedResponse,
+    full: bool = True,
 ) -> str:
     """Use a template to generate a comment string to submit to Gitlab"""
 
@@ -646,7 +668,11 @@ async def generate_mr_comment(
     script_path = Path(__file__).resolve().parent
     template_path = Path(script_path, "templates")
     jinja_env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_path))
-    tpl = jinja_env.get_template("gitlab_comment.md.j2")
+
+    if full:
+        tpl = jinja_env.get_template("gitlab_full_comment.md.j2")
+    else:
+        tpl = jinja_env.get_template("gitlab_short_comment.md.j2")
 
     artifacts_url = f"{job.project_url}/-/jobs/{job.id}/artifacts/download"
 
