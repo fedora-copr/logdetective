@@ -1,5 +1,6 @@
 log:
-  level: "INFO"
+  level_stream: "INFO"
+  level_file: "DEBUG"
   path: "log/logdetective.log"
 inference:
   max_tokens: -1

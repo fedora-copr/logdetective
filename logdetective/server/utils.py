@@ -37,7 +37,7 @@ def get_log(config: Config):
     if getattr(log, "initialized", False):
         return log
 
-    log.setLevel(config.log.level)
+    log.setLevel("DEBUG")
 
     # Drop the default handler, we will create it ourselves
     log.handlers = []
@@ -45,12 +45,14 @@ def get_log(config: Config):
     # STDOUT
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(logging.Formatter(config.log.format))
+    stream_handler.setLevel(config.log.level_stream)
     log.addHandler(stream_handler)
 
     # Log to file
     if config.log.path:
         file_handler = logging.FileHandler(config.log.path)
         file_handler.setFormatter(logging.Formatter(config.log.format))
+        file_handler.setLevel(config.log.level_file)
         log.addHandler(file_handler)
 
     log.initialized = True
