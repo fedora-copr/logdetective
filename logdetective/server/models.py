@@ -152,7 +152,8 @@ class LogConfig(BaseModel):
     """Logging configuration"""
 
     name: str = "logdetective"
-    level: str | int = "INFO"
+    level_stream: str | int = "INFO"
+    level_file: str | int = "INFO"
     path: str | None = None
     format: str = BASIC_FORMAT
 
@@ -162,7 +163,8 @@ class LogConfig(BaseModel):
             return
 
         self.name = data.get("name", "logdetective")
-        self.level = data.get("level", "INFO").upper()
+        self.level_stream = data.get("level_stream", "INFO").upper()
+        self.level_file = data.get("level_file", "INFO").upper()
         self.path = data.get("path")
         self.format = data.get("format", BASIC_FORMAT)
 
