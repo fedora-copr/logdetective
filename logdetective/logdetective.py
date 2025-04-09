@@ -3,7 +3,7 @@ import logging
 import sys
 import os
 
-from logdetective.constants import DEFAULT_ADVISOR
+from logdetective.constants import DEFAULT_ADVISOR, DEFAULT_TEMPERATURE
 from logdetective.utils import (
     process_log,
     initialize_model,
@@ -72,6 +72,12 @@ def setup_args():
         type=str,
         default=f"{os.path.dirname(__file__)}/prompts.yml",
         help="Path to prompt configuration file."
+    )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=DEFAULT_TEMPERATURE,
+        help="Temperature for inference."
     )
     return parser.parse_args()
 
@@ -147,6 +153,7 @@ def main():  # pylint: disable=too-many-statements,too-many-locals
         model,
         stream,
         prompt_template=prompts_configuration.prompt_template,
+        temperature=args.temperature,
     )
     probs = []
     print("Explanation:")
