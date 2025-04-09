@@ -9,12 +9,12 @@ DEFAULT_ADVISOR = "fedora-copr/Mistral-7B-Instruct-v0.2-GGUF"
 PROMPT_TEMPLATE = """
 Given following log snippets, and nothing else, explain what failure, if any, occured during build of this package.
 
+Please start with concise, one sentence long, summary describing the problem and recommend solution to fix it. And then follow with analysis.
+
 Analysis of the snippets must be in a format of [X] : [Y], where [X] is a log snippet, and [Y] is the explanation.
 Snippets themselves must not be altered in any way whatsoever.
 
 Snippets are delimited with '================'.
-
-Finally, drawing on information from all snippets, provide complete explanation of the issue and recommend solution.
 
 Snippets:
 
