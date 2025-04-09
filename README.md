@@ -55,6 +55,17 @@ Example you want to use a different model:
     logdetective https://example.com/logs.txt --model https://huggingface.co/QuantFactory/Meta-Llama-3-8B-Instruct-GGUF/resolve/main/Meta-Llama-3-8B-Instruct.Q5_K_S.gguf?download=true
     logdetective https://example.com/logs.txt --model QuantFactory/Meta-Llama-3-8B-Instruct-GGUF
 
+Example of different suffix (useful for models that were quantized)
+
+    logdetective https://kojipkgs.fedoraproject.org//work/tasks/3367/131313367/build.log --model 'fedora-copr/granite-3.2-8b-instruct-GGUF' -F Q4_K.gguf
+
+Example of altered prompts:
+
+     cp ~/.local/lib/python3.13/site-packages/logdetective/prompts.yml ~/my-prompts.yml
+     vi ~/my-prompts.yml # edit the prompts there to better fit your needs
+     logdetective https://kojipkgs.fedoraproject.org//work/tasks/3367/131313367/build.log --prompts ~/my-prompts.yml
+
+
 Note that streaming with some models (notably Meta-Llama-3 is broken) is broken and can be workarounded by `no-stream` option:
 
     logdetective https://example.com/logs.txt --model QuantFactory/Meta-Llama-3-8B-Instruct-GGUF --no-stream
