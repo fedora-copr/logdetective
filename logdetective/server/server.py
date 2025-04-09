@@ -301,6 +301,8 @@ async def analyze_log(build_log: BuildLog):
     response = await submit_text(
         PROMPT_CONFIG.prompt_template.format(log_summary),
         api_endpoint=SERVER_CONFIG.inference.api_endpoint,
+        model=SERVER_CONFIG.inference.model,
+        max_tokens=SERVER_CONFIG.inference.max_tokens,
     )
     certainty = 0
 
@@ -341,6 +343,8 @@ async def perform_staged_analysis(log_text: str) -> StagedResponse:
             submit_text(
                 PROMPT_CONFIG.snippet_prompt_template.format(s),
                 api_endpoint=SERVER_CONFIG.inference.api_endpoint,
+                model=SERVER_CONFIG.inference.model,
+                max_tokens=SERVER_CONFIG.inference.max_tokens,
             )
             for s in log_summary
         ]
@@ -355,7 +359,10 @@ async def perform_staged_analysis(log_text: str) -> StagedResponse:
     )
 
     final_analysis = await submit_text(
-        final_prompt, api_endpoint=SERVER_CONFIG.inference.api_endpoint
+        final_prompt,
+        api_endpoint=SERVER_CONFIG.inference.api_endpoint,
+        model=SERVER_CONFIG.inference.model,
+        max_tokens=SERVER_CONFIG.inference.max_tokens,
     )
 
     certainty = 0
@@ -396,7 +403,9 @@ async def analyze_log_stream(build_log: BuildLog):
         headers["Authorization"] = f"Bearer {SERVER_CONFIG.inference.api_token}"
 
     stream = await submit_text_chat_completions(
-        PROMPT_CONFIG.prompt_template.format(log_summary), stream=True, headers=headers
+        PROMPT_CONFIG.prompt_template.format(log_summary), stream=True, headers=headers,
+        model=SERVER_CONFIG.inference.model,
+        max_tokens=SERVER_CONFIG.inference.model,
     )
 
     return StreamingResponse(stream)

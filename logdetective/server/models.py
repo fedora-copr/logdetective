@@ -95,6 +95,7 @@ class InferenceConfig(BaseModel):
     )
     url: str = ""
     api_token: str = ""
+    model: str = ""
 
     def __init__(self, data: Optional[dict] = None):
         super().__init__()
@@ -106,6 +107,7 @@ class InferenceConfig(BaseModel):
         self.api_endpoint = data.get("api_endpoint", "/chat/completions")
         self.url = data.get("url", "")
         self.api_token = data.get("api_token", "")
+        self.model = data.get("model", "default-model")
 
 
 class ExtractorConfig(BaseModel):
