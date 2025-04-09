@@ -2,7 +2,9 @@ import datetime
 from logging import BASIC_FORMAT
 from typing import List, Dict, Optional, Literal
 
-from pydantic import BaseModel, Field, model_validator, field_validator
+from pydantic import BaseModel, Field, model_validator, field_validator, NonNegativeFloat
+
+from logdetective.constants import DEFAULT_TEMPERATURE
 
 
 class BuildLog(BaseModel):
@@ -96,6 +98,7 @@ class InferenceConfig(BaseModel):
     url: str = ""
     api_token: str = ""
     model: str = ""
+    temperature: NonNegativeFloat = DEFAULT_TEMPERATURE
 
     def __init__(self, data: Optional[dict] = None):
         super().__init__()
@@ -108,6 +111,7 @@ class InferenceConfig(BaseModel):
         self.url = data.get("url", "")
         self.api_token = data.get("api_token", "")
         self.model = data.get("model", "default-model")
+        self.temperature = data.get("temperature", DEFAULT_TEMPERATURE)
 
 
 class ExtractorConfig(BaseModel):
