@@ -226,6 +226,7 @@ async def submit_text_completions(  # pylint: disable=R0913,R0917
         "logprobs": log_probs,
         "stream": stream,
         "model": model,
+        "temperature": SERVER_CONFIG.inference.temperature,
     }
 
     response = await submit_to_llm_endpoint(
@@ -265,6 +266,7 @@ async def submit_text_chat_completions(  # pylint: disable=R0913,R0917
         "logprobs": log_probs,
         "stream": stream,
         "model": model,
+        "temperature": SERVER_CONFIG.inference.temperature,
     }
 
     response = await submit_to_llm_endpoint(
