@@ -16,6 +16,8 @@ Snippets are delimited with '================'.
 
 Finally, drawing on information from all snippets, provide complete explanation of the issue and recommend solution.
 
+Explanation of the issue, and recommended solution, should take handful of sentences.
+
 Snippets:
 
 {}
@@ -38,6 +40,8 @@ Answer:
 SNIPPET_PROMPT_TEMPLATE = """
 Analyse following RPM build log snippet. Describe contents accurately, without speculation or suggestions for resolution.
 
+Your analysis must be as concise as possible, while keeping relevant information intact.
+
 Snippet:
 
 {}
@@ -54,6 +58,8 @@ Snippets are in a format of [X] : [Y], where [X] is a log snippet, and [Y] is th
 Snippets are delimited with '================'.
 
 Drawing on information from all snippets, provide complete explanation of the issue and recommend solution.
+
+Explanation of the issue, and recommended solution, should take handful of sentences.
 
 Snippets:
 
