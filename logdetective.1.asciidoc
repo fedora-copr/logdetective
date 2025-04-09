@@ -54,6 +54,8 @@ path or a URL, summarize them, and cluster them for easier inspection.
 *--prompts* *PROMPTS*::
   Path to prompt configuration file where you can customize prompts sent to `LLM`.
 
+*--temperature* *TEMPERATURE*::
+  Temperature for inference.
 
 == EXAMPLES
 
