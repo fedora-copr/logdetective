@@ -1,0 +1,21 @@
+services:
+  llama-cpp:
+    extends:
+      file: docker-compose.yaml
+      service: llama-cpp
+    # these lines are needed for CUDA acceleration
+    devices:
+      - nvidia.com/gpu=all
+  server:
+    extends:
+      file: docker-compose.yaml
+      service: server
+    image: logdetective/server
+  postgres:
+    extends:
+      file: docker-compose.yaml
+      service: postgres
+
+volumes:
+  database_data:
+    driver: local
