@@ -3,7 +3,6 @@ FROM fedora:41
 RUN dnf install -y \
     fastapi-cli \
     python3-fastapi \
-    python3-requests \
     python3-drain3 \
     python3-pip \
     python3-pydantic-settings \
@@ -18,6 +17,7 @@ RUN dnf install -y \
     python3-psycopg2 \
     python3-alembic \
     python3-matplotlib \
+    python3-aiohttp \
     && dnf clean all
 # the newest 0.2.86 fails to build, it seems vendored llama-cpp is missing in the archive
 RUN pip3 install llama_cpp_python==0.2.85 sse-starlette starlette-context \
