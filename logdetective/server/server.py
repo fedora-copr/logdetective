@@ -1,8 +1,11 @@
 import asyncio
+import functools
 import json
 import os
 import re
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import asynccontextmanager
 from pathlib import Path, PurePath
 from tempfile import TemporaryFile
 from typing import List, Annotated, Tuple, Dict, Any
@@ -91,7 +94,20 @@ def requires_token_when_set(authentication: Annotated[str | None, Header()] = No
     raise HTTPException(status_code=401, detail=f"Token {token} not valid.")
 
 
-app = FastAPI(dependencies=[Depends(requires_token_when_set)])
+def get_executor():
+    """Get the ThreadPoolExecutor for this app"""
+    return app.state.executor
+
+
+@asynccontextmanager
+async def lifespan(fapp: FastAPI):
+    """Initialize and destroy a ThreadPoolExecutor where to run blocking tasks."""
+    fapp.state.executor = ThreadPoolExecutor(max_workers=10)
+    yield
+    fapp.state.executor.shutdown()
+
+
+app = FastAPI(lifespan=lifespan, dependencies=[Depends(requires_token_when_set)])
 app.gitlab_conn = gitlab.Gitlab(
     url=SERVER_CONFIG.gitlab.url, private_token=SERVER_CONFIG.gitlab.api_token
 )
@@ -149,12 +165,18 @@ async def submit_to_llm_endpoint(
     """
     try:
         # Expects llama-cpp server to run on LLM_CPP_SERVER_ADDRESS:LLM_CPP_SERVER_PORT
-        response = requests.post(
-            url,
-            headers=headers,
-            data=json.dumps(data),
-            timeout=int(LLM_CPP_SERVER_TIMEOUT),
-            stream=stream,
+        loop = asyncio.get_event_loop()
+        executor = get_executor()
+        response = await loop.run_in_executor(
+            executor,
+            functools.partial(
+                requests.post,
+                url,
+                headers=headers,
+                data=json.dumps(data),
+                timeout=int(LLM_CPP_SERVER_TIMEOUT),
+                stream=stream,
+            ),
         )
     except requests.RequestException as ex:
         LOG.error("Llama-cpp query failed: %s", ex)
