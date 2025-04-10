@@ -1,6 +1,9 @@
 from os import getenv
+import inspect
+from functools import wraps
 from contextlib import contextmanager
 from sqlalchemy import create_engine
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 from logdetective import logger
@@ -36,6 +39,9 @@ def transaction(commit: bool = False):
     Args:
         commit: Whether to call `Session.commit()` upon exiting the context. Should be set to True
             if any changes are made within the context. Defaults to False.
+
+    Raises:
+        re-raise every exception catched inside the context manager and rolls back the transaction
     """
 
     session = SessionFactory()
@@ -50,6 +56,42 @@ def transaction(commit: bool = False):
     finally:
         session.close()
 
+
+def retry_db_operations():
+    """
+    Decorator for retrying a failing list of db operations
+    wrapped inside the trasaction context manager.
+    """
+    DB_OPERATIONS_RETRIES = 3
+
+    def decorator(f):
+        @wraps(f)
+        async def async_decorated_function(*args, **kwargs):
+            i = 0
+            while i < DB_OPERATIONS_RETRIES:
+                try:
+                    response = await f(*args, **kwargs)
+                    return response
+                except OperationalError as e:
+                    i += 1
+            raise e
+
+        @wraps(f)
+        def sync_decorated_function(*args, **kwargs):
+            i = 0
+            while i < DB_OPERATIONS_RETRIES:
+                try:
+                    response = f(*args, **kwargs)
+                    return response
+                except OperationalError as e:
+                    i += 1
+            raise e
+
+        if inspect.iscoroutinefunction(f):
+            return async_decorated_function
+        return sync_decorated_function
+
+    return decorator
 
 def init():
     """Init db"""

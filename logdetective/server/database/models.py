@@ -14,7 +14,7 @@ from sqlalchemy import (
     distinct,
 )
 
-from logdetective.server.database.base import Base, transaction
+from logdetective.server.database.base import Base, transaction, retry_db_operations
 
 
 class EndpointType(enum.Enum):
@@ -60,6 +60,7 @@ class AnalyzeRequestMetrics(Base):
         Float, nullable=True, comment="Certainty for generated response"
     )
 
+    @retry_db_operations
     @classmethod
     def create(
         cls,
