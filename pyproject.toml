@@ -32,7 +32,6 @@ issues = "https://github.com/fedora-copr/logdetective/issues"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-requests = ">0.2.31"
 llama-cpp-python = ">0.2.56,!=0.2.86"
 drain3 = "^0.9.11"
 huggingface-hub = ">0.23.2"
@@ -42,6 +41,7 @@ numpy = ">=1.26.0"
 python-gitlab = ">=4.4.0"
 pydantic = "^2.8.2"
 pyyaml = "^6.0.1"
+aiohttp = ">=3.7.4"  # latest version in el8
 
 fastapi = {version = ">=0.111.1", optional = true }
 sqlalchemy = {version = "^2.0.36", optional = true }

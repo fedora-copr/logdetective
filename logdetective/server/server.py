@@ -19,14 +19,14 @@ import gitlab
 import gitlab.v4
 import gitlab.v4.objects
 import jinja2
-import requests
+import aiohttp
 
 from logdetective.extractors import DrainExtractor
 from logdetective.utils import (
-    validate_url,
     compute_certainty,
     format_snippets,
     load_prompts,
+    get_url_content,
 )
 from logdetective.server.utils import (
     load_server_config,
@@ -97,27 +97,15 @@ app.gitlab_conn = gitlab.Gitlab(
 )
 
 
-def process_url(url: str) -> str:
+async def process_url(url: str) -> str:
     """Validate log URL and return log text."""
-    if validate_url(url=url):
-        try:
-            log_request = requests.get(url, timeout=int(LOG_SOURCE_REQUEST_TIMEOUT))
-        except requests.RequestException as ex:
-            raise HTTPException(
-                status_code=400, detail=f"We couldn't obtain the logs: {ex}"
-            ) from ex
-
-        if not log_request.ok:
-            raise HTTPException(
-                status_code=400,
-                detail="Something went wrong while getting the logs: "
-                f"[{log_request.status_code}] {log_request.text}",
-            )
-    else:
-        LOG.error("Invalid URL received ")
-        raise HTTPException(status_code=400, detail=f"Invalid log URL: {url}")
-
-    return log_request.text
+    try:
+        return await get_url_content(url, timeout=int(LOG_SOURCE_REQUEST_TIMEOUT))
+    except RuntimeError as ex:
+        raise HTTPException(
+            status_code=400,
+            detail=f"We couldn't obtain the logs: {ex}"
+        ) from ex
 
 
 def mine_logs(log: str) -> List[Tuple[int, str]]:
@@ -147,37 +135,37 @@ async def submit_to_llm_endpoint(
     headers:
     stream:
     """
-    try:
-        # Expects llama-cpp server to run on LLM_CPP_SERVER_ADDRESS:LLM_CPP_SERVER_PORT
-        response = requests.post(
-            url,
-            headers=headers,
-            data=json.dumps(data),
-            timeout=int(LLM_CPP_SERVER_TIMEOUT),
-            stream=stream,
-        )
-    except requests.RequestException as ex:
-        LOG.error("Llama-cpp query failed: %s", ex)
-        raise HTTPException(
-            status_code=400, detail=f"Llama-cpp query failed: {ex}"
-        ) from ex
-    if not stream:
-        if not response.ok:
+    async with aiohttp.ClientSession() as session:
+        LOG.debug("async request %s headers=%s data=%s", url, headers, data)
+        try:
+            response = await session.post(
+                url,
+                headers=headers,
+                # llama-server doesn't accept the encoding that data param does
+                json=data,
+                timeout=int(LLM_CPP_SERVER_TIMEOUT),
+                # Docs says chunked takes int, but:
+                #   DeprecationWarning: Chunk size is deprecated #1615
+                # So let's make sure we either put True or None here
+                chunked=True if stream else None,
+                raise_for_status=True,
+            )
+        except aiohttp.ClientResponseError as ex:
             raise HTTPException(
                 status_code=400,
-                detail="Something went wrong while getting a response from the llama server: "
-                f"[{response.status_code}] {response.text}",
-            )
+                detail="HTTP Error while getting response from inference server "
+                       f"[{ex.status}] {ex.message}",
+            ) from ex
+        if stream:
+            return response
         try:
-            response = json.loads(response.text)
+            return json.loads(await response.text())
         except UnicodeDecodeError as ex:
             LOG.error("Error encountered while parsing llama server response: %s", ex)
             raise HTTPException(
                 status_code=400,
                 detail=f"Couldn't parse the response.\nError: {ex}\nData: {response.text}",
             ) from ex
-
-    return response
 
 
 async def submit_text(  # pylint: disable=R0913,R0917
@@ -296,7 +284,7 @@ async def analyze_log(build_log: BuildLog):
     Meaning that it must contain appropriate scheme, path and netloc,
     while lacking  result, params or query fields.
     """
-    log_text = process_url(build_log.url)
+    log_text = await process_url(build_log.url)
     log_summary = mine_logs(log_text)
     log_summary = format_snippets(log_summary)
     response = await submit_text(
@@ -328,7 +316,7 @@ async def analyze_log_staged(build_log: BuildLog):
     Meaning that it must contain appropriate scheme, path and netloc,
     while lacking  result, params or query fields.
     """
-    log_text = process_url(build_log.url)
+    log_text = await process_url(build_log.url)
 
     return await perform_staged_analysis(log_text=log_text)
 
@@ -392,7 +380,7 @@ async def analyze_log_stream(build_log: BuildLog):
     Meaning that it must contain appropriate scheme, path and netloc,
     while lacking  result, params or query fields.
     """
-    log_text = process_url(build_log.url)
+    log_text = await process_url(build_log.url)
     log_summary = mine_logs(log_text)
     log_summary = format_snippets(log_summary)
     headers = {"Content-Type": "application/json"}
@@ -591,14 +579,22 @@ async def check_artifacts_file_size(job):
     # python-gitlab library doesn't expose a way to check this value directly,
     # so we need to interact with directly with the headers.
     artifacts_url = f"{SERVER_CONFIG.gitlab.api_url}/projects/{job.project_id}/jobs/{job.id}/artifacts"  # pylint: disable=line-too-long
-    header_resp = await asyncio.to_thread(
-        requests.head,
-        artifacts_url,
-        allow_redirects=True,
-        headers={"Authorization": f"Bearer {SERVER_CONFIG.gitlab.api_token}"},
-        timeout=(3.07, 5),
-    )
-    content_length = int(header_resp.headers.get("content-length"))
+    async with aiohttp.ClientSession() as session:
+        LOG.debug("checking artifact URL %s", artifacts_url)
+        try:
+            head_response = await session.head(
+                artifacts_url,
+                allow_redirects=True,
+                headers={"Authorization": f"Bearer {SERVER_CONFIG.gitlab.api_token}"},
+                timeout=5,
+                raise_for_status=True,
+            )
+        except aiohttp.ClientResponseError as ex:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unable to check artifact URL: [{ex.status}] {ex.message}",
+            ) from ex
+    content_length = int(head_response.headers.get("content-length"))
     LOG.debug(
         "URL: %s, content-length: %d, max length: %d",
         artifacts_url,
