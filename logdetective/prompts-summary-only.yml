@@ -1,0 +1,13 @@
+# This file is intended for customization of prompts
+# It is used only in server mode.
+# On command line you have to load it using --prompts
+# The defaults are stored in constants.py
+
+prompt_template: |
+  Given following log snippets, and nothing else, explain what failure, if any, occured during build of this package.
+
+  Provide concise, one paragraph long, summary describing the problem of most probable culprit and recommend solution to fix it.
+
+  Snippets:
+
+  {}

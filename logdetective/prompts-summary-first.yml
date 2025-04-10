@@ -1,0 +1,22 @@
+# This file is intended for customization of prompts
+# It is used only in server mode.
+# On command line you have to load it using --prompts
+# The defaults are stored in constants.py
+
+prompt_template: |
+  Given following log snippets, and nothing else, explain what failure, if any, occured during build of this package.
+
+  Please start with concise, one sentence long, summary describing the problem and recommend solution to fix it. And then follow with analysis.
+
+  Analysis of the snippets must be in a format of [X] : [Y], where [X] is a log snippet, and [Y] is the explanation.
+  Snippets themselves must not be altered in any way whatsoever.
+
+  Snippets are delimited with '================'.
+
+  Explanation of the issue, and recommended solution, should take handful of sentences.
+
+  Snippets:
+
+  {}
+
+  Analysis:
