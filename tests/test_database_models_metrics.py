@@ -7,14 +7,17 @@ from test_helpers import (
     PopulateDatabase,
 )
 
-from logdetective.server.database.models import AnalyzeRequestMetrics, EndpointType
+from logdetective.server.database.models import (
+    AnalyzeRequestMetrics,
+    EndpointType,
+    MergeRequests,
+)
 
 
 def test_create_and_update_AnalyzeRequestMetrics():
     with DatabaseFactory().make_new_db() as session_factory:
         metrics_id = AnalyzeRequestMetrics.create(
             endpoint=EndpointType.ANALYZE,
-            log_url="https://example.com/logs/123",
         )
         assert metrics_id == 1
         AnalyzeRequestMetrics.update(
@@ -32,9 +35,13 @@ def test_create_and_update_AnalyzeRequestMetrics():
         )
 
         assert metrics is not None
-        assert metrics.log_url == "https://example.com/logs/123"
         assert metrics.response_length == 0
         assert metrics.response_certainty == 37.7
+
+        # link metrics to a mr
+        metrics.add_mr(123, 456, 789)
+        all_metrics = AnalyzeRequestMetrics.get_requests_metrics_for_mr(123, 456, 789)
+        assert len(all_metrics) == 1
 
 
 @pytest.mark.parametrize(
@@ -92,7 +99,9 @@ def test_AnalyzeRequestMetrics_ger_responses_average_length(endpoint):
         end_time = datetime.datetime.now(datetime.timezone.utc)
         start_time = end_time - datetime.timedelta(hours=10)
         time_format = "%Y-%m-%d %H"
-        average_lengths_dict = AnalyzeRequestMetrics.get_responses_average_length_in_period(
-            start_time, end_time, time_format, endpoint
+        average_lengths_dict = (
+            AnalyzeRequestMetrics.get_responses_average_length_in_period(
+                start_time, end_time, time_format, endpoint
+            )
         )
         assert len(average_lengths_dict) == 10 or len(average_lengths_dict) == 11

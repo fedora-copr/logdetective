@@ -48,6 +48,8 @@ class MergeRequests(Base):
         "Comments", back_populates="merge_request", uselist=False
     )  # 1 comment for 1 job
 
+    request_metrics = relationship("AnalyzeRequestMetrics", back_populates="mr")
+
     @classmethod
     def create(
         cls,
@@ -146,7 +148,7 @@ class Comments(Base):
     )
 
     merge_request = relationship("MergeRequests", back_populates="comment")
-    reactions = relationship("Reactions", back_populates="comment")
+    reaction = relationship("Reactions", back_populates="comment")
 
     @classmethod
     def create(
@@ -289,7 +291,7 @@ class Reactions(Base):
         comment="The type of reaction",
     )
 
-    comment = relationship("Comments", back_populates="reactions")
+    comment = relationship("Comments", back_populates="reaction")
 
     @classmethod
     def add(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
