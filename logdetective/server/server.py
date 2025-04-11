@@ -12,7 +12,7 @@ from io import BytesIO
 
 import matplotlib
 import matplotlib.pyplot
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header, Request
 
 from fastapi.responses import StreamingResponse
 from fastapi.responses import Response as BasicResponse
@@ -63,13 +63,24 @@ LOG = get_log(SERVER_CONFIG)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Establish one HTTP session
-    app.http = aiohttp.ClientSession(
-        timeout=aiohttp.ClientTimeout(total=int(LOG_SOURCE_REQUEST_TIMEOUT), connect=3.07)
+async def lifespan(fapp: FastAPI):
+    """
+    Establish one HTTP session
+    """
+    fapp.http = aiohttp.ClientSession(
+        timeout=aiohttp.ClientTimeout(
+            total=int(LOG_SOURCE_REQUEST_TIMEOUT), connect=3.07
+        )
     )
     yield
-    await app.http.close()
+    await fapp.http.close()
+
+
+async def get_http_session(request: Request) -> aiohttp.ClientSession:
+    """
+    Return the single aiohttp ClientSession for this app
+    """
+    return request.app.http
 
 
 def requires_token_when_set(authentication: Annotated[str | None, Header()] = None):
@@ -114,8 +125,7 @@ async def process_url(http: aiohttp.ClientSession, url: str) -> str:
         return await get_url_content(http, url, timeout=int(LOG_SOURCE_REQUEST_TIMEOUT))
     except RuntimeError as ex:
         raise HTTPException(
-            status_code=400,
-            detail=f"We couldn't obtain the logs: {ex}"
+            status_code=400, detail=f"We couldn't obtain the logs: {ex}"
         ) from ex
 
 
@@ -136,7 +146,11 @@ def mine_logs(log: str) -> List[Tuple[int, str]]:
 
 
 async def submit_to_llm_endpoint(
-    app: FastAPI, url: str, data: Dict[str, Any], headers: Dict[str, str], stream: bool
+    http: aiohttp.ClientSession,
+    url: str,
+    data: Dict[str, Any],
+    headers: Dict[str, str],
+    stream: bool,
 ) -> Any:
     """Send request to selected API endpoint. Verifying successful request unless
     the using the stream response.
@@ -148,7 +162,7 @@ async def submit_to_llm_endpoint(
     """
     LOG.debug("async request %s headers=%s data=%s", url, headers, data)
     try:
-        response = await app.http.post(
+        response = await http.post(
             url,
             headers=headers,
             # we need to use the `json=` parameter here and let aiohttp
@@ -165,7 +179,7 @@ async def submit_to_llm_endpoint(
         raise HTTPException(
             status_code=400,
             detail="HTTP Error while getting response from inference server "
-                   f"[{ex.status}] {ex.message}",
+            f"[{ex.status}] {ex.message}",
         ) from ex
     if stream:
         return response
@@ -180,7 +194,7 @@ async def submit_to_llm_endpoint(
 
 
 async def submit_text(  # pylint: disable=R0913,R0917
-    app: FastAPI,
+    http: aiohttp.ClientSession,
     text: str,
     max_tokens: int = -1,
     log_probs: int = 1,
@@ -200,15 +214,15 @@ async def submit_text(  # pylint: disable=R0913,R0917
 
     if SERVER_CONFIG.inference.api_endpoint == "/chat/completions":
         return await submit_text_chat_completions(
-            app, text, headers, max_tokens, log_probs > 0, stream, model
+            http, text, headers, max_tokens, log_probs > 0, stream, model
         )
     return await submit_text_completions(
-        app, text, headers, max_tokens, log_probs, stream, model
+        http, text, headers, max_tokens, log_probs, stream, model
     )
 
 
 async def submit_text_completions(  # pylint: disable=R0913,R0917
-    app: FastAPI,
+    http: aiohttp.ClientSession,
     text: str,
     headers: dict,
     max_tokens: int = -1,
@@ -231,7 +245,7 @@ async def submit_text_completions(  # pylint: disable=R0913,R0917
     }
 
     response = await submit_to_llm_endpoint(
-        app,
+        http,
         f"{SERVER_CONFIG.inference.url}/v1/completions",
         data,
         headers,
@@ -244,7 +258,7 @@ async def submit_text_completions(  # pylint: disable=R0913,R0917
 
 
 async def submit_text_chat_completions(  # pylint: disable=R0913,R0917
-    app: FastAPI,
+    http: aiohttp.ClientSession,
     text: str,
     headers: dict,
     max_tokens: int = -1,
@@ -273,7 +287,7 @@ async def submit_text_chat_completions(  # pylint: disable=R0913,R0917
     }
 
     response = await submit_to_llm_endpoint(
-        app,
+        http,
         f"{SERVER_CONFIG.inference.url}/v1/chat/completions",
         data,
         headers,
@@ -293,18 +307,20 @@ async def submit_text_chat_completions(  # pylint: disable=R0913,R0917
 
 @app.post("/analyze", response_model=Response)
 @track_request()
-async def analyze_log(build_log: BuildLog):
+async def analyze_log(
+    build_log: BuildLog, http: aiohttp.ClientSession = Depends(get_http_session)
+):
     """Provide endpoint for log file submission and analysis.
     Request must be in form {"url":"<YOUR_URL_HERE>"}.
     URL must be valid for the request to be passed to the LLM server.
     Meaning that it must contain appropriate scheme, path and netloc,
     while lacking  result, params or query fields.
     """
-    log_text = await process_url(app.http, build_log.url)
+    log_text = await process_url(http, build_log.url)
     log_summary = mine_logs(log_text)
     log_summary = format_snippets(log_summary)
     response = await submit_text(
-        app,
+        http,
         PROMPT_CONFIG.prompt_template.format(log_summary),
         model=SERVER_CONFIG.inference.model,
         max_tokens=SERVER_CONFIG.inference.max_tokens,
@@ -326,19 +342,23 @@ async def analyze_log(build_log: BuildLog):
 
 @app.post("/analyze/staged", response_model=StagedResponse)
 @track_request()
-async def analyze_log_staged(build_log: BuildLog):
+async def analyze_log_staged(
+    build_log: BuildLog, http: aiohttp.ClientSession = Depends(get_http_session)
+):
     """Provide endpoint for log file submission and analysis.
     Request must be in form {"url":"<YOUR_URL_HERE>"}.
     URL must be valid for the request to be passed to the LLM server.
     Meaning that it must contain appropriate scheme, path and netloc,
     while lacking  result, params or query fields.
     """
-    log_text = await process_url(app.http, build_log.url)
+    log_text = await process_url(http, build_log.url)
 
-    return await perform_staged_analysis(app, log_text=log_text)
+    return await perform_staged_analysis(http, log_text=log_text)
 
 
-async def perform_staged_analysis(app: FastAPI, log_text: str) -> StagedResponse:
+async def perform_staged_analysis(
+    http: aiohttp.ClientSession, log_text: str
+) -> StagedResponse:
     """Submit the log file snippets to the LLM and retrieve their results"""
     log_summary = mine_logs(log_text)
 
@@ -346,7 +366,7 @@ async def perform_staged_analysis(app: FastAPI, log_text: str) -> StagedResponse
     analyzed_snippets = await asyncio.gather(
         *[
             submit_text(
-                app,
+                http,
                 PROMPT_CONFIG.snippet_prompt_template.format(s),
                 model=SERVER_CONFIG.inference.model,
                 max_tokens=SERVER_CONFIG.inference.max_tokens,
@@ -364,7 +384,7 @@ async def perform_staged_analysis(app: FastAPI, log_text: str) -> StagedResponse
     )
 
     final_analysis = await submit_text(
-        app,
+        http,
         final_prompt,
         model=SERVER_CONFIG.inference.model,
         max_tokens=SERVER_CONFIG.inference.max_tokens,
@@ -392,14 +412,16 @@ async def perform_staged_analysis(app: FastAPI, log_text: str) -> StagedResponse
 
 @app.post("/analyze/stream", response_class=StreamingResponse)
 @track_request()
-async def analyze_log_stream(build_log: BuildLog):
+async def analyze_log_stream(
+    build_log: BuildLog, http: aiohttp.ClientSession = Depends(get_http_session)
+):
     """Stream response endpoint for Logdetective.
     Request must be in form {"url":"<YOUR_URL_HERE>"}.
     URL must be valid for the request to be passed to the LLM server.
     Meaning that it must contain appropriate scheme, path and netloc,
     while lacking  result, params or query fields.
     """
-    log_text = await process_url(app.http, build_log.url)
+    log_text = await process_url(http, build_log.url)
     log_summary = mine_logs(log_text)
     log_summary = format_snippets(log_summary)
     headers = {"Content-Type": "application/json"}
@@ -408,8 +430,10 @@ async def analyze_log_stream(build_log: BuildLog):
         headers["Authorization"] = f"Bearer {SERVER_CONFIG.inference.api_token}"
 
     stream = await submit_text_chat_completions(
-        app,
-        PROMPT_CONFIG.prompt_template.format(log_summary), stream=True, headers=headers,
+        http,
+        PROMPT_CONFIG.prompt_template.format(log_summary),
+        stream=True,
+        headers=headers,
         model=SERVER_CONFIG.inference.model,
         max_tokens=SERVER_CONFIG.inference.max_tokens,
     )
@@ -419,21 +443,23 @@ async def analyze_log_stream(build_log: BuildLog):
 
 @app.post("/webhook/gitlab/job_events")
 async def receive_gitlab_job_event_webhook(
-    job_hook: JobHook, background_tasks: BackgroundTasks
+    job_hook: JobHook,
+    background_tasks: BackgroundTasks,
+    http: aiohttp.ClientSession = Depends(get_http_session),
 ):
     """Webhook endpoint for receiving job_events notifications from GitLab
     https://docs.gitlab.com/user/project/integrations/webhook_events/#job-events
     lists the full specification for the messages sent for job events."""
 
     # Handle the message in the background so we can return 200 immediately
-    background_tasks.add_task(process_gitlab_job_event, app, job_hook)
+    background_tasks.add_task(process_gitlab_job_event, http, job_hook)
 
     # No return value or body is required for a webhook.
     # 204: No Content
     return BasicResponse(status_code=204)
 
 
-async def process_gitlab_job_event(app: FastAPI, job_hook):
+async def process_gitlab_job_event(http: aiohttp.ClientSession, job_hook):
     """Handle a received job_event webhook from GitLab"""
     LOG.debug("Received webhook message:\n%s", job_hook)
 
@@ -474,14 +500,14 @@ async def process_gitlab_job_event(app: FastAPI, job_hook):
     LOG.debug("Retrieving log artifacts")
     # Retrieve the build logs from the merge request artifacts and preprocess them
     try:
-        log_url, preprocessed_log = await retrieve_and_preprocess_koji_logs(app, job)
+        log_url, preprocessed_log = await retrieve_and_preprocess_koji_logs(http, job)
     except LogsTooLargeError:
         LOG.error("Could not retrieve logs. Too large.")
         raise
 
     # Submit log to Log Detective and await the results.
     log_text = preprocessed_log.read().decode(encoding="utf-8")
-    staged_response = await perform_staged_analysis(app, log_text=log_text)
+    staged_response = await perform_staged_analysis(http, log_text=log_text)
     preprocessed_log.close()
 
     # Add the Log Detective response as a comment to the merge request
@@ -492,7 +518,9 @@ class LogsTooLargeError(RuntimeError):
     """The log archive exceeds the configured maximum size"""
 
 
-async def retrieve_and_preprocess_koji_logs(app: FastAPI, job: gitlab.v4.objects.ProjectJob):
+async def retrieve_and_preprocess_koji_logs(
+    http: aiohttp.ClientSession, job: gitlab.v4.objects.ProjectJob
+):
     """Download logs from the merge request artifacts
 
     This function will retrieve the build logs and do some minimal
@@ -503,7 +531,7 @@ async def retrieve_and_preprocess_koji_logs(app: FastAPI, job: gitlab.v4.objects
     Detective. The calling function is responsible for closing this object."""
 
     # Make sure the file isn't too large to process.
-    if not await check_artifacts_file_size(app, job):
+    if not await check_artifacts_file_size(http, job):
         raise LogsTooLargeError(
             f"Oversized logs for job {job.id} in project {job.project_id}"
         )
@@ -592,7 +620,7 @@ async def retrieve_and_preprocess_koji_logs(app: FastAPI, job: gitlab.v4.objects
     return log_url, artifacts_zip.open(log_path)
 
 
-async def check_artifacts_file_size(app: FastAPI, job):
+async def check_artifacts_file_size(http: aiohttp.ClientSession, job):
     """Method to determine if the artifacts are too large to process"""
     # First, make sure that the artifacts are of a reasonable size. The
     # zipped artifact collection will be stored in memory below. The
@@ -601,7 +629,7 @@ async def check_artifacts_file_size(app: FastAPI, job):
     artifacts_url = f"{SERVER_CONFIG.gitlab.api_url}/projects/{job.project_id}/jobs/{job.id}/artifacts"  # pylint: disable=line-too-long
     LOG.debug("checking artifact URL %s", artifacts_url)
     try:
-        head_response = await app.http.head(
+        head_response = await http.head(
             artifacts_url,
             allow_redirects=True,
             headers={"Authorization": f"Bearer {SERVER_CONFIG.gitlab.api_token}"},
