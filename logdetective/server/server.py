@@ -3,6 +3,7 @@ import json
 import os
 import re
 import zipfile
+from contextlib import asynccontextmanager
 from pathlib import Path, PurePath
 from tempfile import TemporaryFile
 from typing import List, Annotated, Tuple, Dict, Any
@@ -61,6 +62,16 @@ FAILURE_LOG_REGEX = re.compile(r"(\w*\.log)")
 LOG = get_log(SERVER_CONFIG)
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Establish one HTTP session
+    app.http = aiohttp.ClientSession(
+        timeout=aiohttp.ClientTimeout(total=int(LOG_SOURCE_REQUEST_TIMEOUT), connect=3.07)
+    )
+    yield
+    await app.http.close()
+
+
 def requires_token_when_set(authentication: Annotated[str | None, Header()] = None):
     """
     FastAPI Depend function that expects a header named Authentication
@@ -91,16 +102,16 @@ def requires_token_when_set(authentication: Annotated[str | None, Header()] = No
     raise HTTPException(status_code=401, detail=f"Token {token} not valid.")
 
 
-app = FastAPI(dependencies=[Depends(requires_token_when_set)])
+app = FastAPI(dependencies=[Depends(requires_token_when_set)], lifespan=lifespan)
 app.gitlab_conn = gitlab.Gitlab(
     url=SERVER_CONFIG.gitlab.url, private_token=SERVER_CONFIG.gitlab.api_token
 )
 
 
-async def process_url(url: str) -> str:
+async def process_url(http: aiohttp.ClientSession, url: str) -> str:
     """Validate log URL and return log text."""
     try:
-        return await get_url_content(url, timeout=int(LOG_SOURCE_REQUEST_TIMEOUT))
+        return await get_url_content(http, url, timeout=int(LOG_SOURCE_REQUEST_TIMEOUT))
     except RuntimeError as ex:
         raise HTTPException(
             status_code=400,
@@ -125,7 +136,7 @@ def mine_logs(log: str) -> List[Tuple[int, str]]:
 
 
 async def submit_to_llm_endpoint(
-    url: str, data: Dict[str, Any], headers: Dict[str, str], stream: bool
+    app: FastAPI, url: str, data: Dict[str, Any], headers: Dict[str, str], stream: bool
 ) -> Any:
     """Send request to selected API endpoint. Verifying successful request unless
     the using the stream response.
@@ -135,40 +146,41 @@ async def submit_to_llm_endpoint(
     headers:
     stream:
     """
-    async with aiohttp.ClientSession() as session:
-        LOG.debug("async request %s headers=%s data=%s", url, headers, data)
-        try:
-            response = await session.post(
-                url,
-                headers=headers,
-                # llama-server doesn't accept the encoding that data param does
-                json=data,
-                timeout=int(LLM_CPP_SERVER_TIMEOUT),
-                # Docs says chunked takes int, but:
-                #   DeprecationWarning: Chunk size is deprecated #1615
-                # So let's make sure we either put True or None here
-                chunked=True if stream else None,
-                raise_for_status=True,
-            )
-        except aiohttp.ClientResponseError as ex:
-            raise HTTPException(
-                status_code=400,
-                detail="HTTP Error while getting response from inference server "
-                       f"[{ex.status}] {ex.message}",
-            ) from ex
-        if stream:
-            return response
-        try:
-            return json.loads(await response.text())
-        except UnicodeDecodeError as ex:
-            LOG.error("Error encountered while parsing llama server response: %s", ex)
-            raise HTTPException(
-                status_code=400,
-                detail=f"Couldn't parse the response.\nError: {ex}\nData: {response.text}",
-            ) from ex
+    LOG.debug("async request %s headers=%s data=%s", url, headers, data)
+    try:
+        response = await app.http.post(
+            url,
+            headers=headers,
+            # we need to use the `json=` parameter here and let aiohttp
+            # handle the json-encoding
+            json=data,
+            timeout=int(LLM_CPP_SERVER_TIMEOUT),
+            # Docs says chunked takes int, but:
+            #   DeprecationWarning: Chunk size is deprecated #1615
+            # So let's make sure we either put True or None here
+            chunked=True if stream else None,
+            raise_for_status=True,
+        )
+    except aiohttp.ClientResponseError as ex:
+        raise HTTPException(
+            status_code=400,
+            detail="HTTP Error while getting response from inference server "
+                   f"[{ex.status}] {ex.message}",
+        ) from ex
+    if stream:
+        return response
+    try:
+        return json.loads(await response.text())
+    except UnicodeDecodeError as ex:
+        LOG.error("Error encountered while parsing llama server response: %s", ex)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Couldn't parse the response.\nError: {ex}\nData: {response.text}",
+        ) from ex
 
 
 async def submit_text(  # pylint: disable=R0913,R0917
+    app: FastAPI,
     text: str,
     max_tokens: int = -1,
     log_probs: int = 1,
@@ -188,14 +200,15 @@ async def submit_text(  # pylint: disable=R0913,R0917
 
     if SERVER_CONFIG.inference.api_endpoint == "/chat/completions":
         return await submit_text_chat_completions(
-            text, headers, max_tokens, log_probs > 0, stream, model
+            app, text, headers, max_tokens, log_probs > 0, stream, model
         )
     return await submit_text_completions(
-        text, headers, max_tokens, log_probs, stream, model
+        app, text, headers, max_tokens, log_probs, stream, model
     )
 
 
 async def submit_text_completions(  # pylint: disable=R0913,R0917
+    app: FastAPI,
     text: str,
     headers: dict,
     max_tokens: int = -1,
@@ -218,6 +231,7 @@ async def submit_text_completions(  # pylint: disable=R0913,R0917
     }
 
     response = await submit_to_llm_endpoint(
+        app,
         f"{SERVER_CONFIG.inference.url}/v1/completions",
         data,
         headers,
@@ -230,6 +244,7 @@ async def submit_text_completions(  # pylint: disable=R0913,R0917
 
 
 async def submit_text_chat_completions(  # pylint: disable=R0913,R0917
+    app: FastAPI,
     text: str,
     headers: dict,
     max_tokens: int = -1,
@@ -258,6 +273,7 @@ async def submit_text_chat_completions(  # pylint: disable=R0913,R0917
     }
 
     response = await submit_to_llm_endpoint(
+        app,
         f"{SERVER_CONFIG.inference.url}/v1/chat/completions",
         data,
         headers,
@@ -284,10 +300,11 @@ async def analyze_log(build_log: BuildLog):
     Meaning that it must contain appropriate scheme, path and netloc,
     while lacking  result, params or query fields.
     """
-    log_text = await process_url(build_log.url)
+    log_text = await process_url(app.http, build_log.url)
     log_summary = mine_logs(log_text)
     log_summary = format_snippets(log_summary)
     response = await submit_text(
+        app,
         PROMPT_CONFIG.prompt_template.format(log_summary),
         model=SERVER_CONFIG.inference.model,
         max_tokens=SERVER_CONFIG.inference.max_tokens,
@@ -316,12 +333,12 @@ async def analyze_log_staged(build_log: BuildLog):
     Meaning that it must contain appropriate scheme, path and netloc,
     while lacking  result, params or query fields.
     """
-    log_text = await process_url(build_log.url)
+    log_text = await process_url(app.http, build_log.url)
 
-    return await perform_staged_analysis(log_text=log_text)
+    return await perform_staged_analysis(app, log_text=log_text)
 
 
-async def perform_staged_analysis(log_text: str) -> StagedResponse:
+async def perform_staged_analysis(app: FastAPI, log_text: str) -> StagedResponse:
     """Submit the log file snippets to the LLM and retrieve their results"""
     log_summary = mine_logs(log_text)
 
@@ -329,6 +346,7 @@ async def perform_staged_analysis(log_text: str) -> StagedResponse:
     analyzed_snippets = await asyncio.gather(
         *[
             submit_text(
+                app,
                 PROMPT_CONFIG.snippet_prompt_template.format(s),
                 model=SERVER_CONFIG.inference.model,
                 max_tokens=SERVER_CONFIG.inference.max_tokens,
@@ -346,6 +364,7 @@ async def perform_staged_analysis(log_text: str) -> StagedResponse:
     )
 
     final_analysis = await submit_text(
+        app,
         final_prompt,
         model=SERVER_CONFIG.inference.model,
         max_tokens=SERVER_CONFIG.inference.max_tokens,
@@ -380,7 +399,7 @@ async def analyze_log_stream(build_log: BuildLog):
     Meaning that it must contain appropriate scheme, path and netloc,
     while lacking  result, params or query fields.
     """
-    log_text = await process_url(build_log.url)
+    log_text = await process_url(app.http, build_log.url)
     log_summary = mine_logs(log_text)
     log_summary = format_snippets(log_summary)
     headers = {"Content-Type": "application/json"}
@@ -389,6 +408,7 @@ async def analyze_log_stream(build_log: BuildLog):
         headers["Authorization"] = f"Bearer {SERVER_CONFIG.inference.api_token}"
 
     stream = await submit_text_chat_completions(
+        app,
         PROMPT_CONFIG.prompt_template.format(log_summary), stream=True, headers=headers,
         model=SERVER_CONFIG.inference.model,
         max_tokens=SERVER_CONFIG.inference.max_tokens,
@@ -406,14 +426,14 @@ async def receive_gitlab_job_event_webhook(
     lists the full specification for the messages sent for job events."""
 
     # Handle the message in the background so we can return 200 immediately
-    background_tasks.add_task(process_gitlab_job_event, job_hook)
+    background_tasks.add_task(process_gitlab_job_event, app, job_hook)
 
     # No return value or body is required for a webhook.
     # 204: No Content
     return BasicResponse(status_code=204)
 
 
-async def process_gitlab_job_event(job_hook):
+async def process_gitlab_job_event(app: FastAPI, job_hook):
     """Handle a received job_event webhook from GitLab"""
     LOG.debug("Received webhook message:\n%s", job_hook)
 
@@ -454,14 +474,14 @@ async def process_gitlab_job_event(job_hook):
     LOG.debug("Retrieving log artifacts")
     # Retrieve the build logs from the merge request artifacts and preprocess them
     try:
-        log_url, preprocessed_log = await retrieve_and_preprocess_koji_logs(job)
+        log_url, preprocessed_log = await retrieve_and_preprocess_koji_logs(app, job)
     except LogsTooLargeError:
         LOG.error("Could not retrieve logs. Too large.")
         raise
 
     # Submit log to Log Detective and await the results.
     log_text = preprocessed_log.read().decode(encoding="utf-8")
-    staged_response = await perform_staged_analysis(log_text=log_text)
+    staged_response = await perform_staged_analysis(app, log_text=log_text)
     preprocessed_log.close()
 
     # Add the Log Detective response as a comment to the merge request
@@ -472,7 +492,7 @@ class LogsTooLargeError(RuntimeError):
     """The log archive exceeds the configured maximum size"""
 
 
-async def retrieve_and_preprocess_koji_logs(job: gitlab.v4.objects.ProjectJob):
+async def retrieve_and_preprocess_koji_logs(app: FastAPI, job: gitlab.v4.objects.ProjectJob):
     """Download logs from the merge request artifacts
 
     This function will retrieve the build logs and do some minimal
@@ -483,7 +503,7 @@ async def retrieve_and_preprocess_koji_logs(job: gitlab.v4.objects.ProjectJob):
     Detective. The calling function is responsible for closing this object."""
 
     # Make sure the file isn't too large to process.
-    if not await check_artifacts_file_size(job):
+    if not await check_artifacts_file_size(app, job):
         raise LogsTooLargeError(
             f"Oversized logs for job {job.id} in project {job.project_id}"
         )
@@ -572,28 +592,27 @@ async def retrieve_and_preprocess_koji_logs(job: gitlab.v4.objects.ProjectJob):
     return log_url, artifacts_zip.open(log_path)
 
 
-async def check_artifacts_file_size(job):
+async def check_artifacts_file_size(app: FastAPI, job):
     """Method to determine if the artifacts are too large to process"""
     # First, make sure that the artifacts are of a reasonable size. The
     # zipped artifact collection will be stored in memory below. The
     # python-gitlab library doesn't expose a way to check this value directly,
     # so we need to interact with directly with the headers.
     artifacts_url = f"{SERVER_CONFIG.gitlab.api_url}/projects/{job.project_id}/jobs/{job.id}/artifacts"  # pylint: disable=line-too-long
-    async with aiohttp.ClientSession() as session:
-        LOG.debug("checking artifact URL %s", artifacts_url)
-        try:
-            head_response = await session.head(
-                artifacts_url,
-                allow_redirects=True,
-                headers={"Authorization": f"Bearer {SERVER_CONFIG.gitlab.api_token}"},
-                timeout=5,
-                raise_for_status=True,
-            )
-        except aiohttp.ClientResponseError as ex:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unable to check artifact URL: [{ex.status}] {ex.message}",
-            ) from ex
+    LOG.debug("checking artifact URL %s", artifacts_url)
+    try:
+        head_response = await app.http.head(
+            artifacts_url,
+            allow_redirects=True,
+            headers={"Authorization": f"Bearer {SERVER_CONFIG.gitlab.api_token}"},
+            timeout=5,
+            raise_for_status=True,
+        )
+    except aiohttp.ClientResponseError as ex:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unable to check artifact URL: [{ex.status}] {ex.message}",
+        ) from ex
     content_length = int(head_response.headers.get("content-length"))
     LOG.debug(
         "URL: %s, content-length: %d, max length: %d",
