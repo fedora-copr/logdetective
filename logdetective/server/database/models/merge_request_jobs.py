@@ -1,6 +1,9 @@
 import enum
 import datetime
 from typing import Optional
+
+import backoff
+
 from sqlalchemy import (
     Enum,
     Column,
@@ -12,7 +15,8 @@ from sqlalchemy import (
     desc,
 )
 from sqlalchemy.orm import relationship
-from logdetective.server.database.base import Base, transaction
+from sqlalchemy.exc import OperationalError
+from logdetective.server.database.base import Base, transaction, DB_MAX_RETRIES
 
 
 class Forge(str, enum.Enum):
@@ -64,6 +68,7 @@ class GitlabMergeRequestJobs(Base):
     request_metrics = relationship("AnalyzeRequestMetrics", back_populates="mr_job")
 
     @classmethod
+    @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
     def create(
         cls,
         forge: Forge,
@@ -189,6 +194,7 @@ class Comments(Base):
     reactions = relationship("Reactions", back_populates="comment")
 
     @classmethod
+    @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
     def create(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
         cls,
         forge: Forge,
@@ -349,6 +355,7 @@ class Reactions(Base):
     comment = relationship("Comments", back_populates="reactions")
 
     @classmethod
+    @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
     def create_or_update(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
         cls,
         forge: Forge,
