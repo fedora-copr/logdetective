@@ -3,6 +3,8 @@ import logging
 import sys
 import os
 
+import aiohttp
+
 from logdetective.constants import DEFAULT_ADVISOR, DEFAULT_TEMPERATURE
 from logdetective.utils import (
     process_log,
@@ -128,13 +130,14 @@ def main():  # pylint: disable=too-many-statements,too-many-locals
 
     LOG.info("Getting summary")
 
-    try:
-        log = retrieve_log_content(args.file)
-    except ValueError as e:
-        # file does not exists
-        LOG.error(e)
-        sys.exit(4)
-    log_summary = extractor(log)
+    async with aiohttp.ClientSession() as http:
+        try:
+            log = retrieve_log_content(http, args.file)
+        except ValueError as e:
+            # file does not exists
+            LOG.error(e)
+            sys.exit(4)
+        log_summary = extractor(log)
 
     ratio = len(log_summary) / len(log.split("\n"))
 
