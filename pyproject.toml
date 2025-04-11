@@ -52,7 +52,7 @@ matplotlib = {version = "^3.8.4", optional = true }
 
 [tool.poetry.extras]
 server = ["fastapi", "sqlalchemy", "psycopg2", "alembic", "matplotlib"]
-server-testing = ["fastapi", "sqlalchemy", "psycopg2-binary", "alembic", "matplotlib"]
+server-testing = ["fastapi", "sqlalchemy", "psycopg2-binary", "alembic", "matplotlib", "pytest-asyncio"]
 
 [build-system]
 requires = ["poetry-core"]

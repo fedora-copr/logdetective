@@ -2,6 +2,8 @@ import asyncio
 import subprocess
 from time import sleep
 from unittest import mock
+
+import aiohttp
 import pytest
 import sys
 
@@ -92,14 +94,16 @@ def test_load_prompts_correct_path():
     assert prompts_config.summarization_prompt_template == constants.SUMMARIZATION_PROMPT_TEMPLATE
 
 
-def test_get_url_content():
-    try:
-        process = subprocess.Popen(
-            [sys.executable, "-m", "http.server", "-d", "/tmp", "8999"])
-        # let's give the server time to boot up
-        sleep(0.1)
-        dir_listing_cr = get_url_content("http://localhost:8999/", 3)
-        dir_listing = asyncio.run(dir_listing_cr)
-        assert dir_listing
-    finally:
-        process.kill()
+@pytest.mark.asyncio
+async def test_get_url_content():
+    async with aiohttp.ClientSession() as http:
+        try:
+            process = subprocess.Popen(
+                [sys.executable, "-m", "http.server", "-d", "/tmp", "8999"])
+            # let's give the server time to boot up
+            sleep(0.1)
+            dir_listing_cr = get_url_content(http, "http://localhost:8999/", 3)
+            dir_listing = await dir_listing_cr
+            assert dir_listing
+        finally:
+            process.kill()

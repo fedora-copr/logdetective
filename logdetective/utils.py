@@ -134,25 +134,24 @@ def process_log(
     return response
 
 
-async def get_url_content(url: str, timeout: int) -> str:
+async def get_url_content(http: aiohttp.ClientSession, url: str, timeout: int) -> str:
     """validate log url and return log text."""
     if validate_url(url=url):
-        async with aiohttp.ClientSession() as session:
-            LOG.debug("process url %s", url)
-            try:
-                response = await session.get(
-                    url,
-                    timeout=timeout,
-                    raise_for_status=True
-                )
-            except aiohttp.ClientResponseError as ex:
-                raise RuntimeError(f"We couldn't obtain the logs: {ex}") from ex
+        LOG.debug("process url %s", url)
+        try:
+            response = await http.get(
+                url,
+                timeout=timeout,
+                raise_for_status=True
+            )
+        except aiohttp.ClientResponseError as ex:
+            raise RuntimeError(f"We couldn't obtain the logs: {ex}") from ex
         return await response.text()
     LOG.error("Invalid URL received ")
     raise RuntimeError(f"Invalid log URL: {url}")
 
 
-def retrieve_log_content(log_path: str) -> str:
+def retrieve_log_content(http: aiohttp.ClientSession, log_path: str) -> str:
     """Get content of the file on the log_path path.
     Path is assumed to be valid URL if it has a scheme.
     Otherwise it attempts to pull it from local filesystem."""
@@ -167,7 +166,7 @@ def retrieve_log_content(log_path: str) -> str:
             log = f.read()
 
     else:
-        log = get_url_content(log_path, timeout=60)
+        log = get_url_content(http, log_path, timeout=60)
 
     return log
 
