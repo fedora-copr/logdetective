@@ -61,3 +61,6 @@ def destroy():
     """Destroy db"""
     Base.metadata.drop_all(engine)
     logger.warning("Database cleaned")
+
+
+DB_MAX_RETRIES = 3  # How many times retry a db operation

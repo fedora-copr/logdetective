@@ -1,5 +1,8 @@
 import datetime
 from typing import Optional
+
+import backoff
+
 from sqlalchemy import (
     Column,
     Integer,
@@ -10,7 +13,8 @@ from sqlalchemy import (
     desc,
 )
 from sqlalchemy.orm import relationship
-from logdetective.server.database.base import Base, transaction
+from sqlalchemy.exc import OperationalError
+from logdetective.server.database.base import Base, transaction, DB_MAX_RETRIES
 
 
 class MergeRequests(Base):
@@ -51,6 +55,7 @@ class MergeRequests(Base):
     request_metrics = relationship("AnalyzeRequestMetrics", back_populates="mr")
 
     @classmethod
+    @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
     def create(
         cls,
         mr_id: int,
@@ -151,6 +156,7 @@ class Comments(Base):
     reaction = relationship("Reactions", back_populates="comment")
 
     @classmethod
+    @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
     def create(
         cls,
         mr_id: int,
@@ -294,6 +300,7 @@ class Reactions(Base):
     comment = relationship("Comments", back_populates="reaction")
 
     @classmethod
+    @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
     def add(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
         cls,
         mr_id: int,

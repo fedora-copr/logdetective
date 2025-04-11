@@ -1,7 +1,9 @@
 import enum
 import datetime
-
 from typing import Optional
+
+import backoff
+
 from sqlalchemy import (
     Column,
     Integer,
@@ -14,7 +16,9 @@ from sqlalchemy import (
     ForeignKey,
 )
 from sqlalchemy.orm import relationship, aliased
-from logdetective.server.database.base import Base, transaction
+from sqlalchemy.exc import OperationalError
+
+from logdetective.server.database.base import Base, transaction, DB_MAX_RETRIES
 from logdetective.server.database.models.merge_requests import MergeRequests
 
 
@@ -66,6 +70,7 @@ class AnalyzeRequestMetrics(Base):
     mr = relationship("MergeRequests", back_populates="request_metrics")
 
     @classmethod
+    @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
     def create(
         cls,
         endpoint: EndpointType,
@@ -84,6 +89,7 @@ class AnalyzeRequestMetrics(Base):
             return metrics.id
 
     @classmethod
+    @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
     def update(
         cls,
         id_: int,
