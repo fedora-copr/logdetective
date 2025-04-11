@@ -1,12 +1,8 @@
-import asyncio
-import subprocess
-from time import sleep
 from unittest import mock
 
 import aiohttp
 import aioresponses
 import pytest
-import sys
 
 from logdetective.utils import (
     compute_certainty,
