@@ -157,4 +157,4 @@ dmypy.json
 cython_debug/
 
 # Model files
-models/
+/models/

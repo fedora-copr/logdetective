@@ -1,20 +1,25 @@
 import enum
 import datetime
-
 from typing import Optional
+
+import backoff
+
 from sqlalchemy import (
     Column,
     Integer,
     Float,
     DateTime,
-    String,
     Enum,
     func,
     select,
     distinct,
+    ForeignKey,
 )
+from sqlalchemy.orm import relationship, aliased
+from sqlalchemy.exc import OperationalError
 
-from logdetective.server.database.base import Base, transaction
+from logdetective.server.database.base import Base, transaction, DB_MAX_RETRIES
+from logdetective.server.database.models.merge_requests import MergeRequests
 
 
 class EndpointType(enum.Enum):
@@ -44,12 +49,6 @@ class AnalyzeRequestMetrics(Base):
         default=datetime.datetime.now(datetime.timezone.utc),
         comment="Timestamp when the request was received",
     )
-    log_url = Column(
-        String,
-        nullable=False,
-        index=False,
-        comment="Log url for which analysis was requested",
-    )
     response_sent_at = Column(
         DateTime, nullable=True, comment="Timestamp when the response was sent back"
     )
@@ -60,11 +59,21 @@ class AnalyzeRequestMetrics(Base):
         Float, nullable=True, comment="Certainty for generated response"
     )
 
+    merge_request_id = Column(
+        Integer,
+        ForeignKey("merge_requests.id"),
+        nullable=True,
+        index=False,
+        comment="Is this an analyze request coming from a merge request?",
+    )
+
+    mr = relationship("MergeRequests", back_populates="request_metrics")
+
     @classmethod
+    @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
     def create(
         cls,
         endpoint: EndpointType,
-        log_url: str,
         request_received_at: Optional[datetime.datetime] = None,
     ) -> int:
         """Create AnalyzeRequestMetrics new line
@@ -75,12 +84,12 @@ class AnalyzeRequestMetrics(Base):
             metrics.request_received_at = request_received_at or datetime.datetime.now(
                 datetime.timezone.utc
             )
-            metrics.log_url = log_url
             session.add(metrics)
             session.flush()
             return metrics.id
 
     @classmethod
+    @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
     def update(
         cls,
         id_: int,
@@ -88,7 +97,7 @@ class AnalyzeRequestMetrics(Base):
         response_length: int,
         response_certainty: float,
     ) -> None:
-        """Update an AnalyzeRequestMetrics line
+        """Update an  line
         with data related to the given response"""
         with transaction(commit=True) as session:
             metrics = session.query(AnalyzeRequestMetrics).filter_by(id=id_).first()
@@ -96,6 +105,47 @@ class AnalyzeRequestMetrics(Base):
             metrics.response_length = response_length
             metrics.response_certainty = response_certainty
             session.add(metrics)
+
+    def add_mr(
+        self,
+        mr_id: int,
+        project_id: datetime,
+        job_id: int,
+    ) -> None:
+        """This request was triggered by a merge request.
+        Link it."""
+        mr = MergeRequests.get_or_create(mr_id, project_id, job_id)
+        self.merge_request_id = mr.id
+        with transaction(commit=True) as session:
+            session.merge(self)
+
+    @classmethod
+    def get_requests_metrics_for_mr(
+        cls,
+        mr_id: int,
+        project_id: int,
+        job_id: int,
+    ) -> Optional["AnalyzeRequestMetrics"]:
+        """Search for all requests triggered by the specified mr.
+
+        Args:
+          mr_id: forge id
+          project_id: forge project id
+          job_id: forge job id
+        """
+        with transaction(commit=False) as session:
+            mr_alias = aliased(MergeRequests)
+            metrics = (
+                session.query(cls.mr)
+                .join(mr_alias, cls.merge_request_id == mr_alias.id)
+                .filter(
+                    mr_alias.mr_id == mr_id,
+                    mr_alias.project_id == project_id,
+                    mr_alias.job_id == job_id,
+                )
+                .all()
+            )
+            return metrics
 
     @classmethod
     def get_postgres_time_format(cls, time_format):

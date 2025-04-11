@@ -9,10 +9,10 @@ CHANGE ?= New migration
 
 # rebuild server image (for compose) with new and updated dependencies
 rebuild-server:
-	$(COMPOSE_ENGINE) build --no-cache server
+	$(COMPOSE_ENGINE) -f docker-compose-dev.yaml build --no-cache server
 
 server-up:
-	$(COMPOSE_ENGINE) up --build --force-recreate -d server
+	$(COMPOSE_ENGINE) -f docker-compose-dev.yaml up --build --force-recreate -d server
 
 # WARNING: This target will start up a new server
 # and shut it down when the operation completes
@@ -35,7 +35,7 @@ alembic-generate-revision: server-up
 		-v $(PWD)/alembic:/src/alembic:rw,z \
 		-v $(PWD)/alembic.ini:/src/alembic.ini:ro,z \
 		--network logdetective_default \
-		localhost/logdetective/runtime:latest \
+		localhost/logdetective/server:latest \
 		bash -c "cd /src && alembic revision -m \"$(CHANGE)\" --autogenerate"
 
 	@echo "WARNING: Shutting down server..."

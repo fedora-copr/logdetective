@@ -8,9 +8,7 @@ from logdetective.server.database.models import EndpointType, AnalyzeRequestMetr
 from logdetective.server import models
 
 
-def add_new_metrics(
-    api_name: str, build_log: models.BuildLog, received_at: datetime.datetime = None
-) -> int:
+def add_new_metrics(api_name: str, received_at: datetime.datetime = None) -> int:
     """Add a new database entry for a received request.
 
     This will store the time when this function is called,
@@ -19,7 +17,6 @@ def add_new_metrics(
     """
     return AnalyzeRequestMetrics.create(
         endpoint=EndpointType(api_name),
-        log_url=build_log.url,
         request_received_at=received_at
         if received_at
         else datetime.datetime.now(datetime.timezone.utc),
@@ -61,14 +58,14 @@ def track_request():
     def decorator(f):
         @wraps(f)
         async def async_decorated_function(*args, **kwargs):
-            metrics_id = add_new_metrics(f.__name__, kwargs["build_log"])
+            metrics_id = add_new_metrics(f.__name__)
             response = await f(*args, **kwargs)
             update_metrics(metrics_id, response)
             return response
 
         @wraps(f)
         def sync_decorated_function(*args, **kwargs):
-            metrics_id = add_new_metrics(f.__name__, kwargs["build_log"])
+            metrics_id = add_new_metrics(f.__name__)
             response = f(*args, **kwargs)
             update_metrics(metrics_id, response)
             return response

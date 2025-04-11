@@ -39,7 +39,6 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
         duration: datetime.timedelta = datetime.timedelta(hours=23),
         end_time: Optional[datetime.datetime] = None,
         endpoint_type: Optional[EndpointType] = EndpointType.ANALYZE,
-        log_url: str = "https://example.com/logs/123",
     ) -> Generator:
         with self.db_factory.make_new_db() as session_factory:  # pylint: disable=contextmanager-generator-missing-cleanup
             end_time = end_time or datetime.datetime.now(datetime.timezone.utc)
@@ -51,7 +50,6 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
             while current_time < end_time:
                 id_ = AnalyzeRequestMetrics.create(
                     endpoint=endpoint_type,
-                    log_url=log_url,
                     request_received_at=current_time,
                 )
                 response_time = current_time + datetime.timedelta(
