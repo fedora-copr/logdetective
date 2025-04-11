@@ -151,7 +151,7 @@ async def get_url_content(http: aiohttp.ClientSession, url: str, timeout: int) -
     raise RuntimeError(f"Invalid log URL: {url}")
 
 
-def retrieve_log_content(http: aiohttp.ClientSession, log_path: str) -> str:
+async def retrieve_log_content(http: aiohttp.ClientSession, log_path: str) -> str:
     """Get content of the file on the log_path path.
     Path is assumed to be valid URL if it has a scheme.
     Otherwise it attempts to pull it from local filesystem."""
@@ -166,7 +166,7 @@ def retrieve_log_content(http: aiohttp.ClientSession, log_path: str) -> str:
             log = f.read()
 
     else:
-        log = get_url_content(http, log_path, timeout=60)
+        log = await get_url_content(http, log_path, timeout=60)
 
     return log
 
