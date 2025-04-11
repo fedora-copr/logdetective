@@ -18,6 +18,7 @@ RUN dnf install -y \
     python3-alembic \
     python3-matplotlib \
     python3-aiohttp \
+    python3-backoff \
     && dnf clean all
 # the newest 0.2.86 fails to build, it seems vendored llama-cpp is missing in the archive
 RUN pip3 install llama_cpp_python==0.2.85 sse-starlette starlette-context \

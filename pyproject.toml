@@ -49,10 +49,11 @@ psycopg2-binary = {version = "^2.9.9", optional = true }
 psycopg2 = {version = "^2.9.9", optional = true }
 alembic = {version = "^1.13.3", optional = true }
 matplotlib = {version = "^3.8.4", optional = true }
+backoff = {version = "2.2.1", optional = true }
 
 [tool.poetry.extras]
-server = ["fastapi", "sqlalchemy", "psycopg2", "alembic", "matplotlib"]
-server-testing = ["fastapi", "sqlalchemy", "psycopg2-binary", "alembic", "matplotlib", "pytest-asyncio"]
+server = ["fastapi", "sqlalchemy", "psycopg2", "alembic", "matplotlib", "backoff"]
+server-testing = ["fastapi", "sqlalchemy", "psycopg2-binary", "alembic", "matplotlib", "backoff", "pytest-asyncio"]
 
 [build-system]
 requires = ["poetry-core"]
