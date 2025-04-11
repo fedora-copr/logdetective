@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 import logging
 import sys
 import os
@@ -84,7 +85,7 @@ def setup_args():
     return parser.parse_args()
 
 
-def main():  # pylint: disable=too-many-statements,too-many-locals
+async def main():  # pylint: disable=too-many-statements,too-many-locals
     """Main execution function."""
     args = setup_args()
 
@@ -132,7 +133,7 @@ def main():  # pylint: disable=too-many-statements,too-many-locals
 
     async with aiohttp.ClientSession() as http:
         try:
-            log = retrieve_log_content(http, args.file)
+            log = await retrieve_log_content(http, args.file)
         except ValueError as e:
             # file does not exists
             LOG.error(e)
@@ -186,4 +187,4 @@ def main():  # pylint: disable=too-many-statements,too-many-locals
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
