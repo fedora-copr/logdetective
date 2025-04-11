@@ -4,6 +4,7 @@ from time import sleep
 from unittest import mock
 
 import aiohttp
+import aioresponses
 import pytest
 import sys
 
@@ -96,14 +97,10 @@ def test_load_prompts_correct_path():
 
 @pytest.mark.asyncio
 async def test_get_url_content():
-    async with aiohttp.ClientSession() as http:
-        try:
-            process = subprocess.Popen(
-                [sys.executable, "-m", "http.server", "-d", "/tmp", "8999"])
-            # let's give the server time to boot up
-            sleep(0.1)
-            dir_listing_cr = get_url_content(http, "http://localhost:8999/", 3)
-            dir_listing = await dir_listing_cr
-            assert dir_listing
-        finally:
-            process.kill()
+    mock_response = "123"
+    with aioresponses.aioresponses() as mock:
+        mock.get('http://localhost:8999/', status=200, body=mock_response)
+        async with aiohttp.ClientSession() as http:
+            url_output_cr = get_url_content(http, "http://localhost:8999/", 4)
+            url_output = await url_output_cr
+            assert url_output == "123"
