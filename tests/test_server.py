@@ -1,35 +1,12 @@
-import os
-import asyncio
-import subprocess
-from contextlib import contextmanager
+import json
 from pathlib import Path
-from time import sleep
 
 import aiohttp
 import aioresponses
 import pytest
-import sys
-from huggingface_hub import hf_hub_download
 
 from logdetective.server.server import submit_to_llm_endpoint, process_url
 from logdetective.server.utils import load_server_config
-
-
-@contextmanager
-def start_server():
-    """ Context manager for running a llama-server.
-    The binary is set via env var LLAMA_CPP_SERVER_BINARY"""
-    model_hf_repo = "ggml-org/models"
-    model_hf_file = "tinyllamas/stories260K.gguf"
-    path = hf_hub_download(repo_id=model_hf_repo, filename=model_hf_file)
-    binary_path = os.environ["LLAMA_CPP_SERVER_BINARY"]
-    if not os.path.isfile(binary_path):
-        raise FileNotFoundError(f"Llama-server binary does not exist: {binary_path}")
-    process = subprocess.Popen(
-        [binary_path, "--host", "localhost", "--port",
-         "8080", "--model", path])
-    yield
-    process.kill()
 
 
 def test_loading_config():
@@ -40,10 +17,38 @@ def test_loading_config():
     assert load_server_config(str(config_file))
 
 
-@pytest.mark.skip
-def test_submit_to_llm():
+@pytest.mark.asyncio
+async def test_submit_to_llm():
     """ Test async communication with an OpenAI compat inference server """
-    with start_server():
+    mock_response = {
+        'choices': [{
+            'finish_reason': 'length', 'index': 0, 'message': {
+                'role': 'assistant', 'content': 'So she was very...'},
+            'logprobs': {'content': [
+                {'id': 437, 'token': 'S', 'bytes': [83], 'logprob': -3.2835686206817627,
+                    'top_logprobs': [{'id': 436, 'token': '"',
+                                      'bytes': [34], 'logprob': -1.1505162715911865}]},
+                {'id': 414, 'token': 'o', 'bytes': [111], 'logprob': -2.8719468116760254,
+                    'top_logprobs': [{'id': 425, 'token': 'u',
+                                      'bytes': [117], 'logprob': -0.44975802302360535}]}
+            ]},
+            'created': 1744381795,
+            'model': 'stories260K.gguf',
+            'system_fingerprint': 'b4839-42994048',
+            'object': 'chat.completion',
+            'usage': {'completion_tokens': 1000, 'prompt_tokens': 45, 'total_tokens': 1045},
+            'id': 'chatcmpl - PreWjyi55gzlFy91x0LEfj7Xp91G197i',
+            'timings': {
+                'prompt_n': 1,
+                'prompt_ms': 6.191, 'prompt_per_token_ms': 6.191,
+                'prompt_per_second': 161.52479405588758, 'predicted_n': 1000,
+                'predicted_ms': 1137.463,
+                'predicted_per_token_ms': 1.137463, 'predicted_per_second': 879.1494756312953
+            }
+        }]}
+    with aioresponses.aioresponses() as mock:
+        mock.post('http://localhost:8080/v1/chat/completions', status=200,
+                  body=json.dumps(mock_response))
         data = {
             "messages": [
                 {
@@ -59,9 +64,10 @@ def test_submit_to_llm():
         }
         headers = {"Content-Type": "application/json"}
         url = "http://localhost:8080/v1/chat/completions"
-        response = submit_to_llm_endpoint(url, data, headers, False)
-        response = asyncio.run(response)
-    assert response
+        async with aiohttp.ClientSession() as http:
+            response = submit_to_llm_endpoint(http, url, data, headers, False)
+            response = await response
+        assert response == mock_response
 
 
 @pytest.mark.asyncio
@@ -70,6 +76,6 @@ async def test_process_url():
     with aioresponses.aioresponses() as mock:
         mock.get('http://localhost:8999/', status=200, body=mock_response)
         async with aiohttp.ClientSession() as http:
-            dir_listing_cr = process_url(http, "http://localhost:8999/")
-            dir_listing = await dir_listing_cr
-            assert dir_listing == "123"
+            url_output_cr = process_url(http, "http://localhost:8999/")
+            url_output = await url_output_cr
+            assert url_output == "123"
