@@ -6,6 +6,7 @@ from pathlib import Path
 from time import sleep
 
 import aiohttp
+import aioresponses
 import pytest
 import sys
 from huggingface_hub import hf_hub_download
@@ -65,14 +66,10 @@ def test_submit_to_llm():
 
 @pytest.mark.asyncio
 async def test_process_url():
-    async with aiohttp.ClientSession() as http:
-        try:
-            process = subprocess.Popen(
-                [sys.executable, "-m", "http.server", "-d", "/tmp", "8999"])
-            # let's give the server time to boot up
-            sleep(0.05)
+    mock_response = "123"
+    with aioresponses.aioresponses() as mock:
+        mock.get('http://localhost:8999/', status=200, body=mock_response)
+        async with aiohttp.ClientSession() as http:
             dir_listing_cr = process_url(http, "http://localhost:8999/")
             dir_listing = await dir_listing_cr
-            assert dir_listing
-        finally:
-            process.kill()
+            assert dir_listing == "123"
