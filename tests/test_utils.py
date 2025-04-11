@@ -1,9 +1,14 @@
 from unittest import mock
+
+import aiohttp
+import aioresponses
 import pytest
+
 from logdetective.utils import (
     compute_certainty,
     format_snippets,
     load_prompts,
+    get_url_content,
 )
 from logdetective.server.utils import format_analyzed_snippets
 from logdetective.server.models import AnalyzedSnippet, Explanation
@@ -84,3 +89,14 @@ def test_load_prompts_correct_path():
     assert prompts_config.snippet_prompt_template == "This is template for snippets."
     assert prompts_config.prompt_template_staged == constants.PROMPT_TEMPLATE_STAGED
     assert prompts_config.summarization_prompt_template == constants.SUMMARIZATION_PROMPT_TEMPLATE
+
+
+@pytest.mark.asyncio
+async def test_get_url_content():
+    mock_response = "123"
+    with aioresponses.aioresponses() as mock:
+        mock.get('http://localhost:8999/', status=200, body=mock_response)
+        async with aiohttp.ClientSession() as http:
+            url_output_cr = get_url_content(http, "http://localhost:8999/", 4)
+            url_output = await url_output_cr
+            assert url_output == "123"

@@ -1,7 +1,10 @@
 import argparse
+import asyncio
 import logging
 import sys
 import os
+
+import aiohttp
 
 from logdetective.constants import DEFAULT_ADVISOR, DEFAULT_TEMPERATURE
 from logdetective.utils import (
@@ -82,7 +85,7 @@ def setup_args():
     return parser.parse_args()
 
 
-def main():  # pylint: disable=too-many-statements,too-many-locals
+async def main():  # pylint: disable=too-many-statements,too-many-locals
     """Main execution function."""
     args = setup_args()
 
@@ -128,13 +131,14 @@ def main():  # pylint: disable=too-many-statements,too-many-locals
 
     LOG.info("Getting summary")
 
-    try:
-        log = retrieve_log_content(args.file)
-    except ValueError as e:
-        # file does not exists
-        LOG.error(e)
-        sys.exit(4)
-    log_summary = extractor(log)
+    async with aiohttp.ClientSession() as http:
+        try:
+            log = await retrieve_log_content(http, args.file)
+        except ValueError as e:
+            # file does not exists
+            LOG.error(e)
+            sys.exit(4)
+        log_summary = extractor(log)
 
     ratio = len(log_summary) / len(log.split("\n"))
 
@@ -183,4 +187,4 @@ def main():  # pylint: disable=too-many-statements,too-many-locals
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
