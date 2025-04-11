@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 import logging
 import sys
 import os
@@ -84,7 +85,7 @@ def setup_args():
     return parser.parse_args()
 
 
-def main():  # pylint: disable=too-many-statements,too-many-locals
+async def run():  # pylint: disable=too-many-statements,too-many-locals
     """Main execution function."""
     args = setup_args()
 
@@ -132,9 +133,9 @@ def main():  # pylint: disable=too-many-statements,too-many-locals
 
     async with aiohttp.ClientSession() as http:
         try:
-            log = retrieve_log_content(http, args.file)
+            log = await retrieve_log_content(http, args.file)
         except ValueError as e:
-            # file does not exists
+            # file does not exist
             LOG.error(e)
             sys.exit(4)
         log_summary = extractor(log)
@@ -183,6 +184,11 @@ def main():  # pylint: disable=too-many-statements,too-many-locals
     certainty = compute_certainty(probs)
 
     print(f"\nResponse certainty: {certainty:.2f}%\n")
+
+
+def main():
+    """ Evaluate logdetective program and wait for it to finish """
+    asyncio.run(run())
 
 
 if __name__ == "__main__":
