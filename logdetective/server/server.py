@@ -465,11 +465,6 @@ async def process_gitlab_job_event(http: aiohttp.ClientSession, job_hook):
 
     # Look up the project this job belongs to
     project = await asyncio.to_thread(app.gitlab_conn.projects.get, job_hook.project_id)
-
-    # check if this project is on the opt-in list
-    if project.name not in SERVER_CONFIG.general.packages:
-        LOG.info("Ignoring unrecognized package %s", project.name)
-        return
     LOG.info("Processing failed job for %s", project.name)
 
     # Retrieve data about the job from the GitLab API
@@ -509,6 +504,11 @@ async def process_gitlab_job_event(http: aiohttp.ClientSession, job_hook):
     log_text = preprocessed_log.read().decode(encoding="utf-8")
     staged_response = await perform_staged_analysis(http, log_text=log_text)
     preprocessed_log.close()
+
+    # check if this project is on the opt-in list for posting comments.
+    if project.name not in SERVER_CONFIG.general.packages:
+        LOG.info("Not publishing comment for unrecognized package %s", project.name)
+        return
 
     # Add the Log Detective response as a comment to the merge request
     await comment_on_mr(project, merge_request_iid, job, log_url, staged_response)
