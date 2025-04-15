@@ -2,16 +2,22 @@ import aiohttp
 import gitlab
 import jinja2
 
+from typing import Annotated
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI, BackgroundTasks, Depends
 from fastapi.responses import Response as BasicResponse
 
 from logdetective.reactor.config import get_config
 from logdetective.reactor.gitlab import process_gitlab_job_event
 from logdetective.reactor.logging import get_log
 from logdetective.reactor.models import JobHook
+from logdetective.reactor.dependencies import (
+    HttpConnections,
+    get_http_connections,
+    get_jinja_env,
+)
 
 
 REACTOR_CONFIG = get_config()
@@ -61,7 +67,10 @@ app = FastAPI(lifespan=lifespan)
 
 @app.post("/webhook/gitlab/job_events")
 async def receive_gitlab_job_event_webhook(
-    job_hook: JobHook, background_tasks: BackgroundTasks
+    job_hook: JobHook,
+    background_tasks: BackgroundTasks,
+    jinja_env: Annotated[jinja2.Environment, Depends[get_jinja_env]],
+    http_connections: Annotated[HttpConnections, Depends[get_http_connections]],
 ):
     """Webhook endpoint for receiving job_events notifications from GitLab
     https://docs.gitlab.com/user/project/integrations/webhook_events/#job-events
@@ -69,7 +78,11 @@ async def receive_gitlab_job_event_webhook(
 
     # Handle the message in the background so we can return 200 immediately
     background_tasks.add_task(
-        process_gitlab_job_event, job_hook, app, REACTOR_CONFIG.general.packages
+        process_gitlab_job_event,
+        job_hook,
+        jinja_env,
+        http_connections,
+        REACTOR_CONFIG.general.packages,
     )
 
     # No return value or body is required for a webhook.

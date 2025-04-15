@@ -1,11 +1,8 @@
-import aiohttp
 import asyncio
 import gitlab
 import jinja2
 import re
 
-from fastapi import FastAPI
-from pathlib import Path
 from typing import List
 
 from logdetective.reactor.config import MR_REGEX, get_config
@@ -15,6 +12,7 @@ from logdetective.reactor.logging import get_log
 from logdetective.reactor.models import JobHook
 from logdetective.reactor.errors import LogsTooLargeError
 from logdetective.server.models import StagedResponse
+from logdetective.reactor.dependencies import HttpConnections
 
 FAILURE_LOG_REGEX = re.compile(r"(\w*\.log)")
 
@@ -23,13 +21,18 @@ LOG = get_log()
 
 
 async def process_gitlab_job_event(
-    job_hook: JobHook, app: FastAPI, known_packages: List[str]
+    job_hook: JobHook,
+    jinja_env: jinja2.Environment,
+    http_connections: HttpConnections,
+    known_packages: List[str],
 ) -> None:
     """Handle a received job_event webhook from GitLab"""
     LOG.debug("Received webhook message:\n%s", job_hook)
 
     # Look up the project this job belongs to
-    project = await asyncio.to_thread(app.gitlab_conn.projects.get, job_hook.project_id)
+    project = await asyncio.to_thread(
+        http_connections.gitlab.projects.get, job_hook.project_id
+    )
 
     # check if this project is on the opt-in list
     if project.name not in known_packages:
@@ -66,20 +69,22 @@ async def process_gitlab_job_event(
 
     # Retrieve the build logs from the merge request artifacts and preprocess them
     try:
-        log_url = await retrieve_and_preprocess_koji_logs(job, app)
+        log_url = await retrieve_and_preprocess_koji_logs(job, http_connections)
     except LogsTooLargeError:
         LOG.error("Could not retrieve logs. Too large.")
         raise
 
     # Submit log to Log Detective and await the results.
-    staged_response = await submit_to_log_detective(app, log_url)
+    staged_response = await submit_to_log_detective(http_connections, log_url)
 
     # Add the Log Detective response as a comment to the merge request
-    await comment_on_mr(app, project, merge_request_iid, job, log_url, staged_response)
+    await comment_on_mr(
+        jinja_env, project, merge_request_iid, job, log_url, staged_response
+    )
 
 
 async def comment_on_mr(
-    app: FastAPI,
+    jinja_env: jinja2.Environment,
     project: gitlab.v4.objects.Project,
     merge_request_iid: int,
     job: gitlab.v4.objects.ProjectJob,
@@ -96,7 +101,7 @@ async def comment_on_mr(
 
     # Get the formatted short comment.
     short_comment = await generate_markdown_comment(
-        app, job, log_url, response, full=False
+        jinja_env, job, log_url, response, full=False
     )
 
     # Look up the merge request
@@ -118,7 +123,7 @@ async def comment_on_mr(
     # notifications with a massive message. Gitlab doesn't send email for
     # comment edits.
     full_comment = await generate_markdown_comment(
-        app, job, log_url, response, full=True
+        jinja_env, job, log_url, response, full=True
     )
     note.body = full_comment
 
@@ -130,7 +135,7 @@ async def comment_on_mr(
 
 
 async def generate_markdown_comment(
-    app: FastAPI,
+    jinja_env: jinja2.Environment,
     job: gitlab.v4.objects.ProjectJob,
     log_url: str,
     response: StagedResponse,

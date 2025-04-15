@@ -5,7 +5,6 @@ import zipfile
 
 
 from pathlib import PurePath
-from fastapi import FastAPI
 from tempfile import TemporaryFile
 
 from gitlab.v4.objects import ProjectJob
@@ -13,6 +12,7 @@ from gitlab.v4.objects import ProjectJob
 from logdetective.reactor.config import get_config
 from logdetective.reactor.logging import get_log
 from logdetective.reactor.errors import LogsTooLargeError
+from logdetective.reactor.dependencies import HttpConnections
 
 FAILURE_LOG_REGEX = re.compile(r"(\w*\.log)")
 
@@ -22,7 +22,7 @@ REACTOR_CONFIG = get_config()
 
 async def retrieve_and_preprocess_koji_logs(
     job: ProjectJob,
-    app: FastAPI,
+    http_connections: HttpConnections,
 ):
     """Download logs from the merge request artifacts
 
@@ -32,7 +32,7 @@ async def retrieve_and_preprocess_koji_logs(
     returns: The URL pointing to the selected log file"""
 
     # Make sure the file isn't too large to process.
-    if not await check_artifacts_file_size(job, app):
+    if not await check_artifacts_file_size(job, http_connections):
         raise LogsTooLargeError(
             f"Oversized logs for job {job.id} in project {job.project_id}"
         )
@@ -121,7 +121,7 @@ async def retrieve_and_preprocess_koji_logs(
     return log_url
 
 
-async def check_artifacts_file_size(job: ProjectJob, app: FastAPI):
+async def check_artifacts_file_size(job: ProjectJob, http_connections: HttpConnections):
     """Method to determine if the artifacts are too large to process"""
     # First, make sure that the artifacts are of a reasonable size. The
     # zipped artifact collection will be stored in memory below. The
@@ -129,7 +129,7 @@ async def check_artifacts_file_size(job: ProjectJob, app: FastAPI):
     # so we need to interact with directly with the headers.
     artifacts_path = f"{REACTOR_CONFIG.gitlab.api_root_path}/projects/{job.project_id}/jobs/{job.id}/artifacts"  # pylint: disable=line-too-long
     try:
-        async with app.gitlab_http.head(
+        async with http_connections.gitlab.head(
             artifacts_path,
             allow_redirects=True,
         ) as header_resp:
