@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "logdetective"
-version = "0.5.11"
+version = "0.6.0"
 description = "Log using LLM AI to search for build/test failures and provide ideas for fixing these."
 authors = ["Jiri Podivin <jpodivin@gmail.com>"]
 license = "Apache-2.0"
