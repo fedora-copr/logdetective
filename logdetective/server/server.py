@@ -1,3 +1,4 @@
+import random
 import asyncio
 import json
 import os
@@ -43,6 +44,7 @@ from logdetective.server.models import (
     Explanation,
     AnalyzedSnippet,
     TimePeriod,
+    InferenceConfig,
 )
 from logdetective.server import plot
 from logdetective.server.database.models import EndpointType
@@ -196,10 +198,8 @@ async def submit_to_llm_endpoint(
 async def submit_text(  # pylint: disable=R0913,R0917
     http: aiohttp.ClientSession,
     text: str,
-    max_tokens: int = -1,
-    log_probs: int = 1,
+    inference: InferenceConfig,
     stream: bool = False,
-    model: str = "default-model",
 ) -> Explanation:
     """Submit prompt to LLM using a selected endpoint.
     max_tokens: number of tokens to be produces, 0 indicates run until encountering EOS
@@ -209,26 +209,24 @@ async def submit_text(  # pylint: disable=R0913,R0917
 
     headers = {"Content-Type": "application/json"}
 
-    if SERVER_CONFIG.inference.api_token:
-        headers["Authorization"] = f"Bearer {SERVER_CONFIG.inference.api_token}"
+    if inference.api_token:
+        headers["Authorization"] = f"Bearer {inference.api_token}"
 
-    if SERVER_CONFIG.inference.api_endpoint == "/chat/completions":
+    if inference.api_endpoint == "/chat/completions":
         return await submit_text_chat_completions(
-            http, text, headers, max_tokens, log_probs > 0, stream, model
+            http, text, inference, headers, stream
         )
     return await submit_text_completions(
-        http, text, headers, max_tokens, log_probs, stream, model
+        http, text, inference, headers, stream
     )
 
 
 async def submit_text_completions(  # pylint: disable=R0913,R0917
     http: aiohttp.ClientSession,
     text: str,
+    inference: InferenceConfig,
     headers: dict,
-    max_tokens: int = -1,
-    log_probs: int = 1,
     stream: bool = False,
-    model: str = "default-model",
 ) -> Explanation:
     """Submit prompt to OpenAI API completions endpoint.
     max_tokens: number of tokens to be produces, 0 indicates run until encountering EOS
@@ -237,16 +235,16 @@ async def submit_text_completions(  # pylint: disable=R0913,R0917
     LOG.info("Submitting to /v1/completions endpoint")
     data = {
         "prompt": text,
-        "max_tokens": max_tokens,
-        "logprobs": log_probs,
+        "max_tokens": inference.max_tokens,
+        "logprobs": inference.log_probs,
         "stream": stream,
-        "model": model,
-        "temperature": SERVER_CONFIG.inference.temperature,
+        "model": inference.model,
+        "temperature": inference.temperature,
     }
 
     response = await submit_to_llm_endpoint(
         http,
-        f"{SERVER_CONFIG.inference.url}/v1/completions",
+        f"{inference.url}/v1/completions",
         data,
         headers,
         stream,
@@ -260,11 +258,9 @@ async def submit_text_completions(  # pylint: disable=R0913,R0917
 async def submit_text_chat_completions(  # pylint: disable=R0913,R0917
     http: aiohttp.ClientSession,
     text: str,
+    inference: InferenceConfig,
     headers: dict,
-    max_tokens: int = -1,
-    log_probs: int = 1,
     stream: bool = False,
-    model: str = "default-model",
 ) -> Explanation:
     """Submit prompt to OpenAI API /chat/completions endpoint.
     max_tokens: number of tokens to be produces, 0 indicates run until encountering EOS
@@ -279,16 +275,16 @@ async def submit_text_chat_completions(  # pylint: disable=R0913,R0917
                 "content": text,
             }
         ],
-        "max_tokens": max_tokens,
-        "logprobs": log_probs,
+        "max_tokens": inference.max_tokens,
+        "logprobs": inference.log_probs,
         "stream": stream,
-        "model": model,
-        "temperature": SERVER_CONFIG.inference.temperature,
+        "model": inference.model,
+        "temperature": inference.temperature,
     }
 
     response = await submit_to_llm_endpoint(
         http,
-        f"{SERVER_CONFIG.inference.url}/v1/chat/completions",
+        f"{inference.url}/v1/chat/completions",
         data,
         headers,
         stream,
@@ -319,12 +315,26 @@ async def analyze_log(
     log_text = await process_url(http, build_log.url)
     log_summary = mine_logs(log_text)
     log_summary = format_snippets(log_summary)
-    response = await submit_text(
-        http,
-        PROMPT_CONFIG.prompt_template.format(log_summary),
-        model=SERVER_CONFIG.inference.model,
-        max_tokens=SERVER_CONFIG.inference.max_tokens,
-    )
+
+    # Randomize to achieve a simple load-balancing
+    inferences = SERVER_CONFIG.inference.copy()
+    random.shuffle(inferences)
+
+    ok = False
+    for inference in inferences:
+        try:
+            response = await submit_text(
+                http,
+                PROMPT_CONFIG.prompt_template.format(log_summary),
+                inference=inference,
+            )
+            ok = True
+            break
+        except HTTPException as ex:
+            LOG.error("Inference error: %s", ex)
+    if not ok:
+        raise HTTPException(500, "All inference requests failed")
+
     certainty = 0
 
     if response.logprobs is not None:
@@ -362,33 +372,44 @@ async def perform_staged_analysis(
     """Submit the log file snippets to the LLM and retrieve their results"""
     log_summary = mine_logs(log_text)
 
-    # Process snippets asynchronously
-    analyzed_snippets = await asyncio.gather(
-        *[
-            submit_text(
-                http,
-                PROMPT_CONFIG.snippet_prompt_template.format(s),
-                model=SERVER_CONFIG.inference.model,
-                max_tokens=SERVER_CONFIG.inference.max_tokens,
+    # Randomize to achieve a simple load-balancing
+    inferences = SERVER_CONFIG.inference.copy()
+    random.shuffle(inferences)
+
+    ok = False
+    for inference in inferences:
+        try:
+            # Process snippets asynchronously
+            analyzed_snippets = await asyncio.gather(
+                *[
+                    submit_text(
+                        http,
+                        PROMPT_CONFIG.snippet_prompt_template.format(s),
+                        inference=inference,
+                    )
+                    for s in log_summary
+                ]
             )
-            for s in log_summary
-        ]
-    )
 
-    analyzed_snippets = [
-        AnalyzedSnippet(line_number=e[0][0], text=e[0][1], explanation=e[1])
-        for e in zip(log_summary, analyzed_snippets)
-    ]
-    final_prompt = PROMPT_CONFIG.prompt_template_staged.format(
-        format_analyzed_snippets(analyzed_snippets)
-    )
+            analyzed_snippets = [
+                AnalyzedSnippet(line_number=e[0][0], text=e[0][1], explanation=e[1])
+                for e in zip(log_summary, analyzed_snippets)
+            ]
+            final_prompt = PROMPT_CONFIG.prompt_template_staged.format(
+                format_analyzed_snippets(analyzed_snippets)
+            )
 
-    final_analysis = await submit_text(
-        http,
-        final_prompt,
-        model=SERVER_CONFIG.inference.model,
-        max_tokens=SERVER_CONFIG.inference.max_tokens,
-    )
+            final_analysis = await submit_text(
+                http,
+                final_prompt,
+                inference=inference,
+            )
+            ok = True
+            break
+        except HTTPException as ex:
+            LOG.error("Inference error: %s", ex)
+    if not ok:
+        raise HTTPException(500, "All inference requests failed")
 
     certainty = 0
 
@@ -426,16 +447,19 @@ async def analyze_log_stream(
     log_summary = format_snippets(log_summary)
     headers = {"Content-Type": "application/json"}
 
-    if SERVER_CONFIG.inference.api_token:
-        headers["Authorization"] = f"Bearer {SERVER_CONFIG.inference.api_token}"
+    # We are going to stream the response, so there is no way to try multiple
+    # inference configurations
+    inference = random.choice(SERVER_CONFIG.inference)
+
+    if inference.api_token:
+        headers["Authorization"] = f"Bearer {inference.api_token}"
 
     stream = await submit_text_chat_completions(
         http,
         PROMPT_CONFIG.prompt_template.format(log_summary),
+        inference=inference,
         stream=True,
         headers=headers,
-        model=SERVER_CONFIG.inference.model,
-        max_tokens=SERVER_CONFIG.inference.max_tokens,
     )
 
     return StreamingResponse(stream)
