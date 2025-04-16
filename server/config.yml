@@ -3,11 +3,11 @@ log:
   level_file: "DEBUG"
   path: "log/logdetective.log"
 inference:
-  max_tokens: -1
-  log_probs: 1
-  url: http://llama-cpp-server:8000
-  # url: https://mistral-7b-instruct-v0-3--apicast-production.apps.int.stc.ai.prod.us-east-1.aws.paas.redhat.com/
-  api_token: ""
+  - max_tokens: -1
+    log_probs: 1
+    url: http://llama-cpp-server:8000
+    # url: https://mistral-7b-instruct-v0-3--apicast-production.apps.int.stc.ai.prod.us-east-1.aws.paas.redhat.com/
+    api_token: ""
 extractor:
   context: true
   max_clusters: 25

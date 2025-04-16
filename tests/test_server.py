@@ -89,7 +89,7 @@ async def test_process_url():
 @pytest.mark.asyncio
 async def test_submit_text_chat_completions():
     mock_response = b"123"
-    SERVER_CONFIG.inference.url = "http://localhost:8080"
+    SERVER_CONFIG.inference[0].url = "http://localhost:8080"
     with aioresponses.aioresponses() as mock:
         mock.post('http://localhost:8080/v1/chat/completions', status=200, body=mock_response)
         async with aiohttp.ClientSession() as http:

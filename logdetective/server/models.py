@@ -190,7 +190,7 @@ class Config(BaseModel):
     """Model for configuration of logdetective server."""
 
     log: LogConfig = LogConfig()
-    inference: InferenceConfig = InferenceConfig()
+    inference: list[InferenceConfig] = [InferenceConfig()]
     extractor: ExtractorConfig = ExtractorConfig()
     gitlab: GitLabConfig = GitLabConfig()
     general: GeneralConfig = GeneralConfig()
@@ -202,7 +202,7 @@ class Config(BaseModel):
             return
 
         self.log = LogConfig(data.get("log"))
-        self.inference = InferenceConfig(data.get("inference"))
+        self.inference = [InferenceConfig(x) for x in data.get("inference")]
         self.extractor = ExtractorConfig(data.get("extractor"))
         self.gitlab = GitLabConfig(data.get("gitlab"))
         self.general = GeneralConfig(data.get("general"))
