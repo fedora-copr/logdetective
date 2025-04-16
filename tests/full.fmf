@@ -3,6 +3,7 @@ require:
 - python3-flexmock
 - python3-pytest-asyncio
 - python3-aioresponses
+- python3-responses
 component:
 - logdetective
 test: pytest-3 -vv .
