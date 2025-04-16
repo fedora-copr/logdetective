@@ -520,7 +520,7 @@ class LogsTooLargeError(RuntimeError):
 
 async def retrieve_and_preprocess_koji_logs(
     http: aiohttp.ClientSession, job: gitlab.v4.objects.ProjectJob
-):
+):  # pylint: disable=too-many-branches
     """Download logs from the merge request artifacts
 
     This function will retrieve the build logs and do some minimal
@@ -549,13 +549,16 @@ async def retrieve_and_preprocess_koji_logs(
         if zipinfo.filename.endswith("task_failed.log"):
             # The koji logs store this file in two places: 1) in the
             # directory with the failed architecture and 2) in the parent
-            # directory. We actually want to ignore the one in the parent
-            # directory, since the rest of the information is in the
-            # specific task directory.
+            # directory. Most of the time, we want to ignore the one in the
+            # parent directory, since the rest of the information is in the
+            # specific task directory. However, there are some situations
+            # where non-build failures (such as "Target build already exists")
+            # may be presented only at the top level.
             # The paths look like `kojilogs/noarch-XXXXXX/task_failed.log`
             # or `kojilogs/noarch-XXXXXX/x86_64-XXXXXX/task_failed.log`
             path = PurePath(zipinfo.filename)
             if len(path.parts) <= 3:
+                failed_arches["toplevel"] = path
                 continue
 
             # Extract the architecture from the immediate parent path
@@ -584,37 +587,32 @@ async def retrieve_and_preprocess_koji_logs(
             failed_arches[architecture] = PurePath(path.parent, failure_log_name)
 
     if not failed_arches:
-        # No failed task found?
+        # No failed task found in the sub-tasks.
         raise FileNotFoundError("Could not detect failed architecture.")
 
-    # First check if we only found one failed architecture
-    if len(failed_arches) == 1:
-        failed_arch = list(failed_arches.keys())[0]
-
+    # We only want to handle one arch, so we'll check them in order of
+    # "most to least likely for the maintainer to have access to hardware"
+    # This means: x86_64 > aarch64 > riscv > ppc64le > s390x
+    if "x86_64" in failed_arches:
+        failed_arch = "x86_64"
+    elif "aarch64" in failed_arches:
+        failed_arch = "aarch64"
+    elif "riscv" in failed_arches:
+        failed_arch = "riscv"
+    elif "ppc64le" in failed_arches:
+        failed_arch = "ppc64le"
+    elif "s390x" in failed_arches:
+        failed_arch = "s390x"
+    elif "noarch" in failed_arches:
+        # May have failed during BuildSRPMFromSCM phase
+        failed_arch = "noarch"
+    elif "toplevel" in failed_arches:
+        # Probably a Koji-specific error, not a build error
+        failed_arch = "toplevel"
     else:
-        # We only want to handle one arch, so we'll check them in order of
-        # "most to least likely for the maintainer to have access to hardware"
-        # This means: x86_64 > aarch64 > riscv > ppc64le > s390x
-        if "x86_64" in failed_arches:
-            failed_arch = "x86_64"
-        elif "aarch64" in failed_arches:
-            failed_arch = "aarch64"
-        elif "riscv" in failed_arches:
-            failed_arch = "riscv"
-        elif "ppc64le" in failed_arches:
-            failed_arch = "ppc64le"
-        elif "s390x" in failed_arches:
-            failed_arch = "s390x"
-        elif "noarch" in failed_arches:
-            # May have failed during BuildSRPMFromSCM phase
-            # It should be impossible to get here, since it should have been
-            # caught by the single-failure check above, but better safe than
-            # sorry.
-            failed_arch = "noarch"
-        else:
-            # We have failed on at least two architectures that we don't know
-            # about? Just pick the first alphabetically.
-            failed_arch = sorted(list(failed_arches.keys()))[0]
+        # We have one or more architectures that we don't know about? Just
+        # pick the first alphabetically.
+        failed_arch = sorted(list(failed_arches.keys()))[0]
 
     LOG.debug("Failed architecture: %s", failed_arch)
 
