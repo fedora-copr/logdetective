@@ -5,7 +5,12 @@ import aiohttp
 import aioresponses
 import pytest
 
-from logdetective.server.server import submit_to_llm_endpoint, process_url
+from logdetective.server.server import (
+    submit_to_llm_endpoint,
+    process_url,
+    submit_text_chat_completions,
+    SERVER_CONFIG
+)
 from logdetective.server.utils import load_server_config
 
 
@@ -79,3 +84,20 @@ async def test_process_url():
             url_output_cr = process_url(http, "http://localhost:8999/")
             url_output = await url_output_cr
             assert url_output == "123"
+
+
+@pytest.mark.asyncio
+async def test_submit_text_chat_completions():
+    mock_response = b"123"
+    SERVER_CONFIG.inference.url = "http://localhost:8080"
+    with aioresponses.aioresponses() as mock:
+        mock.post('http://localhost:8080/v1/chat/completions', status=200, body=mock_response)
+        async with aiohttp.ClientSession() as http:
+            response = await submit_text_chat_completions(
+                http,
+                "asd",
+                {},
+                stream=True
+            )
+            async for x in response.content:
+                assert x == mock_response

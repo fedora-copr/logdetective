@@ -6,12 +6,13 @@ import zipfile
 from contextlib import asynccontextmanager
 from pathlib import Path, PurePath
 from tempfile import TemporaryFile
-from typing import List, Annotated, Tuple, Dict, Any
+from typing import List, Annotated, Tuple, Dict, Any, Union
 from io import BytesIO
 
 
 import matplotlib
 import matplotlib.pyplot
+from aiohttp import StreamReader
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header, Request
 
 from fastapi.responses import StreamingResponse
@@ -265,7 +266,7 @@ async def submit_text_chat_completions(  # pylint: disable=R0913,R0917
     log_probs: int = 1,
     stream: bool = False,
     model: str = "default-model",
-) -> Explanation:
+) -> Union[Explanation, StreamReader]:
     """Submit prompt to OpenAI API /chat/completions endpoint.
     max_tokens: number of tokens to be produces, 0 indicates run until encountering EOS
     log_probs: number of token choices to produce log probs for
@@ -295,10 +296,7 @@ async def submit_text_chat_completions(  # pylint: disable=R0913,R0917
     )
 
     if stream:
-        return Explanation(
-            text=response["choices"][0]["delta"]["content"],
-            logprobs=response["choices"][0]["logprobs"]["content"],
-        )
+        return response
     return Explanation(
         text=response["choices"][0]["message"]["content"],
         logprobs=response["choices"][0]["logprobs"]["content"],
@@ -438,6 +436,9 @@ async def analyze_log_stream(
         max_tokens=SERVER_CONFIG.inference.max_tokens,
     )
 
+    # we need to figure out a better response here, this is how it looks rn:
+    # b'data: {"choices":[{"finish_reason":"stop","index":0,"delta":{}}],
+    #   "created":1744818071,"id":"chatcmpl-c9geTxNcQO7M9wR...
     return StreamingResponse(stream)
 
 
