@@ -444,6 +444,7 @@ async def analyze_log_stream(
 
 @app.post("/webhook/gitlab/job_events")
 async def receive_gitlab_job_event_webhook(
+    x_gitlab_instance: Annotated[str | None, Header()],
     job_hook: JobHook,
     background_tasks: BackgroundTasks,
     http: aiohttp.ClientSession = Depends(get_http_session),
@@ -453,16 +454,18 @@ async def receive_gitlab_job_event_webhook(
     lists the full specification for the messages sent for job events."""
 
     # Handle the message in the background so we can return 200 immediately
-    background_tasks.add_task(process_gitlab_job_event, http, job_hook)
+    background_tasks.add_task(process_gitlab_job_event, http, x_gitlab_instance, job_hook)
 
     # No return value or body is required for a webhook.
     # 204: No Content
     return BasicResponse(status_code=204)
 
 
-async def process_gitlab_job_event(http: aiohttp.ClientSession, job_hook):
+async def process_gitlab_job_event(
+    http: aiohttp.ClientSession, gitlab_instance, job_hook
+):
     """Handle a received job_event webhook from GitLab"""
-    LOG.debug("Received webhook message:\n%s", job_hook)
+    LOG.debug("Received webhook message from %s:\n%s", gitlab_instance, job_hook)
 
     # Look up the project this job belongs to
     project = await asyncio.to_thread(app.gitlab_conn.projects.get, job_hook.project_id)
