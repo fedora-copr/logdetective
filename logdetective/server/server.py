@@ -594,20 +594,27 @@ async def retrieve_and_preprocess_koji_logs(
     else:
         # We only want to handle one arch, so we'll check them in order of
         # "most to least likely for the maintainer to have access to hardware"
-        # This means: x86_64 > aarch64 > ppc64le > s390x
+        # This means: x86_64 > aarch64 > riscv > ppc64le > s390x
         if "x86_64" in failed_arches:
             failed_arch = "x86_64"
         elif "aarch64" in failed_arches:
             failed_arch = "aarch64"
+        elif "riscv" in failed_arches:
+            failed_arch = "riscv"
         elif "ppc64le" in failed_arches:
             failed_arch = "ppc64le"
         elif "s390x" in failed_arches:
             failed_arch = "s390x"
+        elif "noarch" in failed_arches:
+            # May have failed during BuildSRPMFromSCM phase
+            # It should be impossible to get here, since it should have been
+            # caught by the single-failure check above, but better safe than
+            # sorry.
+            failed_arch = "noarch"
         else:
-            # It should be impossible for us to get "noarch" here, since
-            # the only way that should happen is for a single architecture
-            # build.
-            raise FileNotFoundError("No failed architecture detected.")
+            # We have failed on at least two architectures that we don't know
+            # about? Just pick the first alphabetically.
+            failed_arch = sorted(list(failed_arches.keys()))[0]
 
     LOG.debug("Failed architecture: %s", failed_arch)
 
