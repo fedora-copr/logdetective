@@ -10,7 +10,7 @@ inference:
   api_token: ""
 extractor:
   context: true
-  max_clusters: 16
+  max_clusters: 25
   verbose: false
 gitlab:
   url: https://gitlab.com
