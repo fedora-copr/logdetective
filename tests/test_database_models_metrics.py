@@ -92,7 +92,9 @@ def test_AnalyzeRequestMetrics_ger_responses_average_length(endpoint):
         end_time = datetime.datetime.now(datetime.timezone.utc)
         start_time = end_time - datetime.timedelta(hours=10)
         time_format = "%Y-%m-%d %H"
-        average_lengths_dict = AnalyzeRequestMetrics.get_responses_average_length_in_period(
-            start_time, end_time, time_format, endpoint
+        average_lengths_dict = (
+            AnalyzeRequestMetrics.get_responses_average_length_in_period(
+                start_time, end_time, time_format, endpoint
+            )
         )
         assert len(average_lengths_dict) == 10 or len(average_lengths_dict) == 11
