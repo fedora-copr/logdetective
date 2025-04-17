@@ -120,6 +120,10 @@ def test_create_and_get_Comments():
         comment = Comments.get_latest_comment(forge, 123, 456)
         assert comment.id == comment_db_id
 
+        # Try to get a comment on an MR that doesn't exist
+        comment = Comments.get_latest_comment(forge, 123, 457)
+        assert comment is None
+
         # Try to create a comment associated with a job of very
         # high ID ( > 31 bits)
         Comments.create(
