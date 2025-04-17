@@ -61,6 +61,8 @@ class GitlabMergeRequestJobs(Base):
         "Comments", back_populates="merge_request_job", uselist=False
     )  # 1 comment for 1 job
 
+    request_metrics = relationship("AnalyzeRequestMetrics", back_populates="mr_job")
+
     @classmethod
     def create(
         cls,
