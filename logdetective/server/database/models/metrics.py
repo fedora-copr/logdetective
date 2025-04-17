@@ -13,7 +13,6 @@ from sqlalchemy import (
     select,
     distinct,
 )
-
 from logdetective.server.database.base import Base, transaction
 
 
