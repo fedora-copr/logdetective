@@ -46,7 +46,14 @@ from logdetective.server.models import (
     TimePeriod,
 )
 from logdetective.server import plot
-from logdetective.server.database.models import EndpointType
+from logdetective.server.database.models import (
+    Comments,
+    EndpointType,
+    Forge,
+    GitlabMergeRequestJobs,
+    Reactions,
+)
+
 
 LLM_CPP_SERVER_TIMEOUT = os.environ.get("LLAMA_CPP_SERVER_TIMEOUT", 600)
 LOG_SOURCE_REQUEST_TIMEOUT = os.environ.get("LOG_SOURCE_REQUEST_TIMEOUT", 60)
@@ -453,8 +460,14 @@ async def receive_gitlab_job_event_webhook(
     https://docs.gitlab.com/user/project/integrations/webhook_events/#job-events
     lists the full specification for the messages sent for job events."""
 
+    try:
+        forge = Forge(x_gitlab_instance)
+    except ValueError:
+        LOG.critical("%s is not a recognized forge. Ignoring.", x_gitlab_instance)
+        return BasicResponse(status_code=400)
+
     # Handle the message in the background so we can return 200 immediately
-    background_tasks.add_task(process_gitlab_job_event, http, x_gitlab_instance, job_hook)
+    background_tasks.add_task(process_gitlab_job_event, http, forge, job_hook)
 
     # No return value or body is required for a webhook.
     # 204: No Content
@@ -463,11 +476,11 @@ async def receive_gitlab_job_event_webhook(
 
 async def process_gitlab_job_event(
     http: aiohttp.ClientSession,
-    gitlab_instance: str,
+    forge: Forge,
     job_hook: JobHook,
 ):
     """Handle a received job_event webhook from GitLab"""
-    LOG.debug("Received webhook message from %s:\n%s", gitlab_instance, job_hook)
+    LOG.debug("Received webhook message from %s:\n%s", forge.value, job_hook)
 
     # Look up the project this job belongs to
     project = await asyncio.to_thread(app.gitlab_conn.projects.get, job_hook.project_id)
@@ -517,7 +530,9 @@ async def process_gitlab_job_event(
         return
 
     # Add the Log Detective response as a comment to the merge request
-    await comment_on_mr(project, merge_request_iid, job, log_url, staged_response)
+    await comment_on_mr(
+        forge, project, merge_request_iid, job, log_url, staged_response
+    )
 
 
 class LogsTooLargeError(RuntimeError):
@@ -666,6 +681,7 @@ async def check_artifacts_file_size(
 
 
 async def comment_on_mr(
+    forge: Forge,
     project: gitlab.v4.objects.Project,
     merge_request_iid: int,
     job: gitlab.v4.objects.ProjectJob,
@@ -679,6 +695,10 @@ async def comment_on_mr(
         merge_request_iid,
         response.explanation.text,
     )
+
+    # First, we'll see if there's an existing comment on this Merge Request
+    # and wrap it in <details></details> to reduce noise.
+    await suppress_latest_comment(forge, project, merge_request_iid)
 
     # Get the formatted short comment.
     short_comment = await generate_mr_comment(job, log_url, response, full=False)
@@ -708,6 +728,48 @@ async def comment_on_mr(
     # Gitlab may bundle the edited message together with the creation
     # message in email.
     await asyncio.sleep(5)
+    await asyncio.to_thread(note.save)
+
+    # Save the new comment to the database
+    Comments.create(forge, project.id, merge_request_iid, job.id, discussion.id)
+
+
+async def suppress_latest_comment(
+    gitlab_instance: str,
+    project: gitlab.v4.objects.Project,
+    merge_request_iid: int,
+) -> None:
+    """Look up the latest comment on this Merge Request, if any, and wrap it
+    in a <details></details> block with a comment indicating that it has been
+    superseded by a new push."""
+
+    # Ask the database for the last known comment for this MR
+    previous_comment = Comments.get_latest_comment(
+        gitlab_instance, project.id, merge_request_iid
+    )
+
+    if previous_comment is None:
+        # No existing comment, so nothing to do.
+        return
+
+    # Retrieve its content from the Gitlab API
+
+    # Look up the merge request
+    merge_request = await asyncio.to_thread(
+        project.mergerequests.get, merge_request_iid
+    )
+
+    # Find the discussion matching the latest comment ID
+    discussion = await asyncio.to_thread(
+        merge_request.discussions.get, previous_comment.comment_id
+    )
+
+    # Get the ID of the first note
+    note_id = discussion.attributes["notes"][0]["id"]
+    note = discussion.notes.get(note_id)
+
+    # Wrap the note in <details>, indicating why.
+    note.body = f"This comment has been superseded by a newer Log Detective analysis.\n<details>\n{note.body}\n</details>"
     await asyncio.to_thread(note.save)
 
 
