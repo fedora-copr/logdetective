@@ -462,7 +462,9 @@ async def receive_gitlab_job_event_webhook(
 
 
 async def process_gitlab_job_event(
-    http: aiohttp.ClientSession, gitlab_instance, job_hook
+    http: aiohttp.ClientSession,
+    gitlab_instance: str,
+    job_hook: JobHook,
 ):
     """Handle a received job_event webhook from GitLab"""
     LOG.debug("Received webhook message from %s:\n%s", gitlab_instance, job_hook)
@@ -629,7 +631,10 @@ async def retrieve_and_preprocess_koji_logs(
     return log_url, artifacts_zip.open(log_path)
 
 
-async def check_artifacts_file_size(http: aiohttp.ClientSession, job):
+async def check_artifacts_file_size(
+    http: aiohttp.ClientSession,
+    job: gitlab.v4.objects.ProjectJob,
+):
     """Method to determine if the artifacts are too large to process"""
     # First, make sure that the artifacts are of a reasonable size. The
     # zipped artifact collection will be stored in memory below. The
