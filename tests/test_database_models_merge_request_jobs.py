@@ -103,7 +103,7 @@ def test_create_and_get_Comments():
                 comment_id="7890",
             )
 
-        comment = Comments.get_by_gitlab_id(forge, 789)
+        comment = Comments.get_by_gitlab_id(forge, "789")
         assert comment.id == 1
         assert comment.merge_request_job_id == 1
 
@@ -200,13 +200,13 @@ def test_create_and_get_Reactions():
         )
         assert db_id == 4
 
-        reactions = Reactions.get_all_reactions(forge, 123, 456, 11, 789)
+        reactions = Reactions.get_all_reactions(forge, 123, 456, 11, "789")
         assert len(reactions) == 2
 
         reaction = Reactions.get_reaction_by_type(
-            forge, 123, 456, 11, 789, "thumb_down"
+            forge, 123, 456, 11, "789", "thumb_down"
         )
         assert reaction.count == 3
 
-        reaction = Reactions.get_reaction_by_type(forge, 123, 456, 11, 789, "thumbs")
+        reaction = Reactions.get_reaction_by_type(forge, 123, 456, 11, "789", "thumbs")
         assert reaction is None
