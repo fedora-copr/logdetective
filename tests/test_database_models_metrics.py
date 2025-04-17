@@ -7,14 +7,17 @@ from test_helpers import (
     PopulateDatabase,
 )
 
-from logdetective.server.database.models import AnalyzeRequestMetrics, EndpointType
+from logdetective.server.database.models import (
+    AnalyzeRequestMetrics,
+    EndpointType,
+    Forge,
+)
 
 
 def test_create_and_update_AnalyzeRequestMetrics():
     with DatabaseFactory().make_new_db() as session_factory:
         metrics_id = AnalyzeRequestMetrics.create(
             endpoint=EndpointType.ANALYZE,
-            log_url="https://example.com/logs/123",
         )
         assert metrics_id == 1
         AnalyzeRequestMetrics.update(
@@ -32,9 +35,15 @@ def test_create_and_update_AnalyzeRequestMetrics():
         )
 
         assert metrics is not None
-        assert metrics.log_url == "https://example.com/logs/123"
         assert metrics.response_length == 0
         assert metrics.response_certainty == 37.7
+
+        # link metrics to a mr job
+        metrics.add_mr_job(Forge.gitlab_com, 123, 456, 789)
+        all_metrics = AnalyzeRequestMetrics.get_requests_metrics_for_mr_job(
+            Forge.gitlab_com, 123, 456, 789
+        )
+        assert len(all_metrics) == 1
 
 
 @pytest.mark.parametrize(

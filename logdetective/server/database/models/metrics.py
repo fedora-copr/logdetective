@@ -1,19 +1,21 @@
 import enum
 import datetime
+from typing import Optional, List
 
-from typing import Optional
 from sqlalchemy import (
     Column,
     Integer,
     Float,
     DateTime,
-    String,
     Enum,
     func,
     select,
     distinct,
+    ForeignKey,
 )
+from sqlalchemy.orm import relationship, aliased
 from logdetective.server.database.base import Base, transaction
+from logdetective.server.database.models.merge_request_jobs import GitlabMergeRequestJobs, Forge
 
 
 class EndpointType(enum.Enum):
@@ -43,12 +45,6 @@ class AnalyzeRequestMetrics(Base):
         default=datetime.datetime.now(datetime.timezone.utc),
         comment="Timestamp when the request was received",
     )
-    log_url = Column(
-        String,
-        nullable=False,
-        index=False,
-        comment="Log url for which analysis was requested",
-    )
     response_sent_at = Column(
         DateTime, nullable=True, comment="Timestamp when the response was sent back"
     )
@@ -59,11 +55,20 @@ class AnalyzeRequestMetrics(Base):
         Float, nullable=True, comment="Certainty for generated response"
     )
 
+    merge_request_job_id = Column(
+        Integer,
+        ForeignKey("gitlab_merge_request_jobs.id"),
+        nullable=True,
+        index=False,
+        comment="Is this an analyze request coming from a merge request?",
+    )
+
+    mr_job = relationship("GitlabMergeRequestJobs", back_populates="request_metrics")
+
     @classmethod
     def create(
         cls,
         endpoint: EndpointType,
-        log_url: str,
         request_received_at: Optional[datetime.datetime] = None,
     ) -> int:
         """Create AnalyzeRequestMetrics new line
@@ -74,7 +79,6 @@ class AnalyzeRequestMetrics(Base):
             metrics.request_received_at = request_received_at or datetime.datetime.now(
                 datetime.timezone.utc
             )
-            metrics.log_url = log_url
             session.add(metrics)
             session.flush()
             return metrics.id
@@ -87,7 +91,7 @@ class AnalyzeRequestMetrics(Base):
         response_length: int,
         response_certainty: float,
     ) -> None:
-        """Update an AnalyzeRequestMetrics line
+        """Update a row
         with data related to the given response"""
         with transaction(commit=True) as session:
             metrics = session.query(AnalyzeRequestMetrics).filter_by(id=id_).first()
@@ -95,6 +99,58 @@ class AnalyzeRequestMetrics(Base):
             metrics.response_length = response_length
             metrics.response_certainty = response_certainty
             session.add(metrics)
+
+    def add_mr_job(
+        self,
+        forge: Forge,
+        project_id: int,
+        mr_iid: int,
+        job_id: int,
+    ) -> None:
+        """This request was triggered by a merge request job.
+        Link it.
+
+        Args:
+          forge: forge name
+          project_id: forge project id
+          mr_iid: merge request forge iid
+          job_id: forge job id
+        """
+        mr_job = GitlabMergeRequestJobs.get_or_create(forge, project_id, mr_iid, job_id)
+        self.merge_request_job_id = mr_job.id
+        with transaction(commit=True) as session:
+            session.merge(self)
+
+    @classmethod
+    def get_requests_metrics_for_mr_job(
+        cls,
+        forge: Forge,
+        project_id: int,
+        mr_iid: int,
+        job_id: int,
+    ) -> List["AnalyzeRequestMetrics"]:
+        """Search for all requests triggered by the specified merge request job.
+
+        Args:
+          forge: forge name
+          project_id: forge project id
+          mr_iid: merge request forge iid
+          job_id: forge job id
+        """
+        with transaction(commit=False) as session:
+            mr_job_alias = aliased(GitlabMergeRequestJobs)
+            metrics = (
+                session.query(cls.mr_job)
+                .join(mr_job_alias, cls.merge_request_job_id == mr_job_alias.id)
+                .filter(
+                    mr_job_alias.forge == forge,
+                    mr_job_alias.mr_iid == mr_iid,
+                    mr_job_alias.project_id == project_id,
+                    mr_job_alias.job_id == job_id,
+                )
+                .all()
+            )
+            return metrics
 
     @classmethod
     def get_postgres_time_format(cls, time_format):
