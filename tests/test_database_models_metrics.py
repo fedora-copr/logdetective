@@ -39,9 +39,9 @@ def test_create_and_update_AnalyzeRequestMetrics():
         assert metrics.response_certainty == 37.7
 
         # link metrics to a mr job
-        metrics.add_mr_job(Forge.gitlab_com, 123, 456, 789)
+        metrics.add_mr_job(Forge.gitlab_com, 123, 456, "789")
         all_metrics = AnalyzeRequestMetrics.get_requests_metrics_for_mr_job(
-            Forge.gitlab_com, 123, 456, 789
+            Forge.gitlab_com, 123, 456, "789"
         )
         assert len(all_metrics) == 1
 
