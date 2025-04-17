@@ -7,7 +7,7 @@ import backoff
 from sqlalchemy import (
     Enum,
     Column,
-    Integer,
+    BigInteger,
     DateTime,
     String,
     ForeignKey,
@@ -33,22 +33,22 @@ class GitlabMergeRequestJobs(Base):
 
     __tablename__ = "gitlab_merge_request_jobs"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(BigInteger, primary_key=True)
     forge = Column(Enum(Forge), nullable=False, index=True, comment="The forge name")
     project_id = Column(
-        Integer,
+        BigInteger,
         nullable=False,
         index=True,
         comment="The project gitlab id",
     )
     mr_iid = Column(
-        Integer,
+        BigInteger,
         nullable=False,
         index=False,
         comment="The merge request gitlab iid",
     )
     job_id = Column(
-        Integer,
+        BigInteger,
         nullable=False,
         index=True,
         comment="The job gitlab id",
@@ -161,9 +161,9 @@ class Comments(Base):
 
     __tablename__ = "comments"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(BigInteger, primary_key=True)
     merge_request_job_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("gitlab_merge_request_jobs.id"),
         nullable=False,
         unique=True,  # 1 comment for 1 job
@@ -329,9 +329,9 @@ class Reactions(Base):
 
     __tablename__ = "reactions"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(BigInteger, primary_key=True)
     comment_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("comments.id"),
         nullable=False,
         index=True,
@@ -343,7 +343,7 @@ class Reactions(Base):
         comment="The type of reaction",
     )
     count = Column(
-        Integer,
+        BigInteger,
         nullable=False,
         comment="The number of reactions, of this type, given in the comment",
     )
