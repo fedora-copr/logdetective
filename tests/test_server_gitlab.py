@@ -10,6 +10,7 @@ from flexmock import flexmock
 from logdetective.server.server import process_gitlab_job_event
 from logdetective.server.models import JobHook
 from logdetective.server import server
+from logdetective.server.database.models import Forge
 
 
 @pytest.fixture
@@ -169,4 +170,6 @@ def mock_job_hook():
 @pytest.mark.asyncio
 async def test_process_gitlab_job_event(mock_config, mock_job_hook):
     _, _, job_hook = mock_job_hook
-    await process_gitlab_job_event(http=aiohttp.ClientSession(), job_hook=job_hook)
+    await process_gitlab_job_event(
+        http=aiohttp.ClientSession(), forge=Forge.gitlab_com, job_hook=job_hook
+    )
