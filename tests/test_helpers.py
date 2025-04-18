@@ -8,6 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from flexmock import flexmock
 
 from logdetective.server.database import base
+from logdetective.server.remote_log import RemoteLog
 from logdetective.server.database.base import init, destroy
 from logdetective.server.database.models import AnalyzeRequestMetrics, EndpointType
 
@@ -50,6 +51,7 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
             while current_time < end_time:
                 id_ = AnalyzeRequestMetrics.create(
                     endpoint=endpoint_type,
+                    zip_log=RemoteLog.zip_text("Some log for a failed build"),
                     request_received_at=current_time,
                 )
                 response_time = current_time + datetime.timedelta(

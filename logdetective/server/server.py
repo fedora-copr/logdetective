@@ -28,14 +28,13 @@ from logdetective.utils import (
     compute_certainty,
     format_snippets,
     load_prompts,
-    get_url_content,
 )
 from logdetective.server.utils import (
     load_server_config,
     get_log,
     format_analyzed_snippets,
 )
-from logdetective.server.metric import track_request
+from logdetective.server.metric import track_request, add_new_metrics, update_metrics
 from logdetective.server.models import (
     BuildLog,
     JobHook,
@@ -46,6 +45,7 @@ from logdetective.server.models import (
     TimePeriod,
 )
 from logdetective.server import plot
+from logdetective.server.remote_log import RemoteLog
 from logdetective.server.database.models import EndpointType
 
 LLM_CPP_SERVER_TIMEOUT = os.environ.get("LLAMA_CPP_SERVER_TIMEOUT", 600)
@@ -118,16 +118,6 @@ app = FastAPI(dependencies=[Depends(requires_token_when_set)], lifespan=lifespan
 app.gitlab_conn = gitlab.Gitlab(
     url=SERVER_CONFIG.gitlab.url, private_token=SERVER_CONFIG.gitlab.api_token
 )
-
-
-async def process_url(http: aiohttp.ClientSession, url: str) -> str:
-    """Validate log URL and return log text."""
-    try:
-        return await get_url_content(http, url, timeout=int(LOG_SOURCE_REQUEST_TIMEOUT))
-    except RuntimeError as ex:
-        raise HTTPException(
-            status_code=400, detail=f"We couldn't obtain the logs: {ex}"
-        ) from ex
 
 
 def mine_logs(log: str) -> List[Tuple[int, str]]:
@@ -306,7 +296,7 @@ async def submit_text_chat_completions(  # pylint: disable=R0913,R0917
 @app.post("/analyze", response_model=Response)
 @track_request()
 async def analyze_log(
-    build_log: BuildLog, http: aiohttp.ClientSession = Depends(get_http_session)
+    build_log: BuildLog, http_session: aiohttp.ClientSession = Depends(get_http_session)
 ):
     """Provide endpoint for log file submission and analysis.
     Request must be in form {"url":"<YOUR_URL_HERE>"}.
@@ -314,11 +304,12 @@ async def analyze_log(
     Meaning that it must contain appropriate scheme, path and netloc,
     while lacking  result, params or query fields.
     """
-    log_text = await process_url(http, build_log.url)
+    remote_log = RemoteLog(build_log.url, http_session)
+    log_text = await remote_log.process_url()
     log_summary = mine_logs(log_text)
     log_summary = format_snippets(log_summary)
     response = await submit_text(
-        http,
+        http_session,
         PROMPT_CONFIG.prompt_template.format(log_summary),
         model=SERVER_CONFIG.inference.model,
         max_tokens=SERVER_CONFIG.inference.max_tokens,
@@ -341,7 +332,7 @@ async def analyze_log(
 @app.post("/analyze/staged", response_model=StagedResponse)
 @track_request()
 async def analyze_log_staged(
-    build_log: BuildLog, http: aiohttp.ClientSession = Depends(get_http_session)
+    build_log: BuildLog, http_session: aiohttp.ClientSession = Depends(get_http_session)
 ):
     """Provide endpoint for log file submission and analysis.
     Request must be in form {"url":"<YOUR_URL_HERE>"}.
@@ -349,9 +340,10 @@ async def analyze_log_staged(
     Meaning that it must contain appropriate scheme, path and netloc,
     while lacking  result, params or query fields.
     """
-    log_text = await process_url(http, build_log.url)
+    remote_log = RemoteLog(build_log.url, http_session)
+    log_text = await remote_log.process_url()
 
-    return await perform_staged_analysis(http, log_text=log_text)
+    return await perform_staged_analysis(http_session, log_text=log_text)
 
 
 async def perform_staged_analysis(
@@ -411,7 +403,7 @@ async def perform_staged_analysis(
 @app.post("/analyze/stream", response_class=StreamingResponse)
 @track_request()
 async def analyze_log_stream(
-    build_log: BuildLog, http: aiohttp.ClientSession = Depends(get_http_session)
+    build_log: BuildLog, http_session: aiohttp.ClientSession = Depends(get_http_session)
 ):
     """Stream response endpoint for Logdetective.
     Request must be in form {"url":"<YOUR_URL_HERE>"}.
@@ -419,7 +411,8 @@ async def analyze_log_stream(
     Meaning that it must contain appropriate scheme, path and netloc,
     while lacking  result, params or query fields.
     """
-    log_text = await process_url(http, build_log.url)
+    remote_log = RemoteLog(build_log.url, http_session)
+    log_text = await remote_log.process_url()
     log_summary = mine_logs(log_text)
     log_summary = format_snippets(log_summary)
     headers = {"Content-Type": "application/json"}
@@ -428,7 +421,7 @@ async def analyze_log_stream(
         headers["Authorization"] = f"Bearer {SERVER_CONFIG.inference.api_token}"
 
     stream = await submit_text_chat_completions(
-        http,
+        http_session,
         PROMPT_CONFIG.prompt_template.format(log_summary),
         stream=True,
         headers=headers,
@@ -503,7 +496,14 @@ async def process_gitlab_job_event(http: aiohttp.ClientSession, job_hook):
 
     # Submit log to Log Detective and await the results.
     log_text = preprocessed_log.read().decode(encoding="utf-8")
+    db_id = await add_new_metrics(
+        api_name=EndpointType.ANALYZE_STAGED,
+        url=log_url,
+        http_session=http,
+        zip_log_content=RemoteLog.zip_text(preprocessed_log),
+    )
     staged_response = await perform_staged_analysis(http, log_text=log_text)
+    update_metrics(db_id, staged_response)
     preprocessed_log.close()
 
     # check if this project is on the opt-in list for posting comments.
