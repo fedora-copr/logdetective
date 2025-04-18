@@ -136,7 +136,7 @@ class AnalyzeRequestMetrics(Base):
         forge: Forge,
         project_id: int,
         mr_iid: int,
-        job_id: str,
+        job_id: int,
     ) -> List["AnalyzeRequestMetrics"]:
         """Search for all requests triggered by the specified merge request job.
 
