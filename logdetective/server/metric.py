@@ -1,22 +1,36 @@
-import datetime
+import io
 import inspect
+import datetime
+
 from typing import Union
 from functools import wraps
 
+import aiohttp
+
 from starlette.responses import StreamingResponse
 from logdetective.server.database.models import EndpointType, AnalyzeRequestMetrics
+from logdetective.server.remote_log import RemoteLog
 from logdetective.server import models
 
 
-def add_new_metrics(api_name: str, received_at: datetime.datetime = None) -> int:
+async def add_new_metrics(
+    api_name: str,
+    url: str,
+    http_session: aiohttp.ClientSession,
+    received_at: datetime.datetime = None,
+    zip_log_content: io.BytesIO = None,
+) -> int:
     """Add a new database entry for a received request.
 
     This will store the time when this function is called,
     the endpoint from where the request was received,
-    and the log for which analysis is requested.
+    and the log (in a zip format) for which analysis is requested.
     """
+    remote_log = RemoteLog(url, http_session)
+    zip_log_content = zip_log_content or await remote_log.zip_content
     return AnalyzeRequestMetrics.create(
         endpoint=EndpointType(api_name),
+        zip_log=zip_log_content,
         request_received_at=received_at
         if received_at
         else datetime.datetime.now(datetime.timezone.utc),
@@ -58,20 +72,16 @@ def track_request():
     def decorator(f):
         @wraps(f)
         async def async_decorated_function(*args, **kwargs):
-            metrics_id = add_new_metrics(f.__name__)
+            log_url = kwargs["build_log"].url
+            metrics_id = await add_new_metrics(
+                f.__name__, log_url, kwargs["http_session"]
+            )
             response = await f(*args, **kwargs)
-            update_metrics(metrics_id, response)
-            return response
-
-        @wraps(f)
-        def sync_decorated_function(*args, **kwargs):
-            metrics_id = add_new_metrics(f.__name__)
-            response = f(*args, **kwargs)
             update_metrics(metrics_id, response)
             return response
 
         if inspect.iscoroutinefunction(f):
             return async_decorated_function
-        return sync_decorated_function
+        raise NotImplementedError("An async coroutine is needed")
 
     return decorator

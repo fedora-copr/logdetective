@@ -8,10 +8,10 @@ from logdetective.utils import (
     compute_certainty,
     format_snippets,
     load_prompts,
-    get_url_content,
 )
 from logdetective.server.utils import format_analyzed_snippets
 from logdetective.server.models import AnalyzedSnippet, Explanation
+from logdetective.server.remote_log import RemoteLog
 from logdetective.models import PromptConfig
 from logdetective import constants
 
@@ -97,6 +97,6 @@ async def test_get_url_content():
     with aioresponses.aioresponses() as mock:
         mock.get('http://localhost:8999/', status=200, body=mock_response)
         async with aiohttp.ClientSession() as http:
-            url_output_cr = get_url_content(http, "http://localhost:8999/", 4)
+            url_output_cr = RemoteLog("http://localhost:8999/", http).get_url_content()
             url_output = await url_output_cr
             assert url_output == "123"

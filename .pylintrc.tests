@@ -13,4 +13,5 @@ disable=
     too-many-locals,       # Tests may use many local variables
     unused-argument,       # Fixtures may be unused in some tests
     unused-import,         # Fixtures may be unused in some tests
-    no-member              # alembic code often raise this warning as in Module 'alembic.op' has no 'f' member
+    no-member,             # alembic code often raise this warning as in Module 'alembic.op' has no 'f' member
+    duplicate-code,        # alembic code seems much similar
