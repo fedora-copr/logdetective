@@ -1,0 +1,8 @@
+#!/usr/bin/bash
+
+while :
+do
+  PGPASSWORD=password pg_isready -d test_db -U user -h localhost -p 5432 && break
+  sleep 1
+done
+
