@@ -298,6 +298,38 @@ class Comments(Base):
             return comment
 
     @classmethod
+    def get_mr_comments(
+        cls,
+        forge: Forge,
+        project_id: int,
+        mr_iid: int,
+    ) -> Optional["Comments"]:
+        """Search for all merge request comments.
+
+        Args:
+          forge: forge name
+          project_id: forge project id
+          mr_iid: merge request forge iid
+        """
+        with transaction(commit=False) as session:
+            comments = (
+                session.query(cls)
+                .join(
+                    GitlabMergeRequestJobs,
+                    cls.merge_request_job_id == GitlabMergeRequestJobs.id,
+                )
+                .filter(
+                    GitlabMergeRequestJobs.forge == forge,
+                    GitlabMergeRequestJobs.project_id == project_id,
+                    GitlabMergeRequestJobs.mr_iid == mr_iid,
+                )
+                .order_by(desc(cls.created_at))
+                .all()
+            )
+
+            return comments
+
+    @classmethod
     def get_or_create(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
         cls,
         forge: Forge,
