@@ -7,7 +7,7 @@ import backoff
 from sqlalchemy import (
     Enum,
     Column,
-    Integer,
+    BigInteger,
     DateTime,
     String,
     ForeignKey,
@@ -33,22 +33,22 @@ class GitlabMergeRequestJobs(Base):
 
     __tablename__ = "gitlab_merge_request_jobs"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(BigInteger, primary_key=True)
     forge = Column(Enum(Forge), nullable=False, index=True, comment="The forge name")
     project_id = Column(
-        Integer,
+        BigInteger,
         nullable=False,
         index=True,
         comment="The project gitlab id",
     )
     mr_iid = Column(
-        Integer,
+        BigInteger,
         nullable=False,
         index=False,
         comment="The merge request gitlab iid",
     )
     job_id = Column(
-        Integer,
+        BigInteger,
         nullable=False,
         index=True,
         comment="The job gitlab id",
@@ -161,9 +161,9 @@ class Comments(Base):
 
     __tablename__ = "comments"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(BigInteger, primary_key=True)
     merge_request_job_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("gitlab_merge_request_jobs.id"),
         nullable=False,
         unique=True,  # 1 comment for 1 job
@@ -298,6 +298,38 @@ class Comments(Base):
             return comment
 
     @classmethod
+    def get_mr_comments(
+        cls,
+        forge: Forge,
+        project_id: int,
+        mr_iid: int,
+    ) -> Optional["Comments"]:
+        """Search for all merge request comments.
+
+        Args:
+          forge: forge name
+          project_id: forge project id
+          mr_iid: merge request forge iid
+        """
+        with transaction(commit=False) as session:
+            comments = (
+                session.query(cls)
+                .join(
+                    GitlabMergeRequestJobs,
+                    cls.merge_request_job_id == GitlabMergeRequestJobs.id,
+                )
+                .filter(
+                    GitlabMergeRequestJobs.forge == forge,
+                    GitlabMergeRequestJobs.project_id == project_id,
+                    GitlabMergeRequestJobs.mr_iid == mr_iid,
+                )
+                .order_by(desc(cls.created_at))
+                .all()
+            )
+
+            return comments
+
+    @classmethod
     def get_or_create(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
         cls,
         forge: Forge,
@@ -329,9 +361,9 @@ class Reactions(Base):
 
     __tablename__ = "reactions"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(BigInteger, primary_key=True)
     comment_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("comments.id"),
         nullable=False,
         index=True,
@@ -343,7 +375,7 @@ class Reactions(Base):
         comment="The type of reaction",
     )
     count = Column(
-        Integer,
+        BigInteger,
         nullable=False,
         comment="The number of reactions, of this type, given in the comment",
     )

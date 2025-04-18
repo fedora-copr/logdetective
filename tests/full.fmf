@@ -4,7 +4,11 @@ require:
 - python3-pytest-asyncio
 - python3-aioresponses
 - python3-responses
+- podman
+
 component:
 - logdetective
+
 test: pytest-3 -vv .
+
 duration: 30m

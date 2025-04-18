@@ -39,9 +39,9 @@ def test_create_and_update_AnalyzeRequestMetrics():
         assert metrics.response_certainty == 37.7
 
         # link metrics to a mr job
-        metrics.add_mr_job(Forge.gitlab_com, 123, 456, 789)
+        metrics.add_mr_job(Forge.gitlab_com, 123, 456, "789")
         all_metrics = AnalyzeRequestMetrics.get_requests_metrics_for_mr_job(
-            Forge.gitlab_com, 123, 456, 789
+            Forge.gitlab_com, 123, 456, "789"
         )
         assert len(all_metrics) == 1
 
@@ -52,7 +52,7 @@ def test_create_and_update_AnalyzeRequestMetrics():
 )
 def test_AnalyzeRequestMetrics_ger_request_in_period(endpoint):
     duration = datetime.timedelta(hours=13)
-    with PopulateDatabase.populate_db_and_mock_postgres(
+    with PopulateDatabase.populate_db(
         duration=duration,
         endpoint=endpoint,
     ) as _:
@@ -71,7 +71,7 @@ def test_AnalyzeRequestMetrics_ger_request_in_period(endpoint):
 )
 def test_AnalyzeRequestMetrics_ger_responses_average_time(endpoint):
     duration = datetime.timedelta(hours=13)
-    with PopulateDatabase.populate_db_and_mock_postgres(
+    with PopulateDatabase.populate_db(
         duration=duration,
         endpoint=endpoint,
     ) as _:
@@ -94,7 +94,7 @@ def test_AnalyzeRequestMetrics_ger_responses_average_time(endpoint):
 )
 def test_AnalyzeRequestMetrics_ger_responses_average_length(endpoint):
     duration = datetime.timedelta(hours=13)
-    with PopulateDatabase.populate_db_and_mock_postgres(
+    with PopulateDatabase.populate_db(
         duration=duration,
         endpoint=endpoint,
     ) as _:

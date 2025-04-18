@@ -13,19 +13,27 @@ from logdetective.server.database.models import AnalyzeRequestMetrics, EndpointT
 
 
 class DatabaseFactory:  # pylint: disable=too-few-public-methods
+    @staticmethod
+    def get_pg_test_url() -> str:
+        """Create PostgreSql connection string to a testing db.
+        Database container is started by `tox -e pytest` command,
+        connection details for the container are specified in tox.ini"""
+
+        return "postgresql+psycopg2://user:password@localhost:5432/test_db"
+
     def __init__(self):
-        """Create an in-memory SQLite database for testing.
-        Instead of depending on a PostgreSQL service in a separate container.
-        Hopefully SqlAlchemy will manage all differences."""
-        self.engine = create_engine("sqlite:///:memory:")
+        """Connect to a postgres container for testing purposes."""
+        self.engine = create_engine(self.get_pg_test_url())
         self.SessionFactory = sessionmaker(autoflush=True, bind=self.engine)
         flexmock(base, engine=self.engine, SessionFactory=self.SessionFactory)
 
     @contextmanager
     def make_new_db(self):
-        init()
-        yield self.SessionFactory
-        destroy()
+        try:
+            init()
+            yield self.SessionFactory
+        finally:
+            destroy()
 
 
 class PopulateDatabase:  # pylint: disable=too-few-public-methods
@@ -71,9 +79,7 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
 
     @classmethod
     @contextmanager
-    def populate_db_and_mock_postgres(
-        cls, duration=datetime.timedelta, endpoint=EndpointType
-    ):
+    def populate_db(cls, duration=datetime.timedelta, endpoint=EndpointType):
         """Populate the db, one request every 15 minutes.
         and responses increasing for 1 hour, and then back to 1.
         For the last duration time.
@@ -84,21 +90,6 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
             duration=duration,
             endpoint_type=endpoint,
         ) as session_factory:
-            flexmock(AnalyzeRequestMetrics).should_receive(
-                "_get_requests_by_time_for_postgres"
-            ).replace_with(AnalyzeRequestMetrics._get_requests_by_time_for_sqlite)
-
-            flexmock(AnalyzeRequestMetrics).should_receive(
-                "_get_average_responses_times_for_postgres"
-            ).replace_with(
-                AnalyzeRequestMetrics._get_average_responses_times_for_sqlite
-            )
-
-            flexmock(AnalyzeRequestMetrics).should_receive(
-                "_get_average_responses_lengths_for_postgres"
-            ).replace_with(
-                AnalyzeRequestMetrics._get_average_responses_lengths_for_sqlite
-            )
             yield session_factory
 
 
