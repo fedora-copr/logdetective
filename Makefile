@@ -40,3 +40,13 @@ alembic-generate-revision: server-up
 
 	@echo "WARNING: Shutting down server..."
 	$(COMPOSE_ENGINE) down server
+
+# Download mermerd from:
+# https://github.com/KarnerTh/mermerd/releases/download/v0.12.0/mermerd_0.12.0_linux_arm64.tar.gz
+generate-db-diagram: server-up
+	sleep 3
+	mermerd -c postgresql://$(POSTGRESQL_USER):$(POSTGRESQL_PASSWORD)@localhost:5432 -s public --useAllTables -o alembic/diagram.mmd
+	echo "# ER diagram" > alembic/er_diagram.md
+	echo -e '```mermaid' >> alembic/er_diagram.md
+	cat alembic/diagram.mmd >> alembic/er_diagram.md
+	echo '```' >> alembic/er_diagram.md
