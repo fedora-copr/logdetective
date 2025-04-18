@@ -1,5 +1,30 @@
 summary: Run logdetective tests
+
 discover:
   how: fmf
+
 execute:
   how: tmt
+
+environment:
+  POSTGRESQL_USER: user
+  POSTGRESQL_PASSWORD: password
+  POSTGRESQL_DATABASE: test_db
+  POSTGRESQL_ADMIN_PASSWORD: adminpassword
+
+prepare:
+  - name: Install podman
+    how: install
+    package: podman
+
+  - name: Start PostgreSQL container
+    how: shell
+    script:
+      - podman run -d --name postgresql-test \
+        -e POSTGRESQL_USER=$POSTGRESQL_USER \
+        -e POSTGRESQL_PASSWORD=$POSTGRESQL_PASSWORD \
+        -e POSTGRESQL_DATABASE=$POSTGRESQL_DATABASE \
+        -e POSTGRESQL_ADMIN_PASSWORD=$POSTGRESQL_ADMIN_PASSWORD \
+        -p 5432:5432 \
+        quay.io/sclorg/postgresql-15-c9s
+      - sleep 3
