@@ -50,8 +50,6 @@ from logdetective.server.database.models import (
     Comments,
     EndpointType,
     Forge,
-    GitlabMergeRequestJobs,
-    Reactions,
 )
 
 
@@ -680,7 +678,7 @@ async def check_artifacts_file_size(
     return content_length <= SERVER_CONFIG.gitlab.max_artifact_size
 
 
-async def comment_on_mr(
+async def comment_on_mr(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
     forge: Forge,
     project: gitlab.v4.objects.Project,
     merge_request_iid: int,
@@ -769,7 +767,8 @@ async def suppress_latest_comment(
     note = discussion.notes.get(note_id)
 
     # Wrap the note in <details>, indicating why.
-    note.body = f"This comment has been superseded by a newer Log Detective analysis.\n<details>\n{note.body}\n</details>"
+    note.body = ("This comment has been superseded by a newer "
+                 f"Log Detective analysis.\n<details>\n{note.body}\n</details>")
     await asyncio.to_thread(note.save)
 
 

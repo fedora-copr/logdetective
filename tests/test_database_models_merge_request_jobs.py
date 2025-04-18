@@ -127,12 +127,12 @@ def test_create_and_get_Comments():
         # Try to create a comment associated with a job of very
         # high ID ( > 31 bits)
         Comments.create(
-                forge=forge,
-                project_id=111,
-                mr_iid=222,
-                job_id=30000000000,
-                comment_id="7893",
-            )
+            forge=forge,
+            project_id=111,
+            mr_iid=222,
+            job_id=30000000000,
+            comment_id="7893",
+        )
 
         comment = Comments.get_or_create(
             forge,
