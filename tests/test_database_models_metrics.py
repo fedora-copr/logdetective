@@ -52,7 +52,7 @@ def test_create_and_update_AnalyzeRequestMetrics():
 )
 def test_AnalyzeRequestMetrics_ger_request_in_period(endpoint):
     duration = datetime.timedelta(hours=13)
-    with PopulateDatabase.populate_db_and_mock_postgres(
+    with PopulateDatabase.populate_db(
         duration=duration,
         endpoint=endpoint,
     ) as _:
@@ -71,7 +71,7 @@ def test_AnalyzeRequestMetrics_ger_request_in_period(endpoint):
 )
 def test_AnalyzeRequestMetrics_ger_responses_average_time(endpoint):
     duration = datetime.timedelta(hours=13)
-    with PopulateDatabase.populate_db_and_mock_postgres(
+    with PopulateDatabase.populate_db(
         duration=duration,
         endpoint=endpoint,
     ) as _:
@@ -94,7 +94,7 @@ def test_AnalyzeRequestMetrics_ger_responses_average_time(endpoint):
 )
 def test_AnalyzeRequestMetrics_ger_responses_average_length(endpoint):
     duration = datetime.timedelta(hours=13)
-    with PopulateDatabase.populate_db_and_mock_postgres(
+    with PopulateDatabase.populate_db(
         duration=duration,
         endpoint=endpoint,
     ) as _:

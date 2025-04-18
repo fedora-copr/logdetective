@@ -34,7 +34,7 @@ def test_day_Definition():
 )
 def test_create_time_series_arrays(endpoint):
     duration = datetime.timedelta(hours=15)
-    with PopulateDatabase.populate_db_and_mock_postgres(
+    with PopulateDatabase.populate_db(
         duration=duration,
         endpoint=endpoint,
     ) as _:
@@ -90,7 +90,7 @@ def _save_fig(fig):
 )
 def test_hourly_plots(endpoint, plot):
     duration = datetime.timedelta(hours=14)
-    with PopulateDatabase.populate_db_and_mock_postgres(
+    with PopulateDatabase.populate_db(
         duration=duration,
         endpoint=endpoint,
     ) as _:
@@ -127,7 +127,7 @@ def test_hourly_plots(endpoint, plot):
 )
 def test_daily_plots(endpoint, plot):
     duration = datetime.timedelta(days=9)
-    with PopulateDatabase.populate_db_and_mock_postgres(
+    with PopulateDatabase.populate_db(
         duration=duration,
         endpoint=endpoint,
     ) as _:
@@ -164,7 +164,7 @@ def test_daily_plots(endpoint, plot):
 )
 def test_weekly_plots(endpoint, plot):
     duration = datetime.timedelta(weeks=3)
-    with PopulateDatabase.populate_db_and_mock_postgres(
+    with PopulateDatabase.populate_db(
         duration=duration,
         endpoint=endpoint,
     ) as _:

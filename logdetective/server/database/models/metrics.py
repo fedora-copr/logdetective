@@ -19,7 +19,10 @@ from sqlalchemy.orm import relationship, aliased
 from sqlalchemy.exc import OperationalError
 
 from logdetective.server.database.base import Base, transaction, DB_MAX_RETRIES
-from logdetective.server.database.models.merge_request_jobs import GitlabMergeRequestJobs, Forge
+from logdetective.server.database.models.merge_request_jobs import (
+    GitlabMergeRequestJobs,
+    Forge,
+)
 
 
 class EndpointType(enum.Enum):
@@ -146,7 +149,7 @@ class AnalyzeRequestMetrics(Base):
         with transaction(commit=False) as session:
             mr_job_alias = aliased(GitlabMergeRequestJobs)
             metrics = (
-                session.query(cls.mr_job)
+                session.query(cls)
                 .join(mr_job_alias, cls.merge_request_job_id == mr_job_alias.id)
                 .filter(
                     mr_job_alias.forge == forge,
@@ -192,31 +195,6 @@ class AnalyzeRequestMetrics(Base):
             select(
                 cls.id,
                 func.to_char(cls.request_received_at, pgsql_time_format).label(
-                    "time_format"
-                ),
-            )
-            .filter(cls.request_received_at.between(start_time, end_time))
-            .filter(cls.endpoint == endpoint)
-            .cte("requests_by_time_format")
-        )
-        return requests_by_time_format
-
-    @classmethod
-    def _get_requests_by_time_for_sqlite(
-        cls, start_time, end_time, time_format, endpoint
-    ):
-        """Get total requests number in time period.
-
-        func.strftime is SQLite specific.
-        Use this function in unit test using flexmock:
-
-        flexmock(AnalyzeRequestMetrics).should_receive("_get_requests_by_time_for_postgres")
-        .replace_with(AnalyzeRequestMetrics._get_requests_by_time_for_sqllite)
-        """
-        requests_by_time_format = (
-            select(
-                cls.id,
-                func.strftime(time_format, cls.request_received_at).label(
                     "time_format"
                 ),
             )
@@ -296,41 +274,6 @@ class AnalyzeRequestMetrics(Base):
             return results
 
     @classmethod
-    def _get_average_responses_times_for_sqlite(
-        cls, start_time, end_time, time_format, endpoint
-    ):
-        """Get average responses time.
-
-        func.strftime is SQLite specific.
-        Use this function in unit test using flexmock:
-
-        flexmock(AnalyzeRequestMetrics).should_receive("_get_average_responses_times_for_postgres")
-        .replace_with(AnalyzeRequestMetrics._get_average_responses_times_for_sqlite)
-        """
-        with transaction(commit=False) as session:
-            average_responses_times = (
-                select(
-                    func.strftime(time_format, cls.request_received_at).label(
-                        "time_range"
-                    ),
-                    (
-                        func.avg(
-                            func.julianday(cls.response_sent_at)
-                            - func.julianday(cls.request_received_at)  # noqa: W503 flake8 vs ruff
-                        )
-                        * 86400  # noqa: W503 flake8 vs ruff
-                    ).label("average_response_seconds"),
-                )
-                .filter(cls.request_received_at.between(start_time, end_time))
-                .filter(cls.endpoint == endpoint)
-                .group_by("time_range")
-                .order_by("time_range")
-            )
-
-            results = session.execute(average_responses_times).fetchall()
-            return results
-
-    @classmethod
     def get_responses_average_time_in_period(
         cls,
         start_time: datetime.datetime,
@@ -376,36 +319,6 @@ class AnalyzeRequestMetrics(Base):
             average_responses_lengths = (
                 select(
                     func.to_char(cls.request_received_at, pgsql_time_format).label(
-                        "time_range"
-                    ),
-                    (func.avg(cls.response_length)).label("average_responses_length"),
-                )
-                .filter(cls.request_received_at.between(start_time, end_time))
-                .filter(cls.endpoint == endpoint)
-                .group_by("time_range")
-                .order_by("time_range")
-            )
-
-            results = session.execute(average_responses_lengths).fetchall()
-            return results
-
-    @classmethod
-    def _get_average_responses_lengths_for_sqlite(
-        cls, start_time, end_time, time_format, endpoint
-    ):
-        """Get average responses length.
-
-        func.strftime is SQLite specific.
-        Use this function in unit test using flexmock:
-
-        flexmock(AnalyzeRequestMetrics)
-        .should_receive("_get_average_responses_lengths_for_postgres")
-        .replace_with(AnalyzeRequestMetrics._get_average_responses_lengths_for_sqlite)
-        """
-        with transaction(commit=False) as session:
-            average_responses_lengths = (
-                select(
-                    func.strftime(time_format, cls.request_received_at).label(
                         "time_range"
                     ),
                     (func.avg(cls.response_length)).label("average_responses_length"),
