@@ -177,6 +177,7 @@ class GeneralConfig(BaseModel):
     """General config options for Log Detective"""
 
     packages: List[str] = None
+    devmode: bool = False
 
     def __init__(self, data: Optional[dict] = None):
         super().__init__()
@@ -184,6 +185,7 @@ class GeneralConfig(BaseModel):
             return
 
         self.packages = data.get("packages", [])
+        self.devmode = data.get("devmode", False)
 
 
 class Config(BaseModel):

@@ -22,6 +22,7 @@ import gitlab.v4
 import gitlab.v4.objects
 import jinja2
 import aiohttp
+import sqlalchemy
 
 import logdetective.server.database.base
 
@@ -735,7 +736,15 @@ async def comment_on_mr(  # pylint: disable=too-many-arguments disable=too-many-
     await asyncio.to_thread(note.save)
 
     # Save the new comment to the database
-    Comments.create(forge, project.id, merge_request_iid, job.id, discussion.id)
+    try:
+        Comments.create(forge, project.id, merge_request_iid, job.id, discussion.id)
+    except sqlalchemy.exc.IntegrityError:
+        # We most likely attempted to save a new comment for the same
+        # build job. This is somewhat common during development when we're
+        # submitting requests manually. It shouldn't really happen in
+        # production.
+        if not SERVER_CONFIG.general.devmode:
+            raise
 
 
 async def suppress_latest_comment(
