@@ -4,7 +4,7 @@
 # The defaults are stored in constants.py
 
 prompt_template: |
-  Given following log snippets, and nothing else, explain what failure, if any, occured during build of this package.
+  Given following log snippets, and nothing else, explain what failure, if any, occurred during build of this package.
 
   Analysis of the snippets must be in a format of [X] : [Y], where [X] is a log snippet, and [Y] is the explanation.
   Snippets themselves must not be altered in any way whatsoever.
@@ -44,7 +44,7 @@ snippet_prompt_template: |
   Analysis:
 
 prompt_template_staged: |
-  Given following log snippets, their explanation, and nothing else, explain what failure, if any, occured during build of this package.
+  Given following log snippets, their explanation, and nothing else, explain what failure, if any, occurred during build of this package.
 
   Snippets are in a format of [X] : [Y], where [X] is a log snippet, and [Y] is the explanation.
 
