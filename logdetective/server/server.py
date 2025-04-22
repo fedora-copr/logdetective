@@ -696,6 +696,10 @@ async def comment_on_mr(
         response.explanation.text,
     )
 
+    # First, we'll see if there's an existing comment on this Merge Request
+    # and wrap it in <details></details> to reduce noise.
+    await suppress_latest_comment(forge, project, merge_request_iid)
+
     # Get the formatted short comment.
     short_comment = await generate_mr_comment(job, log_url, response, full=False)
 
@@ -728,6 +732,45 @@ async def comment_on_mr(
 
     # Save the new comment to the database
     Comments.create(forge, project.id, merge_request_iid, job.id, discussion.id)
+
+
+async def suppress_latest_comment(
+    gitlab_instance: str,
+    project: gitlab.v4.objects.Project,
+    merge_request_iid: int,
+) -> None:
+    """Look up the latest comment on this Merge Request, if any, and wrap it
+    in a <details></details> block with a comment indicating that it has been
+    superseded by a new push."""
+
+    # Ask the database for the last known comment for this MR
+    previous_comment = Comments.get_latest_comment(
+        gitlab_instance, project.id, merge_request_iid
+    )
+
+    if previous_comment is None:
+        # No existing comment, so nothing to do.
+        return
+
+    # Retrieve its content from the Gitlab API
+
+    # Look up the merge request
+    merge_request = await asyncio.to_thread(
+        project.mergerequests.get, merge_request_iid
+    )
+
+    # Find the discussion matching the latest comment ID
+    discussion = await asyncio.to_thread(
+        merge_request.discussions.get, previous_comment.comment_id
+    )
+
+    # Get the ID of the first note
+    note_id = discussion.attributes["notes"][0]["id"]
+    note = discussion.notes.get(note_id)
+
+    # Wrap the note in <details>, indicating why.
+    note.body = f"This comment has been superseded by a newer Log Detective analysis.\n<details>\n{note.body}\n</details>"
+    await asyncio.to_thread(note.save)
 
 
 async def generate_mr_comment(
