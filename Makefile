@@ -14,6 +14,9 @@ rebuild-server:
 server-up:
 	$(COMPOSE_ENGINE) -f docker-compose-dev.yaml up --build --force-recreate -d server
 
+server-down:
+	$(COMPOSE_ENGINE) -f docker-compose-dev.yaml down
+
 # WARNING: This target will start up a new server
 # and shut it down when the operation completes
 # run alembic revision in another pod
