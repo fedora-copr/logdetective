@@ -50,9 +50,9 @@ prompt_template_staged: |
 
   Snippets are delimited with '================'.
 
-  Drawing on information from all snippets, provide complete explanation of the issue and recommend solution.
+  Drawing on information from all snippets, provide a concise explanation of the issue and recommend a solution.
 
-  Explanation of the issue, and recommended solution, should take handful of sentences.
+  Explanation of the issue, and recommended solution, should take a handful of sentences.
 
   Snippets:
 
