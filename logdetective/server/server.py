@@ -23,6 +23,8 @@ import gitlab.v4.objects
 import jinja2
 import aiohttp
 
+import logdetective.server.database.base
+
 from logdetective.extractors import DrainExtractor
 from logdetective.utils import (
     compute_certainty,
@@ -78,6 +80,10 @@ async def lifespan(fapp: FastAPI):
             total=int(LOG_SOURCE_REQUEST_TIMEOUT), connect=3.07
         )
     )
+
+    # Ensure that the database is initialized.
+    logdetective.server.database.base.init()
+
     yield
     await fapp.http.close()
 
