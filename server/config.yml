@@ -17,5 +17,6 @@ gitlab:
   api_token: glpat-XXXXXX
   max_artifact_size: 300
 general:
+  devmode: False
   packages:
     - osci-internal-test-package
