@@ -54,6 +54,7 @@ from logdetective.server.database.models import (
     EndpointType,
     Forge,
 )
+from logdetective.server.database.models import AnalyzeRequestMetrics
 
 
 LLM_CPP_SERVER_TIMEOUT = os.environ.get("LLAMA_CPP_SERVER_TIMEOUT", 600)
@@ -369,6 +370,7 @@ async def analyze_log(
     return Response(explanation=response, response_certainty=certainty)
 
 
+@track_request()
 @app.post("/analyze/staged", response_model=StagedResponse)
 async def analyze_log_staged(
     build_log: BuildLog, http: aiohttp.ClientSession = Depends(get_http_session)
@@ -384,7 +386,6 @@ async def analyze_log_staged(
     return await perform_staged_analysis(http, log_text=log_text)
 
 
-@track_request(name="analyze_log_staged")
 async def perform_staged_analysis(
     http: aiohttp.ClientSession, log_text: str
 ) -> StagedResponse:
@@ -505,10 +506,12 @@ async def receive_gitlab_job_event_webhook(
     return BasicResponse(status_code=204)
 
 
+@track_request(name="analyze_gitlab_job", with_metrics=True)
 async def process_gitlab_job_event(
     http: aiohttp.ClientSession,
     forge: Forge,
     job_hook: JobHook,
+    metrics_id: int,
 ):
     """Handle a received job_event webhook from GitLab"""
     LOG.debug("Received webhook message from %s:\n%s", forge.value, job_hook)
@@ -562,8 +565,16 @@ async def process_gitlab_job_event(
 
     # Add the Log Detective response as a comment to the merge request
     await comment_on_mr(
-        forge, project, merge_request_iid, job, log_url, staged_response
+        forge,
+        project,
+        merge_request_iid,
+        job,
+        log_url,
+        staged_response,
+        metrics_id,
     )
+
+    return staged_response
 
 
 class LogsTooLargeError(RuntimeError):
@@ -718,6 +729,7 @@ async def comment_on_mr(  # pylint: disable=too-many-arguments disable=too-many-
     job: gitlab.v4.objects.ProjectJob,
     log_url: str,
     response: StagedResponse,
+    metrics_id: int,
 ):
     """Add the Log Detective response as a comment to the merge request"""
     LOG.debug(
@@ -763,7 +775,15 @@ async def comment_on_mr(  # pylint: disable=too-many-arguments disable=too-many-
 
     # Save the new comment to the database
     try:
-        Comments.create(forge, project.id, merge_request_iid, job.id, discussion.id)
+        metrics = AnalyzeRequestMetrics.get_metric_by_id(metrics_id)
+        Comments.create(
+            forge,
+            project.id,
+            merge_request_iid,
+            job.id,
+            discussion.id,
+            metrics,
+        )
     except sqlalchemy.exc.IntegrityError:
         # We most likely attempted to save a new comment for the same
         # build job. This is somewhat common during development when we're

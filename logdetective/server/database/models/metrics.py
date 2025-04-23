@@ -31,6 +31,7 @@ class EndpointType(enum.Enum):
     ANALYZE = "analyze_log"
     ANALYZE_STAGED = "analyze_log_staged"
     ANALYZE_STREAM = "analyze_log_stream"
+    ANALYZE_GITLAB_JOB = "analyze_gitlab_job"
 
 
 class AnalyzeRequestMetrics(Base):
@@ -108,6 +109,18 @@ class AnalyzeRequestMetrics(Base):
             metrics.response_length = response_length
             metrics.response_certainty = response_certainty
             session.add(metrics)
+
+    @classmethod
+    @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
+    def get_metric_by_id(
+        cls,
+        id_: int,
+    ) -> "AnalyzeRequestMetrics":
+        """Update a row
+        with data related to the given response"""
+        with transaction(commit=True) as session:
+            metric = session.query(AnalyzeRequestMetrics).filter_by(id=id_).first()
+            return metric
 
     def add_mr_job(
         self,

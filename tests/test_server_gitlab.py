@@ -14,7 +14,11 @@ from test_helpers import (
 from logdetective.server.server import process_gitlab_job_event
 from logdetective.server.models import JobHook
 from logdetective.server import server
-from logdetective.server.database.models import Forge
+from logdetective.server.database.models import (
+    AnalyzeRequestMetrics,
+    EndpointType,
+    Forge,
+)
 
 
 @pytest.fixture
@@ -175,6 +179,12 @@ def mock_job_hook():
 async def test_process_gitlab_job_event(mock_config, mock_job_hook):
     with DatabaseFactory().make_new_db() as _:
         _, _, job_hook = mock_job_hook
+        metrics_id = AnalyzeRequestMetrics.create(
+            endpoint=EndpointType.ANALYZE_GITLAB_JOB,
+        )
         await process_gitlab_job_event(
-            http=aiohttp.ClientSession(), forge=Forge.gitlab_com, job_hook=job_hook
+            http=aiohttp.ClientSession(),
+            forge=Forge.gitlab_com,
+            job_hook=job_hook,
+            metrics_id=metrics_id,
         )

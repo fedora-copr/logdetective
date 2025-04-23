@@ -202,6 +202,7 @@ class Comments(Base):
         mr_iid: int,
         job_id: int,
         comment_id: str,
+        metrics: Optional["AnalyzeRequestMetrics"] = None,  # noqa: F821
     ) -> int:
         """Create a new comment id entry,
         returns its PostgreSQL id.
@@ -215,8 +216,15 @@ class Comments(Base):
           job_id: forge job id
           comment_id: forge comment id
         """
-        mr_job = GitlabMergeRequestJobs.get_or_create(forge, project_id, mr_iid, job_id)
         with transaction(commit=True) as session:
+            mr_job = GitlabMergeRequestJobs.get_or_create(
+                forge, project_id, mr_iid, job_id
+            )
+
+            if metrics:
+                metrics.mr_job = mr_job
+                session.add(metrics)
+
             comment = cls()
             comment.forge = forge
             comment.comment_id = comment_id
