@@ -9,7 +9,7 @@ from tempfile import TemporaryFile
 from typing import List, Annotated, Tuple, Dict, Any, Union
 from io import BytesIO
 
-
+import backoff
 import matplotlib
 import matplotlib.pyplot
 from aiohttp import StreamReader
@@ -206,6 +206,32 @@ async def submit_to_llm_endpoint(
         ) from ex
 
 
+def should_we_giveup(exc: aiohttp.ClientResponseError) -> bool:
+    """
+    From backoff's docs:
+
+    > a function which accepts the exception and returns
+    > a truthy value if the exception should not be retried
+    """
+    LOG.info("Should we give up on retrying error %s", exc)
+    return exc.status < 500
+
+
+def we_give_up(details: backoff._typing.Details):
+    """
+    retries didn't work (or we got a different exc)
+    we give up and raise proper 500 for our API endpoint
+    """
+    LOG.error("Inference error: %s", details['args'])
+    raise HTTPException(500, "Request to the inference API failed")
+
+
+@backoff.on_exception(backoff.expo,
+                      aiohttp.ClientResponseError,
+                      max_tries=3,
+                      giveup=should_we_giveup,
+                      raise_on_giveup=False,
+                      on_giveup=we_give_up)
 async def submit_text(  # pylint: disable=R0913,R0917
     http: aiohttp.ClientSession,
     text: str,
@@ -225,17 +251,13 @@ async def submit_text(  # pylint: disable=R0913,R0917
     if SERVER_CONFIG.inference.api_token:
         headers["Authorization"] = f"Bearer {SERVER_CONFIG.inference.api_token}"
 
-    try:
-        if SERVER_CONFIG.inference.api_endpoint == "/chat/completions":
-            return await submit_text_chat_completions(
-                http, text, headers, max_tokens, log_probs > 0, stream, model
-            )
-        return await submit_text_completions(
-            http, text, headers, max_tokens, log_probs, stream, model
+    if SERVER_CONFIG.inference.api_endpoint == "/chat/completions":
+        return await submit_text_chat_completions(
+            http, text, headers, max_tokens, log_probs > 0, stream, model
         )
-    except aiohttp.ClientError as ex:
-        LOG.error("Inference error: %s", ex)
-        raise HTTPException(500, "Request to the inference API failed") from ex
+    return await submit_text_completions(
+        http, text, headers, max_tokens, log_probs, stream, model
+    )
 
 
 async def submit_text_completions(  # pylint: disable=R0913,R0917
