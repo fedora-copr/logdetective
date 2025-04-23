@@ -174,26 +174,19 @@ async def submit_to_llm_endpoint(
     stream:
     """
     LOG.debug("async request %s headers=%s data=%s", url, headers, data)
-    try:
-        response = await http.post(
-            url,
-            headers=headers,
-            # we need to use the `json=` parameter here and let aiohttp
-            # handle the json-encoding
-            json=data,
-            timeout=int(LLM_CPP_SERVER_TIMEOUT),
-            # Docs says chunked takes int, but:
-            #   DeprecationWarning: Chunk size is deprecated #1615
-            # So let's make sure we either put True or None here
-            chunked=True if stream else None,
-            raise_for_status=True,
-        )
-    except aiohttp.ClientResponseError as ex:
-        raise HTTPException(
-            status_code=400,
-            detail="HTTP Error while getting response from inference server "
-            f"[{ex.status}] {ex.message}",
-        ) from ex
+    response = await http.post(
+        url,
+        headers=headers,
+        # we need to use the `json=` parameter here and let aiohttp
+        # handle the json-encoding
+        json=data,
+        timeout=int(LLM_CPP_SERVER_TIMEOUT),
+        # Docs says chunked takes int, but:
+        #   DeprecationWarning: Chunk size is deprecated #1615
+        # So let's make sure we either put True or None here
+        chunked=True if stream else None,
+        raise_for_status=True,
+    )
     if stream:
         return response
     try:
@@ -465,14 +458,21 @@ async def analyze_log_stream(
     if SERVER_CONFIG.inference.api_token:
         headers["Authorization"] = f"Bearer {SERVER_CONFIG.inference.api_token}"
 
-    stream = await submit_text_chat_completions(
-        http,
-        PROMPT_CONFIG.prompt_template.format(log_summary),
-        stream=True,
-        headers=headers,
-        model=SERVER_CONFIG.inference.model,
-        max_tokens=SERVER_CONFIG.inference.max_tokens,
-    )
+    try:
+        stream = await submit_text_chat_completions(
+            http,
+            PROMPT_CONFIG.prompt_template.format(log_summary),
+            stream=True,
+            headers=headers,
+            model=SERVER_CONFIG.inference.model,
+            max_tokens=SERVER_CONFIG.inference.max_tokens,
+        )
+    except aiohttp.ClientResponseError as ex:
+        raise HTTPException(
+            status_code=400,
+            detail="HTTP Error while getting response from inference server "
+                   f"[{ex.status}] {ex.message}",
+        ) from ex
 
     # we need to figure out a better response here, this is how it looks rn:
     # b'data: {"choices":[{"finish_reason":"stop","index":0,"delta":{}}],
