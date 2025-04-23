@@ -225,13 +225,17 @@ async def submit_text(  # pylint: disable=R0913,R0917
     if SERVER_CONFIG.inference.api_token:
         headers["Authorization"] = f"Bearer {SERVER_CONFIG.inference.api_token}"
 
-    if SERVER_CONFIG.inference.api_endpoint == "/chat/completions":
-        return await submit_text_chat_completions(
-            http, text, headers, max_tokens, log_probs > 0, stream, model
+    try:
+        if SERVER_CONFIG.inference.api_endpoint == "/chat/completions":
+            return await submit_text_chat_completions(
+                http, text, headers, max_tokens, log_probs > 0, stream, model
+            )
+        return await submit_text_completions(
+            http, text, headers, max_tokens, log_probs, stream, model
         )
-    return await submit_text_completions(
-        http, text, headers, max_tokens, log_probs, stream, model
-    )
+    except aiohttp.ClientError as ex:
+        LOG.error("Inference error: %s", ex)
+        raise HTTPException(500, "Request to the inference API failed") from ex
 
 
 async def submit_text_completions(  # pylint: disable=R0913,R0917
