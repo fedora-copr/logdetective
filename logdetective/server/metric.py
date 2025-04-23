@@ -50,7 +50,7 @@ def update_metrics(
     )
 
 
-def track_request(name=None):
+def track_request(name=None, with_metrics=False):
     """
     Decorator to track requests metrics
     """
@@ -59,14 +59,21 @@ def track_request(name=None):
         @wraps(f)
         async def async_decorated_function(*args, **kwargs):
             metrics_id = add_new_metrics(name if name else f.__name__)
-            response = await f(*args, **kwargs)
+            if with_metrics:
+                kwargs["metrics_id"] = metrics_id
+                response = await f(*args, **kwargs)
+            else:
+                response = await f(*args, **kwargs)
             update_metrics(metrics_id, response)
             return response
 
         @wraps(f)
         def sync_decorated_function(*args, **kwargs):
             metrics_id = add_new_metrics(name if name else f.__name__)
-            response = f(*args, **kwargs)
+            if with_metrics:
+                response = f(*args, metrics_id=metrics_id, **kwargs)
+            else:
+                response = f(*args, **kwargs)
             update_metrics(metrics_id, response)
             return response
 
