@@ -170,7 +170,10 @@ async def analyze_log(
     log_text = await remote_log.process_url()
     log_summary = mine_logs(log_text)
     log_summary = format_snippets(log_summary)
-    response = await submit_text(
+
+    response = await enqueue_func(
+        app.llm_queue,
+        submit_text,
         http_session,
         PROMPT_CONFIG.prompt_template.format(log_summary),
         model=SERVER_CONFIG.inference.model,
@@ -214,6 +217,7 @@ async def queue_print(msg: str):
     result = await enqueue_func(app.llm_queue, async_log, msg)
     LOG.info("Printed %s and returned it", result)
 
+
 async def async_log(msg):
     LOG.critical(msg)
     return msg
@@ -240,7 +244,9 @@ async def analyze_log_stream(
         headers["Authorization"] = f"Bearer {SERVER_CONFIG.inference.api_token}"
 
     try:
-        stream = await submit_text_chat_completions(
+        stream = await enqueue_func(
+            app.llm_queue,
+            submit_text_chat_completions,
             http_session,
             PROMPT_CONFIG.prompt_template.format(log_summary),
             stream=True,
