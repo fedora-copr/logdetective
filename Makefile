@@ -22,7 +22,7 @@ server-down:
 # run alembic revision in another pod
 alembic-generate-revision: server-up
 	@echo "Waiting for server to start and invoking alembic upgrade head..."
-	sleep 3
+	scripts/await_psql
 
 	@echo "Checking if database is ready..."
 	$(CONTAINER_ENGINE) run --rm --network logdetective_default \
@@ -47,7 +47,7 @@ alembic-generate-revision: server-up
 # Download mermerd from:
 # https://github.com/KarnerTh/mermerd/releases/download/v0.12.0/mermerd_0.12.0_linux_arm64.tar.gz
 generate-db-diagram: server-up
-	sleep 3
+	scripts/await_psql
 	mermerd -c postgresql://$(POSTGRESQL_USER):$(POSTGRESQL_PASSWORD)@localhost:5432 -s public --useAllTables -o alembic/diagram.mmd
 	echo "# ER diagram" > alembic/er_diagram.md
 	echo -e '```mermaid' >> alembic/er_diagram.md
