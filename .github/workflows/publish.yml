@@ -10,20 +10,51 @@ jobs:
       url: https://pypi.org/p/logdetective
     permissions:
       id-token: write
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v2
+
       # Regex by https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
       - name: Check semver
         run: >
           echo "${{ github.ref }}" | grep -q -P "^refs/tags/v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"
           || exit 1
+
+      # Split string "refs/tags/v{semver}" on "/" and "v"
+      # this will give you a version for pyproject.toml and tags
+      - name: Set TAG var
+        run:
+          echo "TAG=$(echo ${{ github.ref }} | cut -d "/" -d "v" -f 2)" >> $GITHUB_ENV
+
+      # Substitute version from tag for package version in pyproject.toml
+      - name: Bump version in pyproject.toml
+        run:
+          sed -i "s/^version = ".*"$/version = \"$TAG\"/" pyproject.toml
+
       - name: Install Poetry
         run: curl -sSL https://install.python-poetry.org | python -
+
       - name: Add Poetry to path
         run: echo "${HOME}/.poetry/bin" >> $GITHUB_PATH
+
       - run: poetry install
+
       - name: Build package
         run: poetry build
+
+      - name: Commit changes
+        uses: EndBug/add-and-commit@a94899bca583c204427a224a7af87c02f9b325d5
+        with:
+          default_author: github_actor
+          message: 'Bumping package version to ${{ env.TAG }}'
+          add: pyproject.toml
+          commit: --signoff
+          push: origin HEAD:main
+          tag: '-a v${{ env.TAG }} -f -m v${{ env.TAG }}'
+          tag_push: '--force'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
