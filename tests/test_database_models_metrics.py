@@ -7,6 +7,7 @@ from test_helpers import (
     PopulateDatabase,
 )
 
+from logdetective.server.remote_log import RemoteLog
 from logdetective.server.database.models import (
     AnalyzeRequestMetrics,
     EndpointType,
@@ -16,8 +17,10 @@ from logdetective.server.database.models import (
 
 def test_create_and_update_AnalyzeRequestMetrics():
     with DatabaseFactory().make_new_db() as session_factory:
+        remote_log_content = "Some log for a failed build"
         metrics_id = AnalyzeRequestMetrics.create(
             endpoint=EndpointType.ANALYZE,
+            compressed_log=RemoteLog.zip(remote_log_content),
         )
         assert metrics_id == 1
         AnalyzeRequestMetrics.update(
@@ -37,6 +40,7 @@ def test_create_and_update_AnalyzeRequestMetrics():
         assert metrics is not None
         assert metrics.response_length == 0
         assert metrics.response_certainty == 37.7
+        assert RemoteLog.unzip(metrics.compressed_log) == remote_log_content
 
         # link metrics to a mr job
         metrics.add_mr_job(Forge.gitlab_com, 123, 456, "789")

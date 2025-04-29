@@ -1,4 +1,7 @@
 import pytest
+import aiohttp
+import aioresponses
+
 from flexmock import flexmock
 from sqlalchemy.orm import session
 
@@ -33,16 +36,10 @@ def mock_AnalyzeRequestMetrics():
 )
 async def test_track_request_async(build_log, mock_AnalyzeRequestMetrics, response):
     @track_request()
-    async def analyze_log(build_log):
+    async def analyze_log(build_log, http_session):
         return response
 
-    await analyze_log(**build_log)
-
-
-@pytest.mark.asyncio
-async def test_track_request_sync(build_log, mock_AnalyzeRequestMetrics):
-    @track_request()
-    def analyze_log(build_log):
-        return flexmock(response_certainty=37.7, explanation=[{"text": "abc"}])
-
-    analyze_log(**build_log)
+    mock_response = "123"
+    with aioresponses.aioresponses() as mock:
+        mock.get("https://example.com/logs/123", status=200, body=mock_response)
+        await analyze_log(**build_log, http_session=aiohttp.ClientSession())

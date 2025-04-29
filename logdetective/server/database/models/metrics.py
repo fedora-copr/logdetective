@@ -1,3 +1,4 @@
+import io
 import enum
 import datetime
 from typing import Optional, List
@@ -14,6 +15,7 @@ from sqlalchemy import (
     select,
     distinct,
     ForeignKey,
+    LargeBinary,
 )
 from sqlalchemy.orm import relationship, aliased
 from sqlalchemy.exc import OperationalError
@@ -53,6 +55,12 @@ class AnalyzeRequestMetrics(Base):
         default=datetime.datetime.now(datetime.timezone.utc),
         comment="Timestamp when the request was received",
     )
+    compressed_log = Column(
+        LargeBinary(length=314572800),  # 300MB limit (300 * 1024 * 1024)
+        nullable=False,
+        index=False,
+        comment="Log processed, saved in a zip format",
+    )
     response_sent_at = Column(
         DateTime, nullable=True, comment="Timestamp when the response was sent back"
     )
@@ -78,6 +86,7 @@ class AnalyzeRequestMetrics(Base):
     def create(
         cls,
         endpoint: EndpointType,
+        compressed_log: io.BytesIO,
         request_received_at: Optional[datetime.datetime] = None,
     ) -> int:
         """Create AnalyzeRequestMetrics new line
@@ -85,6 +94,7 @@ class AnalyzeRequestMetrics(Base):
         with transaction(commit=True) as session:
             metrics = AnalyzeRequestMetrics()
             metrics.endpoint = endpoint
+            metrics.compressed_log = compressed_log
             metrics.request_received_at = request_received_at or datetime.datetime.now(
                 datetime.timezone.utc
             )
