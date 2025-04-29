@@ -1,9 +1,14 @@
 import datetime
 from logging import BASIC_FORMAT
 from typing import List, Dict, Optional, Literal
-
-from pydantic import BaseModel, Field, model_validator, field_validator, NonNegativeFloat
-
+from pydantic import (
+    BaseModel,
+    Field,
+    model_validator,
+    field_validator,
+    NonNegativeFloat,
+    HttpUrl,
+)
 from logdetective.constants import DEFAULT_TEMPERATURE
 
 
@@ -178,6 +183,7 @@ class GeneralConfig(BaseModel):
 
     packages: List[str] = None
     devmode: bool = False
+    sentry_dsn: HttpUrl | None = None
 
     def __init__(self, data: Optional[dict] = None):
         super().__init__()
@@ -186,6 +192,7 @@ class GeneralConfig(BaseModel):
 
         self.packages = data.get("packages", [])
         self.devmode = data.get("devmode", False)
+        self.sentry_dsn = data.get("sentry_dsn")
 
 
 class Config(BaseModel):

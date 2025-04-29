@@ -50,6 +50,7 @@ psycopg2 = {version = "^2.9.9", optional = true }
 alembic = {version = "^1.13.3", optional = true }
 matplotlib = {version = "^3.8.4", optional = true }
 backoff = {version = "2.2.1", optional = true }
+sentry-sdk = {version = "^2.17.0", extras = ["fastapi"]}
 
 [tool.poetry.extras]
 server = ["fastapi", "sqlalchemy", "psycopg2", "alembic", "matplotlib", "backoff"]

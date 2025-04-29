@@ -24,6 +24,7 @@ import gitlab.v4.objects
 import jinja2
 import aiohttp
 import sqlalchemy
+import sentry_sdk
 
 import logdetective.server.database.base
 
@@ -70,6 +71,9 @@ MR_REGEX = re.compile(r"refs/merge-requests/(\d+)/.*$")
 FAILURE_LOG_REGEX = re.compile(r"(\w*\.log)")
 
 LOG = get_log(SERVER_CONFIG)
+
+if sentry_dsn := SERVER_CONFIG.general.sentry_dsn:
+    sentry_sdk.init(dsn=str(sentry_dsn), traces_sample_rate=1.0)
 
 
 @asynccontextmanager
