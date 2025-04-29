@@ -31,14 +31,13 @@ from logdetective.utils import (
     compute_certainty,
     format_snippets,
     load_prompts,
-    get_url_content,
 )
 from logdetective.server.utils import (
     load_server_config,
     get_log,
     format_analyzed_snippets,
 )
-from logdetective.server.metric import track_request
+from logdetective.server.metric import track_request, add_new_metrics, update_metrics
 from logdetective.server.models import (
     BuildLog,
     JobHook,
@@ -49,13 +48,13 @@ from logdetective.server.models import (
     TimePeriod,
 )
 from logdetective.server import plot
+from logdetective.server.remote_log import RemoteLog
 from logdetective.server.database.models import (
     Comments,
     EndpointType,
     Forge,
 )
 from logdetective.server.database.models import AnalyzeRequestMetrics
-
 
 LLM_CPP_SERVER_TIMEOUT = os.environ.get("LLAMA_CPP_SERVER_TIMEOUT", 600)
 LOG_SOURCE_REQUEST_TIMEOUT = os.environ.get("LOG_SOURCE_REQUEST_TIMEOUT", 60)
@@ -133,16 +132,6 @@ app.gitlab_conn = gitlab.Gitlab(
 )
 
 
-async def process_url(http: aiohttp.ClientSession, url: str) -> str:
-    """Validate log URL and return log text."""
-    try:
-        return await get_url_content(http, url, timeout=int(LOG_SOURCE_REQUEST_TIMEOUT))
-    except RuntimeError as ex:
-        raise HTTPException(
-            status_code=400, detail=f"We couldn't obtain the logs: {ex}"
-        ) from ex
-
-
 def mine_logs(log: str) -> List[Tuple[int, str]]:
     """Extract snippets from log text"""
     extractor = DrainExtractor(
@@ -216,16 +205,18 @@ def we_give_up(details: backoff._typing.Details):
     retries didn't work (or we got a different exc)
     we give up and raise proper 500 for our API endpoint
     """
-    LOG.error("Inference error: %s", details['args'])
+    LOG.error("Inference error: %s", details["args"])
     raise HTTPException(500, "Request to the inference API failed")
 
 
-@backoff.on_exception(backoff.expo,
-                      aiohttp.ClientResponseError,
-                      max_tries=3,
-                      giveup=should_we_giveup,
-                      raise_on_giveup=False,
-                      on_giveup=we_give_up)
+@backoff.on_exception(
+    backoff.expo,
+    aiohttp.ClientResponseError,
+    max_tries=3,
+    giveup=should_we_giveup,
+    raise_on_giveup=False,
+    on_giveup=we_give_up,
+)
 async def submit_text(  # pylint: disable=R0913,R0917
     http: aiohttp.ClientSession,
     text: str,
@@ -338,7 +329,7 @@ async def submit_text_chat_completions(  # pylint: disable=R0913,R0917
 @app.post("/analyze", response_model=Response)
 @track_request()
 async def analyze_log(
-    build_log: BuildLog, http: aiohttp.ClientSession = Depends(get_http_session)
+    build_log: BuildLog, http_session: aiohttp.ClientSession = Depends(get_http_session)
 ):
     """Provide endpoint for log file submission and analysis.
     Request must be in form {"url":"<YOUR_URL_HERE>"}.
@@ -346,11 +337,12 @@ async def analyze_log(
     Meaning that it must contain appropriate scheme, path and netloc,
     while lacking  result, params or query fields.
     """
-    log_text = await process_url(http, build_log.url)
+    remote_log = RemoteLog(build_log.url, http_session)
+    log_text = await remote_log.process_url()
     log_summary = mine_logs(log_text)
     log_summary = format_snippets(log_summary)
     response = await submit_text(
-        http,
+        http_session,
         PROMPT_CONFIG.prompt_template.format(log_summary),
         model=SERVER_CONFIG.inference.model,
         max_tokens=SERVER_CONFIG.inference.max_tokens,
@@ -373,7 +365,7 @@ async def analyze_log(
 @track_request()
 @app.post("/analyze/staged", response_model=StagedResponse)
 async def analyze_log_staged(
-    build_log: BuildLog, http: aiohttp.ClientSession = Depends(get_http_session)
+    build_log: BuildLog, http_session: aiohttp.ClientSession = Depends(get_http_session)
 ):
     """Provide endpoint for log file submission and analysis.
     Request must be in form {"url":"<YOUR_URL_HERE>"}.
@@ -381,9 +373,10 @@ async def analyze_log_staged(
     Meaning that it must contain appropriate scheme, path and netloc,
     while lacking  result, params or query fields.
     """
-    log_text = await process_url(http, build_log.url)
+    remote_log = RemoteLog(build_log.url, http_session)
+    log_text = await remote_log.process_url()
 
-    return await perform_staged_analysis(http, log_text=log_text)
+    return await perform_staged_analysis(http_session, log_text=log_text)
 
 
 async def perform_staged_analysis(
@@ -443,7 +436,7 @@ async def perform_staged_analysis(
 @app.post("/analyze/stream", response_class=StreamingResponse)
 @track_request()
 async def analyze_log_stream(
-    build_log: BuildLog, http: aiohttp.ClientSession = Depends(get_http_session)
+    build_log: BuildLog, http_session: aiohttp.ClientSession = Depends(get_http_session)
 ):
     """Stream response endpoint for Logdetective.
     Request must be in form {"url":"<YOUR_URL_HERE>"}.
@@ -451,7 +444,8 @@ async def analyze_log_stream(
     Meaning that it must contain appropriate scheme, path and netloc,
     while lacking  result, params or query fields.
     """
-    log_text = await process_url(http, build_log.url)
+    remote_log = RemoteLog(build_log.url, http_session)
+    log_text = await remote_log.process_url()
     log_summary = mine_logs(log_text)
     log_summary = format_snippets(log_summary)
     headers = {"Content-Type": "application/json"}
@@ -461,7 +455,7 @@ async def analyze_log_stream(
 
     try:
         stream = await submit_text_chat_completions(
-            http,
+            http_session,
             PROMPT_CONFIG.prompt_template.format(log_summary),
             stream=True,
             headers=headers,
@@ -472,7 +466,7 @@ async def analyze_log_stream(
         raise HTTPException(
             status_code=400,
             detail="HTTP Error while getting response from inference server "
-                   f"[{ex.status}] {ex.message}",
+            f"[{ex.status}] {ex.message}",
         ) from ex
 
     # we need to figure out a better response here, this is how it looks rn:
@@ -506,12 +500,10 @@ async def receive_gitlab_job_event_webhook(
     return BasicResponse(status_code=204)
 
 
-@track_request(name="analyze_gitlab_job", with_metrics=True)
 async def process_gitlab_job_event(
     http: aiohttp.ClientSession,
     forge: Forge,
     job_hook: JobHook,
-    metrics_id: int,
 ):
     """Handle a received job_event webhook from GitLab"""
     LOG.debug("Received webhook message from %s:\n%s", forge.value, job_hook)
@@ -555,7 +547,14 @@ async def process_gitlab_job_event(
 
     # Submit log to Log Detective and await the results.
     log_text = preprocessed_log.read().decode(encoding="utf-8")
+    metrics_id = await add_new_metrics(
+        api_name=EndpointType.ANALYZE_GITLAB_JOB,
+        url=log_url,
+        http_session=http,
+        compressed_log_content=RemoteLog.zip(log_text),
+    )
     staged_response = await perform_staged_analysis(http, log_text=log_text)
+    update_metrics(metrics_id, staged_response)
     preprocessed_log.close()
 
     # check if this project is on the opt-in list for posting comments.
@@ -828,8 +827,10 @@ async def suppress_latest_comment(
     note = discussion.notes.get(note_id)
 
     # Wrap the note in <details>, indicating why.
-    note.body = ("This comment has been superseded by a newer "
-                 f"Log Detective analysis.\n<details>\n{note.body}\n</details>")
+    note.body = (
+        "This comment has been superseded by a newer "
+        f"Log Detective analysis.\n<details>\n{note.body}\n</details>"
+    )
     await asyncio.to_thread(note.save)
 
 
