@@ -20,7 +20,7 @@ def test_create_and_update_AnalyzeRequestMetrics():
         remote_log_content = "Some log for a failed build"
         metrics_id = AnalyzeRequestMetrics.create(
             endpoint=EndpointType.ANALYZE,
-            compressed_log=RemoteLog.zip(remote_log_content),
+            compressed_log=RemoteLog.zip_text(remote_log_content),
         )
         assert metrics_id == 1
         AnalyzeRequestMetrics.update(
@@ -28,6 +28,7 @@ def test_create_and_update_AnalyzeRequestMetrics():
             response_sent_at=datetime.datetime.now(datetime.timezone.utc),
             response_length=0,
             response_certainty=37.7,
+            compressed_response=bytes([1, 2, 3]),
         )
 
         metrics = (

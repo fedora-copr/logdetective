@@ -7,10 +7,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from flexmock import flexmock
 
+from logdetective.server.models import Response, Explanation
 from logdetective.server.database import base
 from logdetective.server.remote_log import RemoteLog
 from logdetective.server.database.base import init, destroy
 from logdetective.server.database.models import AnalyzeRequestMetrics, EndpointType
+from logdetective.server.compressors import LLMResponseCompressor
 
 
 class DatabaseFactory:  # pylint: disable=too-few-public-methods
@@ -59,7 +61,7 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
             while current_time < end_time:
                 id_ = AnalyzeRequestMetrics.create(
                     endpoint=endpoint_type,
-                    compressed_log=RemoteLog.zip("Some log for a failed build"),
+                    compressed_log=RemoteLog.zip_text("Some log for a failed build"),
                     request_received_at=current_time,
                 )
                 response_time = current_time + datetime.timedelta(
@@ -71,6 +73,12 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
                     response_sent_at=response_time,
                     response_length=increasing_response_length,
                     response_certainty=70,
+                    compressed_response=LLMResponseCompressor(
+                        Response(
+                            explanation=Explanation(text="a small error", logprobs=[]),
+                            response_certainty=0.1,
+                        )
+                    ).zip_response(),
                 )
                 current_time += interval
                 increasing_response_time += 1

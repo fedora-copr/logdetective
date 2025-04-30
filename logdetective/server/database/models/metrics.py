@@ -61,6 +61,12 @@ class AnalyzeRequestMetrics(Base):
         index=False,
         comment="Log processed, saved in a zip format",
     )
+    compressed_response = Column(
+        LargeBinary(length=314572800),  # 300MB limit (300 * 1024 * 1024)
+        nullable=True,
+        index=False,
+        comment="Given response (with explanation and snippets) saved in a zip format",
+    )
     response_sent_at = Column(
         DateTime, nullable=True, comment="Timestamp when the response was sent back"
     )
@@ -104,12 +110,13 @@ class AnalyzeRequestMetrics(Base):
 
     @classmethod
     @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
-    def update(
+    def update(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
         cls,
         id_: int,
         response_sent_at: datetime,
         response_length: int,
         response_certainty: float,
+        compressed_response: bytes,
     ) -> None:
         """Update a row
         with data related to the given response"""
@@ -118,6 +125,7 @@ class AnalyzeRequestMetrics(Base):
             metrics.response_sent_at = response_sent_at
             metrics.response_length = response_length
             metrics.response_certainty = response_certainty
+            metrics.compressed_response = compressed_response
             session.add(metrics)
 
     @classmethod
