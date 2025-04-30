@@ -551,7 +551,7 @@ async def process_gitlab_job_event(
         api_name=EndpointType.ANALYZE_GITLAB_JOB,
         url=log_url,
         http_session=http,
-        compressed_log_content=RemoteLog.zip(log_text),
+        compressed_log_content=RemoteLog.zip_text(log_text),
     )
     staged_response = await perform_staged_analysis(http, log_text=log_text)
     update_metrics(metrics_id, staged_response)

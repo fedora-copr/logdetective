@@ -1,5 +1,6 @@
 import io
 import inspect
+import logging
 import datetime
 
 from typing import Union
@@ -11,6 +12,9 @@ from starlette.responses import StreamingResponse
 from logdetective.server.database.models import EndpointType, AnalyzeRequestMetrics
 from logdetective.server.remote_log import RemoteLog
 from logdetective.server import models
+from logdetective.server.compressors import LLMResponseCompressor
+
+LOG = logging.getLogger("logdetective")
 
 
 async def add_new_metrics(
@@ -27,7 +31,7 @@ async def add_new_metrics(
     and the log (in a zip format) for which analysis is requested.
     """
     remote_log = RemoteLog(url, http_session)
-    compressed_log_content = compressed_log_content or await remote_log.zip_content
+    compressed_log_content = compressed_log_content or await remote_log.zip_content()
     return AnalyzeRequestMetrics.create(
         endpoint=EndpointType(api_name),
         compressed_log=compressed_log_content,
@@ -48,6 +52,15 @@ def update_metrics(
     This will add to the database entry the time when the response was sent,
     the length of the created response and the certainty for it.
     """
+    try:
+        compressed_response = LLMResponseCompressor(response).zip_response()
+    except AttributeError as e:
+        compressed_response = None
+        LOG.warning(
+            "Given response can not be serialized "
+            "and saved in db (probably a StreamingResponse): %s.", e
+        )
+
     response_sent_at = (
         sent_at if sent_at else datetime.datetime.now(datetime.timezone.utc)
     )
@@ -60,7 +73,11 @@ def update_metrics(
         response.response_certainty if hasattr(response, "response_certainty") else None
     )
     AnalyzeRequestMetrics.update(
-        metrics_id, response_sent_at, response_length, response_certainty
+        metrics_id,
+        response_sent_at,
+        response_length,
+        response_certainty,
+        compressed_response,
     )
 
 

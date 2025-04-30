@@ -1,32 +1,31 @@
 import io
 import logging
-import zipfile
-
+from typing import Union
 from urllib.parse import urlparse
 
 import aiohttp
+
+from logdetective.server.compressors import TextCompressor
 
 
 LOG = logging.getLogger("logdetective")
 
 
 class RemoteLog:
-    """An object cabaple of dealing with
-    a log represented by its url.
+    """
+    Handles retrieval and compression of remote log files.
     """
 
-    ZIP_FILE_NAME = "log.txt"
+    LOG_FILE_NAME = "log.txt"
+    COMPRESSOR = TextCompressor()
 
     def __init__(self, url: str, http_session: aiohttp.ClientSession):
-        """Returns an object cabaple of dealing with
-        a log represented by its url.
-        Using a specified http_session.
+        """
+        Initialize with a remote log URL and HTTP session.
 
         Args:
-          url str: a remote url
-          http_session aiohttp.ClientSession: the http session used for
-              retrieve the remote file.
-
+            url: A remote URL pointing to a log file
+            http_session: The HTTP session used to retrieve the remote file
         """
         self._url = url
         self._http_session = http_session
@@ -42,27 +41,37 @@ class RemoteLog:
         return await self.get_url_content()
 
     @classmethod
-    def zip(cls, text: str) -> io.BytesIO:
-        """Compress a text."""
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-            zip_file.writestr(cls.ZIP_FILE_NAME, text)
+    def zip_text(cls, text: str) -> bytes:
+        """
+        Compress the given text.
 
-        zip_buffer.seek(0)
-        return zip_buffer.getvalue()
+        Returns:
+            bytes: Compressed text
+        """
+        return cls.COMPRESSOR.zip({cls.LOG_FILE_NAME: text})
 
-    @property
-    async def zip_content(self) -> io.BytesIO:
-        """Compress the content of the url log."""
-        return self.zip(await self.content)
+    async def zip_content(self) -> bytes:
+        """
+        Compress the content of the remote log.
+
+        Returns:
+            bytes: Compressed log content
+        """
+        content_text = await self.content
+        return self.zip_text(content_text)
 
     @classmethod
-    def unzip(cls, zip_data: io.BytesIO) -> str:
-        """Uncompress data created by Log.zip_content()."""
-        zip_buffer = io.BytesIO(zip_data)
-        with zipfile.ZipFile(zip_buffer, "r") as zip_file:
-            content = zip_file.read(cls.ZIP_FILE_NAME)
-        return content.decode("utf-8")
+    def unzip(cls, zip_data: Union[bytes, io.BytesIO]) -> str:
+        """
+        Uncompress the zipped content of the remote log.
+
+        Args:
+            zip_data: Compressed data as bytes or BytesIO
+
+        Returns:
+            str: The decompressed log content
+        """
+        return cls.COMPRESSOR.unzip(zip_data)[cls.LOG_FILE_NAME]
 
     def validate_url(self) -> bool:
         """Validate incoming URL to be at least somewhat sensible for log files

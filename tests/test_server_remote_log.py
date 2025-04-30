@@ -19,7 +19,7 @@ async def test_server_remote_log():
         content = await remote_log.content
         assert content
         assert mock_response in content
-        zip_data = await remote_log.zip_content
+        zip_data = await remote_log.zip_content()
         url_text = remote_log.unzip(zip_data)
         assert url_text
         assert mock_response in url_text

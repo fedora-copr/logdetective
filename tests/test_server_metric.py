@@ -5,6 +5,7 @@ import aioresponses
 from flexmock import flexmock
 from sqlalchemy.orm import session
 
+from logdetective.server.models import Explanation
 from logdetective.server.database.models import AnalyzeRequestMetrics
 from logdetective.server.metric import track_request
 
@@ -30,7 +31,7 @@ def mock_AnalyzeRequestMetrics():
 @pytest.mark.parametrize(
     "response",
     [
-        flexmock(response_certainty=37.7, explanation=[{"text": "abc"}]),
+        flexmock(response_certainty=37.7, explanation=Explanation(text="abc", logprobs=[])),
         flexmock(),  # mimic StreamResponse
     ],
 )
