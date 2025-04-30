@@ -965,3 +965,36 @@ async def show_analyze_staged_responses(
     for the /analyze/staged API endpoint."""
     fig = plot.average_time_per_responses(period_since_now, EndpointType.ANALYZE_STAGED)
     return _svg_figure_response(fig)
+
+
+@app.get("/metrics/analyze/gitlab", response_class=StreamingResponse)
+async def show_analyze_gitlab_metrics(
+    period_since_now: TimePeriod = Depends(TimePeriod),
+):
+    """Show statistics for requests and responses in the given period of time
+    coming from gitlab."""
+    fig_requests = plot.requests_per_time(
+        period_since_now, EndpointType.ANALYZE_GITLAB_JOB
+    )
+    fig_responses = plot.average_time_per_responses(
+        period_since_now, EndpointType.ANALYZE_GITLAB_JOB
+    )
+    return _multiple_svg_figures_response([fig_requests, fig_responses])
+
+
+@app.get("/metrics/analyze/gitlab/requests", response_class=StreamingResponse)
+async def show_analyze_gitlab_requests(period_since_now: TimePeriod = Depends(TimePeriod)):
+    """Show statistics for the requests received in the given period of time
+    coming from gitlab."""
+    fig = plot.requests_per_time(period_since_now, EndpointType.ANALYZE_GITLAB_JOB)
+    return _svg_figure_response(fig)
+
+
+@app.get("/metrics/analyze/responses", response_class=StreamingResponse)
+async def show_analyze_gitlab_responses(period_since_now: TimePeriod = Depends(TimePeriod)):
+    """Show statistics for responses given in the specified period of time
+    coming from gitlab."""
+    fig = plot.average_time_per_responses(
+        period_since_now, EndpointType.ANALYZE_GITLAB_JOB
+    )
+    return _svg_figure_response(fig)
