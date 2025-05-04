@@ -53,8 +53,3 @@ volumes:
   database_data:
     driver: local
   matplotlib-config:
-    emptyDir: {}
-
-volumeMounts:
-  - name: matplotlib-config
-    mountPath: "${MPLCONFIGDIR}"
