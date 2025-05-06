@@ -170,12 +170,7 @@ class Comments(Base):
         index=True,
         comment="The associated merge request job (db) id",
     )
-    forge = Column(
-        Enum(Forge),
-        nullable=False,
-        index=True,
-        comment="The forge name"
-    )
+    forge = Column(Enum(Forge), nullable=False, index=True, comment="The forge name")
     comment_id = Column(
         String(50),  # e.g. 'd5a3ff139356ce33e37e73add446f16869741b50'
         nullable=False,
@@ -361,6 +356,20 @@ class Comments(Base):
             id_ = Comments.create(forge, project_id, mr_iid, job_id, comment_id)
             comment = GitlabMergeRequestJobs.get_by_id(id_)
         return comment
+
+    @classmethod
+    def get_since(cls, time: datetime.datetime) -> Optional["Comments"]:
+        """Get all the comments created after the given time."""
+        with transaction(commit=False) as session:
+            comments = (
+                session.query(cls)
+                .filter(
+                    Comments.created_at > time,
+                )
+                .all()
+            )
+
+            return comments
 
 
 class Reactions(Base):

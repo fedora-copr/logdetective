@@ -232,7 +232,7 @@ class TimePeriod(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def check_exclusive_fields(cls, data):
-        """ Check that only one key between weeks, days and hours is defined"""
+        """Check that only one key between weeks, days and hours is defined"""
         if isinstance(data, dict):
             how_many_fields = sum(
                 1
@@ -284,6 +284,6 @@ class TimePeriod(BaseModel):
             datetime.datetime: The start time of the period.
         """
         time = end_time or datetime.datetime.now(datetime.timezone.utc)
-        if end_time.tzinfo is None:
+        if time.tzinfo is None:
             end_time = end_time.replace(tzinfo=datetime.timezone.utc)
         return time - self.get_time_period()
