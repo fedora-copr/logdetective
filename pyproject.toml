@@ -10,6 +10,7 @@ include = [
     "logdetective/server/templates/gitlab_comment.md.j2",
     "logdetective/prompts.yml",
     "logdetective.1.asciidoc",
+    "logdetective/tests/data/**/*",
 ]
 packages = [
     { include = "logdetective" }

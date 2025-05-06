@@ -3,6 +3,7 @@ import json
 import os
 import re
 import zipfile
+import datetime
 from enum import Enum
 from contextlib import asynccontextmanager
 from pathlib import Path, PurePath
@@ -57,6 +58,7 @@ from logdetective.server.database.models import (
     Forge,
 )
 from logdetective.server.database.models import AnalyzeRequestMetrics
+from logdetective.server.emoji import collect_emojis
 
 LLM_CPP_SERVER_TIMEOUT = os.environ.get("LLAMA_CPP_SERVER_TIMEOUT", 600)
 LOG_SOURCE_REQUEST_TIMEOUT = os.environ.get("LOG_SOURCE_REQUEST_TIMEOUT", 60)
@@ -89,6 +91,9 @@ async def lifespan(fapp: FastAPI):
 
     # Ensure that the database is initialized.
     logdetective.server.database.base.init()
+
+    # Start the background task scheduler for collecting emojis
+    asyncio.create_task(schedule_collect_emojis_task())
 
     yield
     await fapp.http.close()
@@ -979,3 +984,38 @@ async def get_metrics(
     handler.__doc__ = descriptions[plot]
 
     return await handler()
+
+
+async def collect_emoji_task():
+    """Collect emoji feedback.
+    Query only comments created in the last year.
+    """
+    LOG.info(
+        "Collect emoji feedback started at %s",
+        datetime.datetime.now(datetime.timezone.utc),
+    )
+    await collect_emojis(app.gitlab_conn, TimePeriod(weeks="54"))
+    LOG.info(
+        "Collect emoji feedback finished at %s",
+        datetime.datetime.now(datetime.timezone.utc),
+    )
+
+
+async def schedule_collect_emojis_task():
+    """Schedule the collect_emojis_task to run every day at midnight"""
+    while True:
+        now = datetime.datetime.now(datetime.timezone.utc)
+        midnight = datetime.datetime.combine(
+            now.date() + datetime.timedelta(days=1),
+            datetime.time(0, 0),
+            datetime.timezone.utc,
+        )
+        seconds_until_run = (midnight - now).total_seconds()
+
+        LOG.info("Collect emojis in %d seconds", seconds_until_run)
+        await asyncio.sleep(seconds_until_run)
+
+        try:
+            await collect_emoji_task()
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            LOG.error("Error in collect_emoji_task: %s", e)
