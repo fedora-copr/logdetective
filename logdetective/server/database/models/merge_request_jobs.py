@@ -132,6 +132,24 @@ class GitlabMergeRequestJobs(Base):
             return mr
 
     @classmethod
+    def get_by_mr_iid(
+        cls, forge: Forge, project_id: int, mr_iid
+    ) -> Optional["GitlabMergeRequestJobs"]:
+        """Get all the mr jobs saved for the specified mr iid and project id."""
+        with transaction(commit=False) as session:
+            comments = (
+                session.query(cls)
+                .filter(
+                    GitlabMergeRequestJobs.forge == forge,
+                    GitlabMergeRequestJobs.project_id == project_id,
+                    GitlabMergeRequestJobs.mr_iid == mr_iid,
+                )
+                .all()
+            )
+
+            return comments
+
+    @classmethod
     def get_or_create(
         cls,
         forge: Forge,
@@ -367,6 +385,22 @@ class Comments(Base):
                     Comments.created_at > time,
                 )
                 .all()
+            )
+
+            return comments
+
+    @classmethod
+    def get_by_mr_job(
+        cls, merge_request_job: GitlabMergeRequestJobs
+    ) -> Optional["Comments"]:
+        """Get the comment added for the specified merge request's job."""
+        with transaction(commit=False) as session:
+            comments = (
+                session.query(cls)
+                .filter(
+                    Comments.merge_request_job == merge_request_job,
+                )
+                .first()  # just one
             )
 
             return comments

@@ -18,7 +18,7 @@ from logdetective.server.database.models import (
     Forge,
 )
 
-from logdetective.server.emoji import collect_emojis
+from logdetective.server.emoji import collect_emojis, collect_emojis_for_mr
 
 # the token is needed only when registering responses
 # export your own private token to be able to re-register responses
@@ -27,6 +27,7 @@ gitlab_conn = gitlab.Gitlab(
 )
 
 COLLECT_EMOJIS_RESPONSES = "tests/data/test_collect_emojis.yaml"
+COLLECT_EMOJIS_FOR_MR_RESPONSES = "tests/data/test_collect_emojis_for_mr.yaml"
 
 
 def populate_db_with_comments_for_libtiff_mr_26():
@@ -99,8 +100,32 @@ def test_collect_emojis():
     _test_collect_emojis()
 
 
+def _test_collect_emojis_for_mr():
+    for db_session in populate_db_with_comments_for_libtiff_mr_26():
+        asyncio.run(
+            collect_emojis_for_mr(23667077, 26, gitlab_conn, TimePeriod(hours=1))
+        )
+        reactions = db_session.query(Reactions).all()
+        assert len(reactions) == 2
+        types = [reaction.reaction_type for reaction in reactions]
+        assert "thumbsup" in types
+        assert "thumbsdown" in types
+
+
+@_recorder.record(file_path=COLLECT_EMOJIS_FOR_MR_RESPONSES)
+def record_responses_for_collect_emojis_for_mr():
+    _test_collect_emojis_for_mr()
+
+
+@responses.activate
+def test_collect_emojis_for_mr():
+    responses._add_from_file(file_path=COLLECT_EMOJIS_FOR_MR_RESPONSES)
+    _test_collect_emojis_for_mr()
+
+
 if __name__ == "__main__":
     # call the module to re-record responses for tests
     # responses are recorded with the wrong content-type
     # substitute text/plain with application/json
     record_responses_for_collect_emojis()
+    record_responses_for_collect_emojis_for_mr()
