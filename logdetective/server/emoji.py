@@ -1,4 +1,7 @@
+import datetime
 import asyncio
+
+from typing import List
 from collections import Counter
 
 import gitlab
@@ -13,16 +16,43 @@ from logdetective.server.database.models import (
 
 async def collect_emojis(gitlab_conn: gitlab.Gitlab, period: TimePeriod):
     """
-    Collect emoji feedback from logdetective comments in MRs.
-    Check only MRs comments created on the last given period of time.
+    Collect emoji feedback from logdetective comments saved in database.
+    Check only comments created in the last given period of time.
     """
     comments = Comments.get_since(period.get_period_start_time())
     comments_for_gitlab_connection = [
         comment for comment in comments if comment.forge == gitlab_conn.url
     ]
+    await collect_emojis_in_comments(comments_for_gitlab_connection, gitlab_conn)
+
+
+async def collect_emojis_for_mr(
+    project_id: int, mr_iid: int, gitlab_conn: gitlab.Gitlab, period: TimePeriod
+):
+    """
+    Collect emoji feedback from logdetective comments in the specified MR.
+    Check only MR comments created in the last given period of time.
+    """
+    mr_jobs = GitlabMergeRequestJobs.get_by_mr_iid(gitlab_conn.url, project_id, mr_iid)
+    comments_for_mr = [Comments.get_by_mr_job(mr_job) for mr_job in mr_jobs]
+    comments = [
+        comment
+        for comment in comments_for_mr
+        if comment.created_at.replace(tzinfo=datetime.timezone.utc)
+        > period.get_period_start_time()  # noqa: W503 ruff vs flake
+    ]
+    await collect_emojis_in_comments(comments, gitlab_conn)
+
+
+async def collect_emojis_in_comments(
+    comments: List[Comments], gitlab_conn: gitlab.Gitlab
+):
+    """
+    Collect emoji feedback from specified logdetective comments.
+    """
     projects = {}
     mrs = {}
-    for comment in comments_for_gitlab_connection:
+    for comment in comments:
         mr_job_db = GitlabMergeRequestJobs.get_by_id(comment.merge_request_job_id)
         if mr_job_db.id not in projects:
             projects[mr_job_db.id] = project = await asyncio.to_thread(
