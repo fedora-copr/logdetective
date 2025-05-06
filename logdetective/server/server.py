@@ -1,4 +1,4 @@
-import asyncio
+import asyncio  # pylint: disable=too-many-lines
 import json
 import os
 import re
