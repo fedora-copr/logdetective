@@ -9,10 +9,9 @@ from flexmock import flexmock
 
 from logdetective.server.models import Response, Explanation
 from logdetective.server.database import base
-from logdetective.server.remote_log import RemoteLog
 from logdetective.server.database.base import init, destroy
 from logdetective.server.database.models import AnalyzeRequestMetrics, EndpointType
-from logdetective.server.compressors import LLMResponseCompressor
+from logdetective.server.compressors import LLMResponseCompressor, RemoteLogCompressor
 
 
 class DatabaseFactory:  # pylint: disable=too-few-public-methods
@@ -61,7 +60,9 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
             while current_time < end_time:
                 id_ = AnalyzeRequestMetrics.create(
                     endpoint=endpoint_type,
-                    compressed_log=RemoteLog.zip_text("Some log for a failed build"),
+                    compressed_log=RemoteLogCompressor.zip_text(
+                        "Some log for a failed build"
+                    ),
                     request_received_at=current_time,
                 )
                 response_time = current_time + datetime.timedelta(
