@@ -12,3 +12,5 @@ component:
 test: pytest-3 -vv .
 
 duration: 30m
+
+path: /
