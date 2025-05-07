@@ -9,7 +9,7 @@ import yaml
 
 from llama_cpp import Llama, CreateCompletionResponse, CreateCompletionStreamResponse
 from logdetective.models import PromptConfig
-from logdetective.server.remote_log import RemoteLog
+from logdetective.remote_log import RemoteLog
 
 
 LOG = logging.getLogger("logdetective")
