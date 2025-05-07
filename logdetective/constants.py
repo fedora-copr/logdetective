@@ -72,3 +72,7 @@ Analysis:
 SNIPPET_DELIMITER = "================"
 
 DEFAULT_TEMPERATURE = 0.8
+
+# Tuning for LLM-as-a-Service
+LLM_DEFAULT_MAX_QUEUE_SIZE = 50
+LLM_DEFAULT_REQUESTS_PER_MINUTE = 6

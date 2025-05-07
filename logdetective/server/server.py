@@ -76,8 +76,43 @@ async def lifespan(fapp: FastAPI):
     # Start the background task scheduler for collecting emojis
     asyncio.create_task(schedule_collect_emojis_task())
 
+    # Set up a queue for LLM requests.
+    # When talking to an LLM service, there's a limited number of requests
+    # we can make per-minute.
+    fapp.llm_queue = asyncio.Queue(maxsize=SERVER_CONFIG.inference.max_queue_size)
+    asyncio.create_task(process_queue(fapp.llm_queue))
+
     yield
+
+    # We're shutting down, so cancel any remaining items in the queue
+    fapp.llm_queue.shutdown(immediate=True)
     await fapp.http.close()
+
+
+def enqueue_func(queue, coro, *args, **kwargs):
+    loop = asyncio.get_running_loop()
+    future = loop.create_future()
+
+    queue.put_nowait((future, coro, args, kwargs))
+    return future
+
+
+async def process_queue(llm_queue):
+    """Run an item on the queue every interval seconds.
+
+    """
+    while True:
+        try:
+            future, coro, args, kwargs = await llm_queue.get()
+            result = await coro(*args, **kwargs)
+            future.set_result(result)
+            llm_queue.task_done()
+        except asyncio.QueueEmpty:
+            pass
+        except asyncio.QueueShutDown:
+            break
+
+        await asyncio.sleep(SERVER_CONFIG.inference.request_period)
 
 
 async def get_http_session(request: Request) -> aiohttp.ClientSession:
@@ -171,6 +206,17 @@ async def analyze_log_staged(
     log_text = await remote_log.process_url()
 
     return await perform_staged_analysis(http_session, log_text=log_text)
+
+
+@app.get("/queue/print")
+async def queue_print(msg: str):
+    LOG.info("Will print %s", msg)
+    result = await enqueue_func(app.llm_queue, async_log, msg)
+    LOG.info("Printed %s and returned it", result)
+
+async def async_log(msg):
+    LOG.critical(msg)
+    return msg
 
 
 @app.post("/analyze/stream", response_class=StreamingResponse)
