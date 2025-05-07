@@ -12,7 +12,11 @@ from pydantic import (
 
 from gitlab import Gitlab
 
-from logdetective.constants import DEFAULT_TEMPERATURE
+from logdetective.constants import (
+    DEFAULT_TEMPERATURE,
+    LLM_DEFAULT_MAX_QUEUE_SIZE,
+    LLM_DEFAULT_REQUESTS_PER_MINUTE,
+)
 
 
 class BuildLog(BaseModel):
@@ -134,6 +138,8 @@ class InferenceConfig(BaseModel):
     api_token: str = ""
     model: str = ""
     temperature: NonNegativeFloat = DEFAULT_TEMPERATURE
+    max_queue_size: int = LLM_DEFAULT_MAX_QUEUE_SIZE
+    request_period: float = 60.0 / LLM_DEFAULT_REQUESTS_PER_MINUTE
 
     def __init__(self, data: Optional[dict] = None):
         super().__init__()
@@ -147,6 +153,15 @@ class InferenceConfig(BaseModel):
         self.api_token = data.get("api_token", "")
         self.model = data.get("model", "default-model")
         self.temperature = data.get("temperature", DEFAULT_TEMPERATURE)
+        self.max_queue_size = data.get("max_queue_size", LLM_DEFAULT_MAX_QUEUE_SIZE)
+
+        requests_per_minute = data.get("requests_per_minute", LLM_DEFAULT_REQUESTS_PER_MINUTE)
+        if not requests_per_minute:
+            # Set to 0 means unlimited, so we'll simulate this with a very
+            # short period of 0.01s
+            self.request_period = 0.01
+        else:
+            self.request_period = 60.0 / requests_per_minute
 
 
 class ExtractorConfig(BaseModel):
