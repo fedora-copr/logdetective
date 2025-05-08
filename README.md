@@ -18,7 +18,7 @@ Installation
 
 **From Pypi repository**
 
-The logdetective project is published on the the the the the [Pypi repository](https://pypi.org/project/logdetective/). The `pip` tool can be used for installation.
+The logdetective project is published on the [Pypi repository](https://pypi.org/project/logdetective/). The `pip` tool can be used for installation.
 
 First, ensure that the necessary dependencies for the `llama-cpp-python` project are installed. For Fedora, install `gcc-c++`:
 
