@@ -17,6 +17,7 @@ from logdetective.server.config import SERVER_CONFIG, LOG
 from logdetective.server.llm import perform_staged_analysis
 from logdetective.server.metric import add_new_metrics, update_metrics
 from logdetective.server.models import (
+    GitLabInstanceConfig,
     JobHook,
     StagedResponse,
 )
@@ -34,7 +35,7 @@ FAILURE_LOG_REGEX = re.compile(r"(\w*\.log)")
 
 async def process_gitlab_job_event(
     http: aiohttp.ClientSession,
-    gitlab_conn: gitlab.Gitlab,
+    gitlab_cfg: GitLabInstanceConfig,
     forge: Forge,
     job_hook: JobHook,
 ):
@@ -42,6 +43,7 @@ async def process_gitlab_job_event(
     LOG.debug("Received webhook message from %s:\n%s", forge.value, job_hook)
 
     # Look up the project this job belongs to
+    gitlab_conn = gitlab_cfg.get_connection()
     project = await asyncio.to_thread(gitlab_conn.projects.get, job_hook.project_id)
     LOG.info("Processing failed job for %s", project.name)
 
@@ -73,7 +75,7 @@ async def process_gitlab_job_event(
     LOG.debug("Retrieving log artifacts")
     # Retrieve the build logs from the merge request artifacts and preprocess them
     try:
-        log_url, preprocessed_log = await retrieve_and_preprocess_koji_logs(http, job)
+        log_url, preprocessed_log = await retrieve_and_preprocess_koji_logs(gitlab_cfg, http, job)
     except LogsTooLargeError:
         LOG.error("Could not retrieve logs. Too large.")
         raise
@@ -114,8 +116,10 @@ class LogsTooLargeError(RuntimeError):
 
 
 async def retrieve_and_preprocess_koji_logs(
-    http: aiohttp.ClientSession, job: gitlab.v4.objects.ProjectJob
-):  # pylint: disable=too-many-branches
+    gitlab_cfg: GitLabInstanceConfig,
+    http: aiohttp.ClientSession,
+    job: gitlab.v4.objects.ProjectJob
+):  # pylint: disable=too-many-branches,too-many-locals
     """Download logs from the merge request artifacts
 
     This function will retrieve the build logs and do some minimal
@@ -126,7 +130,7 @@ async def retrieve_and_preprocess_koji_logs(
     Detective. The calling function is responsible for closing this object."""
 
     # Make sure the file isn't too large to process.
-    if not await check_artifacts_file_size(http, job):
+    if not await check_artifacts_file_size(gitlab_cfg, http, job):
         raise LogsTooLargeError(
             f"Oversized logs for job {job.id} in project {job.project_id}"
         )
@@ -213,7 +217,7 @@ async def retrieve_and_preprocess_koji_logs(
 
     log_path = failed_arches[failed_arch].as_posix()
 
-    log_url = f"{SERVER_CONFIG.gitlab.api_url}/projects/{job.project_id}/jobs/{job.id}/artifacts/{log_path}"  # pylint: disable=line-too-long
+    log_url = f"{gitlab_cfg.api_url}/projects/{job.project_id}/jobs/{job.id}/artifacts/{log_path}"  # pylint: disable=line-too-long
     LOG.debug("Returning contents of %s", log_url)
 
     # Return the log as a file-like object with .read() function
@@ -221,6 +225,7 @@ async def retrieve_and_preprocess_koji_logs(
 
 
 async def check_artifacts_file_size(
+    gitlab_cfg: GitLabInstanceConfig,
     http: aiohttp.ClientSession,
     job: gitlab.v4.objects.ProjectJob,
 ):
@@ -229,13 +234,13 @@ async def check_artifacts_file_size(
     # zipped artifact collection will be stored in memory below. The
     # python-gitlab library doesn't expose a way to check this value directly,
     # so we need to interact with directly with the headers.
-    artifacts_url = f"{SERVER_CONFIG.gitlab.api_url}/projects/{job.project_id}/jobs/{job.id}/artifacts"  # pylint: disable=line-too-long
+    artifacts_url = f"{gitlab_cfg.api_url}/projects/{job.project_id}/jobs/{job.id}/artifacts"  # pylint: disable=line-too-long
     LOG.debug("checking artifact URL %s", artifacts_url)
     try:
         head_response = await http.head(
             artifacts_url,
             allow_redirects=True,
-            headers={"Authorization": f"Bearer {SERVER_CONFIG.gitlab.api_token}"},
+            headers={"Authorization": f"Bearer {gitlab_cfg.api_token}"},
             timeout=5,
             raise_for_status=True,
         )
@@ -249,9 +254,9 @@ async def check_artifacts_file_size(
         "URL: %s, content-length: %d, max length: %d",
         artifacts_url,
         content_length,
-        SERVER_CONFIG.gitlab.max_artifact_size,
+        gitlab_cfg.max_artifact_size,
     )
-    return content_length <= SERVER_CONFIG.gitlab.max_artifact_size
+    return content_length <= gitlab_cfg.max_artifact_size
 
 
 async def comment_on_mr(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
