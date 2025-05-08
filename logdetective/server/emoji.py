@@ -1,4 +1,3 @@
-import datetime
 import asyncio
 
 from typing import List
@@ -27,20 +26,13 @@ async def collect_emojis(gitlab_conn: gitlab.Gitlab, period: TimePeriod):
 
 
 async def collect_emojis_for_mr(
-    project_id: int, mr_iid: int, gitlab_conn: gitlab.Gitlab, period: TimePeriod
+    project_id: int, mr_iid: int, gitlab_conn: gitlab.Gitlab
 ):
     """
     Collect emoji feedback from logdetective comments in the specified MR.
-    Check only MR comments created in the last given period of time.
     """
     mr_jobs = GitlabMergeRequestJobs.get_by_mr_iid(gitlab_conn.url, project_id, mr_iid)
-    comments_for_mr = [Comments.get_by_mr_job(mr_job) for mr_job in mr_jobs]
-    comments = [
-        comment
-        for comment in comments_for_mr
-        if comment.created_at.replace(tzinfo=datetime.timezone.utc)
-        > period.get_period_start_time()  # noqa: W503 ruff vs flake
-    ]
+    comments = [Comments.get_by_mr_job(mr_job) for mr_job in mr_jobs]
     await collect_emojis_in_comments(comments, gitlab_conn)
 
 

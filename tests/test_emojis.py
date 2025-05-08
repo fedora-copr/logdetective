@@ -104,7 +104,7 @@ def test_collect_emojis():
 def _test_collect_emojis_for_mr():
     for db_session in populate_db_with_comments_for_libtiff_mr_26():
         asyncio.run(
-            collect_emojis_for_mr(23667077, 26, gitlab_conn, TimePeriod(hours=1))
+            collect_emojis_for_mr(23667077, 26, gitlab_conn)
         )
         reactions = db_session.query(Reactions).all()
         assert len(reactions) == 2
