@@ -50,7 +50,7 @@ def populate_db_with_comments_for_libtiff_mr_26():
                 Comments(
                     forge=Forge.gitlab_com,
                     merge_request_job_id=11,
-                    comment_id=2462509330,
+                    comment_id="1ba1f46903f2b4e0573d514ed6d2cae29ab040f6",  # note id 2462509330
                     created_at=datetime.datetime.now(datetime.timezone.utc),
                 )
             )
@@ -70,7 +70,7 @@ def populate_db_with_comments_for_libtiff_mr_26():
                 Comments(
                     forge=Forge.gitlab_com,
                     merge_request_job_id=12,
-                    comment_id=2464715549,
+                    comment_id="91090f16d27d4ad053f39990c5a47a592565d38f",  # note id 2464715549
                     created_at=datetime.datetime.now(datetime.timezone.utc),
                 )
             )
