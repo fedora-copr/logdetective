@@ -1,6 +1,6 @@
 import enum
 import datetime
-from typing import Optional
+from typing import Optional, List
 
 import backoff
 
@@ -556,3 +556,32 @@ class Reactions(Base):
             )
 
             return reaction
+
+    @classmethod
+    @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
+    def delete(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
+        cls,
+        forge: Forge,
+        project_id: int,
+        mr_iid: int,
+        job_id: int,
+        comment_id: str,
+        reaction_types: List[str],
+    ) -> None:
+        """Remove rows with given reaction types
+
+        Args:
+          forge: forge name
+          project_id: forge project id
+          mr_iid: merge request forge iid
+          job_id: forge job id
+          comment_id: forge comment id
+          reaction_type: a str iterable, ex. ['thumbsup', 'thumbsdown']
+        """
+        for reaction_type in reaction_types:
+            reaction = cls.get_reaction_by_type(
+                forge, project_id, mr_iid, job_id, comment_id, reaction_type
+            )
+            with transaction(commit=True) as session:
+                session.delete(reaction)
+                session.flush()

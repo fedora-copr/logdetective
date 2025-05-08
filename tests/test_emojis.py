@@ -28,6 +28,7 @@ gitlab_conn = gitlab.Gitlab(
 
 COLLECT_EMOJIS_RESPONSES = "tests/data/test_collect_emojis.yaml"
 COLLECT_EMOJIS_FOR_MR_RESPONSES = "tests/data/test_collect_emojis_for_mr.yaml"
+EMOJI_REMOVED_RESPONSES = "tests/data/test_emoji_removed.yaml"
 
 
 def populate_db_with_comments_for_libtiff_mr_26():
@@ -123,9 +124,38 @@ def test_collect_emojis_for_mr():
     _test_collect_emojis_for_mr()
 
 
+def _test_emoji_removed():
+    for db_session in populate_db_with_comments_for_libtiff_mr_26():
+        asyncio.run(collect_emojis(gitlab_conn, TimePeriod(hours=1)))
+        reactions = db_session.query(Reactions).all()
+        assert len(reactions) == 2
+        types = [reaction.reaction_type for reaction in reactions]
+        assert "thumbsup" in types
+        assert "thumbsdown" in types
+
+        asyncio.run(collect_emojis(gitlab_conn, TimePeriod(hours=1)))
+        reactions = db_session.query(Reactions).all()
+        assert len(reactions) == 1
+        types = [reaction.reaction_type for reaction in reactions]
+        assert "thumbsup" in types
+        assert "thumbsdown" not in types
+
+
+@_recorder.record(file_path=EMOJI_REMOVED_RESPONSES)
+def record_responses_for_emoji_removed():
+    _test_emoji_removed()
+
+
+@responses.activate
+def test_emoji_removed():
+    responses._add_from_file(file_path=EMOJI_REMOVED_RESPONSES)
+    _test_emoji_removed()
+
+
 if __name__ == "__main__":
     # call the module to re-record responses for tests
     # responses are recorded with the wrong content-type
     # substitute text/plain with application/json
     record_responses_for_collect_emojis()
     record_responses_for_collect_emojis_for_mr()
+    record_responses_for_emoji_removed()
