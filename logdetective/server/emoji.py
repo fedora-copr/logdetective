@@ -44,7 +44,7 @@ async def collect_emojis_for_mr(
     await collect_emojis_in_comments(comments, gitlab_conn)
 
 
-async def collect_emojis_in_comments(
+async def collect_emojis_in_comments(  # pylint: disable=too-many-locals
     comments: List[Comments], gitlab_conn: gitlab.Gitlab
 ):
     """
@@ -76,6 +76,18 @@ async def collect_emojis_in_comments(
 
         emoji_counts = Counter(emoji.name for emoji in note.awardemojis.list())
 
+        # keep track of not updated reactions
+        # because we need to remove them
+        old_emojis = [
+            reaction.reaction_type
+            for reaction in Reactions.get_all_reactions(
+                comment.forge,
+                mr_job_db.project_id,
+                mr_job_db.mr_iid,
+                mr_job_db.job_id,
+                comment.comment_id,
+            )
+        ]
         for key, value in emoji_counts.items():
             Reactions.create_or_update(
                 comment.forge,
@@ -86,3 +98,15 @@ async def collect_emojis_in_comments(
                 key,
                 value,
             )
+            if key in old_emojis:
+                old_emojis.remove(key)
+
+        # not updated reactions has been removed, drop them
+        Reactions.delete(
+            comment.forge,
+            mr_job_db.project_id,
+            mr_job_db.mr_iid,
+            mr_job_db.job_id,
+            comment.comment_id,
+            old_emojis,
+        )
