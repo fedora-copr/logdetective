@@ -13,7 +13,7 @@ from test_helpers import (
 )
 
 from logdetective.server.server import process_gitlab_job_event
-from logdetective.server.models import JobHook
+from logdetective.server.models import JobHook, GitLabInstanceConfig
 from logdetective.server.compressors import RemoteLogCompressor
 from logdetective.server.database.models import (
     AnalyzeRequestMetrics,
@@ -255,10 +255,17 @@ def mock_job_hook():
 async def test_process_gitlab_job_event(mock_config, mock_job_hook):
     with DatabaseFactory().make_new_db() as session_factory:
         _, _, job_hook = mock_job_hook
-        gitlab_conn = Gitlab(url="https://gitlab.com/")
+        gitlab_instance = GitLabInstanceConfig(
+            name="mocked_gitlab",
+            data={
+                "url": "https://gitlab.com",
+                "api_token": "empty",
+                "max_artifact_size": 300,
+            }
+        )
         await process_gitlab_job_event(
             http=aiohttp.ClientSession(),
-            gitlab_conn=gitlab_conn,
+            gitlab_cfg=gitlab_instance,
             forge=Forge.gitlab_com,
             job_hook=job_hook,
         )

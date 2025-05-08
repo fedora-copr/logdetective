@@ -12,7 +12,6 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header, Re
 
 from fastapi.responses import StreamingResponse
 from fastapi.responses import Response as BasicResponse
-import gitlab
 import aiohttp
 import sentry_sdk
 
@@ -119,9 +118,6 @@ def requires_token_when_set(authentication: Annotated[str | None, Header()] = No
 
 
 app = FastAPI(dependencies=[Depends(requires_token_when_set)], lifespan=lifespan)
-app.gitlab_conn = gitlab.Gitlab(
-    url=SERVER_CONFIG.gitlab.url, private_token=SERVER_CONFIG.gitlab.api_token
-)
 
 
 @app.post("/analyze", response_model=Response)
@@ -237,8 +233,9 @@ async def receive_gitlab_job_event_webhook(
         return BasicResponse(status_code=400)
 
     # Handle the message in the background so we can return 204 immediately
+    gitlab_cfg = SERVER_CONFIG.gitlab.instances[forge.value]
     background_tasks.add_task(
-        process_gitlab_job_event, http, app.gitlab_conn, forge, job_hook
+        process_gitlab_job_event, http, gitlab_cfg, forge, job_hook
     )
 
     # No return value or body is required for a webhook.
@@ -328,7 +325,7 @@ async def schedule_emoji_collection_for_mr(
     key = (forge, project_id, mr_iid)
 
     # FIXME: Look up the connection from the Forge  # pylint: disable=fixme
-    gitlab_conn = app.gitlab_conn
+    gitlab_conn = SERVER_CONFIG.gitlab.instances[forge.value]
 
     LOG.debug("Looking up emojis for %s, %d, %d", forge, project_id, mr_iid)
     await collect_emojis_for_mr(project_id, mr_iid, gitlab_conn)
@@ -457,15 +454,18 @@ async def collect_emoji_task():
     """Collect emoji feedback.
     Query only comments created in the last year.
     """
-    LOG.info(
-        "Collect emoji feedback started at %s",
-        datetime.datetime.now(datetime.timezone.utc),
-    )
-    await collect_emojis(app.gitlab_conn, TimePeriod(weeks="54"))
-    LOG.info(
-        "Collect emoji feedback finished at %s",
-        datetime.datetime.now(datetime.timezone.utc),
-    )
+
+    for instance in SERVER_CONFIG.gitlab.instances.values():
+        LOG.info(
+            "Collect emoji feedback for %s started at %s",
+            instance.url,
+            datetime.datetime.now(datetime.timezone.utc),
+        )
+        await collect_emojis(instance.get_connection(), TimePeriod(weeks="54"))
+        LOG.info(
+            "Collect emoji feedback finished at %s",
+            datetime.datetime.now(datetime.timezone.utc),
+        )
 
 
 async def schedule_collect_emojis_task():
