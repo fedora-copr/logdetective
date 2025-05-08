@@ -9,9 +9,9 @@ from logdetective.utils import (
     format_snippets,
     load_prompts,
 )
-from logdetective.server.utils import format_analyzed_snippets
+from logdetective.server.llm import format_analyzed_snippets
 from logdetective.server.models import AnalyzedSnippet, Explanation
-from logdetective.server.remote_log import RemoteLog
+from logdetective.remote_log import RemoteLog
 from logdetective.models import PromptConfig
 from logdetective import constants
 
@@ -72,7 +72,10 @@ def test_load_prompts_wrong_path():
     assert prompts_config.prompt_template == constants.PROMPT_TEMPLATE
     assert prompts_config.snippet_prompt_template == constants.SNIPPET_PROMPT_TEMPLATE
     assert prompts_config.prompt_template_staged == constants.PROMPT_TEMPLATE_STAGED
-    assert prompts_config.summarization_prompt_template == constants.SUMMARIZATION_PROMPT_TEMPLATE
+    assert (
+        prompts_config.summarization_prompt_template
+        == constants.SUMMARIZATION_PROMPT_TEMPLATE  # noqa: W503 flake vs lint
+    )
 
 
 def test_load_prompts_correct_path():
@@ -88,14 +91,17 @@ def test_load_prompts_correct_path():
     assert prompts_config.prompt_template == "This is basic template."
     assert prompts_config.snippet_prompt_template == "This is template for snippets."
     assert prompts_config.prompt_template_staged == constants.PROMPT_TEMPLATE_STAGED
-    assert prompts_config.summarization_prompt_template == constants.SUMMARIZATION_PROMPT_TEMPLATE
+    assert (
+        prompts_config.summarization_prompt_template
+        == constants.SUMMARIZATION_PROMPT_TEMPLATE  # noqa: W503 flake vs lint
+    )
 
 
 @pytest.mark.asyncio
 async def test_get_url_content():
     mock_response = "123"
     with aioresponses.aioresponses() as mock:
-        mock.get('http://localhost:8999/', status=200, body=mock_response)
+        mock.get("http://localhost:8999/", status=200, body=mock_response)
         async with aiohttp.ClientSession() as http:
             url_output_cr = RemoteLog("http://localhost:8999/", http).get_url_content()
             url_output = await url_output_cr

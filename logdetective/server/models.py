@@ -46,6 +46,33 @@ class JobHook(BaseModel):
     project_id: int
 
 
+class EmojiMergeRequest(BaseModel):
+    """Model of the 'merge_request' subsection of Emoji webhook messages.
+    This model implements only the fields that we care about. The webhook
+    sends many more fields that we will ignore."""
+
+    # The identifier of the target project
+    target_project_id: int
+
+    # The internal identifier (relative to the target project)
+    iid: int
+
+
+class EmojiHook(BaseModel):
+    """Model of Job Hook events sent from GitLab.
+    Full details of the specification are available at
+    https://docs.gitlab.com/user/project/integrations/webhook_events/#job-events
+    This model implements only the fields that we care about. The webhook
+    sends many more fields that we will ignore."""
+
+    # The kind of webhook message. We are only interested in 'emoji' messages
+    # which represents awarding or revoking emoji reactions on notes.
+    object_kind: str = Field(pattern=r"^emoji$")
+
+    # Information about the merge request this emoji applies to, if any.
+    merge_request: EmojiMergeRequest = Field(default=None)
+
+
 class Explanation(BaseModel):
     """Model of snippet or general log explanation from Log Detective"""
 
@@ -232,7 +259,7 @@ class TimePeriod(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def check_exclusive_fields(cls, data):
-        """ Check that only one key between weeks, days and hours is defined"""
+        """Check that only one key between weeks, days and hours is defined"""
         if isinstance(data, dict):
             how_many_fields = sum(
                 1
@@ -284,6 +311,6 @@ class TimePeriod(BaseModel):
             datetime.datetime: The start time of the period.
         """
         time = end_time or datetime.datetime.now(datetime.timezone.utc)
-        if end_time.tzinfo is None:
+        if time.tzinfo is None:
             end_time = end_time.replace(tzinfo=datetime.timezone.utc)
         return time - self.get_time_period()

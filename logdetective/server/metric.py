@@ -1,6 +1,5 @@
 import io
 import inspect
-import logging
 import datetime
 
 from typing import Union
@@ -9,12 +8,11 @@ from functools import wraps
 import aiohttp
 
 from starlette.responses import StreamingResponse
-from logdetective.server.database.models import EndpointType, AnalyzeRequestMetrics
-from logdetective.server.remote_log import RemoteLog
 from logdetective.server import models
-from logdetective.server.compressors import LLMResponseCompressor
-
-LOG = logging.getLogger("logdetective")
+from logdetective.remote_log import RemoteLog
+from logdetective.server.config import LOG
+from logdetective.server.compressors import LLMResponseCompressor, RemoteLogCompressor
+from logdetective.server.database.models import EndpointType, AnalyzeRequestMetrics
 
 
 async def add_new_metrics(
@@ -31,7 +29,9 @@ async def add_new_metrics(
     and the log (in a zip format) for which analysis is requested.
     """
     remote_log = RemoteLog(url, http_session)
-    compressed_log_content = compressed_log_content or await remote_log.zip_content()
+    compressed_log_content = (
+        compressed_log_content or await RemoteLogCompressor(remote_log).zip_content()
+    )
     return AnalyzeRequestMetrics.create(
         endpoint=EndpointType(api_name),
         compressed_log=compressed_log_content,
@@ -58,7 +58,8 @@ def update_metrics(
         compressed_response = None
         LOG.warning(
             "Given response can not be serialized "
-            "and saved in db (probably a StreamingResponse): %s.", e
+            "and saved in db (probably a StreamingResponse): %s.",
+            e,
         )
 
     response_sent_at = (

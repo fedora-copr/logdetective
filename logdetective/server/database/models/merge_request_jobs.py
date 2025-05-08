@@ -1,6 +1,6 @@
 import enum
 import datetime
-from typing import Optional
+from typing import Optional, List
 
 import backoff
 
@@ -132,6 +132,24 @@ class GitlabMergeRequestJobs(Base):
             return mr
 
     @classmethod
+    def get_by_mr_iid(
+        cls, forge: Forge, project_id: int, mr_iid
+    ) -> Optional["GitlabMergeRequestJobs"]:
+        """Get all the mr jobs saved for the specified mr iid and project id."""
+        with transaction(commit=False) as session:
+            comments = (
+                session.query(cls)
+                .filter(
+                    GitlabMergeRequestJobs.forge == forge,
+                    GitlabMergeRequestJobs.project_id == project_id,
+                    GitlabMergeRequestJobs.mr_iid == mr_iid,
+                )
+                .all()
+            )
+
+            return comments
+
+    @classmethod
     def get_or_create(
         cls,
         forge: Forge,
@@ -170,12 +188,7 @@ class Comments(Base):
         index=True,
         comment="The associated merge request job (db) id",
     )
-    forge = Column(
-        Enum(Forge),
-        nullable=False,
-        index=True,
-        comment="The forge name"
-    )
+    forge = Column(Enum(Forge), nullable=False, index=True, comment="The forge name")
     comment_id = Column(
         String(50),  # e.g. 'd5a3ff139356ce33e37e73add446f16869741b50'
         nullable=False,
@@ -362,6 +375,36 @@ class Comments(Base):
             comment = GitlabMergeRequestJobs.get_by_id(id_)
         return comment
 
+    @classmethod
+    def get_since(cls, time: datetime.datetime) -> Optional["Comments"]:
+        """Get all the comments created after the given time."""
+        with transaction(commit=False) as session:
+            comments = (
+                session.query(cls)
+                .filter(
+                    Comments.created_at > time,
+                )
+                .all()
+            )
+
+            return comments
+
+    @classmethod
+    def get_by_mr_job(
+        cls, merge_request_job: GitlabMergeRequestJobs
+    ) -> Optional["Comments"]:
+        """Get the comment added for the specified merge request's job."""
+        with transaction(commit=False) as session:
+            comments = (
+                session.query(cls)
+                .filter(
+                    Comments.merge_request_job == merge_request_job,
+                )
+                .first()  # just one
+            )
+
+            return comments
+
 
 class Reactions(Base):
     """Store and count reactions received for
@@ -513,3 +556,32 @@ class Reactions(Base):
             )
 
             return reaction
+
+    @classmethod
+    @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
+    def delete(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
+        cls,
+        forge: Forge,
+        project_id: int,
+        mr_iid: int,
+        job_id: int,
+        comment_id: str,
+        reaction_types: List[str],
+    ) -> None:
+        """Remove rows with given reaction types
+
+        Args:
+          forge: forge name
+          project_id: forge project id
+          mr_iid: merge request forge iid
+          job_id: forge job id
+          comment_id: forge comment id
+          reaction_type: a str iterable, ex. ['thumbsup', 'thumbsdown']
+        """
+        for reaction_type in reaction_types:
+            reaction = cls.get_reaction_by_type(
+                forge, project_id, mr_iid, job_id, comment_id, reaction_type
+            )
+            with transaction(commit=True) as session:
+                session.delete(reaction)
+                session.flush()

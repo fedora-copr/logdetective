@@ -5,6 +5,7 @@ import aiohttp
 import responses
 import aioresponses
 
+from gitlab import Gitlab
 from flexmock import flexmock
 
 from test_helpers import (
@@ -13,34 +14,33 @@ from test_helpers import (
 
 from logdetective.server.server import process_gitlab_job_event
 from logdetective.server.models import JobHook
-from logdetective.server import server
-from logdetective.server.remote_log import RemoteLog
+from logdetective.server.compressors import RemoteLogCompressor
 from logdetective.server.database.models import (
     AnalyzeRequestMetrics,
-    Comments,
     Forge,
 )
+from logdetective.server import gitlab, llm
 
 
 @pytest.fixture
 def mock_config():
-    flexmock(server).should_receive("SERVER_CONFIG").and_return(
-        flexmock(
-            gitlab=flexmock(
-                api_url="https://gitlab.com", api_token="abc", max_artifact_size=1234567
-            ),
-            extractor=flexmock(max_clusters=1),
-            inference=flexmock(
-                model="some.gguf",
-                max_tokens=-1,
-                api_token="def",
-                api_endpoint="/chat/completitions",
-                temperature=1,
-                url="http://llama-cpp-server:8000",
-            ),
-            general=flexmock(packages="a project"),
-        )
+    server_config = flexmock(
+        gitlab=flexmock(
+            api_url="https://gitlab.com", api_token="abc", max_artifact_size=1234567
+        ),
+        extractor=flexmock(max_clusters=1),
+        inference=flexmock(
+            model="some.gguf",
+            max_tokens=-1,
+            api_token="def",
+            api_endpoint="/chat/completitions",
+            temperature=1,
+            url="http://llama-cpp-server:8000",
+        ),
+        general=flexmock(packages="a project"),
     )
+    flexmock(gitlab).should_receive("SERVER_CONFIG").and_return(server_config)
+    flexmock(llm).should_receive("SERVER_CONFIG").and_return(server_config)
 
 
 def create_zip_content(filepath) -> bytes:
@@ -255,16 +255,18 @@ def mock_job_hook():
 async def test_process_gitlab_job_event(mock_config, mock_job_hook):
     with DatabaseFactory().make_new_db() as session_factory:
         _, _, job_hook = mock_job_hook
+        gitlab_conn = Gitlab(url="https://gitlab.com/")
         await process_gitlab_job_event(
             http=aiohttp.ClientSession(),
+            gitlab_conn=gitlab_conn,
             forge=Forge.gitlab_com,
             job_hook=job_hook,
         )
         with session_factory() as db_session:
             metric = db_session.get(AnalyzeRequestMetrics, 1)
             assert (
-                RemoteLog.unzip(metric.compressed_log) ==  # noqa: W504 flake vs lint
-                "ERROR: some sort of error"
+                RemoteLogCompressor.unzip(metric.compressed_log)  # noqa: W504 flake vs ruff
+                == "ERROR: some sort of error"  # noqa: W503 flake vs lint
             )
 
             assert metric.mr_job.comment

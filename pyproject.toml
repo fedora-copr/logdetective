@@ -70,3 +70,8 @@ disable = [
     "too-few-public-methods",
     "unspecified-encoding",
 ]
+
+[tool.pytest.ini_options]
+testpaths = [
+    "tests",
+]

@@ -1,17 +1,14 @@
 import io
-import logging
 import zipfile
 
 from typing import Union, Dict
+from logdetective.remote_log import RemoteLog
 from logdetective.server.models import (
     StagedResponse,
     Response,
     AnalyzedSnippet,
     Explanation,
 )
-
-
-LOG = logging.getLogger("logdetective")
 
 
 class TextCompressor:
@@ -61,6 +58,54 @@ class TextCompressor:
                 content[file_name] = zip_file.read(file_name).decode("utf-8")
 
         return content
+
+
+class RemoteLogCompressor:
+    """
+    Handles compression of remote log files.
+    """
+
+    LOG_FILE_NAME = "log.txt"
+    COMPRESSOR = TextCompressor()
+
+    def __init__(self, remote_log: RemoteLog):
+        """
+        Initialize with a RemoteLog object.
+        """
+        self._remote_log = remote_log
+
+    @classmethod
+    def zip_text(cls, text: str) -> bytes:
+        """
+        Compress the given text.
+
+        Returns:
+            bytes: Compressed text
+        """
+        return cls.COMPRESSOR.zip({cls.LOG_FILE_NAME: text})
+
+    async def zip_content(self) -> bytes:
+        """
+        Compress the content of the remote log.
+
+        Returns:
+            bytes: Compressed log content
+        """
+        content_text = await self._remote_log.content
+        return self.zip_text(content_text)
+
+    @classmethod
+    def unzip(cls, zip_data: Union[bytes, io.BytesIO]) -> str:
+        """
+        Uncompress the zipped content of the remote log.
+
+        Args:
+            zip_data: Compressed data as bytes or BytesIO
+
+        Returns:
+            str: The decompressed log content
+        """
+        return cls.COMPRESSOR.unzip(zip_data)[cls.LOG_FILE_NAME]
 
 
 class LLMResponseCompressor:
