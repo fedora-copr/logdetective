@@ -68,7 +68,12 @@ async def collect_emojis_in_comments(
         else:
             mr = mrs[mr_iid]
 
-        note = mr.notes.get(comment.comment_id)
+        discussion = mr.discussions.get(comment.comment_id)
+
+        # Get the ID of the first note
+        note_id = discussion.attributes["notes"][0]["id"]
+        note = mr.notes.get(note_id)
+
         emoji_counts = Counter(emoji.name for emoji in note.awardemojis.list())
 
         for key, value in emoji_counts.items():
