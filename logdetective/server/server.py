@@ -16,7 +16,6 @@ import aiohttp
 import sentry_sdk
 
 import logdetective.server.database.base
-from logdetective.server.request_queue import process_queue, enqueue_func
 
 from logdetective.utils import (
     compute_certainty,
@@ -77,16 +76,8 @@ async def lifespan(fapp: FastAPI):
     # Start the background task scheduler for collecting emojis
     asyncio.create_task(schedule_collect_emojis_task())
 
-    # Set up a queue for LLM requests.
-    # When talking to an LLM service, there's a limited number of requests
-    # we can make per-minute.
-    fapp.llm_queue = asyncio.Queue(maxsize=SERVER_CONFIG.inference.max_queue_size)
-    asyncio.create_task(process_queue(fapp.llm_queue))
-
     yield
 
-    # We're shutting down, so cancel any remaining items in the queue
-    fapp.llm_queue.shutdown(immediate=True)
     await fapp.http.close()
 
 
@@ -146,9 +137,7 @@ async def analyze_log(
     log_summary = mine_logs(log_text)
     log_summary = format_snippets(log_summary)
 
-    response = await enqueue_func(
-        app.llm_queue,  # pylint: disable=no-member
-        submit_text,
+    response = await submit_text(
         http_session,
         PROMPT_CONFIG.prompt_template.format(log_summary),
         model=SERVER_CONFIG.inference.model,
@@ -185,26 +174,24 @@ async def analyze_log_staged(
 
     return await perform_staged_analysis(
         http_session,
-        app.llm_queue,  # pylint: disable=no-member
-        log_text=log_text
+        log_text=log_text,
     )
 
 
 @app.get("/queue/print")
 async def queue_print(msg: str):
-    """ Debug endpoint to test the LLM request queue """
+    """Debug endpoint to test the LLM request queue"""
     LOG.info("Will print %s", msg)
-    result = await enqueue_func(
-        app.llm_queue,  # pylint: disable=no-member
-        async_log,
-        msg
-    )
+
+    result = await async_log(msg)
+
     LOG.info("Printed %s and returned it", result)
 
 
 async def async_log(msg):
-    """ Debug function to test the LLM request queue """
-    LOG.critical(msg)
+    """Debug function to test the LLM request queue"""
+    async with SERVER_CONFIG.inference.get_limiter():
+        LOG.critical(msg)
     return msg
 
 
@@ -229,9 +216,7 @@ async def analyze_log_stream(
         headers["Authorization"] = f"Bearer {SERVER_CONFIG.inference.api_token}"
 
     try:
-        stream = await enqueue_func(
-            app.llm_queue,  # pylint: disable=no-member
-            submit_text_chat_completions,
+        stream = submit_text_chat_completions(
             http_session,
             PROMPT_CONFIG.prompt_template.format(log_summary),
             stream=True,
@@ -272,8 +257,11 @@ async def receive_gitlab_job_event_webhook(
     # Handle the message in the background so we can return 204 immediately
     gitlab_cfg = SERVER_CONFIG.gitlab.instances[forge.value]
     background_tasks.add_task(
-        process_gitlab_job_event, http, gitlab_cfg, forge, job_hook,
-        app.llm_queue  # pylint: disable=no-member
+        process_gitlab_job_event,
+        http,
+        gitlab_cfg,
+        forge,
+        job_hook,
     )
 
     # No return value or body is required for a webhook.

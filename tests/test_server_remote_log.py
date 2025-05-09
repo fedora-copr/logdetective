@@ -25,3 +25,5 @@ async def test_server_remote_log():
         url_text = compressor.unzip(zip_data)
         assert url_text
         assert mock_response in url_text
+
+    await http_session.close()

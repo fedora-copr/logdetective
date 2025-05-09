@@ -38,7 +38,6 @@ async def process_gitlab_job_event(
     gitlab_cfg: GitLabInstanceConfig,
     forge: Forge,
     job_hook: JobHook,
-    llm_queue: asyncio.Queue
 ):  # pylint: disable=too-many-locals
     """Handle a received job_event webhook from GitLab"""
     LOG.debug("Received webhook message from %s:\n%s", forge.value, job_hook)
@@ -89,7 +88,7 @@ async def process_gitlab_job_event(
         http_session=http,
         compressed_log_content=RemoteLogCompressor.zip_text(log_text),
     )
-    staged_response = await perform_staged_analysis(http, llm_queue, log_text=log_text)
+    staged_response = await perform_staged_analysis(http, log_text=log_text)
     update_metrics(metrics_id, staged_response)
     preprocessed_log.close()
 
