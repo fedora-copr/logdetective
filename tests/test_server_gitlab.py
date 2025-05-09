@@ -267,8 +267,9 @@ async def test_process_gitlab_job_event(mock_config, mock_job_hook):
                 "max_artifact_size": 300,
             }
         )
+        http_session = aiohttp.ClientSession()
         await process_gitlab_job_event(
-            http=aiohttp.ClientSession(),
+            http=http_session,
             gitlab_cfg=gitlab_instance,
             forge=Forge.gitlab_com,
             job_hook=job_hook,
@@ -281,3 +282,4 @@ async def test_process_gitlab_job_event(mock_config, mock_job_hook):
             )
 
             assert metric.mr_job.comment
+        await http_session.close()
