@@ -5,6 +5,8 @@ import aiohttp
 import aioresponses
 import pytest
 
+from aiolimiter import AsyncLimiter
+
 from logdetective.server.config import SERVER_CONFIG
 from logdetective.server.llm import (
     submit_to_llm_endpoint,
@@ -107,6 +109,7 @@ async def test_submit_to_llm():
         }
         headers = {"Content-Type": "application/json"}
         url = "http://localhost:8080/v1/chat/completions"
+
         async with aiohttp.ClientSession() as http:
             response = submit_to_llm_endpoint(http, url, data, headers, False)
             response = await response

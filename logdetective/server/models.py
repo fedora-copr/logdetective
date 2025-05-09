@@ -10,6 +10,7 @@ from pydantic import (
     HttpUrl,
 )
 
+from aiolimiter import AsyncLimiter
 from gitlab import Gitlab
 
 from logdetective.constants import (
@@ -140,6 +141,7 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
     temperature: NonNegativeFloat = DEFAULT_TEMPERATURE
     max_queue_size: int = LLM_DEFAULT_MAX_QUEUE_SIZE
     request_period: float = 60.0 / LLM_DEFAULT_REQUESTS_PER_MINUTE
+    _limiter: AsyncLimiter = AsyncLimiter(LLM_DEFAULT_REQUESTS_PER_MINUTE)
 
     def __init__(self, data: Optional[dict] = None):
         super().__init__()
@@ -155,13 +157,14 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
         self.temperature = data.get("temperature", DEFAULT_TEMPERATURE)
         self.max_queue_size = data.get("max_queue_size", LLM_DEFAULT_MAX_QUEUE_SIZE)
 
-        requests_per_minute = data.get("requests_per_minute", LLM_DEFAULT_REQUESTS_PER_MINUTE)
-        if not requests_per_minute:
-            # Set to 0 means unlimited, so we'll simulate this with a very
-            # short period of 0.01s
-            self.request_period = 0.01
-        else:
-            self.request_period = 60.0 / requests_per_minute
+        self._requests_per_minute = data.get(
+            "requests_per_minute", LLM_DEFAULT_REQUESTS_PER_MINUTE
+        )
+        self._limiter = AsyncLimiter(self._requests_per_minute)
+
+    def get_limiter(self):
+        """Return the limiter object so it can be used as a context manager"""
+        return self._limiter
 
 
 class ExtractorConfig(BaseModel):

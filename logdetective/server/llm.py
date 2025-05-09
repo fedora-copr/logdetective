@@ -11,7 +11,6 @@ import aiohttp
 
 from logdetective.constants import SNIPPET_DELIMITER
 from logdetective.extractors import DrainExtractor
-from logdetective.server.request_queue import enqueue_func
 from logdetective.utils import (
     compute_certainty,
 )
@@ -68,30 +67,31 @@ async def submit_to_llm_endpoint(
     headers:
     stream:
     """
-    LOG.debug("async request %s headers=%s data=%s", url, headers, data)
-    response = await http.post(
-        url,
-        headers=headers,
-        # we need to use the `json=` parameter here and let aiohttp
-        # handle the json-encoding
-        json=data,
-        timeout=int(LLM_CPP_SERVER_TIMEOUT),
-        # Docs says chunked takes int, but:
-        #   DeprecationWarning: Chunk size is deprecated #1615
-        # So let's make sure we either put True or None here
-        chunked=True if stream else None,
-        raise_for_status=True,
-    )
-    if stream:
-        return response
-    try:
-        return json.loads(await response.text())
-    except UnicodeDecodeError as ex:
-        LOG.error("Error encountered while parsing llama server response: %s", ex)
-        raise HTTPException(
-            status_code=400,
-            detail=f"Couldn't parse the response.\nError: {ex}\nData: {response.text}",
-        ) from ex
+    async with SERVER_CONFIG.inference.get_limiter():
+        LOG.debug("async request %s headers=%s data=%s", url, headers, data)
+        response = await http.post(
+            url,
+            headers=headers,
+            # we need to use the `json=` parameter here and let aiohttp
+            # handle the json-encoding
+            json=data,
+            timeout=int(LLM_CPP_SERVER_TIMEOUT),
+            # Docs says chunked takes int, but:
+            #   DeprecationWarning: Chunk size is deprecated #1615
+            # So let's make sure we either put True or None here
+            chunked=True if stream else None,
+            raise_for_status=True,
+        )
+        if stream:
+            return response
+        try:
+            return json.loads(await response.text())
+        except UnicodeDecodeError as ex:
+            LOG.error("Error encountered while parsing llama server response: %s", ex)
+            raise HTTPException(
+                status_code=400,
+                detail=f"Couldn't parse the response.\nError: {ex}\nData: {response.text}",
+            ) from ex
 
 
 def should_we_giveup(exc: aiohttp.ClientResponseError) -> bool:
@@ -232,16 +232,14 @@ async def submit_text_chat_completions(  # pylint: disable=R0913,R0917
 
 
 async def perform_staged_analysis(
-    http: aiohttp.ClientSession, llm_queue: asyncio.Queue, log_text: str
+    http: aiohttp.ClientSession, log_text: str
 ) -> StagedResponse:
     """Submit the log file snippets to the LLM and retrieve their results"""
     log_summary = mine_logs(log_text)
 
-    # Process snippets asynchronously via asyncio queue
+    # Process snippets asynchronously
     awaitables = [
-        enqueue_func(
-            llm_queue,
-            submit_text,
+        submit_text(
             http,
             PROMPT_CONFIG.snippet_prompt_template.format(s),
             model=SERVER_CONFIG.inference.model,

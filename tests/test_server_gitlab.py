@@ -6,6 +6,7 @@ import aiohttp
 import responses
 import aioresponses
 
+from aiolimiter import AsyncLimiter
 from gitlab import Gitlab
 from flexmock import flexmock
 
@@ -13,7 +14,6 @@ from test_helpers import (
     DatabaseFactory,
 )
 
-from logdetective.server.request_queue import process_queue
 from logdetective.server.server import process_gitlab_job_event
 from logdetective.server.models import JobHook, GitLabInstanceConfig
 from logdetective.server.compressors import RemoteLogCompressor
@@ -26,6 +26,7 @@ from logdetective.server import gitlab, llm
 
 @pytest.fixture
 def mock_config():
+    limiter = AsyncLimiter(1000)
     server_config = flexmock(
         gitlab=flexmock(
             api_url="https://gitlab.com", api_token="abc", max_artifact_size=1234567
@@ -38,6 +39,7 @@ def mock_config():
             api_endpoint="/chat/completitions",
             temperature=1,
             url="http://llama-cpp-server:8000",
+            get_limiter=lambda: limiter,
         ),
         general=flexmock(packages="a project"),
     )
@@ -255,33 +257,27 @@ def mock_job_hook():
 
 @pytest.mark.asyncio
 async def test_process_gitlab_job_event(mock_config, mock_job_hook):
-    llm_queue = asyncio.Queue(maxsize=99)
-    asyncio.create_task(process_queue(llm_queue))
-    try:
-        with DatabaseFactory().make_new_db() as session_factory:
-            _, _, job_hook = mock_job_hook
-            gitlab_instance = GitLabInstanceConfig(
-                name="mocked_gitlab",
-                data={
-                    "url": "https://gitlab.com",
-                    "api_token": "empty",
-                    "max_artifact_size": 300,
-                }
+    with DatabaseFactory().make_new_db() as session_factory:
+        _, _, job_hook = mock_job_hook
+        gitlab_instance = GitLabInstanceConfig(
+            name="mocked_gitlab",
+            data={
+                "url": "https://gitlab.com",
+                "api_token": "empty",
+                "max_artifact_size": 300,
+            }
+        )
+        await process_gitlab_job_event(
+            http=aiohttp.ClientSession(),
+            gitlab_cfg=gitlab_instance,
+            forge=Forge.gitlab_com,
+            job_hook=job_hook,
+        )
+        with session_factory() as db_session:
+            metric = db_session.get(AnalyzeRequestMetrics, 1)
+            assert (
+                RemoteLogCompressor.unzip(metric.compressed_log)  # noqa: W504 flake vs ruff
+                == "ERROR: some sort of error"  # noqa: W503 flake vs lint
             )
-            await process_gitlab_job_event(
-                http=aiohttp.ClientSession(),
-                gitlab_cfg=gitlab_instance,
-                forge=Forge.gitlab_com,
-                job_hook=job_hook,
-                llm_queue=llm_queue
-            )
-            with session_factory() as db_session:
-                metric = db_session.get(AnalyzeRequestMetrics, 1)
-                assert (
-                    RemoteLogCompressor.unzip(metric.compressed_log)  # noqa: W504 flake vs ruff
-                    == "ERROR: some sort of error"  # noqa: W503 flake vs lint
-                )
 
-                assert metric.mr_job.comment
-    finally:
-        llm_queue.shutdown(immediate=True)
+            assert metric.mr_job.comment
