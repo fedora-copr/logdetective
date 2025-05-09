@@ -16,6 +16,7 @@ import aiohttp
 import sentry_sdk
 
 import logdetective.server.database.base
+from logdetective.server.request_queue import process_queue, enqueue_func
 
 from logdetective.utils import (
     compute_certainty,
@@ -89,32 +90,6 @@ async def lifespan(fapp: FastAPI):
     await fapp.http.close()
 
 
-def enqueue_func(queue, coro, *args, **kwargs):
-    loop = asyncio.get_running_loop()
-    future = loop.create_future()
-
-    queue.put_nowait((future, coro, args, kwargs))
-    return future
-
-
-async def process_queue(llm_queue):
-    """Run an item on the queue every interval seconds.
-
-    """
-    while True:
-        try:
-            future, coro, args, kwargs = await llm_queue.get()
-            result = await coro(*args, **kwargs)
-            future.set_result(result)
-            llm_queue.task_done()
-        except asyncio.QueueEmpty:
-            pass
-        except asyncio.QueueShutDown:
-            break
-
-        await asyncio.sleep(SERVER_CONFIG.inference.request_period)
-
-
 async def get_http_session(request: Request) -> aiohttp.ClientSession:
     """
     Return the single aiohttp ClientSession for this app
@@ -172,7 +147,7 @@ async def analyze_log(
     log_summary = format_snippets(log_summary)
 
     response = await enqueue_func(
-        app.llm_queue,
+        app.llm_queue,  # pylint: disable=no-member
         submit_text,
         http_session,
         PROMPT_CONFIG.prompt_template.format(log_summary),
@@ -208,17 +183,27 @@ async def analyze_log_staged(
     remote_log = RemoteLog(build_log.url, http_session)
     log_text = await remote_log.process_url()
 
-    return await perform_staged_analysis(http_session, log_text=log_text)
+    return await perform_staged_analysis(
+        http_session,
+        app.llm_queue,  # pylint: disable=no-member
+        log_text=log_text
+    )
 
 
 @app.get("/queue/print")
 async def queue_print(msg: str):
+    """ Debug endpoint to test the LLM request queue """
     LOG.info("Will print %s", msg)
-    result = await enqueue_func(app.llm_queue, async_log, msg)
+    result = await enqueue_func(
+        app.llm_queue,  # pylint: disable=no-member
+        async_log,
+        msg
+    )
     LOG.info("Printed %s and returned it", result)
 
 
 async def async_log(msg):
+    """ Debug function to test the LLM request queue """
     LOG.critical(msg)
     return msg
 
@@ -245,7 +230,7 @@ async def analyze_log_stream(
 
     try:
         stream = await enqueue_func(
-            app.llm_queue,
+            app.llm_queue,  # pylint: disable=no-member
             submit_text_chat_completions,
             http_session,
             PROMPT_CONFIG.prompt_template.format(log_summary),
@@ -287,7 +272,8 @@ async def receive_gitlab_job_event_webhook(
     # Handle the message in the background so we can return 204 immediately
     gitlab_cfg = SERVER_CONFIG.gitlab.instances[forge.value]
     background_tasks.add_task(
-        process_gitlab_job_event, http, gitlab_cfg, forge, job_hook
+        process_gitlab_job_event, http, gitlab_cfg, forge, job_hook,
+        app.llm_queue  # pylint: disable=no-member
     )
 
     # No return value or body is required for a webhook.

@@ -11,6 +11,7 @@ import aiohttp
 
 from logdetective.constants import SNIPPET_DELIMITER
 from logdetective.extractors import DrainExtractor
+from logdetective.server.request_queue import enqueue_func
 from logdetective.utils import (
     compute_certainty,
 )
@@ -231,23 +232,24 @@ async def submit_text_chat_completions(  # pylint: disable=R0913,R0917
 
 
 async def perform_staged_analysis(
-    http: aiohttp.ClientSession, log_text: str
+    http: aiohttp.ClientSession, llm_queue: asyncio.Queue, log_text: str
 ) -> StagedResponse:
     """Submit the log file snippets to the LLM and retrieve their results"""
     log_summary = mine_logs(log_text)
 
-    # Process snippets asynchronously
-    analyzed_snippets = await asyncio.gather(
-        *[
-            submit_text(
-                http,
-                PROMPT_CONFIG.snippet_prompt_template.format(s),
-                model=SERVER_CONFIG.inference.model,
-                max_tokens=SERVER_CONFIG.inference.max_tokens,
-            )
-            for s in log_summary
-        ]
-    )
+    # Process snippets asynchronously via asyncio queue
+    awaitables = [
+        enqueue_func(
+            llm_queue,
+            submit_text,
+            http,
+            PROMPT_CONFIG.snippet_prompt_template.format(s),
+            model=SERVER_CONFIG.inference.model,
+            max_tokens=SERVER_CONFIG.inference.max_tokens,
+        )
+        for s in log_summary
+    ]
+    analyzed_snippets = await asyncio.gather(*awaitables)
 
     analyzed_snippets = [
         AnalyzedSnippet(line_number=e[0][0], text=e[0][1], explanation=e[1])
