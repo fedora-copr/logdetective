@@ -8,6 +8,7 @@ inference:
   url: http://llama-cpp-server:8000
   # url: https://mistral-7b-instruct-v0-3--apicast-production.apps.int.stc.ai.prod.us-east-1.aws.paas.redhat.com/
   api_token: ""
+  requests_per_minute: 6
 extractor:
   context: true
   max_clusters: 25
