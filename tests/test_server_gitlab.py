@@ -169,7 +169,7 @@ def mock_job_hook():
     with responses.RequestsMock() as sync_rsps:
         with aioresponses.aioresponses() as async_rsps:
             async_rsps.head(
-                url="https://gitlab.com/projects/678/jobs/1/artifacts",
+                url="https://gitlab.com/api/v4/projects/678/jobs/1/artifacts",
                 status=200,
                 headers=mocked_headers,
             )
