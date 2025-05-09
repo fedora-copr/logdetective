@@ -126,7 +126,7 @@ class StagedResponse(Response):
     snippets: List[AnalyzedSnippet]
 
 
-class InferenceConfig(BaseModel):
+class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attributes
     """Model for inference configuration of logdetective server."""
 
     max_tokens: int = -1
