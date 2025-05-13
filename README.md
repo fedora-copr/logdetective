@@ -5,14 +5,16 @@ Log Detective
 
 [PyPI Releases]: https://pypi.org/project/logdetective/#history
 
-A Python tool to analyze logs using a Language Model (LLM) and Drain template miner.
+A tool, service and RHEL process integration to analyze logs using a Language Model (LLM) and a [Drain template miner](https://github.com/logpai/Drain3).
+
+The service that explains logs is available here: https://logdetective.com/explain
 
 Note: if you are looking for code of website logdetective.com it is in [github.com/fedora-copr/logdetective-website](https://github.com/fedora-copr/logdetective-website).
 
 Installation
 ------------
 
-**Fedora 40+**
+**Fedora 41+**
 
     dnf install logdetective
 
@@ -27,10 +29,11 @@ First, ensure that the necessary dependencies for the `llama-cpp-python` project
 
 Then, install the `logdetective` project using pip:
 
-    # then install logdetective project
     pip install logdetective
 
 **Local repository install**
+
+Clone this repository and install with pip:
 
     pip install .
 
@@ -68,14 +71,14 @@ Example of altered prompts:
      logdetective https://kojipkgs.fedoraproject.org//work/tasks/3367/131313367/build.log --prompts ~/my-prompts.yml
 
 
-Note that streaming with some models (notably Meta-Llama-3 is broken) is broken and can be workarounded by `no-stream` option:
+Note that streaming with some models (notably Meta-Llama-3 is broken) is broken and can be worked around by `no-stream` option:
 
     logdetective https://example.com/logs.txt --model QuantFactory/Meta-Llama-3-8B-Instruct-GGUF --no-stream
 
 
 Real Example
 ------------
-Let's have a look at a real world example. Log Detective can work with any logs though we optimize it for build logs.
+Let's have a look at a real world example. Log Detective can work with any logs though we optimize it for RPM build logs.
 
 We're going to analyze a failed build of a python-based library that happened in Fedora Koji buildsystem:
 ```
@@ -141,8 +144,13 @@ Contributing
 ------------
 
 Contributions are welcome! Please submit a pull request if you have any improvements or new features to add. Make sure your changes pass all existing tests before submitting.
+For bigger code changes, please consult us first by creating an issue.
 
-To develop logdetective, you should fork this repository, clone your fork, and install dependencies using pip:
+We are always looking for more annotated snippets that will increase the quality of Log Detective's results. The contributions happen in our website: https://logdetective.com/
+
+Log Detective performs several inference queries while evaluating a log file. Prompts are stored in a separate file (more info below: https://github.com/fedora-copr/logdetective?tab=readme-ov-file#system-prompts). If you have an idea for improvements to our prompts, please open a PR and we'd happy to test it out.
+
+To develop Log Detective, you should fork this repository, clone your fork, and install dependencies using pip:
 
     git clone https://github.com/yourusername/logdetective.git
     cd logdetective
