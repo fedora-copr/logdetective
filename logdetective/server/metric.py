@@ -84,7 +84,24 @@ def update_metrics(
 
 def track_request(name=None):
     """
-    Decorator to track requests metrics
+    Decorator to track requests/responses metrics
+
+    On entering the decorated function, it registers the time for the request
+    and saves the passed log content.
+    On exiting the decorated function, it registers the time for the response
+    and saves the generated response.
+
+    Use it to decorate server endpoints that generate a llm response
+    as in the following example:
+
+    >>> @app.post("/analyze", response_model=Response)
+    >>> @track_request()
+    >>> async def analyze_log(build_log)
+    >>>     pass
+
+    Warning: the decorators' order is important!
+    The function returned by the *track_request* decorator is the
+    server API function we want to be called by FastAPI.
     """
 
     def decorator(f):
