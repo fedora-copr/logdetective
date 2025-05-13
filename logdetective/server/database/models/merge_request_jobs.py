@@ -1,6 +1,6 @@
 import enum
 import datetime
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
 import backoff
 
@@ -585,3 +585,19 @@ class Reactions(Base):
             with transaction(commit=True) as session:
                 session.delete(reaction)
                 session.flush()
+
+    @classmethod
+    def get_since(
+        cls, time: datetime.datetime
+    ) -> List[Tuple[datetime.datetime, "Comments"]]:
+        """Get all the reactions on comments created after the given time
+        and the comment creation time."""
+        with transaction(commit=False) as session:
+            reactions = (
+                session.query(Comments.created_at, cls)
+                .join(Comments, cls.comment_id == Comments.id)
+                .filter(Comments.created_at > time)
+                .all()
+            )
+
+            return reactions

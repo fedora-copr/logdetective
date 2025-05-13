@@ -11,6 +11,7 @@ from logdetective.server.plot import (
     create_time_series_arrays,
     requests_per_time,
     average_time_per_responses,
+    emojis_per_time,
 )
 
 
@@ -63,6 +64,27 @@ def _save_fig(fig):
     fig.savefig(temp_filename, bbox_inches="tight")  # for inspecting it later
 
 
+def _test_plot(
+    duration: datetime.timedelta,
+    period: models.TimePeriod,
+    plot: callable,
+    endpoint: EndpointType = None,
+) -> None:
+    if plot is emojis_per_time:
+        with PopulateDatabase.populate_db_with_emojis(
+            duration=duration,
+        ) as _:
+            fig = plot(period)
+    else:
+        with PopulateDatabase.populate_db(
+            duration=duration,
+            endpoint=endpoint,
+        ) as _:
+            fig = plot(period, endpoint)
+    assert fig
+    _save_fig(fig)
+
+
 @pytest.mark.parametrize(
     "endpoint,plot",
     [
@@ -85,19 +107,18 @@ def _save_fig(fig):
             EndpointType.ANALYZE_STAGED,
             average_time_per_responses,
             id="average time and length for ANALYZE_STAGED endpoint",
+        ),
+        pytest.param(
+            None,
+            emojis_per_time,
+            id="emoji feedback",
         ),
     ],
 )
 def test_hourly_plots(endpoint, plot):
     duration = datetime.timedelta(hours=14)
-    with PopulateDatabase.populate_db(
-        duration=duration,
-        endpoint=endpoint,
-    ) as _:
-        period = models.TimePeriod(hours=22)
-        fig = plot(period, endpoint)
-        assert fig
-        _save_fig(fig)
+    period = models.TimePeriod(hours=22)
+    _test_plot(duration, period, plot, endpoint)
 
 
 @pytest.mark.parametrize(
@@ -122,19 +143,18 @@ def test_hourly_plots(endpoint, plot):
             EndpointType.ANALYZE_STAGED,
             average_time_per_responses,
             id="average time and length for ANALYZE_STAGED endpoint",
+        ),
+        pytest.param(
+            None,
+            emojis_per_time,
+            id="emoji feedback",
         ),
     ],
 )
 def test_daily_plots(endpoint, plot):
     duration = datetime.timedelta(days=9)
-    with PopulateDatabase.populate_db(
-        duration=duration,
-        endpoint=endpoint,
-    ) as _:
-        period = models.TimePeriod(days=15)
-        fig = plot(period, endpoint)
-        assert fig
-        _save_fig(fig)
+    period = models.TimePeriod(days=15)
+    _test_plot(duration, period, plot, endpoint)
 
 
 @pytest.mark.parametrize(
@@ -160,15 +180,14 @@ def test_daily_plots(endpoint, plot):
             average_time_per_responses,
             id="average time and length for ANALYZE_STAGED endpoint",
         ),
+        pytest.param(
+            None,
+            emojis_per_time,
+            id="emoji feedback",
+        ),
     ],
 )
 def test_weekly_plots(endpoint, plot):
     duration = datetime.timedelta(weeks=3)
-    with PopulateDatabase.populate_db(
-        duration=duration,
-        endpoint=endpoint,
-    ) as _:
-        period = models.TimePeriod(weeks=5)
-        fig = plot(period, endpoint)
-        assert fig
-        _save_fig(fig)
+    period = models.TimePeriod(weeks=5)
+    _test_plot(duration, period, plot, endpoint)
