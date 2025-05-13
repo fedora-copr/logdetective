@@ -115,7 +115,7 @@ def we_give_up(details: backoff._typing.Details):
 
 
 @backoff.on_exception(
-    backoff.expo,
+    lambda: backoff.constant([10, 30, 120]),
     aiohttp.ClientResponseError,
     max_tries=3,
     giveup=should_we_giveup,
