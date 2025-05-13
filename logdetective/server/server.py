@@ -158,8 +158,8 @@ async def analyze_log(
     return Response(explanation=response, response_certainty=certainty)
 
 
-@track_request()
 @app.post("/analyze/staged", response_model=StagedResponse)
+@track_request()
 async def analyze_log_staged(
     build_log: BuildLog, http_session: aiohttp.ClientSession = Depends(get_http_session)
 ):
