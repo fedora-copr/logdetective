@@ -315,7 +315,7 @@ using either a browser, the `curl` or the `http` command (provided by the `httpi
 
 When no time period is specified, the query defaults to the last 2 days:
 
-You can view requests and responses statistics
+You can view requests, responses and emojis statistics
  - for the `/analyze` endpoint at http://localhost:8080/metrics/analyze
  - for the `/analyze-staged` endpoint at http://localhost:8080/metrics/analyze-staged.
  - for the requests coming from gitlab: http://localhost:8080/metrics/analyze-gitlab.
@@ -327,6 +327,7 @@ You can retrieve single svg images at the following endpoints:
  - http://localhost:8080/metrics/analyze-staged/responses
  - http://localhost:8080/metrics/analyze-gitlab/requests
  - http://localhost:8080/metrics/analyze-gitlab/responses
+ - http://localhost:8080/metrics/analyze-gitlab/emojis
 
 Examples:
 

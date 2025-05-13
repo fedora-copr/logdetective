@@ -420,6 +420,7 @@ class Plot(str, Enum):
 
     REQUESTS = "requests"
     RESPONSES = "responses"
+    EMOJIS = "emojis"
     BOTH = ""
 
 
@@ -450,12 +451,16 @@ async def get_metrics(
                 period_since_now, endpoint_type
             )
             return _svg_figure_response(fig)
+        if plot == Plot.EMOJIS:
+            fig = plot_engine.emojis_per_time(period_since_now)
+            return _svg_figure_response(fig)
         # BOTH
         fig_requests = plot_engine.requests_per_time(period_since_now, endpoint_type)
         fig_responses = plot_engine.average_time_per_responses(
             period_since_now, endpoint_type
         )
-        return _multiple_svg_figures_response([fig_requests, fig_responses])
+        fig_emojis = plot_engine.emojis_per_time(period_since_now)
+        return _multiple_svg_figures_response([fig_requests, fig_responses, fig_emojis])
 
     descriptions = {
         Plot.REQUESTS: (
@@ -464,6 +469,10 @@ async def get_metrics(
         ),
         Plot.RESPONSES: (
             "Show statistics for responses given in the specified period of time "
+            f"for the /{endpoint_type.value} API endpoint."
+        ),
+        Plot.EMOJIS: (
+            "Show statistics for emoji feedback in the specified period of time "
             f"for the /{endpoint_type.value} API endpoint."
         ),
         Plot.BOTH: (
