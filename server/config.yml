@@ -25,4 +25,6 @@ gitlab:
 general:
   devmode: False
   packages:
-    - osci-internal-test-package
+    - .*
+  excluded_packages:
+    - ^redhat-internal-.*

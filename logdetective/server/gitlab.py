@@ -93,7 +93,7 @@ async def process_gitlab_job_event(
     preprocessed_log.close()
 
     # check if this project is on the opt-in list for posting comments.
-    if project.name not in SERVER_CONFIG.general.packages:
+    if not is_eligible_package(project.name):
         LOG.info("Not publishing comment for unrecognized package %s", project.name)
         return
 
@@ -109,6 +109,31 @@ async def process_gitlab_job_event(
     )
 
     return staged_response
+
+
+def is_eligible_package(project_name: str):
+    """Check whether the provided package name is eligible for posting
+    comments to the merge request"""
+
+    # First check the allow-list. If it's not allowed, we deny.
+    allowed = False
+    for pattern in SERVER_CONFIG.general.packages:
+        print(f"include {pattern}")
+        if re.search(pattern, project_name):
+            allowed = True
+            break
+    if not allowed:
+        # The project did not match any of the permitted regular expressions
+        return False
+
+    # Next, check the deny-list. If it was allowed before, but denied here, we deny.
+    for pattern in SERVER_CONFIG.general.excluded_packages:
+        print(f"Exclude {pattern}")
+        if re.search(pattern, project_name):
+            return False
+
+    # It was allowed and not denied, so return True to indicate it is eligible
+    return True
 
 
 class LogsTooLargeError(RuntimeError):
