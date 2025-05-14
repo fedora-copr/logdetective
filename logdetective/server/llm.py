@@ -240,6 +240,10 @@ async def perform_staged_analysis(
     """Submit the log file snippets to the LLM and retrieve their results"""
     log_summary = mine_logs(log_text)
 
+    LOG.info(
+        "About to process snippets: %s",
+        str([PROMPT_CONFIG.snippet_prompt_template.format(s) for s in log_summary]),
+    )
     # Process snippets asynchronously
     awaitables = [
         submit_text(
@@ -252,6 +256,8 @@ async def perform_staged_analysis(
     ]
     analyzed_snippets = await asyncio.gather(*awaitables)
 
+    LOG.info("Got analyzed snippets: %s", str(analyzed_snippets))
+
     analyzed_snippets = [
         AnalyzedSnippet(line_number=e[0][0], text=e[0][1], explanation=e[1])
         for e in zip(log_summary, analyzed_snippets)
@@ -259,6 +265,8 @@ async def perform_staged_analysis(
     final_prompt = PROMPT_CONFIG.prompt_template_staged.format(
         format_analyzed_snippets(analyzed_snippets)
     )
+
+    LOG.info("Submitting final prompt: %s", str(final_prompt))
 
     final_analysis = await submit_text(
         http,

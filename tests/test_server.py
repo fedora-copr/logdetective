@@ -174,3 +174,15 @@ async def test_perform_staged_analysis_with_errors():
         async with aiohttp.ClientSession() as http:
             with pytest.raises(HTTPException):
                 await perform_staged_analysis(http, "abc")
+
+
+@pytest.mark.asyncio
+async def test_submit_text_strange_log():
+    SERVER_CONFIG.inference.url = (
+        "https://mistral-7b-instruct-v0-2-lqmssh22.apps.int.stc.ai.prod.us-east-1.aws.paas.redhat.com"
+    )
+    async with aiohttp.ClientSession() as http:
+        with open("tests/data/strange-snippet-x86_64-root.test-log", "r") as log:
+            content = log.read()
+            staged_response = await perform_staged_analysis(http, log_text=content)
+            assert staged_response
