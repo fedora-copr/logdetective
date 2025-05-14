@@ -33,6 +33,11 @@ MR_REGEX = re.compile(r"refs/merge-requests/(\d+)/.*$")
 FAILURE_LOG_REGEX = re.compile(r"(\w*\.log)")
 
 
+def check_supported_packages():
+    """ should we handle this package? """
+    return True
+
+
 async def process_gitlab_job_event(
     http: aiohttp.ClientSession,
     gitlab_cfg: GitLabInstanceConfig,
@@ -92,9 +97,10 @@ async def process_gitlab_job_event(
     update_metrics(metrics_id, staged_response)
     preprocessed_log.close()
 
-    # check if this project is on the opt-in list for posting comments.
-    if project.name not in SERVER_CONFIG.general.packages:
-        LOG.info("Not publishing comment for unrecognized package %s", project.name)
+    # a place for a future opt-out function
+    # the function now returns True always
+    if not check_supported_packages():
+        LOG.info("Not publishing comment for unsupported package %s", project.name)
         return
 
     # Add the Log Detective response as a comment to the merge request
