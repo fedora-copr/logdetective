@@ -14,6 +14,7 @@ from test_helpers import (
     DatabaseFactory,
 )
 
+from logdetective.server.gitlab import is_eligible_package
 from logdetective.server.server import process_gitlab_job_event
 from logdetective.server.models import JobHook, GitLabInstanceConfig
 from logdetective.server.compressors import RemoteLogCompressor
@@ -41,7 +42,10 @@ def mock_config():
             url="http://llama-cpp-server:8000",
             get_limiter=lambda: limiter,
         ),
-        general=flexmock(packages="a project"),
+        general=flexmock(
+            packages=["a project", "python3-.*"],
+            excluded_packages=["python3-excluded", "python3-more-exclusions.*"],
+        ),
     )
     flexmock(gitlab).should_receive("SERVER_CONFIG").and_return(server_config)
     flexmock(llm).should_receive("SERVER_CONFIG").and_return(server_config)
@@ -265,7 +269,7 @@ async def test_process_gitlab_job_event(mock_config, mock_job_hook):
                 "url": "https://gitlab.com",
                 "api_token": "empty",
                 "max_artifact_size": 300,
-            }
+            },
         )
         http_session = aiohttp.ClientSession()
         await process_gitlab_job_event(
@@ -283,3 +287,21 @@ async def test_process_gitlab_job_event(mock_config, mock_job_hook):
 
             assert metric.mr_job.comment
         await http_session.close()
+
+
+@pytest.mark.asyncio
+async def test_is_eligible_package(mock_config):
+    # Test an explicit full-text value
+    assert is_eligible_package("a project")
+
+    # Test a non-existent package name
+    assert not is_eligible_package("a fake project")
+
+    # Test a regular-expression match
+    assert is_eligible_package("python3-logdetective")
+
+    # Test an excluded explicit name
+    assert not is_eligible_package("python3-excluded")
+
+    # Test an excluded regular expression
+    assert not is_eligible_package("python3-more-exclusions-foo")
