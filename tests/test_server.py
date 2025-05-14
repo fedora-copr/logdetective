@@ -5,10 +5,12 @@ import aiohttp
 import aioresponses
 import pytest
 
+from fastapi import HTTPException
 from aiolimiter import AsyncLimiter
 
 from logdetective.server.config import SERVER_CONFIG
 from logdetective.server.llm import (
+    perform_staged_analysis,
     submit_to_llm_endpoint,
     submit_text_chat_completions,
 )
@@ -140,3 +142,35 @@ async def test_submit_text_chat_completions():
             response = await submit_text_chat_completions(http, "asd", {}, stream=True)
             async for x in response.content:
                 assert x == mock_response
+
+
+@pytest.mark.skip(
+    reason=(
+        "This is a really long unit test,"
+        "unskip it when you want to test "
+        "the retries mechanism for the submit_text method"
+    )
+)
+@pytest.mark.asyncio
+async def test_perform_staged_analysis_with_errors():
+    SERVER_CONFIG.inference.url = "http://localhost:8080"
+    with aioresponses.aioresponses() as mock:
+        mock.post(
+            "http://localhost:8080/v1/chat/completions",
+            status=504,
+            body="Gateway Time-out",
+        )
+        mock.post(
+            "http://localhost:8080/v1/chat/completions",
+            status=504,
+            body="Gateway Time-out",
+        )
+        mock.post(
+            "http://localhost:8080/v1/chat/completions", status=400, body="Bad Response"
+        )
+        mock.post(
+            "http://localhost:8080/v1/chat/completions", status=400, body="Bad Response"
+        )
+        async with aiohttp.ClientSession() as http:
+            with pytest.raises(HTTPException):
+                await perform_staged_analysis(http, "abc")

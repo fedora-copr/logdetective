@@ -1,6 +1,7 @@
 import os
 import asyncio
 import json
+import random
 from typing import List, Tuple, Dict, Any, Union
 
 import backoff
@@ -102,7 +103,7 @@ def should_we_giveup(exc: aiohttp.ClientResponseError) -> bool:
     > a truthy value if the exception should not be retried
     """
     LOG.info("Should we give up on retrying error %s", exc)
-    return exc.status < 500
+    return exc.status < 400
 
 
 def we_give_up(details: backoff._typing.Details):
@@ -110,6 +111,7 @@ def we_give_up(details: backoff._typing.Details):
     retries didn't work (or we got a different exc)
     we give up and raise proper 500 for our API endpoint
     """
+    LOG.error("Last exception: %s", details["exception"])
     LOG.error("Inference error: %s", details["args"])
     raise HTTPException(500, "Request to the inference API failed")
 
@@ -117,7 +119,8 @@ def we_give_up(details: backoff._typing.Details):
 @backoff.on_exception(
     lambda: backoff.constant([10, 30, 120]),
     aiohttp.ClientResponseError,
-    max_tries=3,
+    max_tries=4,  # 4 tries and 3 retries
+    jitter=lambda wait_gen_value: random.uniform(wait_gen_value, wait_gen_value + 30),
     giveup=should_we_giveup,
     raise_on_giveup=False,
     on_giveup=we_give_up,
