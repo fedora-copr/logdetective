@@ -174,16 +174,17 @@ async def retrieve_and_preprocess_koji_logs(
             with artifacts_zip.open(zipinfo.filename) as task_failed_log:
                 contents = task_failed_log.read().decode("utf-8")
                 match = FAILURE_LOG_REGEX.search(contents)
-                if not match:
-                    LOG.error(
+                if match:
+                    failure_log_name = match.group(1)
+                    failed_arches[architecture] = PurePath(path.parent, failure_log_name)
+                else:
+                    LOG.info(
                         "task_failed.log does not indicate which log contains the failure."
                     )
-                    raise SyntaxError(
-                        "task_failed.log does not indicate which log contains the failure."
-                    )
-                failure_log_name = match.group(1)
-
-            failed_arches[architecture] = PurePath(path.parent, failure_log_name)
+                    # The best thing we can do at this point is return the
+                    # task_failed.log, since it will probably contain the most
+                    # relevant information
+                    failed_arches[architecture] = path
 
     if not failed_arches:
         # No failed task found in the sub-tasks.
