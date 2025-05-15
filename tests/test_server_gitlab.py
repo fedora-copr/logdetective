@@ -7,7 +7,6 @@ import responses
 import aioresponses
 
 from aiolimiter import AsyncLimiter
-from gitlab import Gitlab
 from flexmock import flexmock
 
 from test_helpers import (
@@ -16,7 +15,7 @@ from test_helpers import (
 
 from logdetective.server.gitlab import is_eligible_package
 from logdetective.server.server import process_gitlab_job_event
-from logdetective.server.models import JobHook, GitLabInstanceConfig
+from logdetective.server.models import JobHook, GitLabInstanceConfig, Config
 from logdetective.server.compressors import RemoteLogCompressor
 from logdetective.server.database.models import (
     AnalyzeRequestMetrics,
@@ -28,24 +27,30 @@ from logdetective.server import gitlab, llm
 @pytest.fixture
 def mock_config():
     limiter = AsyncLimiter(1000)
-    server_config = flexmock(
-        gitlab=flexmock(
-            api_url="https://gitlab.com", api_token="abc", max_artifact_size=1234567
-        ),
-        extractor=flexmock(max_clusters=1),
-        inference=flexmock(
-            model="some.gguf",
-            max_tokens=-1,
-            api_token="def",
-            api_endpoint="/chat/completitions",
-            temperature=1,
-            url="http://llama-cpp-server:8000",
-            get_limiter=lambda: limiter,
-        ),
-        general=flexmock(
-            packages=["a project", "python3-.*"],
-            excluded_packages=["python3-excluded", "python3-more-exclusions.*"],
-        ),
+    server_config = Config(
+        data={
+            "gitlab": {
+                "gitlab.com": {
+                    "api_url": "https://gitlab.com",
+                    "api_token": "abc",
+                    "max_artifact_size": 1234567,
+                }
+            },
+            "extractor": {"max_clusters": 1},
+            "inference": {
+                "model": "some.gguf",
+                "max_tokens": -1,
+                "api_token": "def",
+                "api_endpoint": "/chat/completitions",
+                "temperature": 1,
+                "url": "http://llama-cpp-server:8000",
+                "get_limiter": lambda: limiter,
+            },
+            "general": {
+                "packages": ["a project", "python3-.*"],
+                "excluded_packages": ["python3-excluded", "python3-more-exclusions.*"],
+            },
+        }
     )
     flexmock(gitlab).should_receive("SERVER_CONFIG").and_return(server_config)
     flexmock(llm).should_receive("SERVER_CONFIG").and_return(server_config)

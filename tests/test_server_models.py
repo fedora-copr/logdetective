@@ -1,8 +1,9 @@
 import datetime
 import pytest
+import yaml
 
 from pydantic import ValidationError
-from logdetective.server.models import TimePeriod
+from logdetective.server.models import TimePeriod, Config
 
 
 def test_TimePeriod():
@@ -26,3 +27,10 @@ def test_TimePeriod_get_period_start_time():
     d2 = now - datetime.timedelta(weeks=3)
 
     assert d1 == d2
+
+
+def test_parse_deployed_config():
+    with open("server/config.yml", "r", encoding="utf8") as config_file:
+        config_def = yaml.safe_load(config_file)
+        config = Config(data=config_def)
+        assert config
