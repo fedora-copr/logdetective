@@ -191,6 +191,15 @@ class GitLabInstanceConfig(BaseModel):
     url: str = None
     api_url: str = None
     api_token: str = None
+
+    # This is a list to support key rotation.
+    # When the key is being changed, we will add the new key as a new entry in
+    # the configuration and then remove the old key once all of the client
+    # webhook configurations have been updated.
+    # If this option is left empty or unspecified, all requests will be
+    # considered authorized.
+    webhook_secrets: Optional[List[str]] = None
+
     _conn: Gitlab = None
 
     # Maximum size of artifacts.zip in MiB. (default: 300 MiB)
@@ -205,6 +214,7 @@ class GitLabInstanceConfig(BaseModel):
         self.url = data.get("url", "https://gitlab.com")
         self.api_url = f"{self.url}/api/v4"
         self.api_token = data.get("api_token", None)
+        self.webhook_secrets = data.get("webhook_secrets", None)
         self.max_artifact_size = int(data.get("max_artifact_size")) * 1024 * 1024
 
         self._conn = Gitlab(url=self.url, private_token=self.api_token)
