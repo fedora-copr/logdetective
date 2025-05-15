@@ -254,6 +254,7 @@ class GeneralConfig(BaseModel):
     """General config options for Log Detective"""
 
     packages: List[str] = None
+    excluded_packages: List[str] = None
     devmode: bool = False
     sentry_dsn: HttpUrl | None = None
 
@@ -263,6 +264,7 @@ class GeneralConfig(BaseModel):
             return
 
         self.packages = data.get("packages", [])
+        self.excluded_packages = data.get("excluded_packages", [])
         self.devmode = data.get("devmode", False)
         self.sentry_dsn = data.get("sentry_dsn")
 
