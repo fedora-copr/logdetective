@@ -118,7 +118,7 @@ def is_eligible_package(project_name: str):
     # First check the allow-list. If it's not allowed, we deny.
     allowed = False
     for pattern in SERVER_CONFIG.general.packages:
-        print(f"include {pattern}")
+        LOG.debug("include %s", pattern)
         if re.search(pattern, project_name):
             allowed = True
             break
@@ -128,7 +128,7 @@ def is_eligible_package(project_name: str):
 
     # Next, check the deny-list. If it was allowed before, but denied here, we deny.
     for pattern in SERVER_CONFIG.general.excluded_packages:
-        print(f"Exclude {pattern}")
+        LOG.debug("exclude %s", pattern)
         if re.search(pattern, project_name):
             return False
 
