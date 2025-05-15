@@ -17,11 +17,14 @@ gitlab:
   "GitLab SaaS":
     url: https://gitlab.com
     api_token: glpat-XXXXXX
+    webhook_secrets: []
     max_artifact_size: 300
   "GitLab Internal":
     url: https://gitlab.example.com
     api_token: glpat-XXXXXX
     max_artifact_size: 300
+    webhook_secrets:
+      - example_secret
 general:
   devmode: False
   packages:

@@ -237,11 +237,29 @@ async def analyze_log_stream(
     return StreamingResponse(stream)
 
 
+def is_valid_webhook_secret(forge, x_gitlab_token):
+    """Check whether the provided x_gitlab_token matches the webhook secret
+    specified in the configuration"""
+
+    gitlab_cfg = SERVER_CONFIG.gitlab.instances[forge.value]
+
+    if not gitlab_cfg.webhook_secrets:
+        # No secrets specified, so don't bother validating.
+        # This is mostly to be used for development.
+        return True
+
+    if x_gitlab_token in gitlab_cfg.webhook_secrets:
+        return True
+
+    return False
+
+
 @app.post("/webhook/gitlab/job_events")
 async def receive_gitlab_job_event_webhook(
-    x_gitlab_instance: Annotated[str | None, Header()],
     job_hook: JobHook,
     background_tasks: BackgroundTasks,
+    x_gitlab_instance: Annotated[str | None, Header()],
+    x_gitlab_token: Annotated[str | None, Header()] = None,
     http: aiohttp.ClientSession = Depends(get_http_session),
 ):
     """Webhook endpoint for receiving job_events notifications from GitLab
@@ -253,6 +271,11 @@ async def receive_gitlab_job_event_webhook(
     except ValueError:
         LOG.critical("%s is not a recognized forge. Ignoring.", x_gitlab_instance)
         return BasicResponse(status_code=400)
+
+    if not is_valid_webhook_secret(forge, x_gitlab_token):
+        # This request could not be validated, so return a 401
+        # (Unauthorized) error.
+        return BasicResponse(status_code=401)
 
     # Handle the message in the background so we can return 204 immediately
     gitlab_cfg = SERVER_CONFIG.gitlab.instances[forge.value]
@@ -280,6 +303,7 @@ emoji_lookup = {}
 @app.post("/webhook/gitlab/emoji_events")
 async def receive_gitlab_emoji_event_webhook(
     x_gitlab_instance: Annotated[str | None, Header()],
+    x_gitlab_token: Annotated[str | None, Header()],
     emoji_hook: EmojiHook,
     background_tasks: BackgroundTasks,
 ):
@@ -292,6 +316,11 @@ async def receive_gitlab_emoji_event_webhook(
     except ValueError:
         LOG.critical("%s is not a recognized forge. Ignoring.", x_gitlab_instance)
         return BasicResponse(status_code=400)
+
+    if not is_valid_webhook_secret(forge, x_gitlab_token):
+        # This request could not be validated, so return a 401
+        # (Unauthorized) error.
+        return BasicResponse(status_code=401)
 
     if not emoji_hook.merge_request:
         # This is not a merge request event. It is probably an emoji applied
