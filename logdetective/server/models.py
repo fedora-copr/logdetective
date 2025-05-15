@@ -257,6 +257,7 @@ class GeneralConfig(BaseModel):
     excluded_packages: List[str] = None
     devmode: bool = False
     sentry_dsn: HttpUrl | None = None
+    collect_emojis_interval: int = 60 * 60  # seconds
 
     def __init__(self, data: Optional[dict] = None):
         super().__init__()
@@ -267,6 +268,9 @@ class GeneralConfig(BaseModel):
         self.excluded_packages = data.get("excluded_packages", [])
         self.devmode = data.get("devmode", False)
         self.sentry_dsn = data.get("sentry_dsn")
+        self.collect_emojis_interval = data.get(
+            "collect_emojis_interval", 60 * 60
+        )  # seconds
 
 
 class Config(BaseModel):

@@ -504,16 +504,9 @@ async def collect_emoji_task():
 
 
 async def schedule_collect_emojis_task():
-    """Schedule the collect_emojis_task to run every day at midnight"""
+    """Schedule the collect_emojis_task to run on a configured interval"""
     while True:
-        now = datetime.datetime.now(datetime.timezone.utc)
-        midnight = datetime.datetime.combine(
-            now.date() + datetime.timedelta(days=1),
-            datetime.time(0, 0),
-            datetime.timezone.utc,
-        )
-        seconds_until_run = (midnight - now).total_seconds()
-
+        seconds_until_run = SERVER_CONFIG.general.collect_emojis_interval
         LOG.info("Collect emojis in %d seconds", seconds_until_run)
         await asyncio.sleep(seconds_until_run)
 
