@@ -22,10 +22,11 @@ from logdetective.server.models import (
     StagedResponse,
 )
 from logdetective.server.database.models import (
+    AnalyzeRequestMetrics,
     Comments,
     EndpointType,
     Forge,
-    AnalyzeRequestMetrics,
+    GitlabMergeRequestJobs,
 )
 from logdetective.server.compressors import RemoteLogCompressor
 
@@ -63,14 +64,27 @@ async def process_gitlab_job_event(
         LOG.info("Not a merge request pipeline. Ignoring.")
         return
 
-    # Extract the merge-request ID from the job
+    # Extract the merge-request IID from the job
     match = MR_REGEX.search(pipeline.ref)
     if not match:
         LOG.error(
-            "Pipeline source is merge_request_event but no merge request ID was provided."
+            "Pipeline source is merge_request_event but no merge request IID was provided."
         )
         return
     merge_request_iid = int(match.group(1))
+
+    # Check if this is a resubmission of an existing, completed job.
+    # If it is, we'll exit out here and not waste time retrieving the logs,
+    # running a new analysis or trying to submit a new comment.
+    mr_job_db = GitlabMergeRequestJobs.get_by_details(
+        forge=forge,
+        project_id=project.id,
+        mr_iid=merge_request_iid,
+        job_id=job_hook.build_id,
+    )
+    if mr_job_db:
+        LOG.info("Resubmission of an existing build. Skipping.")
+        return
 
     LOG.debug("Retrieving log artifacts")
     # Retrieve the build logs from the merge request artifacts and preprocess them
