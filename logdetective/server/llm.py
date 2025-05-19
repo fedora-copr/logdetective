@@ -245,8 +245,8 @@ async def perform_staged_analysis(
         submit_text(
             http,
             PROMPT_CONFIG.snippet_prompt_template.format(s),
-            model=SERVER_CONFIG.inference.model,
-            max_tokens=SERVER_CONFIG.inference.max_tokens,
+            model=SERVER_CONFIG.snippet_inference.model,
+            max_tokens=SERVER_CONFIG.snippet_inference.max_tokens,
         )
         for s in log_summary
     ]

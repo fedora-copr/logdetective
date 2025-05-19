@@ -288,6 +288,7 @@ class Config(BaseModel):
 
     log: LogConfig = LogConfig()
     inference: InferenceConfig = InferenceConfig()
+    snippet_inference: InferenceConfig = InferenceConfig()
     extractor: ExtractorConfig = ExtractorConfig()
     gitlab: GitLabConfig = GitLabConfig()
     general: GeneralConfig = GeneralConfig()
@@ -303,6 +304,11 @@ class Config(BaseModel):
         self.extractor = ExtractorConfig(data.get("extractor"))
         self.gitlab = GitLabConfig(data.get("gitlab"))
         self.general = GeneralConfig(data.get("general"))
+
+        if snippet_inference := data.get("snippet_inference", None):
+            self.snippet_inference = InferenceConfig(snippet_inference)
+        else:
+            self.snippet_inference = self.inference
 
 
 class TimePeriod(BaseModel):
