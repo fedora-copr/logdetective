@@ -9,6 +9,8 @@ inference:
   # url: https://mistral-7b-instruct-v0-3--apicast-production.apps.int.stc.ai.prod.us-east-1.aws.paas.redhat.com/
   api_token: ""
   requests_per_minute: 6
+  http_timeout: 5.0
+  http_connect_timeout: 3.07
 # Separate LLM endpoint for snippet analysis, optional
 # snippet_inference:
 #   max_tokens: -1

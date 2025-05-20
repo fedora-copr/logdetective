@@ -1,7 +1,7 @@
-import asyncio
 import io
 import zipfile
 import pytest
+import pytest_asyncio
 import aiohttp
 import responses
 import aioresponses
@@ -24,9 +24,8 @@ from logdetective.server.database.models import (
 from logdetective.server import gitlab, llm
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 def mock_config():
-    limiter = AsyncLimiter(1000)
     server_config = Config(
         data={
             "gitlab": {
@@ -44,7 +43,6 @@ def mock_config():
                 "api_endpoint": "/chat/completitions",
                 "temperature": 1,
                 "url": "http://llama-cpp-server:8000",
-                "get_limiter": lambda: limiter,
             },
             "general": {
                 "packages": ["a project", "python3-.*"],
@@ -66,8 +64,8 @@ def create_zip_content(filepath) -> bytes:
     return zip_buffer.read()
 
 
-@pytest.fixture
-def mock_job_hook():
+@pytest_asyncio.fixture
+async def mock_job_hook():
     job_hook = JobHook(
         object_kind="build",
         build_id=123,

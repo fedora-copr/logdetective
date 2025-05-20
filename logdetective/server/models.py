@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 from logging import BASIC_FORMAT
 from typing import List, Dict, Optional, Literal
@@ -9,6 +10,8 @@ from pydantic import (
     NonNegativeFloat,
     HttpUrl,
 )
+
+import aiohttp
 
 from aiolimiter import AsyncLimiter
 from gitlab import Gitlab
@@ -141,6 +144,8 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
     temperature: NonNegativeFloat = DEFAULT_TEMPERATURE
     max_queue_size: int = LLM_DEFAULT_MAX_QUEUE_SIZE
     request_period: float = 60.0 / LLM_DEFAULT_REQUESTS_PER_MINUTE
+    http_timeout: float = 5.0
+    _http_session: aiohttp.ClientSession = None
     _limiter: AsyncLimiter = AsyncLimiter(LLM_DEFAULT_REQUESTS_PER_MINUTE)
 
     def __init__(self, data: Optional[dict] = None):
@@ -152,6 +157,7 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
         self.log_probs = data.get("log_probs", 1)
         self.api_endpoint = data.get("api_endpoint", "/chat/completions")
         self.url = data.get("url", "")
+        self.http_timeout = data.get("http_timeout", 5.0)
         self.api_token = data.get("api_token", "")
         self.model = data.get("model", "default-model")
         self.temperature = data.get("temperature", DEFAULT_TEMPERATURE)
@@ -161,6 +167,40 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
             "requests_per_minute", LLM_DEFAULT_REQUESTS_PER_MINUTE
         )
         self._limiter = AsyncLimiter(self._requests_per_minute)
+
+    def __del__(self):
+        # Close connection when this object is destroyed
+        if self._http_session:
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self._http_session.close())
+            except RuntimeError:
+                # No loop running, so create one to close the session
+                loop = asyncio.new_event_loop()
+                loop.run_until_complete(self._http_session.close())
+                loop.close()
+            except Exception:  # pylint: disable=broad-exception-caught
+                # We should only get here if we're shutting down, so we don't
+                # really care if the close() completes cleanly.
+                pass
+
+    def get_http_session(self):
+        """Return the internal HTTP session so it can be used to contect the
+        LLM server. May be used as a context manager."""
+
+        # Create the session on the first attempt. We need to do this "lazily"
+        # because it needs to happen once the event loop is running, even
+        # though the initialization itself is synchronous.
+        if not self._http_session:
+            self._http_session = aiohttp.ClientSession(
+                base_url=self.url,
+                timeout=aiohttp.ClientTimeout(
+                    total=self.http_timeout,
+                    connect=3.07,
+                ),
+            )
+
+        return self._http_session
 
     def get_limiter(self):
         """Return the limiter object so it can be used as a context manager"""

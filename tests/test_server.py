@@ -6,7 +6,6 @@ import aioresponses
 import pytest
 
 from fastapi import HTTPException
-from aiolimiter import AsyncLimiter
 
 from logdetective.server.config import SERVER_CONFIG
 from logdetective.server.llm import (
@@ -16,9 +15,11 @@ from logdetective.server.llm import (
 )
 from logdetective.remote_log import RemoteLog
 from logdetective.server.config import load_server_config
+from logdetective.server.models import InferenceConfig
 
 
-def test_loading_config():
+@pytest.mark.asyncio
+async def test_loading_config():
     """Load the actual config we have in this repo"""
     # this file - this dir (tests/) - repo root
     repo_root = Path(__file__).parent.parent
@@ -29,6 +30,22 @@ def test_loading_config():
 @pytest.mark.asyncio
 async def test_submit_to_llm():
     """Test async communication with an OpenAI compat inference server"""
+
+    # Create InferenceConfig
+    inference_cfg = InferenceConfig(
+        data={
+            "max_tokens": 1000,
+            "log_probs": 1,
+            "api_endpoint": "/chat/completions",
+            "url": "http://localhost:8080",
+            "api_token": "",
+            "model": "stories260K.gguf",
+            "temperature": 0.8,
+            "max_queue_size": 50,
+            "requests_per_minute": 60,
+        }
+    )
+
     mock_response = {
         "choices": [
             {
@@ -110,11 +127,15 @@ async def test_submit_to_llm():
             "temperature": 0.8,
         }
         headers = {"Content-Type": "application/json"}
-        url = "http://localhost:8080/v1/chat/completions"
 
-        async with aiohttp.ClientSession() as http:
-            response = submit_to_llm_endpoint(http, url, data, headers, False)
-            response = await response
+        response = submit_to_llm_endpoint(
+            "/v1/chat/completions",
+            data,
+            headers,
+            stream=False,
+            inference_cfg=inference_cfg,
+        )
+        response = await response
         assert response == mock_response
 
 
@@ -133,15 +154,31 @@ async def test_process_url():
 @pytest.mark.asyncio
 async def test_submit_text_chat_completions():
     mock_response = b"123"
-    SERVER_CONFIG.inference.url = "http://localhost:8080"
+
+    # Create InferenceConfig
+    inference_cfg = InferenceConfig(
+        data={
+            "max_tokens": 1000,
+            "log_probs": 1,
+            "api_endpoint": "/chat/completions",
+            "url": "http://localhost:8080",
+            "api_token": "",
+            "model": "stories260K.gguf",
+            "temperature": 0.8,
+            "max_queue_size": 50,
+            "requests_per_minute": 60,
+        }
+    )
+
     with aioresponses.aioresponses() as mock:
         mock.post(
             "http://localhost:8080/v1/chat/completions", status=200, body=mock_response
         )
-        async with aiohttp.ClientSession() as http:
-            response = await submit_text_chat_completions(http, "asd", {}, stream=True)
-            async for x in response.content:
-                assert x == mock_response
+        response = await submit_text_chat_completions(
+            "asd", {}, inference_cfg=inference_cfg, stream=True
+        )
+        async for x in response.content:
+            assert x == mock_response
 
 
 @pytest.mark.skip(
@@ -171,6 +208,5 @@ async def test_perform_staged_analysis_with_errors():
         mock.post(
             "http://localhost:8080/v1/chat/completions", status=400, body="Bad Response"
         )
-        async with aiohttp.ClientSession() as http:
-            with pytest.raises(HTTPException):
-                await perform_staged_analysis(http, "abc")
+        with pytest.raises(HTTPException):
+            await perform_staged_analysis("abc")
