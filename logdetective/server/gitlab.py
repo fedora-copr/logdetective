@@ -103,7 +103,7 @@ async def process_gitlab_job_event(
         http_session=http,
         compressed_log_content=RemoteLogCompressor.zip_text(log_text),
     )
-    staged_response = await perform_staged_analysis(http, log_text=log_text)
+    staged_response = await perform_staged_analysis(log_text=log_text)
     update_metrics(metrics_id, staged_response)
     preprocessed_log.close()
 
