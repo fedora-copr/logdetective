@@ -29,6 +29,7 @@ gitlab_conn = gitlab.Gitlab(
 COLLECT_EMOJIS_RESPONSES = "tests/data/test_collect_emojis.yaml"
 COLLECT_EMOJIS_FOR_MR_RESPONSES = "tests/data/test_collect_emojis_for_mr.yaml"
 EMOJI_REMOVED_RESPONSES = "tests/data/test_emoji_removed.yaml"
+COLLECT_EMOJIS_RESPONSES_WITH_404 = "tests/data/test_collect_emojis_with_404.yaml"
 
 
 def populate_db_with_comments_for_libtiff_mr_26():
@@ -150,6 +151,26 @@ def record_responses_for_emoji_removed():
 def test_emoji_removed():
     responses._add_from_file(file_path=EMOJI_REMOVED_RESPONSES)
     _test_emoji_removed()
+
+
+@responses.activate
+def test_collect_emojis_with_404():
+    # To re-create the test use COLLECT_EMOJS_RESPONSES and
+    # update status with 404
+    # body with '404 Discussion Not Found'
+    # content type with text/plain
+    # for response with url
+    # https://gitlab.com/api/v4/projects/23667077/merge_requests/
+    # 26/discussions/1ba1f46903f2b4e0573d514ed6d2cae29ab040f6
+
+    responses._add_from_file(file_path=COLLECT_EMOJIS_RESPONSES_WITH_404)
+    for db_session in populate_db_with_comments_for_libtiff_mr_26():
+        asyncio.run(collect_emojis(gitlab_conn, TimePeriod(hours=1)))
+        reactions = db_session.query(Reactions).all()
+        assert len(reactions) == 1
+        types = [reaction.reaction_type for reaction in reactions]
+        assert "thumbsup" not in types
+        assert "thumbsdown" in types
 
 
 if __name__ == "__main__":
