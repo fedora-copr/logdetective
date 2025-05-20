@@ -533,4 +533,4 @@ async def schedule_collect_emojis_task():
         try:
             await collect_emoji_task()
         except Exception as e:  # pylint: disable=broad-exception-caught
-            LOG.error("Error in collect_emoji_task: %s", e)
+            LOG.exception("Error in collect_emoji_task: %s", e)

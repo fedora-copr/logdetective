@@ -1,6 +1,6 @@
 import asyncio
 
-from typing import List
+from typing import List, Callable
 from collections import Counter
 
 import gitlab
@@ -11,6 +11,7 @@ from logdetective.server.database.models import (
     Reactions,
     GitlabMergeRequestJobs,
 )
+from logdetective.server.config import LOG
 
 
 async def collect_emojis(gitlab_conn: gitlab.Gitlab, period: TimePeriod):
@@ -36,6 +37,23 @@ async def collect_emojis_for_mr(
     await collect_emojis_in_comments(comments, gitlab_conn)
 
 
+async def _handle_gitlab_operation(func: Callable, *args):
+    """
+    It handles errors for the specified GitLab operation.
+    After executing it in a separate thread.
+    """
+    try:
+        return await asyncio.to_thread(func, *args)
+    except gitlab.GitlabError as e:
+        log_msg = f"Error during GitLab operation {func}{args}: {e}"
+        if "Not Found" in str(e):
+            LOG.error(log_msg)
+        else:
+            LOG.exception(log_msg)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        LOG.exception("Unexpected error during GitLab operation %s(%s): %s", func, args, e)
+
+
 async def collect_emojis_in_comments(  # pylint: disable=too-many-locals
     comments: List[Comments], gitlab_conn: gitlab.Gitlab
 ):
@@ -47,24 +65,34 @@ async def collect_emojis_in_comments(  # pylint: disable=too-many-locals
     for comment in comments:
         mr_job_db = GitlabMergeRequestJobs.get_by_id(comment.merge_request_job_id)
         if mr_job_db.id not in projects:
-            projects[mr_job_db.id] = project = await asyncio.to_thread(
+            projects[mr_job_db.id] = project = await _handle_gitlab_operation(
                 gitlab_conn.projects.get, mr_job_db.project_id
             )
+            if not project:
+                continue
         else:
             project = projects[mr_job_db.id]
         mr_iid = mr_job_db.mr_iid
         if mr_iid not in mrs:
-            mrs[mr_iid] = mr = await asyncio.to_thread(
+            mrs[mr_iid] = mr = await _handle_gitlab_operation(
                 project.mergerequests.get, mr_iid
             )
+            if not mr:
+                continue
         else:
             mr = mrs[mr_iid]
 
-        discussion = mr.discussions.get(comment.comment_id)
+        discussion = await _handle_gitlab_operation(
+            mr.discussions.get, comment.comment_id
+        )
+        if not discussion:
+            continue
 
         # Get the ID of the first note
         note_id = discussion.attributes["notes"][0]["id"]
-        note = mr.notes.get(note_id)
+        note = await _handle_gitlab_operation(mr.notes.get, note_id)
+        if not note:
+            continue
 
         emoji_counts = Counter(emoji.name for emoji in note.awardemojis.list())
 
