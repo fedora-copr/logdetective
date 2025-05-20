@@ -138,10 +138,8 @@ async def analyze_log(
     log_summary = format_snippets(log_summary)
 
     response = await submit_text(
-        http_session,
         PROMPT_CONFIG.prompt_template.format(log_summary),
-        model=SERVER_CONFIG.inference.model,
-        max_tokens=SERVER_CONFIG.inference.max_tokens,
+        inference_cfg=SERVER_CONFIG.inference,
     )
     certainty = 0
 
@@ -172,10 +170,7 @@ async def analyze_log_staged(
     remote_log = RemoteLog(build_log.url, http_session)
     log_text = await remote_log.process_url()
 
-    return await perform_staged_analysis(
-        http_session,
-        log_text=log_text,
-    )
+    return await perform_staged_analysis(log_text)
 
 
 @app.get("/queue/print")
@@ -217,12 +212,10 @@ async def analyze_log_stream(
 
     try:
         stream = submit_text_chat_completions(
-            http_session,
             PROMPT_CONFIG.prompt_template.format(log_summary),
-            stream=True,
             headers=headers,
-            model=SERVER_CONFIG.inference.model,
-            max_tokens=SERVER_CONFIG.inference.max_tokens,
+            inference_cfg=SERVER_CONFIG.inference,
+            stream=True,
         )
     except aiohttp.ClientResponseError as ex:
         raise HTTPException(
