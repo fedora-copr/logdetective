@@ -175,6 +175,10 @@ or
 
     tox run -e lint # to run pylint
 
+To run full test suite you will need postgresql client utilities.
+
+    dnf install postgresql
+
 Visual Studio Code testing with podman/docker-compose
 -----------------------------------------------------
 
