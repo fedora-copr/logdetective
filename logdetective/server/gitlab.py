@@ -88,7 +88,9 @@ async def process_gitlab_job_event(
     LOG.debug("Retrieving log artifacts")
     # Retrieve the build logs from the merge request artifacts and preprocess them
     try:
-        log_url, preprocessed_log = await retrieve_and_preprocess_koji_logs(gitlab_cfg, http, job)
+        log_url, preprocessed_log = await retrieve_and_preprocess_koji_logs(
+            gitlab_cfg, http, job
+        )
     except LogsTooLargeError:
         LOG.error("Could not retrieve logs. Too large.")
         raise
@@ -156,7 +158,7 @@ class LogsTooLargeError(RuntimeError):
 async def retrieve_and_preprocess_koji_logs(
     gitlab_cfg: GitLabInstanceConfig,
     http: aiohttp.ClientSession,
-    job: gitlab.v4.objects.ProjectJob
+    job: gitlab.v4.objects.ProjectJob,
 ):  # pylint: disable=too-many-branches,too-many-locals
     """Download logs from the merge request artifacts
 
@@ -214,7 +216,9 @@ async def retrieve_and_preprocess_koji_logs(
                 match = FAILURE_LOG_REGEX.search(contents)
                 if match:
                     failure_log_name = match.group(1)
-                    failed_arches[architecture] = PurePath(path.parent, failure_log_name)
+                    failed_arches[architecture] = PurePath(
+                        path.parent, failure_log_name
+                    )
                 else:
                     LOG.info(
                         "task_failed.log does not indicate which log contains the failure."
@@ -273,7 +277,9 @@ async def check_artifacts_file_size(
     # zipped artifact collection will be stored in memory below. The
     # python-gitlab library doesn't expose a way to check this value directly,
     # so we need to interact with directly with the headers.
-    artifacts_url = f"{gitlab_cfg.api_url}/projects/{job.project_id}/jobs/{job.id}/artifacts"  # pylint: disable=line-too-long
+    artifacts_url = (
+        f"{gitlab_cfg.api_url}/projects/{job.project_id}/jobs/{job.id}/artifacts"  # pylint: disable=line-too-long
+    )
     LOG.debug("checking artifact URL %s", artifacts_url)
     try:
         head_response = await http.head(
