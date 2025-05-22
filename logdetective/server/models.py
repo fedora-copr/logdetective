@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 from logging import BASIC_FORMAT
 from typing import List, Dict, Optional, Literal
@@ -9,6 +10,8 @@ from pydantic import (
     NonNegativeFloat,
     HttpUrl,
 )
+
+import aiohttp
 
 from aiolimiter import AsyncLimiter
 from gitlab import Gitlab
@@ -140,7 +143,8 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
     model: str = ""
     temperature: NonNegativeFloat = DEFAULT_TEMPERATURE
     max_queue_size: int = LLM_DEFAULT_MAX_QUEUE_SIZE
-    request_period: float = 60.0 / LLM_DEFAULT_REQUESTS_PER_MINUTE
+    http_timeout: float = 5.0
+    _http_session: aiohttp.ClientSession = None
     _limiter: AsyncLimiter = AsyncLimiter(LLM_DEFAULT_REQUESTS_PER_MINUTE)
 
     def __init__(self, data: Optional[dict] = None):
@@ -152,6 +156,7 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
         self.log_probs = data.get("log_probs", 1)
         self.api_endpoint = data.get("api_endpoint", "/chat/completions")
         self.url = data.get("url", "")
+        self.http_timeout = data.get("http_timeout", 5.0)
         self.api_token = data.get("api_token", "")
         self.model = data.get("model", "default-model")
         self.temperature = data.get("temperature", DEFAULT_TEMPERATURE)
@@ -161,6 +166,40 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
             "requests_per_minute", LLM_DEFAULT_REQUESTS_PER_MINUTE
         )
         self._limiter = AsyncLimiter(self._requests_per_minute)
+
+    def __del__(self):
+        # Close connection when this object is destroyed
+        if self._http_session:
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self._http_session.close())
+            except RuntimeError:
+                # No loop running, so create one to close the session
+                loop = asyncio.new_event_loop()
+                loop.run_until_complete(self._http_session.close())
+                loop.close()
+            except Exception:  # pylint: disable=broad-exception-caught
+                # We should only get here if we're shutting down, so we don't
+                # really care if the close() completes cleanly.
+                pass
+
+    def get_http_session(self):
+        """Return the internal HTTP session so it can be used to contect the
+        LLM server. May be used as a context manager."""
+
+        # Create the session on the first attempt. We need to do this "lazily"
+        # because it needs to happen once the event loop is running, even
+        # though the initialization itself is synchronous.
+        if not self._http_session:
+            self._http_session = aiohttp.ClientSession(
+                base_url=self.url,
+                timeout=aiohttp.ClientTimeout(
+                    total=self.http_timeout,
+                    connect=3.07,
+                ),
+            )
+
+        return self._http_session
 
     def get_limiter(self):
         """Return the limiter object so it can be used as a context manager"""
@@ -184,12 +223,12 @@ class ExtractorConfig(BaseModel):
         self.verbose = data.get("verbose", False)
 
 
-class GitLabInstanceConfig(BaseModel):
+class GitLabInstanceConfig(BaseModel):  # pylint: disable=too-many-instance-attributes
     """Model for GitLab configuration of logdetective server."""
 
     name: str = None
     url: str = None
-    api_url: str = None
+    api_path: str = None
     api_token: str = None
 
     # This is a list to support key rotation.
@@ -200,7 +239,9 @@ class GitLabInstanceConfig(BaseModel):
     # considered authorized.
     webhook_secrets: Optional[List[str]] = None
 
+    timeout: float = 5.0
     _conn: Gitlab = None
+    _http_session: aiohttp.ClientSession = None
 
     # Maximum size of artifacts.zip in MiB. (default: 300 MiB)
     max_artifact_size: int = 300
@@ -212,16 +253,56 @@ class GitLabInstanceConfig(BaseModel):
 
         self.name = name
         self.url = data.get("url", "https://gitlab.com")
-        self.api_url = f"{self.url}/api/v4"
+        self.api_path = data.get("api_path", "/api/v4")
         self.api_token = data.get("api_token", None)
         self.webhook_secrets = data.get("webhook_secrets", None)
         self.max_artifact_size = int(data.get("max_artifact_size")) * 1024 * 1024
 
-        self._conn = Gitlab(url=self.url, private_token=self.api_token)
+        self.timeout = data.get("timeout", 5.0)
+        self._conn = Gitlab(
+            url=self.url,
+            private_token=self.api_token,
+            timeout=self.timeout,
+        )
 
     def get_connection(self):
         """Get the Gitlab connection object"""
         return self._conn
+
+    def get_http_session(self):
+        """Return the internal HTTP session so it can be used to contect the
+        Gitlab server. May be used as a context manager."""
+
+        # Create the session on the first attempt. We need to do this "lazily"
+        # because it needs to happen once the event loop is running, even
+        # though the initialization itself is synchronous.
+        if not self._http_session:
+            self._http_session = aiohttp.ClientSession(
+                base_url=self.url,
+                headers={"Authorization": f"Bearer {self.api_token}"},
+                timeout=aiohttp.ClientTimeout(
+                    total=self.timeout,
+                    connect=3.07,
+                ),
+            )
+
+        return self._http_session
+
+    def __del__(self):
+        # Close connection when this object is destroyed
+        if self._http_session:
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self._http_session.close())
+            except RuntimeError:
+                # No loop running, so create one to close the session
+                loop = asyncio.new_event_loop()
+                loop.run_until_complete(self._http_session.close())
+                loop.close()
+            except Exception:  # pylint: disable=broad-exception-caught
+                # We should only get here if we're shutting down, so we don't
+                # really care if the close() completes cleanly.
+                pass
 
 
 class GitLabConfig(BaseModel):

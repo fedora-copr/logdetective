@@ -34,7 +34,6 @@ FAILURE_LOG_REGEX = re.compile(r"(\w*\.log)")
 
 
 async def process_gitlab_job_event(
-    http: aiohttp.ClientSession,
     gitlab_cfg: GitLabInstanceConfig,
     forge: Forge,
     job_hook: JobHook,
@@ -88,7 +87,9 @@ async def process_gitlab_job_event(
     LOG.debug("Retrieving log artifacts")
     # Retrieve the build logs from the merge request artifacts and preprocess them
     try:
-        log_url, preprocessed_log = await retrieve_and_preprocess_koji_logs(gitlab_cfg, http, job)
+        log_url, preprocessed_log = await retrieve_and_preprocess_koji_logs(
+            gitlab_cfg, job
+        )
     except LogsTooLargeError:
         LOG.error("Could not retrieve logs. Too large.")
         raise
@@ -98,10 +99,10 @@ async def process_gitlab_job_event(
     metrics_id = await add_new_metrics(
         api_name=EndpointType.ANALYZE_GITLAB_JOB,
         url=log_url,
-        http_session=http,
+        http_session=gitlab_cfg.get_http_session(),
         compressed_log_content=RemoteLogCompressor.zip_text(log_text),
     )
-    staged_response = await perform_staged_analysis(http, log_text=log_text)
+    staged_response = await perform_staged_analysis(log_text=log_text)
     update_metrics(metrics_id, staged_response)
     preprocessed_log.close()
 
@@ -155,8 +156,7 @@ class LogsTooLargeError(RuntimeError):
 
 async def retrieve_and_preprocess_koji_logs(
     gitlab_cfg: GitLabInstanceConfig,
-    http: aiohttp.ClientSession,
-    job: gitlab.v4.objects.ProjectJob
+    job: gitlab.v4.objects.ProjectJob,
 ):  # pylint: disable=too-many-branches,too-many-locals
     """Download logs from the merge request artifacts
 
@@ -168,7 +168,7 @@ async def retrieve_and_preprocess_koji_logs(
     Detective. The calling function is responsible for closing this object."""
 
     # Make sure the file isn't too large to process.
-    if not await check_artifacts_file_size(gitlab_cfg, http, job):
+    if not await check_artifacts_file_size(gitlab_cfg, job):
         raise LogsTooLargeError(
             f"Oversized logs for job {job.id} in project {job.project_id}"
         )
@@ -214,7 +214,9 @@ async def retrieve_and_preprocess_koji_logs(
                 match = FAILURE_LOG_REGEX.search(contents)
                 if match:
                     failure_log_name = match.group(1)
-                    failed_arches[architecture] = PurePath(path.parent, failure_log_name)
+                    failed_arches[architecture] = PurePath(
+                        path.parent, failure_log_name
+                    )
                 else:
                     LOG.info(
                         "task_failed.log does not indicate which log contains the failure."
@@ -256,8 +258,8 @@ async def retrieve_and_preprocess_koji_logs(
 
     log_path = failed_arches[failed_arch].as_posix()
 
-    log_url = f"{gitlab_cfg.api_url}/projects/{job.project_id}/jobs/{job.id}/artifacts/{log_path}"  # pylint: disable=line-too-long
-    LOG.debug("Returning contents of %s", log_url)
+    log_url = f"{gitlab_cfg.api_path}/projects/{job.project_id}/jobs/{job.id}/artifacts/{log_path}"  # pylint: disable=line-too-long
+    LOG.debug("Returning contents of %s%s", gitlab_cfg.url, log_url)
 
     # Return the log as a file-like object with .read() function
     return log_url, artifacts_zip.open(log_path)
@@ -265,7 +267,6 @@ async def retrieve_and_preprocess_koji_logs(
 
 async def check_artifacts_file_size(
     gitlab_cfg: GitLabInstanceConfig,
-    http: aiohttp.ClientSession,
     job: gitlab.v4.objects.ProjectJob,
 ):
     """Method to determine if the artifacts are too large to process"""
@@ -273,14 +274,14 @@ async def check_artifacts_file_size(
     # zipped artifact collection will be stored in memory below. The
     # python-gitlab library doesn't expose a way to check this value directly,
     # so we need to interact with directly with the headers.
-    artifacts_url = f"{gitlab_cfg.api_url}/projects/{job.project_id}/jobs/{job.id}/artifacts"  # pylint: disable=line-too-long
-    LOG.debug("checking artifact URL %s", artifacts_url)
+    artifacts_path = (
+        f"{gitlab_cfg.api_path}/projects/{job.project_id}/jobs/{job.id}/artifacts"
+    )
+    LOG.debug("checking artifact URL %s%s", gitlab_cfg.url, artifacts_path)
     try:
-        head_response = await http.head(
-            artifacts_url,
+        head_response = await gitlab_cfg.get_http_session().head(
+            artifacts_path,
             allow_redirects=True,
-            headers={"Authorization": f"Bearer {gitlab_cfg.api_token}"},
-            timeout=5,
             raise_for_status=True,
         )
     except aiohttp.ClientResponseError as ex:
@@ -291,7 +292,7 @@ async def check_artifacts_file_size(
     content_length = int(head_response.headers.get("content-length"))
     LOG.debug(
         "URL: %s, content-length: %d, max length: %d",
-        artifacts_url,
+        artifacts_path,
         content_length,
         gitlab_cfg.max_artifact_size,
     )

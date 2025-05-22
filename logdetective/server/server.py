@@ -138,10 +138,8 @@ async def analyze_log(
     log_summary = format_snippets(log_summary)
 
     response = await submit_text(
-        http_session,
         PROMPT_CONFIG.prompt_template.format(log_summary),
-        model=SERVER_CONFIG.inference.model,
-        max_tokens=SERVER_CONFIG.inference.max_tokens,
+        inference_cfg=SERVER_CONFIG.inference,
     )
     certainty = 0
 
@@ -172,10 +170,7 @@ async def analyze_log_staged(
     remote_log = RemoteLog(build_log.url, http_session)
     log_text = await remote_log.process_url()
 
-    return await perform_staged_analysis(
-        http_session,
-        log_text=log_text,
-    )
+    return await perform_staged_analysis(log_text)
 
 
 @app.get("/queue/print")
@@ -217,12 +212,10 @@ async def analyze_log_stream(
 
     try:
         stream = submit_text_chat_completions(
-            http_session,
             PROMPT_CONFIG.prompt_template.format(log_summary),
-            stream=True,
             headers=headers,
-            model=SERVER_CONFIG.inference.model,
-            max_tokens=SERVER_CONFIG.inference.max_tokens,
+            inference_cfg=SERVER_CONFIG.inference,
+            stream=True,
         )
     except aiohttp.ClientResponseError as ex:
         raise HTTPException(
@@ -260,7 +253,6 @@ async def receive_gitlab_job_event_webhook(
     background_tasks: BackgroundTasks,
     x_gitlab_instance: Annotated[str | None, Header()],
     x_gitlab_token: Annotated[str | None, Header()] = None,
-    http: aiohttp.ClientSession = Depends(get_http_session),
 ):
     """Webhook endpoint for receiving job_events notifications from GitLab
     https://docs.gitlab.com/user/project/integrations/webhook_events/#job-events
@@ -281,7 +273,6 @@ async def receive_gitlab_job_event_webhook(
     gitlab_cfg = SERVER_CONFIG.gitlab.instances[forge.value]
     background_tasks.add_task(
         process_gitlab_job_event,
-        http,
         gitlab_cfg,
         forge,
         job_hook,

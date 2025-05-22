@@ -17,9 +17,10 @@ from logdetective.utils import (
 )
 from logdetective.server.config import LOG, SERVER_CONFIG, PROMPT_CONFIG
 from logdetective.server.models import (
-    StagedResponse,
-    Explanation,
     AnalyzedSnippet,
+    InferenceConfig,
+    Explanation,
+    StagedResponse,
 )
 
 
@@ -54,24 +55,33 @@ def mine_logs(log: str) -> List[Tuple[int, str]]:
 
 
 async def submit_to_llm_endpoint(
-    http: aiohttp.ClientSession,
-    url: str,
+    url_path: str,
     data: Dict[str, Any],
     headers: Dict[str, str],
     stream: bool,
+    inference_cfg: InferenceConfig = SERVER_CONFIG.inference,
 ) -> Any:
     """Send request to selected API endpoint. Verifying successful request unless
     the using the stream response.
 
-    url:
+    url_path: The endpoint path to query. (e.g. "/v1/completions"). It should
+    not include the scheme and netloc of the URL, which is stored in the
+    InferenceConfig.
     data:
     headers:
     stream:
+    inference_cfg: An InferenceConfig object containing the URL, max_tokens
+    and other relevant configuration for talking to an inference server.
     """
-    async with SERVER_CONFIG.inference.get_limiter():
-        LOG.debug("async request %s headers=%s data=%s", url, headers, data)
-        response = await http.post(
-            url,
+    async with inference_cfg.get_limiter():
+        LOG.debug("async request %s headers=%s data=%s", url_path, headers, data)
+        session = inference_cfg.get_http_session()
+
+        if inference_cfg.api_token:
+            headers["Authorization"] = f"Bearer {inference_cfg.api_token}"
+
+        response = await session.post(
+            url_path,
             headers=headers,
             # we need to use the `json=` parameter here and let aiohttp
             # handle the json-encoding
@@ -88,7 +98,9 @@ async def submit_to_llm_endpoint(
         try:
             return json.loads(await response.text())
         except UnicodeDecodeError as ex:
-            LOG.error("Error encountered while parsing llama server response: %s", ex)
+            LOG.error(
+                "Error encountered while parsing llama server response: %s", ex
+            )
             raise HTTPException(
                 status_code=400,
                 detail=f"Couldn't parse the response.\nError: {ex}\nData: {response.text}",
@@ -125,42 +137,41 @@ def we_give_up(details: backoff._typing.Details):
     raise_on_giveup=False,
     on_giveup=we_give_up,
 )
-async def submit_text(  # pylint: disable=R0913,R0917
-    http: aiohttp.ClientSession,
+async def submit_text(
     text: str,
-    max_tokens: int = -1,
-    log_probs: int = 1,
+    inference_cfg: InferenceConfig,
     stream: bool = False,
-    model: str = "default-model",
 ) -> Explanation:
     """Submit prompt to LLM using a selected endpoint.
-    max_tokens: number of tokens to be produces, 0 indicates run until encountering EOS
+    inference_cfg: The configuration section from the config.json representing
+    the relevant inference server for this request.
     log_probs: number of token choices to produce log probs for
     """
     LOG.info("Analyzing the text")
 
     headers = {"Content-Type": "application/json"}
 
-    if SERVER_CONFIG.inference.api_token:
-        headers["Authorization"] = f"Bearer {SERVER_CONFIG.inference.api_token}"
-
-    if SERVER_CONFIG.inference.api_endpoint == "/chat/completions":
+    if inference_cfg.api_endpoint == "/chat/completions":
         return await submit_text_chat_completions(
-            http, text, headers, max_tokens, log_probs > 0, stream, model
+            text,
+            headers,
+            inference_cfg,
+            stream,
         )
+
     return await submit_text_completions(
-        http, text, headers, max_tokens, log_probs, stream, model
+        text,
+        headers,
+        inference_cfg=inference_cfg,
+        stream=stream,
     )
 
 
-async def submit_text_completions(  # pylint: disable=R0913,R0917
-    http: aiohttp.ClientSession,
+async def submit_text_completions(
     text: str,
     headers: dict,
-    max_tokens: int = -1,
-    log_probs: int = 1,
+    inference_cfg: InferenceConfig,
     stream: bool = False,
-    model: str = "default-model",
 ) -> Explanation:
     """Submit prompt to OpenAI API completions endpoint.
     max_tokens: number of tokens to be produces, 0 indicates run until encountering EOS
@@ -169,19 +180,19 @@ async def submit_text_completions(  # pylint: disable=R0913,R0917
     LOG.info("Submitting to /v1/completions endpoint")
     data = {
         "prompt": text,
-        "max_tokens": max_tokens,
-        "logprobs": log_probs,
+        "max_tokens": inference_cfg.max_tokens,
+        "logprobs": inference_cfg.log_probs,
         "stream": stream,
-        "model": model,
-        "temperature": SERVER_CONFIG.inference.temperature,
+        "model": inference_cfg.model,
+        "temperature": inference_cfg.temperature,
     }
 
     response = await submit_to_llm_endpoint(
-        http,
-        f"{SERVER_CONFIG.inference.url}/v1/completions",
+        "/v1/completions",
         data,
         headers,
-        stream,
+        inference_cfg=inference_cfg,
+        stream=stream,
     )
 
     return Explanation(
@@ -189,14 +200,11 @@ async def submit_text_completions(  # pylint: disable=R0913,R0917
     )
 
 
-async def submit_text_chat_completions(  # pylint: disable=R0913,R0917
-    http: aiohttp.ClientSession,
+async def submit_text_chat_completions(
     text: str,
     headers: dict,
-    max_tokens: int = -1,
-    log_probs: int = 1,
+    inference_cfg: InferenceConfig,
     stream: bool = False,
-    model: str = "default-model",
 ) -> Union[Explanation, StreamReader]:
     """Submit prompt to OpenAI API /chat/completions endpoint.
     max_tokens: number of tokens to be produces, 0 indicates run until encountering EOS
@@ -211,19 +219,19 @@ async def submit_text_chat_completions(  # pylint: disable=R0913,R0917
                 "content": text,
             }
         ],
-        "max_tokens": max_tokens,
-        "logprobs": log_probs,
+        "max_tokens": inference_cfg.max_tokens,
+        "logprobs": inference_cfg.log_probs,
         "stream": stream,
-        "model": model,
-        "temperature": SERVER_CONFIG.inference.temperature,
+        "model": inference_cfg.model,
+        "temperature": inference_cfg.temperature,
     }
 
     response = await submit_to_llm_endpoint(
-        http,
-        f"{SERVER_CONFIG.inference.url}/v1/chat/completions",
+        "/v1/chat/completions",
         data,
         headers,
-        stream,
+        inference_cfg=inference_cfg,
+        stream=stream,
     )
 
     if stream:
@@ -234,19 +242,15 @@ async def submit_text_chat_completions(  # pylint: disable=R0913,R0917
     )
 
 
-async def perform_staged_analysis(
-    http: aiohttp.ClientSession, log_text: str
-) -> StagedResponse:
+async def perform_staged_analysis(log_text: str) -> StagedResponse:
     """Submit the log file snippets to the LLM and retrieve their results"""
     log_summary = mine_logs(log_text)
 
     # Process snippets asynchronously
     awaitables = [
         submit_text(
-            http,
             PROMPT_CONFIG.snippet_prompt_template.format(s),
-            model=SERVER_CONFIG.snippet_inference.model,
-            max_tokens=SERVER_CONFIG.snippet_inference.max_tokens,
+            inference_cfg=SERVER_CONFIG.snippet_inference,
         )
         for s in log_summary
     ]
@@ -261,10 +265,8 @@ async def perform_staged_analysis(
     )
 
     final_analysis = await submit_text(
-        http,
         final_prompt,
-        model=SERVER_CONFIG.inference.model,
-        max_tokens=SERVER_CONFIG.inference.max_tokens,
+        inference_cfg=SERVER_CONFIG.inference,
     )
 
     certainty = 0
