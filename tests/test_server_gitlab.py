@@ -5,6 +5,7 @@ import pytest_asyncio
 import aiohttp
 import responses
 import aioresponses
+from packaging.version import Version
 
 from aiolimiter import AsyncLimiter
 from flexmock import flexmock
@@ -262,6 +263,10 @@ async def mock_job_hook():
             yield sync_rsps, async_rsps, job_hook
 
 
+@pytest.mark.skipif(
+    Version(aioresponses.__version__) < Version("0.7.8"),
+    reason="aioresponses lacks support for base_url",
+)
 @pytest.mark.asyncio
 async def test_process_gitlab_job_event(mock_config, mock_job_hook):
     with DatabaseFactory().make_new_db() as session_factory:
@@ -270,13 +275,13 @@ async def test_process_gitlab_job_event(mock_config, mock_job_hook):
             name="mocked_gitlab",
             data={
                 "url": "https://gitlab.com",
+                "api_path": "/api/v4",
                 "api_token": "empty",
                 "max_artifact_size": 300,
             },
         )
         http_session = aiohttp.ClientSession()
         await process_gitlab_job_event(
-            http=http_session,
             gitlab_cfg=gitlab_instance,
             forge=Forge.gitlab_com,
             job_hook=job_hook,

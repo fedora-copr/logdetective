@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from packaging.version import Version
 
 import aiohttp
 import aioresponses
@@ -27,6 +28,10 @@ async def test_loading_config():
     assert load_server_config(str(config_file))
 
 
+@pytest.mark.skipif(
+    Version(aioresponses.__version__) < Version("0.7.8"),
+    reason="aioresponses lacks support for base_url",
+)
 @pytest.mark.asyncio
 async def test_submit_to_llm():
     """Test async communication with an OpenAI compat inference server"""
@@ -151,6 +156,10 @@ async def test_process_url():
             assert url_output == "123"
 
 
+@pytest.mark.skipif(
+    Version(aioresponses.__version__) < Version("0.7.8"),
+    reason="aioresponses lacks support for base_url",
+)
 @pytest.mark.asyncio
 async def test_submit_text_chat_completions():
     mock_response = b"123"
