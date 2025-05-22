@@ -270,13 +270,13 @@ async def test_process_gitlab_job_event(mock_config, mock_job_hook):
             name="mocked_gitlab",
             data={
                 "url": "https://gitlab.com",
+                "api_path": "/api/v4",
                 "api_token": "empty",
                 "max_artifact_size": 300,
             },
         )
         http_session = aiohttp.ClientSession()
         await process_gitlab_job_event(
-            http=http_session,
             gitlab_cfg=gitlab_instance,
             forge=Forge.gitlab_com,
             job_hook=job_hook,
