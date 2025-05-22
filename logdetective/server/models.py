@@ -223,12 +223,12 @@ class ExtractorConfig(BaseModel):
         self.verbose = data.get("verbose", False)
 
 
-class GitLabInstanceConfig(BaseModel):
+class GitLabInstanceConfig(BaseModel):  # pylint: disable=too-many-instance-attributes
     """Model for GitLab configuration of logdetective server."""
 
     name: str = None
     url: str = None
-    api_url: str = None
+    api_path: str = None
     api_token: str = None
 
     # This is a list to support key rotation.
@@ -239,7 +239,9 @@ class GitLabInstanceConfig(BaseModel):
     # considered authorized.
     webhook_secrets: Optional[List[str]] = None
 
+    timeout: float = 5.0
     _conn: Gitlab = None
+    _http_session: aiohttp.ClientSession = None
 
     # Maximum size of artifacts.zip in MiB. (default: 300 MiB)
     max_artifact_size: int = 300
@@ -251,16 +253,56 @@ class GitLabInstanceConfig(BaseModel):
 
         self.name = name
         self.url = data.get("url", "https://gitlab.com")
-        self.api_url = f"{self.url}/api/v4"
+        self.api_path = data.get("api_path", "/api/v4")
         self.api_token = data.get("api_token", None)
         self.webhook_secrets = data.get("webhook_secrets", None)
         self.max_artifact_size = int(data.get("max_artifact_size")) * 1024 * 1024
 
-        self._conn = Gitlab(url=self.url, private_token=self.api_token)
+        self.timeout = data.get("timeout", 5.0)
+        self._conn = Gitlab(
+            url=self.url,
+            private_token=self.api_token,
+            timeout=self.timeout,
+        )
 
     def get_connection(self):
         """Get the Gitlab connection object"""
         return self._conn
+
+    def get_http_session(self):
+        """Return the internal HTTP session so it can be used to contect the
+        Gitlab server. May be used as a context manager."""
+
+        # Create the session on the first attempt. We need to do this "lazily"
+        # because it needs to happen once the event loop is running, even
+        # though the initialization itself is synchronous.
+        if not self._http_session:
+            self._http_session = aiohttp.ClientSession(
+                base_url=self.url,
+                headers={"Authorization": f"Bearer {self.api_token}"},
+                timeout=aiohttp.ClientTimeout(
+                    total=self.timeout,
+                    connect=3.07,
+                ),
+            )
+
+        return self._http_session
+
+    def __del__(self):
+        # Close connection when this object is destroyed
+        if self._http_session:
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self._http_session.close())
+            except RuntimeError:
+                # No loop running, so create one to close the session
+                loop = asyncio.new_event_loop()
+                loop.run_until_complete(self._http_session.close())
+                loop.close()
+            except Exception:  # pylint: disable=broad-exception-caught
+                # We should only get here if we're shutting down, so we don't
+                # really care if the close() completes cleanly.
+                pass
 
 
 class GitLabConfig(BaseModel):

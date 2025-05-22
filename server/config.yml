@@ -28,12 +28,14 @@ gitlab:
     api_token: glpat-XXXXXX
     webhook_secrets: []
     max_artifact_size: 300
+    timeout: 5.0
   "GitLab Internal":
     url: https://gitlab.example.com
     api_token: glpat-XXXXXX
     max_artifact_size: 300
     webhook_secrets:
       - example_secret
+    timeout: 6.0
 general:
   devmode: False
   packages:

@@ -253,7 +253,6 @@ async def receive_gitlab_job_event_webhook(
     background_tasks: BackgroundTasks,
     x_gitlab_instance: Annotated[str | None, Header()],
     x_gitlab_token: Annotated[str | None, Header()] = None,
-    http: aiohttp.ClientSession = Depends(get_http_session),
 ):
     """Webhook endpoint for receiving job_events notifications from GitLab
     https://docs.gitlab.com/user/project/integrations/webhook_events/#job-events
@@ -274,7 +273,6 @@ async def receive_gitlab_job_event_webhook(
     gitlab_cfg = SERVER_CONFIG.gitlab.instances[forge.value]
     background_tasks.add_task(
         process_gitlab_job_event,
-        http,
         gitlab_cfg,
         forge,
         job_hook,
