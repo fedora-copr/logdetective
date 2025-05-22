@@ -143,7 +143,6 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
     model: str = ""
     temperature: NonNegativeFloat = DEFAULT_TEMPERATURE
     max_queue_size: int = LLM_DEFAULT_MAX_QUEUE_SIZE
-    request_period: float = 60.0 / LLM_DEFAULT_REQUESTS_PER_MINUTE
     http_timeout: float = 5.0
     _http_session: aiohttp.ClientSession = None
     _limiter: AsyncLimiter = AsyncLimiter(LLM_DEFAULT_REQUESTS_PER_MINUTE)
