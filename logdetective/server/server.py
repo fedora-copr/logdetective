@@ -28,7 +28,6 @@ from logdetective.server.llm import (
     mine_logs,
     perform_staged_analysis,
     submit_text,
-    submit_text_chat_completions,
 )
 from logdetective.server.gitlab import process_gitlab_job_event
 from logdetective.server.metric import track_request
@@ -205,15 +204,10 @@ async def analyze_log_stream(
     log_text = await remote_log.process_url()
     log_summary = mine_logs(log_text)
     log_summary = format_snippets(log_summary)
-    headers = {"Content-Type": "application/json"}
-
-    if SERVER_CONFIG.inference.api_token:
-        headers["Authorization"] = f"Bearer {SERVER_CONFIG.inference.api_token}"
 
     try:
-        stream = submit_text_chat_completions(
+        stream = submit_text(
             PROMPT_CONFIG.prompt_template.format(log_summary),
-            headers=headers,
             inference_cfg=SERVER_CONFIG.inference,
             stream=True,
         )

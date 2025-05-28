@@ -12,7 +12,7 @@ from logdetective.server.config import SERVER_CONFIG
 from logdetective.server.llm import (
     perform_staged_analysis,
     submit_to_llm_endpoint,
-    submit_text_chat_completions,
+    submit_text,
 )
 from logdetective.remote_log import RemoteLog
 from logdetective.server.config import load_server_config
@@ -40,7 +40,7 @@ async def test_submit_to_llm():
     inference_cfg = InferenceConfig(
         data={
             "max_tokens": 1000,
-            "log_probs": 1,
+            "log_probs": True,
             "url": "http://localhost:8080",
             "api_token": "",
             "model": "stories260K.gguf",
@@ -167,7 +167,7 @@ async def test_submit_text_chat_completions():
     inference_cfg = InferenceConfig(
         data={
             "max_tokens": 1000,
-            "log_probs": 1,
+            "log_probs": True,
             "url": "http://localhost:8080",
             "api_token": "",
             "model": "stories260K.gguf",
@@ -181,8 +181,8 @@ async def test_submit_text_chat_completions():
         mock.post(
             "http://localhost:8080/v1/chat/completions", status=200, body=mock_response
         )
-        response = await submit_text_chat_completions(
-            "asd", {}, inference_cfg=inference_cfg, stream=True
+        response = await submit_text(
+            "asd", inference_cfg=inference_cfg, stream=True
         )
         async for x in response.content:
             assert x == mock_response
