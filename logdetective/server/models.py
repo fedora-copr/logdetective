@@ -134,7 +134,7 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
     """Model for inference configuration of logdetective server."""
 
     max_tokens: int = -1
-    log_probs: int = 1
+    log_probs: bool = True
     url: str = ""
     api_token: str = ""
     model: str = ""
@@ -150,7 +150,7 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
             return
 
         self.max_tokens = data.get("max_tokens", -1)
-        self.log_probs = data.get("log_probs", 1)
+        self.log_probs = data.get("log_probs", True)
         self.url = data.get("url", "")
         self.http_timeout = data.get("http_timeout", 5.0)
         self.api_token = data.get("api_token", "")

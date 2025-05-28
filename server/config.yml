@@ -4,7 +4,7 @@ log:
   path: "log/logdetective.log"
 inference:
   max_tokens: -1
-  log_probs: 1
+  log_probs: true
   url: http://llama-cpp-server:8000
   # url: https://mistral-7b-instruct-v0-3--apicast-production.apps.int.stc.ai.prod.us-east-1.aws.paas.redhat.com/
   api_token: ""
@@ -14,7 +14,7 @@ inference:
 # Separate LLM endpoint for snippet analysis, optional
 # snippet_inference:
 #   max_tokens: -1
-#   log_probs: 1
+#   log_probs: true
 #   url: http://llama-cpp-server:8000
 #   api_token: ""
 #   requests_per_minute: 6

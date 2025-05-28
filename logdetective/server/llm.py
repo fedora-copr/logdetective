@@ -61,7 +61,7 @@ async def submit_to_llm_endpoint(
     stream: bool,
     inference_cfg: InferenceConfig = SERVER_CONFIG.inference,
 ) -> Any:
-    """Send request to selected API endpoint. Verifying successful request unless
+    """Send request to an API endpoint. Verifying successful request unless
     the using the stream response.
 
     url_path: The endpoint path to query. (e.g. "/v1/chat/completions"). It should
@@ -141,8 +141,8 @@ async def submit_text(
     text: str,
     inference_cfg: InferenceConfig,
     stream: bool = False,
-) -> Explanation:
-    """Submit prompt to LLM using a selected endpoint.
+) -> Union[Explanation, StreamReader]:
+    """Submit prompt to LLM.
     inference_cfg: The configuration section from the config.json representing
     the relevant inference server for this request.
     log_probs: number of token choices to produce log probs for
@@ -151,24 +151,9 @@ async def submit_text(
 
     headers = {"Content-Type": "application/json"}
 
-    return await submit_text_chat_completions(
-        text,
-        headers,
-        inference_cfg,
-        stream,
-    )
+    if SERVER_CONFIG.inference.api_token:
+        headers["Authorization"] = f"Bearer {SERVER_CONFIG.inference.api_token}"
 
-
-async def submit_text_chat_completions(
-    text: str,
-    headers: dict,
-    inference_cfg: InferenceConfig,
-    stream: bool = False,
-) -> Union[Explanation, StreamReader]:
-    """Submit prompt to OpenAI API /chat/completions endpoint.
-    max_tokens: number of tokens to be produces, 0 indicates run until encountering EOS
-    log_probs: number of token choices to produce log probs for
-    """
     LOG.info("Submitting to /v1/chat/completions endpoint")
 
     data = {
