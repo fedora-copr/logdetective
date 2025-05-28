@@ -41,7 +41,6 @@ async def test_submit_to_llm():
         data={
             "max_tokens": 1000,
             "log_probs": 1,
-            "api_endpoint": "/chat/completions",
             "url": "http://localhost:8080",
             "api_token": "",
             "model": "stories260K.gguf",
@@ -169,7 +168,6 @@ async def test_submit_text_chat_completions():
         data={
             "max_tokens": 1000,
             "log_probs": 1,
-            "api_endpoint": "/chat/completions",
             "url": "http://localhost:8080",
             "api_token": "",
             "model": "stories260K.gguf",

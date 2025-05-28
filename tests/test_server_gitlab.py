@@ -41,7 +41,6 @@ def mock_config():
                 "model": "some.gguf",
                 "max_tokens": -1,
                 "api_token": "def",
-                "api_endpoint": "/chat/completitions",
                 "temperature": 1,
                 "url": "http://llama-cpp-server:8000",
             },

@@ -1,7 +1,7 @@
 import asyncio
 import datetime
 from logging import BASIC_FORMAT
-from typing import List, Dict, Optional, Literal
+from typing import List, Dict, Optional
 from pydantic import (
     BaseModel,
     Field,
@@ -135,9 +135,6 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
 
     max_tokens: int = -1
     log_probs: int = 1
-    api_endpoint: Optional[Literal["/chat/completions"]] = (
-        "/chat/completions"
-    )
     url: str = ""
     api_token: str = ""
     model: str = ""
@@ -154,7 +151,6 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
 
         self.max_tokens = data.get("max_tokens", -1)
         self.log_probs = data.get("log_probs", 1)
-        self.api_endpoint = data.get("api_endpoint", "/chat/completions")
         self.url = data.get("url", "")
         self.http_timeout = data.get("http_timeout", 5.0)
         self.api_token = data.get("api_token", "")
