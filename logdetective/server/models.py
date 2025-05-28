@@ -135,7 +135,7 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
 
     max_tokens: int = -1
     log_probs: int = 1
-    api_endpoint: Optional[Literal["/chat/completions", "/completions"]] = (
+    api_endpoint: Optional[Literal["/chat/completions"]] = (
         "/chat/completions"
     )
     url: str = ""
