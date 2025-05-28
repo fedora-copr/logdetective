@@ -64,7 +64,7 @@ async def submit_to_llm_endpoint(
     """Send request to selected API endpoint. Verifying successful request unless
     the using the stream response.
 
-    url_path: The endpoint path to query. (e.g. "/v1/completions"). It should
+    url_path: The endpoint path to query. (e.g. "/v1/chat/completions"). It should
     not include the scheme and netloc of the URL, which is stored in the
     InferenceConfig.
     data:
@@ -151,52 +151,11 @@ async def submit_text(
 
     headers = {"Content-Type": "application/json"}
 
-    if inference_cfg.api_endpoint == "/chat/completions":
-        return await submit_text_chat_completions(
-            text,
-            headers,
-            inference_cfg,
-            stream,
-        )
-
-    return await submit_text_completions(
+    return await submit_text_chat_completions(
         text,
         headers,
-        inference_cfg=inference_cfg,
-        stream=stream,
-    )
-
-
-async def submit_text_completions(
-    text: str,
-    headers: dict,
-    inference_cfg: InferenceConfig,
-    stream: bool = False,
-) -> Explanation:
-    """Submit prompt to OpenAI API completions endpoint.
-    max_tokens: number of tokens to be produces, 0 indicates run until encountering EOS
-    log_probs: number of token choices to produce log probs for
-    """
-    LOG.info("Submitting to /v1/completions endpoint")
-    data = {
-        "prompt": text,
-        "max_tokens": inference_cfg.max_tokens,
-        "logprobs": inference_cfg.log_probs,
-        "stream": stream,
-        "model": inference_cfg.model,
-        "temperature": inference_cfg.temperature,
-    }
-
-    response = await submit_to_llm_endpoint(
-        "/v1/completions",
-        data,
-        headers,
-        inference_cfg=inference_cfg,
-        stream=stream,
-    )
-
-    return Explanation(
-        text=response["choices"][0]["text"], logprobs=response["choices"][0]["logprobs"]
+        inference_cfg,
+        stream,
     )
 
 
