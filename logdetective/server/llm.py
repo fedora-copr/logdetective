@@ -1,8 +1,7 @@
 import os
 import asyncio
-import json
 import random
-from typing import List, Tuple, Dict, Any, Union
+from typing import List, Tuple, Union
 
 import backoff
 from fastapi import HTTPException
@@ -53,59 +52,6 @@ def mine_logs(log: str) -> List[Tuple[int, str]]:
     LOG.info("Compression ratio: %s", ratio)
 
     return log_summary
-
-
-async def submit_to_llm_endpoint(
-    url_path: str,
-    data: Dict[str, Any],
-    headers: Dict[str, str],
-    stream: bool,
-    inference_cfg: InferenceConfig = SERVER_CONFIG.inference,
-) -> Any:
-    """Send request to an API endpoint. Verifying successful request unless
-    the using the stream response.
-
-    url_path: The endpoint path to query. (e.g. "/v1/chat/completions"). It should
-    not include the scheme and netloc of the URL, which is stored in the
-    InferenceConfig.
-    data:
-    headers:
-    stream:
-    inference_cfg: An InferenceConfig object containing the URL, max_tokens
-    and other relevant configuration for talking to an inference server.
-    """
-    async with inference_cfg.get_limiter():
-        LOG.debug("async request %s headers=%s data=%s", url_path, headers, data)
-        session = inference_cfg.get_http_session()
-
-        if inference_cfg.api_token:
-            headers["Authorization"] = f"Bearer {inference_cfg.api_token}"
-
-        response = await session.post(
-            url_path,
-            headers=headers,
-            # we need to use the `json=` parameter here and let aiohttp
-            # handle the json-encoding
-            json=data,
-            timeout=int(LLM_CPP_SERVER_TIMEOUT),
-            # Docs says chunked takes int, but:
-            #   DeprecationWarning: Chunk size is deprecated #1615
-            # So let's make sure we either put True or None here
-            chunked=True if stream else None,
-            raise_for_status=True,
-        )
-        if stream:
-            return response
-        try:
-            return json.loads(await response.text())
-        except UnicodeDecodeError as ex:
-            LOG.error(
-                "Error encountered while parsing llama server response: %s", ex
-            )
-            raise HTTPException(
-                status_code=400,
-                detail=f"Couldn't parse the response.\nError: {ex}\nData: {response.text}",
-            ) from ex
 
 
 def should_we_giveup(exc: aiohttp.ClientResponseError) -> bool:
