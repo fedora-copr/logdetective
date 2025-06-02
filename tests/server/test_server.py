@@ -16,7 +16,9 @@ from logdetective.server.llm import (
 )
 from logdetective.remote_log import RemoteLog
 from logdetective.server.config import load_server_config
-from logdetective.server.models import InferenceConfig
+from logdetective.server.models import InferenceConfig, Explanation
+
+from tests.server.test_helpers import mock_chat_completions
 
 
 @pytest.mark.asyncio
@@ -155,13 +157,9 @@ async def test_process_url():
             assert url_output == "123"
 
 
-@pytest.mark.skipif(
-    Version(aioresponses.__version__) < Version("0.7.8"),
-    reason="aioresponses lacks support for base_url",
-)
+@pytest.mark.parametrize("mock_chat_completions", ["This is a mock message"], indirect=True)
 @pytest.mark.asyncio
-async def test_submit_text_chat_completions():
-    mock_response = b"123"
+async def test_submit_text_chat_completions(mock_chat_completions):
 
     # Create InferenceConfig
     inference_cfg = InferenceConfig(
@@ -177,15 +175,10 @@ async def test_submit_text_chat_completions():
         }
     )
 
-    with aioresponses.aioresponses() as mock:
-        mock.post(
-            "http://localhost:8080/v1/chat/completions", status=200, body=mock_response
-        )
-        response = await submit_text(
-            "asd", inference_cfg=inference_cfg, stream=True
-        )
-        async for x in response.content:
-            assert x == mock_response
+    response = await submit_text("Hello world!", inference_cfg=inference_cfg)
+
+    assert isinstance(response, Explanation)
+    assert response.text == "This is a mock message"
 
 
 @pytest.mark.skip(
