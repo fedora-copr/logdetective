@@ -1,3 +1,5 @@
+import os
+import sys
 import io
 import zipfile
 import pytest
@@ -14,7 +16,7 @@ from test_helpers import (
     DatabaseFactory,
 )
 
-from logdetective.server.gitlab import is_eligible_package
+from logdetective.server.gitlab import is_eligible_package, retrieve_and_preprocess_koji_logs
 from logdetective.server.server import process_gitlab_job_event
 from logdetective.server.models import JobHook, GitLabInstanceConfig, Config
 from logdetective.server.compressors import RemoteLogCompressor
@@ -356,3 +358,32 @@ async def test_is_eligible_package(mock_config):
 
     # Test an excluded regular expression
     assert not is_eligible_package("python3-more-exclusions-foo")
+
+
+# Regression test for https://github.com/fedora-copr/logdetective/issues/292
+# To test this, comment out the @pytest.mark.skip decorator
+@pytest.mark.skip(reason="Requires real network access and a valid token")
+@pytest.mark.asyncio
+async def test_regression_unknown_arch_logs():
+    gl_token = os.environ.get("LD_GITLAB_TOKEN", None)
+
+    gitlab_cfg = GitLabInstanceConfig(
+        name="Live Network Test Instance",
+        data={
+            "api_url": "https://gitlab.com",
+            "api_token": gl_token,
+            "max_artifact_size": 120,
+        }
+    )
+
+    project = gitlab_cfg.get_connection().projects.get(23665037)
+    job = project.jobs.get(10226618670)
+
+    url, open_file = await retrieve_and_preprocess_koji_logs(
+        gitlab_cfg=gitlab_cfg,
+        job=job,
+    )
+    open_file.close()
+
+    assert "task_failed.log" not in url
+    assert "build.log" in url
