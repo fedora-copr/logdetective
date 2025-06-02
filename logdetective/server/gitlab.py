@@ -193,9 +193,12 @@ async def retrieve_and_preprocess_koji_logs(
             # may be presented only at the top level.
             # The paths look like `kojilogs/noarch-XXXXXX/task_failed.log`
             # or `kojilogs/noarch-XXXXXX/x86_64-XXXXXX/task_failed.log`
+            # We prefix "toplevel" with '~' so that later when we sort the
+            # keys to see if there are any unrecognized arches, it will always
+            # sort last.
             path = PurePath(zipinfo.filename)
             if len(path.parts) <= 3:
-                failed_arches["toplevel"] = path
+                failed_arches["~toplevel"] = path
                 continue
 
             # Extract the architecture from the immediate parent path
@@ -246,12 +249,11 @@ async def retrieve_and_preprocess_koji_logs(
     elif "noarch" in failed_arches:
         # May have failed during BuildSRPMFromSCM phase
         failed_arch = "noarch"
-    elif "toplevel" in failed_arches:
-        # Probably a Koji-specific error, not a build error
-        failed_arch = "toplevel"
     else:
         # We have one or more architectures that we don't know about? Just
-        # pick the first alphabetically.
+        # pick the first alphabetically. If the issue was a Koji error
+        # rather than a build failure, this will fall back to ~toplevel as
+        # the lowest-sorting possibility.
         failed_arch = sorted(list(failed_arches.keys()))[0]
 
     LOG.debug("Failed architecture: %s", failed_arch)
