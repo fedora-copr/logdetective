@@ -9,7 +9,6 @@ import responses
 import aioresponses
 from packaging.version import Version
 
-from aiolimiter import AsyncLimiter
 from flexmock import flexmock
 
 from test_helpers import (
