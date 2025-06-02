@@ -1,6 +1,4 @@
-import json
 from pathlib import Path
-from packaging.version import Version
 
 import aiohttp
 import aioresponses
