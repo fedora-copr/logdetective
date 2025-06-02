@@ -14,6 +14,7 @@ from flexmock import flexmock
 
 from tests.server.test_helpers import (
     DatabaseFactory,
+    mock_chat_completions
 )
 
 from logdetective.server.gitlab import is_eligible_package, retrieve_and_preprocess_koji_logs
@@ -308,12 +309,13 @@ async def mock_job_hook():
             yield sync_rsps, async_rsps, job_hook
 
 
+@pytest.mark.parametrize("mock_chat_completions", ["This is a mock message"], indirect=True)
 @pytest.mark.skipif(
     Version(aioresponses.__version__) < Version("0.7.8"),
     reason="aioresponses lacks support for base_url",
 )
 @pytest.mark.asyncio
-async def test_process_gitlab_job_event(mock_config, mock_job_hook):
+async def test_process_gitlab_job_event(mock_config, mock_job_hook, mock_chat_completions):
     with DatabaseFactory().make_new_db() as session_factory:
         _, _, job_hook = mock_job_hook
         gitlab_instance = GitLabInstanceConfig(
