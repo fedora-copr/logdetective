@@ -6,6 +6,8 @@ import pytest
 
 from fastapi import HTTPException
 
+from tests.server.test_helpers import mock_chat_completions
+
 from logdetective.server.config import SERVER_CONFIG
 from logdetective.server.llm import (
     perform_staged_analysis,
@@ -14,8 +16,6 @@ from logdetective.server.llm import (
 from logdetective.remote_log import RemoteLog
 from logdetective.server.config import load_server_config
 from logdetective.server.models import InferenceConfig, Explanation
-
-from tests.server.test_helpers import mock_chat_completions
 
 
 @pytest.mark.asyncio
