@@ -5,17 +5,18 @@ import random
 from typing import List, Tuple, Dict, Any, Union
 
 import backoff
-from aiohttp import StreamReader
 from fastapi import HTTPException
 
 import aiohttp
+from openai import AsyncStream
+from openai.types.chat import ChatCompletionChunk
 
 from logdetective.constants import SNIPPET_DELIMITER
 from logdetective.extractors import DrainExtractor
 from logdetective.utils import (
     compute_certainty,
 )
-from logdetective.server.config import LOG, SERVER_CONFIG, PROMPT_CONFIG
+from logdetective.server.config import LOG, SERVER_CONFIG, PROMPT_CONFIG, CLIENT
 from logdetective.server.models import (
     AnalyzedSnippet,
     InferenceConfig,
@@ -141,7 +142,7 @@ async def submit_text(
     text: str,
     inference_cfg: InferenceConfig,
     stream: bool = False,
-) -> Union[Explanation, StreamReader]:
+) -> Union[Explanation, AsyncStream[ChatCompletionChunk]]:
     """Submit prompt to LLM.
     inference_cfg: The configuration section from the config.json representing
     the relevant inference server for this request.
@@ -149,40 +150,36 @@ async def submit_text(
     """
     LOG.info("Analyzing the text")
 
-    headers = {"Content-Type": "application/json"}
-
-    if SERVER_CONFIG.inference.api_token:
-        headers["Authorization"] = f"Bearer {SERVER_CONFIG.inference.api_token}"
-
     LOG.info("Submitting to /v1/chat/completions endpoint")
 
-    data = {
-        "messages": [
-            {
-                "role": "user",
-                "content": text,
-            }
-        ],
-        "max_tokens": inference_cfg.max_tokens,
-        "logprobs": inference_cfg.log_probs,
-        "stream": stream,
-        "model": inference_cfg.model,
-        "temperature": inference_cfg.temperature,
-    }
+    async with inference_cfg.get_limiter():
+        response = await CLIENT.chat.completions.create(
+            messages=[
+                {
+                    "role": "user",
+                    "content": text,
+                }
+            ],
+            max_tokens=inference_cfg.max_tokens,
+            logprobs=inference_cfg.log_probs,
+            stream=stream,
+            model=inference_cfg.model,
+            temperature=inference_cfg.temperature,
+        )
 
-    response = await submit_to_llm_endpoint(
-        "/v1/chat/completions",
-        data,
-        headers,
-        inference_cfg=inference_cfg,
-        stream=stream,
-    )
-
-    if stream:
+    if isinstance(response, AsyncStream):
         return response
+    if not response.choices[0].message.content:
+        LOG.error("No response content recieved from %s", inference_cfg.url)
+        raise RuntimeError()
+    if response.choices[0].logprobs and response.choices[0].logprobs.content:
+        logprobs = [e.to_dict() for e in response.choices[0].logprobs.content]
+    else:
+        logprobs = None
+
     return Explanation(
-        text=response["choices"][0]["message"]["content"],
-        logprobs=response["choices"][0]["logprobs"]["content"],
+        text=response.choices[0].message.content,
+        logprobs=logprobs,
     )
 
 
