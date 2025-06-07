@@ -2,7 +2,7 @@ import logging
 from urllib.parse import urlparse
 
 import aiohttp
-from fastapi import HTTPException
+from aiohttp.web import HTTPBadRequest
 
 LOG = logging.getLogger("logdetective")
 
@@ -64,6 +64,6 @@ class RemoteLog:
         try:
             return await self.get_url_content()
         except RuntimeError as ex:
-            raise HTTPException(
-                status_code=400, detail=f"We couldn't obtain the logs: {ex}"
+            raise HTTPBadRequest(
+                reason=f"We couldn't obtain the logs: {ex}"
             ) from ex
