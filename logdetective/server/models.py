@@ -136,7 +136,9 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
     max_tokens: int = -1
     log_probs: bool = True
     url: str = ""
-    api_token: str = ""
+    # OpenAI client library requires a string to be specified for API token
+    # even if it is not checked on the server side
+    api_token: str = "None"
     model: str = ""
     temperature: NonNegativeFloat = DEFAULT_TEMPERATURE
     max_queue_size: int = LLM_DEFAULT_MAX_QUEUE_SIZE
@@ -153,7 +155,7 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
         self.log_probs = data.get("log_probs", True)
         self.url = data.get("url", "")
         self.http_timeout = data.get("http_timeout", 5.0)
-        self.api_token = data.get("api_token", "")
+        self.api_token = data.get("api_token", "None")
         self.model = data.get("model", "default-model")
         self.temperature = data.get("temperature", DEFAULT_TEMPERATURE)
         self.max_queue_size = data.get("max_queue_size", LLM_DEFAULT_MAX_QUEUE_SIZE)

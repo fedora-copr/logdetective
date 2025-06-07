@@ -13,6 +13,11 @@ environment:
   POSTGRESQL_ADMIN_PASSWORD: adminpassword
 
 prepare:
+  - name: Do not install python3-logdetective+sever subpackage
+    how: install
+    exclude:
+      - "python3-logdetective+server*"
+
   - name: Install podman
     how: install
     package: podman

@@ -1,8 +1,10 @@
 import os
 import logging
 import yaml
+from openai import AsyncOpenAI
+
 from logdetective.utils import load_prompts
-from logdetective.server.models import Config
+from logdetective.server.models import Config, InferenceConfig
 
 
 def load_server_config(path: str | None) -> Config:
@@ -49,6 +51,14 @@ def get_log(config: Config):
     return log
 
 
+def get_openai_api_client(ineference_config: InferenceConfig):
+    """Set up AsyncOpenAI client with default configuration.
+    """
+    return AsyncOpenAI(
+        api_key=ineference_config.api_token,
+        base_url=ineference_config.url)
+
+
 SERVER_CONFIG_PATH = os.environ.get("LOGDETECTIVE_SERVER_CONF", None)
 SERVER_PROMPT_PATH = os.environ.get("LOGDETECTIVE_PROMPTS", None)
 
@@ -56,3 +66,5 @@ SERVER_CONFIG = load_server_config(SERVER_CONFIG_PATH)
 PROMPT_CONFIG = load_prompts(SERVER_PROMPT_PATH)
 
 LOG = get_log(SERVER_CONFIG)
+
+CLIENT = get_openai_api_client(SERVER_CONFIG.inference)
