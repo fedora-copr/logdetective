@@ -11,5 +11,7 @@ jobs:
       - uses: actions/setup-python@v2
       - name: Install tox
         run: pip install tox
-      - name: Run pytest
-        run: tox -e pytest
+      - name: Run pytest for base package
+        run: tox -e pytest_base
+      - name: Run pytest for server
+        run: tox -e pytest_server

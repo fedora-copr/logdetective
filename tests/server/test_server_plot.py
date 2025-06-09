@@ -3,7 +3,7 @@ import tempfile
 
 import pytest
 
-from test_helpers import PopulateDatabase
+from tests.server.test_helpers import PopulateDatabase
 
 from logdetective.server import plot, models
 from logdetective.server.database.models import AnalyzeRequestMetrics, EndpointType

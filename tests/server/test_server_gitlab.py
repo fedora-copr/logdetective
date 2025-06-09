@@ -12,7 +12,7 @@ from packaging.version import Version
 from aiolimiter import AsyncLimiter
 from flexmock import flexmock
 
-from test_helpers import (
+from tests.server.test_helpers import (
     DatabaseFactory,
 )
 

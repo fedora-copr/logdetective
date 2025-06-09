@@ -5,11 +5,14 @@ require:
 - python3-aioresponses
 - python3-responses
 - podman
+- python3-tox
+- gcc-c++
+- git
 
 component:
 - logdetective
 
-test: pytest-3 -vv .
+test: tox -e pytest_server
 
 duration: 30m
 

@@ -1,0 +1,19 @@
+require:
+- python3-pytest
+- python3-flexmock
+- python3-pytest-asyncio
+- python3-aioresponses
+- python3-responses
+- podman
+- python3-tox
+- gcc-c++
+- git
+
+component:
+- logdetective
+
+test: tox -e pytest_base
+
+duration: 30m
+
+path: /
