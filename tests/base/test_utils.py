@@ -9,38 +9,12 @@ from logdetective.utils import (
     format_snippets,
     load_prompts,
 )
-from logdetective.server.llm import format_analyzed_snippets
-from logdetective.server.models import AnalyzedSnippet, Explanation
+
 from logdetective.remote_log import RemoteLog
 from logdetective.models import PromptConfig
 from logdetective import constants
 
-test_snippets = [
-    # Simple
-    ["Snippet 1", "Snippet 2", "Snippet 3"],
-    # Tuples
-    [(10, "Snippet 1"), (120, "Snippet 1"), (240, "Snippet 1")],
-]
-
-test_analyzed_snippets = [
-    [
-        AnalyzedSnippet(
-            text=e[1],
-            line_number=e[0],
-            explanation=Explanation(
-                text=f"Comment for snippet on line {e[0]}",
-                logprobs=[{"logprob": 66.6}, {"logprob": 99.9}, {"logprob": 1.0}],
-            ),
-        )
-        for e in test_snippets[1]
-    ]
-]
-
-test_prompts = """
-prompt_template: This is basic template.
-
-snippet_prompt_template: This is template for snippets.
-"""
+from tests.base.test_helpers import test_snippets, test_prompts
 
 
 @pytest.mark.parametrize(
@@ -55,12 +29,6 @@ def test_compute_certainty(probs):
 def test_format_snippets(snippets):
     """Test snippet formatting with both simple snippets, and line numbers"""
     format_snippets(snippets)
-
-
-@pytest.mark.parametrize("snippets", test_analyzed_snippets)
-def test_format_analyzed_snippets(snippets):
-    """Test snippet formatting for snippets with LLM generated explanations"""
-    format_analyzed_snippets(snippets)
 
 
 def test_load_prompts_wrong_path():
