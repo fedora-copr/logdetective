@@ -3,6 +3,7 @@ on:
   push:
   pull_request:
     branches: [main]
+permissions: {}
 jobs:
   run_pytest:
     runs-on: ubuntu-latest

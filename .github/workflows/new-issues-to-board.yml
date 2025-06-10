@@ -4,7 +4,10 @@ name: Move new issues to issues review
 on:
   issues:
     types: [opened]
-
+permissions:
+  repository-projects: write
+  pull-requests: read
+  issues: read
 jobs:
   move-new-issue:
     runs-on: ubuntu-latest
