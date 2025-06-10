@@ -16,10 +16,10 @@ jobs:
 
     steps:
       - name: Repository checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.0.0
 
       - name: VCS Diff Lint
-        uses: fedora-copr/vcs-diff-lint-action@v1
+        uses: fedora-copr/vcs-diff-lint-action@3fe529c95a55cf7d25d1ef73d53f790710c9a352 # v1.10.0
         id: VCS_Diff_Lint
         with:
           install_rpm_packages: |
@@ -35,14 +35,14 @@ jobs:
             ruff
 
       - name: Upload artifact with detected defects in SARIF format
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: VCS Diff Lint SARIF
           path: ${{ steps.VCS_Diff_Lint.outputs.sarif }}
         if: ${{ always() }}
 
       - name: Upload SARIF to GitHub using github/codeql-action/upload-sarif
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@fca7ace96b7d713c7035871441bd52efbe39e27e # v3.28.19
         with:
           sarif_file: ${{ steps.VCS_Diff_Lint.outputs.sarif }}
         if: ${{ always() }}
