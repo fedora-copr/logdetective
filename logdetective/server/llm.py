@@ -1,21 +1,21 @@
 import os
 import asyncio
-import json
 import random
-from typing import List, Tuple, Dict, Any, Union
+from typing import List, Tuple, Union
 
 import backoff
-from aiohttp import StreamReader
 from fastapi import HTTPException
 
 import aiohttp
+from openai import AsyncStream
+from openai.types.chat import ChatCompletionChunk
 
 from logdetective.constants import SNIPPET_DELIMITER
 from logdetective.extractors import DrainExtractor
 from logdetective.utils import (
     compute_certainty,
 )
-from logdetective.server.config import LOG, SERVER_CONFIG, PROMPT_CONFIG
+from logdetective.server.config import LOG, SERVER_CONFIG, PROMPT_CONFIG, CLIENT
 from logdetective.server.models import (
     AnalyzedSnippet,
     InferenceConfig,
@@ -54,59 +54,6 @@ def mine_logs(log: str) -> List[Tuple[int, str]]:
     return log_summary
 
 
-async def submit_to_llm_endpoint(
-    url_path: str,
-    data: Dict[str, Any],
-    headers: Dict[str, str],
-    stream: bool,
-    inference_cfg: InferenceConfig = SERVER_CONFIG.inference,
-) -> Any:
-    """Send request to an API endpoint. Verifying successful request unless
-    the using the stream response.
-
-    url_path: The endpoint path to query. (e.g. "/v1/chat/completions"). It should
-    not include the scheme and netloc of the URL, which is stored in the
-    InferenceConfig.
-    data:
-    headers:
-    stream:
-    inference_cfg: An InferenceConfig object containing the URL, max_tokens
-    and other relevant configuration for talking to an inference server.
-    """
-    async with inference_cfg.get_limiter():
-        LOG.debug("async request %s headers=%s data=%s", url_path, headers, data)
-        session = inference_cfg.get_http_session()
-
-        if inference_cfg.api_token:
-            headers["Authorization"] = f"Bearer {inference_cfg.api_token}"
-
-        response = await session.post(
-            url_path,
-            headers=headers,
-            # we need to use the `json=` parameter here and let aiohttp
-            # handle the json-encoding
-            json=data,
-            timeout=int(LLM_CPP_SERVER_TIMEOUT),
-            # Docs says chunked takes int, but:
-            #   DeprecationWarning: Chunk size is deprecated #1615
-            # So let's make sure we either put True or None here
-            chunked=True if stream else None,
-            raise_for_status=True,
-        )
-        if stream:
-            return response
-        try:
-            return json.loads(await response.text())
-        except UnicodeDecodeError as ex:
-            LOG.error(
-                "Error encountered while parsing llama server response: %s", ex
-            )
-            raise HTTPException(
-                status_code=400,
-                detail=f"Couldn't parse the response.\nError: {ex}\nData: {response.text}",
-            ) from ex
-
-
 def should_we_giveup(exc: aiohttp.ClientResponseError) -> bool:
     """
     From backoff's docs:
@@ -141,7 +88,7 @@ async def submit_text(
     text: str,
     inference_cfg: InferenceConfig,
     stream: bool = False,
-) -> Union[Explanation, StreamReader]:
+) -> Union[Explanation, AsyncStream[ChatCompletionChunk]]:
     """Submit prompt to LLM.
     inference_cfg: The configuration section from the config.json representing
     the relevant inference server for this request.
@@ -149,40 +96,36 @@ async def submit_text(
     """
     LOG.info("Analyzing the text")
 
-    headers = {"Content-Type": "application/json"}
-
-    if SERVER_CONFIG.inference.api_token:
-        headers["Authorization"] = f"Bearer {SERVER_CONFIG.inference.api_token}"
-
     LOG.info("Submitting to /v1/chat/completions endpoint")
 
-    data = {
-        "messages": [
-            {
-                "role": "user",
-                "content": text,
-            }
-        ],
-        "max_tokens": inference_cfg.max_tokens,
-        "logprobs": inference_cfg.log_probs,
-        "stream": stream,
-        "model": inference_cfg.model,
-        "temperature": inference_cfg.temperature,
-    }
+    async with inference_cfg.get_limiter():
+        response = await CLIENT.chat.completions.create(
+            messages=[
+                {
+                    "role": "user",
+                    "content": text,
+                }
+            ],
+            max_tokens=inference_cfg.max_tokens,
+            logprobs=inference_cfg.log_probs,
+            stream=stream,
+            model=inference_cfg.model,
+            temperature=inference_cfg.temperature,
+        )
 
-    response = await submit_to_llm_endpoint(
-        "/v1/chat/completions",
-        data,
-        headers,
-        inference_cfg=inference_cfg,
-        stream=stream,
-    )
-
-    if stream:
+    if isinstance(response, AsyncStream):
         return response
+    if not response.choices[0].message.content:
+        LOG.error("No response content recieved from %s", inference_cfg.url)
+        raise RuntimeError()
+    if response.choices[0].logprobs and response.choices[0].logprobs.content:
+        logprobs = [e.to_dict() for e in response.choices[0].logprobs.content]
+    else:
+        logprobs = None
+
     return Explanation(
-        text=response["choices"][0]["message"]["content"],
-        logprobs=response["choices"][0]["logprobs"]["content"],
+        text=response.choices[0].message.content,
+        logprobs=logprobs,
     )
 
 

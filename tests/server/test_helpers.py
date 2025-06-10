@@ -8,6 +8,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from flexmock import flexmock
 
+from openai.types.chat.chat_completion import Choice, ChatCompletion
+from openai.types.chat.chat_completion_message import ChatCompletionMessage
+from openai.resources.chat.completions import AsyncCompletions
+
 from logdetective.server.models import Response, Explanation
 from logdetective.server.database import base
 from logdetective.server.database.base import init, destroy
@@ -218,3 +222,32 @@ def populate_db_with_analyze_request_every_15_minutes_for_3_weeks():
         duration=duration
     ) as session_factory:
         yield session_factory
+
+
+@pytest.fixture()
+def mock_chat_completions(monkeypatch, request):
+    """Returns mock ChatCompletion response asynchronously.
+    """
+    mock_message = request.param
+
+    async def mock_create(*args, **kwargs):
+        completion = ChatCompletion(
+            id="mock_completion",
+            created=0,
+            object="chat.completion",
+            choices=[
+                Choice(
+                    finish_reason="stop",
+                    index=0,
+                    message=ChatCompletionMessage(
+                        content=mock_message,
+                        role="assistant",
+                    ),
+                )
+            ],
+            model="mock_completion_model",
+        )
+
+        return completion
+
+    monkeypatch.setattr(AsyncCompletions, "create", mock_create)
