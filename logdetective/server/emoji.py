@@ -64,6 +64,8 @@ async def collect_emojis_in_comments(  # pylint: disable=too-many-locals
     mrs = {}
     for comment in comments:
         mr_job_db = GitlabMergeRequestJobs.get_by_id(comment.merge_request_job_id)
+        if not mr_job_db:
+            continue
         if mr_job_db.id not in projects:
             projects[mr_job_db.id] = project = await _handle_gitlab_operation(
                 gitlab_conn.projects.get, mr_job_db.project_id
