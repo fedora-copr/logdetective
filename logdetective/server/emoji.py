@@ -44,7 +44,7 @@ async def _handle_gitlab_operation(func: Callable, *args):
     """
     try:
         return await asyncio.to_thread(func, *args)
-    except gitlab.GitlabError as e:
+    except (gitlab.GitlabError, gitlab.GitlabGetError) as e:
         log_msg = f"Error during GitLab operation {func}{args}: {e}"
         if "Not Found" in str(e):
             LOG.error(log_msg)
