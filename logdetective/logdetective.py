@@ -149,6 +149,10 @@ async def run():  # pylint: disable=too-many-statements,too-many-locals
     log_summary = format_snippets(log_summary)
     LOG.info("Log summary: \n %s", log_summary)
 
+    prompt = (
+        f"{prompts_configuration.default_system_prompt}\n"
+        f"{prompts_configuration.prompt_template}")
+
     stream = True
     if args.no_stream:
         stream = False
@@ -156,7 +160,7 @@ async def run():  # pylint: disable=too-many-statements,too-many-locals
         log_summary,
         model,
         stream,
-        prompt_template=prompts_configuration.prompt_template,
+        prompt_template=prompt,
         temperature=args.temperature,
     )
     probs = []

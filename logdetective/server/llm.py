@@ -1,7 +1,7 @@
 import os
 import asyncio
 import random
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Dict
 
 import backoff
 from fastapi import HTTPException
@@ -14,6 +14,7 @@ from logdetective.constants import SNIPPET_DELIMITER
 from logdetective.extractors import DrainExtractor
 from logdetective.utils import (
     compute_certainty,
+    prompt_to_messages,
 )
 from logdetective.server.config import LOG, SERVER_CONFIG, PROMPT_CONFIG, CLIENT
 from logdetective.server.models import (
@@ -85,7 +86,7 @@ def we_give_up(details: backoff._typing.Details):
     on_giveup=we_give_up,
 )
 async def submit_text(
-    text: str,
+    messages: List[Dict[str, str]],
     inference_cfg: InferenceConfig,
     stream: bool = False,
 ) -> Union[Explanation, AsyncStream[ChatCompletionChunk]]:
@@ -100,12 +101,7 @@ async def submit_text(
 
     async with inference_cfg.get_limiter():
         response = await CLIENT.chat.completions.create(
-            messages=[
-                {
-                    "role": "user",
-                    "content": text,
-                }
-            ],
+            messages=messages,
             max_tokens=inference_cfg.max_tokens,
             logprobs=inference_cfg.log_probs,
             stream=stream,
@@ -136,7 +132,12 @@ async def perform_staged_analysis(log_text: str) -> StagedResponse:
     # Process snippets asynchronously
     awaitables = [
         submit_text(
-            PROMPT_CONFIG.snippet_prompt_template.format(s),
+            prompt_to_messages(
+                PROMPT_CONFIG.snippet_prompt_template.format(s),
+                PROMPT_CONFIG.snippet_system_prompt,
+                SERVER_CONFIG.inference.system_role,
+                SERVER_CONFIG.inference.user_role,
+            ),
             inference_cfg=SERVER_CONFIG.snippet_inference,
         )
         for s in log_summary
@@ -150,9 +151,14 @@ async def perform_staged_analysis(log_text: str) -> StagedResponse:
     final_prompt = PROMPT_CONFIG.prompt_template_staged.format(
         format_analyzed_snippets(analyzed_snippets)
     )
-
-    final_analysis = await submit_text(
+    messages = prompt_to_messages(
         final_prompt,
+        PROMPT_CONFIG.staged_system_prompt,
+        SERVER_CONFIG.inference.system_role,
+        SERVER_CONFIG.inference.user_role,
+    )
+    final_analysis = await submit_text(
+        messages,
         inference_cfg=SERVER_CONFIG.inference,
     )
 
