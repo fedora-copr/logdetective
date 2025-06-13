@@ -20,6 +20,8 @@ from logdetective.constants import (
     DEFAULT_TEMPERATURE,
     LLM_DEFAULT_MAX_QUEUE_SIZE,
     LLM_DEFAULT_REQUESTS_PER_MINUTE,
+    SYSTEM_ROLE_DEFAULT,
+    USER_ROLE_DEFAULT,
 )
 
 
@@ -143,6 +145,8 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
     temperature: NonNegativeFloat = DEFAULT_TEMPERATURE
     max_queue_size: int = LLM_DEFAULT_MAX_QUEUE_SIZE
     http_timeout: float = 5.0
+    user_role: str = USER_ROLE_DEFAULT
+    system_role: str = SYSTEM_ROLE_DEFAULT
     _http_session: aiohttp.ClientSession = None
     _limiter: AsyncLimiter = AsyncLimiter(LLM_DEFAULT_REQUESTS_PER_MINUTE)
 
@@ -159,7 +163,8 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
         self.model = data.get("model", "default-model")
         self.temperature = data.get("temperature", DEFAULT_TEMPERATURE)
         self.max_queue_size = data.get("max_queue_size", LLM_DEFAULT_MAX_QUEUE_SIZE)
-
+        self.user_role = data.get("user_role", USER_ROLE_DEFAULT)
+        self.system_role = data.get("system_role", SYSTEM_ROLE_DEFAULT)
         self._requests_per_minute = data.get(
             "requests_per_minute", LLM_DEFAULT_REQUESTS_PER_MINUTE
         )

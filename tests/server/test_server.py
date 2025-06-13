@@ -56,8 +56,13 @@ async def test_submit_text_chat_completions(mock_chat_completions):
             "requests_per_minute": 60,
         }
     )
-
-    response = await submit_text("Hello world!", inference_cfg=inference_cfg)
+    messages = [
+        {
+            "role": "user",
+            "content": "Hello world!",
+        }
+    ]
+    response = await submit_text(messages, inference_cfg=inference_cfg)
 
     assert isinstance(response, Explanation)
     assert response.text == "This is a mock message"

@@ -20,6 +20,7 @@ import logdetective.server.database.base
 from logdetective.utils import (
     compute_certainty,
     format_snippets,
+    prompt_to_messages,
 )
 
 from logdetective.server.config import SERVER_CONFIG, PROMPT_CONFIG, LOG
@@ -135,9 +136,14 @@ async def analyze_log(
     log_text = await remote_log.process_url()
     log_summary = mine_logs(log_text)
     log_summary = format_snippets(log_summary)
-
-    response = await submit_text(
+    messages = prompt_to_messages(
         PROMPT_CONFIG.prompt_template.format(log_summary),
+        PROMPT_CONFIG.default_system_prompt,
+        SERVER_CONFIG.inference.system_role,
+        SERVER_CONFIG.inference.user_role,
+    )
+    response = await submit_text(
+        messages,
         inference_cfg=SERVER_CONFIG.inference,
     )
     certainty = 0
@@ -204,10 +210,15 @@ async def analyze_log_stream(
     log_text = await remote_log.process_url()
     log_summary = mine_logs(log_text)
     log_summary = format_snippets(log_summary)
-
+    messages = prompt_to_messages(
+        PROMPT_CONFIG.prompt_template.format(log_summary),
+        PROMPT_CONFIG.default_system_prompt,
+        SERVER_CONFIG.inference.system_role,
+        SERVER_CONFIG.inference.user_role,
+    )
     try:
         stream = submit_text(
-            PROMPT_CONFIG.prompt_template.format(log_summary),
+            messages,
             inference_cfg=SERVER_CONFIG.inference,
             stream=True,
         )

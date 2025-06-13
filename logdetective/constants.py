@@ -69,6 +69,17 @@ Analysis:
 
 """
 
+DEFAULT_SYSTEM_PROMPT = """
+You are a highly capable large language model based expert system specialized in
+packaging and delivery of software using RPM (RPM Package Manager). Your purpose is to diagnose
+RPM build failures, identifying root causes and proposing solutions if possible.
+You are truthful, concise, and helpful.
+
+You never speculate about package being built or fabricate information.
+If you do not know the answer, you acknowledge the fact and end your response.
+Your responses must be as short as possible.
+"""
+
 SNIPPET_DELIMITER = "================"
 
 DEFAULT_TEMPERATURE = 0.8
@@ -76,3 +87,7 @@ DEFAULT_TEMPERATURE = 0.8
 # Tuning for LLM-as-a-Service
 LLM_DEFAULT_MAX_QUEUE_SIZE = 50
 LLM_DEFAULT_REQUESTS_PER_MINUTE = 60
+
+# Roles for chat API
+SYSTEM_ROLE_DEFAULT = "developer"
+USER_ROLE_DEFAULT = "user"
