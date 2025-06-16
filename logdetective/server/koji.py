@@ -1,9 +1,13 @@
 import asyncio
+import re
 from typing import Any, Callable
 
 import backoff
 import koji
 from logdetective.server.config import LOG
+
+
+FAILURE_LOG_REGEX = re.compile(r"(\w*\.log)")
 
 
 class LogDetectiveKojiException(Exception):
@@ -20,6 +24,14 @@ class NoFailedTask(LogDetectiveKojiException):
 
 class LogDetectiveConnectionError(LogDetectiveKojiException):
     """A connection error occurred."""
+
+
+class LogsMissingError(LogDetectiveKojiException):
+    """The logs are missing, possibly due to garbage-collection"""
+
+
+class LogsTooLargeError(LogDetectiveKojiException):
+    """The log archive exceeds the configured maximum size"""
 
 
 def connection_error_giveup(details: backoff._typing.Details) -> None:
@@ -114,3 +126,57 @@ async def get_failed_subtask_info(
     # If none of those architectures were found, return the first one
     # alphabetically
     return arch_tasks[sorted(arch_tasks.keys())[0]]
+
+
+async def get_failed_log_from_task(
+    koji_session: koji.ClientSession, task_id: int, max_size: int
+) -> str:
+    """
+    Get the failed log from a task.
+
+    If the log is too large, this function will raise a LogsTooLargeError.
+    If the log is missing or garbage-collected, this function will raise a
+    LogsMissingError.
+    """
+    taskinfo = await get_failed_subtask_info(koji_session, task_id)
+
+    # Read the failure reason from the task. Note that the taskinfo returned
+    # above may not be the same as passed in, so we need to use taskinfo["id"]
+    # to look up the correct failure reason.
+    result = await call_koji(
+        koji_session.getTaskResult, taskinfo["id"], raise_fault=False
+    )
+
+    # Examine the result message for the appropriate log file.
+    match = FAILURE_LOG_REGEX.search(result["faultString"])
+    if match:
+        failure_log_name = match.group(1)
+    else:
+        # The best thing we can do at this point is return the
+        # task_failed.log, since it will probably contain the most
+        # relevant information
+        return result["faultString"]
+
+    # Check that the size of the log file is not enormous
+    task_output = await call_koji(
+        koji_session.listTaskOutput, taskinfo["id"], stat=True
+    )
+    if not task_output:
+        # If the task has been garbage-collected, the task output will be empty
+        raise LogsMissingError(
+            "No logs attached to this task. Possibly garbage-collected."
+        )
+
+    if failure_log_name not in task_output:
+        # This shouldn't be possible, but we'll check anyway.
+        raise LogsMissingError(f"{failure_log_name} could not be located")
+
+    if int(task_output[failure_log_name]["st_size"]) > max_size:
+        raise LogsTooLargeError(
+            f"{task_output[failure_log_name]['st_size']} exceeds max size {max_size}"
+        )
+
+    log_contents = await call_koji(
+        koji_session.downloadTaskOutput, taskinfo["id"], failure_log_name
+    )
+    return log_contents.decode("utf-8")
