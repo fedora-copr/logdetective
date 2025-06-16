@@ -247,7 +247,7 @@ class GitLabInstanceConfig(BaseModel):  # pylint: disable=too-many-instance-attr
     _http_session: aiohttp.ClientSession = None
 
     # Maximum size of artifacts.zip in MiB. (default: 300 MiB)
-    max_artifact_size: int = 300
+    max_artifact_size: int = 300 * 1024 * 1024
 
     def __init__(self, name: str, data: Optional[dict] = None):
         super().__init__()
