@@ -3,7 +3,11 @@ import pytest
 
 import koji
 
-from logdetective.server.koji import get_failed_subtask_info
+from logdetective.server.koji import (
+    LogsTooLargeError,
+    get_failed_subtask_info,
+    get_failed_log_from_task,
+)
 
 
 arches = [
@@ -136,3 +140,50 @@ async def test_koji_get_failed_subtask_from_canceledtask(mocker):
     # Several arches failed; Of the remaining arches, we don't recognize
     # either of them, so we return the first one alphabetically.
     assert taskinfo["arch"] == "anunknownarch"
+
+
+@pytest.mark.asyncio
+async def test_koji_get_failed_log_from_task(mocker):
+    task_id = 133858346
+
+    # Mock the Koji session
+    mock_session = mocker.Mock()
+
+    # Mock the task info
+    mock_session.getTaskInfo.return_value = {
+        "id": task_id,
+        "state": koji.TASK_STATES["FAILED"],
+        "method": "buildArch",
+        "arch": "x86_64",
+    }
+
+    mock_session.getTaskResult.return_value = {
+        "faultString": "BuildError: error building package (arch x86_64), mock exited with status 1; see build.log or root.log for more information"  # pylint: disable=line-too-long
+    }
+
+    # Mock the build log response
+    mock_session.listTaskOutput.return_value = {
+        "build.log": {
+            "st_size": "43",
+        },
+    }
+
+    mock_session.downloadTaskOutput.return_value = (
+        b"Error: Build failed\nDetailed error message"
+    )
+
+    # Test getting log from a failed task
+    log = await get_failed_log_from_task(mock_session, task_id, max_size=1024 * 1024)
+
+    # Verify the log content
+    assert log == "Error: Build failed\nDetailed error message"
+
+    # Verify the correct methods were called
+    mock_session.getTaskInfo.assert_called_once_with(task_id)
+    mock_session.getTaskResult.assert_called_once_with(task_id, raise_fault=False)
+    mock_session.listTaskOutput.assert_called_once_with(task_id, stat=True)
+    mock_session.downloadTaskOutput.assert_called_once_with(task_id, "build.log")
+
+    # Test getting a log that is too large
+    with pytest.raises(LogsTooLargeError):
+        await get_failed_log_from_task(mock_session, task_id, max_size=10)
