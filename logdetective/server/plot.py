@@ -2,12 +2,10 @@ import datetime
 from typing import Optional, Union, Dict
 
 import numpy
-import matplotlib
-import matplotlib.figure
-import matplotlib.pyplot
+from numpy.typing import ArrayLike
+from matplotlib import dates, colormaps, axes, pyplot, figure
 
-from matplotlib.pyplot import cm
-from logdetective.server import models
+from logdetective.server.models import TimePeriod
 from logdetective.server.database.models import (
     AnalyzeRequestMetrics,
     EndpointType,
@@ -18,25 +16,25 @@ from logdetective.server.database.models import (
 class Definition:
     """Define plot details, given a time period."""
 
-    def __init__(self, time_period: models.TimePeriod):
+    def __init__(self, time_period: TimePeriod):
         self.time_period = time_period
         self.days_diff = time_period.get_time_period().days
         if self.time_period.hours:
             self._freq = "H"
             self._time_format = "%Y-%m-%d %H"
-            self._locator = matplotlib.dates.HourLocator(interval=2)
+            self._locator = dates.HourLocator(interval=2)
             self._time_unit = "hour"
             self._time_delta = datetime.timedelta(hours=1)
         elif self.time_period.days:
             self._freq = "D"
             self._time_format = "%Y-%m-%d"
-            self._locator = matplotlib.dates.DayLocator(interval=1)
+            self._locator = dates.DayLocator(interval=1)
             self._time_unit = "day"
             self._time_delta = datetime.timedelta(days=1)
         elif self.time_period.weeks:
             self._freq = "W"
             self._time_format = "%Y-%m-%d"
-            self._locator = matplotlib.dates.WeekdayLocator(interval=1)
+            self._locator = dates.WeekdayLocator(interval=1)
             self._time_unit = "week"
             self._time_delta = datetime.timedelta(weeks=1)
 
@@ -120,10 +118,10 @@ def create_time_series_arrays(
 
 
 def _add_bar_chart(
-    ax: matplotlib.figure.Axes,
+    ax: axes.Axes,
     plot_def: Definition,
-    timestamps: numpy.array,
-    values: numpy.array,
+    timestamps: ArrayLike,
+    values: ArrayLike,
     label: str,
 ) -> None:
     """Add a blue bar chart"""
@@ -142,18 +140,18 @@ def _add_bar_chart(
     ax.set_ylabel(label, color="blue")
     ax.tick_params(axis="y", labelcolor="blue")
 
-    ax.xaxis.set_major_formatter(matplotlib.dates.DateFormatter(plot_def.time_format))
+    ax.xaxis.set_major_formatter(dates.DateFormatter(plot_def.time_format))
     ax.xaxis.set_major_locator(plot_def.locator)
 
-    matplotlib.pyplot.xticks(rotation=45)
+    pyplot.xticks(rotation=45)
 
     ax.grid(True, alpha=0.3)
 
 
 def _add_line_chart(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
-    ax: matplotlib.figure.Axes,
-    timestamps: numpy.array,
-    values: numpy.array,
+    ax: axes.Axes,
+    timestamps: ArrayLike,
+    values: ArrayLike,
     label: str,
     color: str = "red",
     set_label: bool = True,
@@ -166,10 +164,10 @@ def _add_line_chart(  # pylint: disable=too-many-arguments disable=too-many-posi
 
 
 def requests_per_time(
-    period_of_time: models.TimePeriod,
+    period_of_time: TimePeriod,
     endpoint: EndpointType = EndpointType.ANALYZE,
     end_time: Optional[datetime.datetime] = None,
-) -> matplotlib.figure.Figure:
+) -> figure.Figure:
     """
     Generate a visualization of request counts over a specified time period.
 
@@ -200,13 +198,13 @@ def requests_per_time(
         requests_counts, plot_def, start_time, end_time
     )
 
-    fig, ax1 = matplotlib.pyplot.subplots(figsize=(12, 6))
+    fig, ax1 = pyplot.subplots(figsize=(12, 6))
     _add_bar_chart(ax1, plot_def, timestamps, counts, "Requests")
 
     ax2 = ax1.twinx()
     _add_line_chart(ax2, timestamps, numpy.cumsum(counts), "Cumulative Requests")
 
-    matplotlib.pyplot.title(
+    pyplot.title(
         f"Requests received for API {endpoint} ({start_time.strftime(plot_def.time_format)} "
         f"to {end_time.strftime(plot_def.time_format)})"
     )
@@ -215,16 +213,16 @@ def requests_per_time(
     lines2, labels2 = ax2.get_legend_handles_labels()
     ax1.legend(lines1 + lines2, labels1 + labels2, loc="center")
 
-    matplotlib.pyplot.tight_layout()
+    pyplot.tight_layout()
 
     return fig
 
 
 def average_time_per_responses(  # pylint: disable=too-many-locals
-    period_of_time: models.TimePeriod,
+    period_of_time: TimePeriod,
     endpoint: EndpointType = EndpointType.ANALYZE,
     end_time: Optional[datetime.datetime] = None,
-) -> matplotlib.figure.Figure:
+) -> figure.Figure:
     """
     Generate a visualization of average response time and length over a specified time period.
 
@@ -259,7 +257,7 @@ def average_time_per_responses(  # pylint: disable=too-many-locals
         float,
     )
 
-    fig, ax1 = matplotlib.pyplot.subplots(figsize=(12, 6))
+    fig, ax1 = pyplot.subplots(figsize=(12, 6))
     _add_bar_chart(
         ax1, plot_def, timestamps, average_time, "average response time (seconds)"
     )
@@ -280,7 +278,7 @@ def average_time_per_responses(  # pylint: disable=too-many-locals
     ax2 = ax1.twinx()
     _add_line_chart(ax2, timestamps, average_length, "average response length (chars)")
 
-    matplotlib.pyplot.title(
+    pyplot.title(
         f"average response time for API {endpoint} ({start_time.strftime(plot_def.time_format)} "
         f"to {end_time.strftime(plot_def.time_format)})"
     )
@@ -289,7 +287,7 @@ def average_time_per_responses(  # pylint: disable=too-many-locals
     lines2, labels2 = ax2.get_legend_handles_labels()
     ax1.legend(lines1 + lines2, labels1 + labels2, loc="center")
 
-    matplotlib.pyplot.tight_layout()
+    pyplot.tight_layout()
 
     return fig
 
@@ -322,7 +320,7 @@ def _collect_emoji_data(
 
 
 def _plot_emoji_data(  # pylint: disable=too-many-locals
-    ax: matplotlib.figure.Axes,
+    ax: axes.Axes,
     reactions_values_dict: Dict[str, Dict[datetime.datetime, int]],
     plot_def: Definition,
     start_time: datetime.datetime,
@@ -340,7 +338,10 @@ def _plot_emoji_data(  # pylint: disable=too-many-locals
         )
         all_counts.extend(counts)
 
-    colors = [cm.viridis(i) for i in numpy.linspace(0, 1, len(reactions_values_dict))]  # pylint: disable=no-member
+    colors = [
+        colormaps["viridis"](i)
+        for i in numpy.linspace(0, 1, len(reactions_values_dict))
+    ]
 
     first_emoji = True
     for i, (emoji, dict_counts) in enumerate(reactions_values_dict.items()):
@@ -369,9 +370,9 @@ def _plot_emoji_data(  # pylint: disable=too-many-locals
 
 
 def emojis_per_time(
-    period_of_time: models.TimePeriod,
+    period_of_time: TimePeriod,
     end_time: Optional[datetime.datetime] = None,
-) -> matplotlib.figure.Figure:
+) -> figure.Figure:
     """
     Generate a visualization of overall emoji feedback
     over a specified time period.
@@ -396,13 +397,13 @@ def emojis_per_time(
     start_time = period_of_time.get_period_start_time(end_time)
     reactions_values_dict = _collect_emoji_data(start_time, plot_def)
 
-    fig, ax = matplotlib.pyplot.subplots(figsize=(12, 6))
+    fig, ax = pyplot.subplots(figsize=(12, 6))
 
     emoji_lines, emoji_labels = _plot_emoji_data(
         ax, reactions_values_dict, plot_def, start_time, end_time
     )
 
-    matplotlib.pyplot.title(
+    pyplot.title(
         f"Emoji feedback ({start_time.strftime(plot_def.time_format)} "
         f"to {end_time.strftime(plot_def.time_format)})"
     )
@@ -419,11 +420,11 @@ def emojis_per_time(
     ax.set_ylabel("Count")
 
     # Format x-axis
-    ax.xaxis.set_major_formatter(matplotlib.dates.DateFormatter(plot_def.time_format))
+    ax.xaxis.set_major_formatter(dates.DateFormatter(plot_def.time_format))
     ax.xaxis.set_major_locator(plot_def.locator)
     ax.tick_params(axis="x", labelrotation=45)
     ax.grid(True, alpha=0.3)
 
-    matplotlib.pyplot.tight_layout()
+    pyplot.tight_layout()
 
     return fig
