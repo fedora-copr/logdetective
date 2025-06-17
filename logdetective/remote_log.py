@@ -53,7 +53,7 @@ class RemoteLog:
             LOG.debug("process url %s", self.url)
             try:
                 response = await self._http_session.get(self.url, raise_for_status=True)
-            except aiohttp.ClientResponseError as ex:
+            except (aiohttp.ClientResponseError, aiohttp.ClientConnectorError) as ex:
                 raise RuntimeError(f"We couldn't obtain the logs: {ex}") from ex
             return await response.text()
         LOG.error("Invalid URL received ")
