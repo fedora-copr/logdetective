@@ -43,8 +43,8 @@ Usage
 To analyze a log file, run the script with the following command line arguments:
 - `url` (required): The URL of the log file to be analyzed.
 - `--model` (optional, default: "Mistral-7B-Instruct-v0.2-GGUF"): The path or URL of the language model for analysis. As we are using LLama.cpp we want this to be in the `gguf` format. You can include the download link to the model here. If the model is already on your machine it will skip the download.
-- `--summarizer` (optional, default: "drain"): Choose between LLM and Drain template miner as the log summarizer. You can also provide the path to an existing language model file instead of using a URL.
-- `--n_lines` (optional, default: 8): The number of lines per chunk for LLM analysis. This only makes sense when you are summarizing with LLM.
+- `--summarizer` DISABLED: LLM summarization option was removed. Argument is kept for backward compatibility only.(optional, default: "drain"): Choose between LLM and Drain template miner as the log summarizer. You can also provide the path to an existing language model file instead of using a URL.
+- `--n_lines` DISABLED: LLM summarization option was removed. Argument is kept for backward compatibility only. (optional, default: 8): The number of lines per chunk for LLM analysis. This only makes sense when you are summarizing with LLM.
 - `--n_clusters` (optional, default 8): Number of clusters for Drain to organize log chunks into. This only makes sense when you are summarizing with Drain
 
 Example usage:

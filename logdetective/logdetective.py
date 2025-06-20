@@ -15,7 +15,7 @@ from logdetective.utils import (
     compute_certainty,
     load_prompts,
 )
-from logdetective.extractors import LLMExtractor, DrainExtractor
+from logdetective.extractors import DrainExtractor
 
 LOG = logging.getLogger("logdetective")
 
@@ -49,16 +49,16 @@ def setup_args():
         "--summarizer",
         type=str,
         default="drain",
-        help="Choose between LLM and Drain template miner as the log summarizer.\
-                                LLM must be specified as path to a model, URL or local file.",
+        help="DISABLED: LLM summarization option was removed. \
+                Argument is kept for backward compatibility only.",
     )
     parser.add_argument(
         "-N",
         "--n_lines",
         type=int,
-        default=8,
-        help="The number of lines per chunk for LLM analysis.\
-                            This only makes sense when you are summarizing with LLM.",
+        default=None,
+        help="DISABLED: LLM summarization option was removed. \
+                Argument is kept for backward compatibility only.",
     )
     parser.add_argument(
         "-C",
@@ -93,6 +93,11 @@ async def run():  # pylint: disable=too-many-statements,too-many-locals
         sys.stderr.write("Error: --quiet and --verbose is mutually exclusive.\n")
         sys.exit(2)
 
+    # Emit warning about use of discontinued args
+    if args.n_lines or args.summarizer != "drain":
+        LOG.warning(
+            "LLM based summarization was removed. Drain will be used instead.")
+
     # Logging facility setup
     log_level = logging.INFO
     if args.verbose >= 1:
@@ -116,18 +121,10 @@ async def run():  # pylint: disable=too-many-statements,too-many-locals
         LOG.error("You likely do not have enough memory to load the AI model")
         sys.exit(3)
 
-    # Log file summarizer selection and initialization
-    if args.summarizer == "drain":
-        extractor = DrainExtractor(
-            args.verbose > 1, context=True, max_clusters=args.n_clusters
-        )
-    else:
-        summarizer_model = initialize_model(args.summarizer, verbose=args.verbose > 2)
-        extractor = LLMExtractor(
-            summarizer_model,
-            args.verbose > 1,
-            prompts_configuration.summarization_prompt_template,
-        )
+    # Log file summarizer initialization
+    extractor = DrainExtractor(
+        args.verbose > 1, context=True, max_clusters=args.n_clusters
+    )
 
     LOG.info("Getting summary")
 
