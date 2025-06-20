@@ -15,6 +15,7 @@ import aiohttp
 
 from aiolimiter import AsyncLimiter
 from gitlab import Gitlab
+import koji
 
 from logdetective.constants import (
     DEFAULT_TEMPERATURE,
@@ -84,6 +85,13 @@ class EmojiHook(BaseModel):
 
     # Information about the merge request this emoji applies to, if any.
     merge_request: EmojiMergeRequest = Field(default=None)
+
+
+class KojiTask(BaseModel):
+    """Model of a Koji task."""
+
+    koji_instance: str
+    task_id: int
 
 
 class Explanation(BaseModel):
@@ -323,6 +331,49 @@ class GitLabConfig(BaseModel):
             self.instances[instance.url] = instance
 
 
+class KojiInstanceConfig(BaseModel):
+    """Model for Koji configuration of logdetective server."""
+
+    name: str = ""
+    xmlrpc_url: str = ""
+    tokens: List[str] = []
+
+    _conn: Optional[koji.ClientSession] = None
+
+    def __init__(self, name: str, data: Optional[dict] = None):
+        super().__init__()
+        if data is None:
+            return
+
+        self.name = name
+        self.xmlrpc_url = data.get(
+            "xmlrpc_url", "https://koji.fedoraproject.org/kojihub"
+        )
+        self.tokens = data.get("tokens", [])
+
+    def get_connection(self):
+        """Get the Koji connection object"""
+        if not self._conn:
+            self._conn = koji.ClientSession(self.xmlrpc_url)
+        return self._conn
+
+
+class KojiConfig(BaseModel):
+    """Model for Koji configuration of logdetective server."""
+
+    instances: Dict[str, KojiInstanceConfig] = {}
+
+    def __init__(self, data: Optional[dict] = None):
+        super().__init__()
+        if data is None:
+            return
+
+        for instance_name, instance_data in data.items():
+            self.instances[instance_name] = KojiInstanceConfig(
+                instance_name, instance_data
+            )
+
+
 class LogConfig(BaseModel):
     """Logging configuration"""
 
@@ -375,6 +426,7 @@ class Config(BaseModel):
     snippet_inference: InferenceConfig = InferenceConfig()
     extractor: ExtractorConfig = ExtractorConfig()
     gitlab: GitLabConfig = GitLabConfig()
+    koji: KojiConfig = KojiConfig()
     general: GeneralConfig = GeneralConfig()
 
     def __init__(self, data: Optional[dict] = None):
@@ -387,6 +439,7 @@ class Config(BaseModel):
         self.inference = InferenceConfig(data.get("inference"))
         self.extractor = ExtractorConfig(data.get("extractor"))
         self.gitlab = GitLabConfig(data.get("gitlab"))
+        self.koji = KojiConfig(data.get("koji"))
         self.general = GeneralConfig(data.get("general"))
 
         if snippet_inference := data.get("snippet_inference", None):

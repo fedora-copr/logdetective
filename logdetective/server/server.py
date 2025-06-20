@@ -24,6 +24,9 @@ from logdetective.utils import (
 )
 
 from logdetective.server.config import SERVER_CONFIG, PROMPT_CONFIG, LOG
+from logdetective.server.koji import (
+    get_failed_log_from_task as get_failed_log_from_koji_task,
+)
 from logdetective.remote_log import RemoteLog
 from logdetective.server.llm import (
     mine_logs,
@@ -36,6 +39,7 @@ from logdetective.server.models import (
     BuildLog,
     EmojiHook,
     JobHook,
+    KojiTask,
     Response,
     StagedResponse,
     TimePeriod,
@@ -174,6 +178,31 @@ async def analyze_log_staged(
     """
     remote_log = RemoteLog(build_log.url, http_session)
     log_text = await remote_log.process_url()
+
+    return await perform_staged_analysis(log_text)
+
+
+@app.post("/analyze/rpmbuild/koji", response_model=StagedResponse)
+async def analyze_rpmbuild_koji(
+    task: KojiTask, x_koji_token: Annotated[str, Header()] = ""
+):
+    """Provide endpoint for log file submission and analysis from Koji"""
+
+    koji_instance_config = SERVER_CONFIG.koji.instances[task.koji_instance]
+
+    # This should always be available in a production environment.
+    # In a testing environment, the tokens list may be empty, in which case
+    # it will just proceed.
+    if koji_instance_config.tokens and x_koji_token not in koji_instance_config.tokens:
+        # This request could not be validated, so return a 401
+        # (Unauthorized) error.
+        return BasicResponse(x_koji_token, status_code=401)
+
+    koji_conn = koji_instance_config.get_connection()
+
+    log_text = await get_failed_log_from_koji_task(
+        koji_conn, task.task_id, max_size=SERVER_CONFIG.koji.max_artifact_size
+    )
 
     return await perform_staged_analysis(log_text)
 
