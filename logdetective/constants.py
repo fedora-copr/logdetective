@@ -26,17 +26,6 @@ Analysis:
 
 """
 
-SUMMARIZATION_PROMPT_TEMPLATE = """
-Does following log contain error or issue?
-
-Log:
-
-{}
-
-Answer:
-
-"""
-
 SNIPPET_PROMPT_TEMPLATE = """
 Analyse following RPM build log snippet. Describe contents accurately, without speculation or suggestions for resolution.
 

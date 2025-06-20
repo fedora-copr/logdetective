@@ -21,17 +21,6 @@ prompt_template: |
 
   Analysis:
 
-
-summarization_prompt_template: |
-  Does following log contain error or issue?
-
-  Log:
-
-  {}
-
-  Answer:
-
-
 snippet_prompt_template: |
   Analyse following RPM build log snippet. Describe contents accurately, without speculation or suggestions for resolution.
 
