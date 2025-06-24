@@ -3,14 +3,18 @@ log:
   level_file: "DEBUG"
   path: "log/logdetective.log"
 inference:
-  max_tokens: -1
+  max_tokens: 10000 # maximum number of tokens must be a positive integer
   log_probs: true
   url: http://llama-cpp-server:8000
   # url: https://mistral-7b-instruct-v0-3--apicast-production.apps.int.stc.ai.prod.us-east-1.aws.paas.redhat.com/
-  api_token: ""
+  api_token: "XXX" # Must not be empty, even if the server doesn't require authentication
   requests_per_minute: 6
   http_timeout: 5.0
   http_connect_timeout: 3.07
+  # Roles are used to format prompts into chat messages
+  # If the roles are same, the system prompt and user message are concatenated
+  # user_role: user
+  # system_role: developer
 # Separate LLM endpoint for snippet analysis, optional
 # snippet_inference:
 #   max_tokens: -1
