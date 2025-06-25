@@ -15,6 +15,12 @@ from fastapi.responses import Response as BasicResponse
 import aiohttp
 import sentry_sdk
 
+from logdetective.server.database.models.koji import (
+    KojiTaskAnalysis,
+    TaskNotAnalyzedError,
+    TaskNotFoundError,
+)
+
 import logdetective.server.database.base
 
 from logdetective.utils import (
@@ -34,11 +40,12 @@ from logdetective.server.llm import (
     submit_text,
 )
 from logdetective.server.gitlab import process_gitlab_job_event
-from logdetective.server.metric import track_request
+from logdetective.server.metric import track_request, add_new_metrics, update_metrics
 from logdetective.server.models import (
     BuildLog,
     EmojiHook,
     JobHook,
+    KojiInstanceConfig,
     KojiTask,
     Response,
     StagedResponse,
@@ -53,6 +60,7 @@ from logdetective.server.emoji import (
     collect_emojis,
     collect_emojis_for_mr,
 )
+from logdetective.server.compressors import RemoteLogCompressor
 
 
 LOG_SOURCE_REQUEST_TIMEOUT = os.environ.get("LOG_SOURCE_REQUEST_TIMEOUT", 60)
@@ -184,7 +192,9 @@ async def analyze_log_staged(
 
 @app.post("/analyze/rpmbuild/koji", response_model=StagedResponse)
 async def analyze_rpmbuild_koji(
-    task: KojiTask, x_koji_token: Annotated[str, Header()] = ""
+    task: KojiTask,
+    x_koji_token: Annotated[str, Header()] = "",
+    background_tasks: BackgroundTasks = BackgroundTasks(),
 ):
     """Provide endpoint for log file submission and analysis from Koji"""
 
@@ -198,13 +208,58 @@ async def analyze_rpmbuild_koji(
         # (Unauthorized) error.
         return BasicResponse(x_koji_token, status_code=401)
 
-    koji_conn = koji_instance_config.get_connection()
+    # Check if we already have a response for this task
+    try:
+        return KojiTaskAnalysis.get_response_by_task_id(task.task_id)
+    except TaskNotFoundError:
+        # Task not yet analyzed, so we need to start the analysis in the
+        # background and return a 202 (Accepted) error.
+        background_tasks.add_task(
+            analyze_koji_task,
+            task,
+            koji_instance_config,
+        )
+        return BasicResponse(status_code=202)
 
+    except TaskNotAnalyzedError:
+        # Task analysis is still in progress, so we need to return a 202
+        # (Accepted) error.
+        return BasicResponse(status_code=202)
+
+
+async def analyze_koji_task(task: KojiTask, koji_instance_config: KojiInstanceConfig):
+    """Analyze a koji task and return the response"""
+
+    # Get the log text from the koji task
+    koji_conn = koji_instance_config.get_connection()
     log_text = await get_failed_log_from_koji_task(
         koji_conn, task.task_id, max_size=SERVER_CONFIG.koji.max_artifact_size
     )
 
-    return await perform_staged_analysis(log_text)
+    # We need to handle the metric tracking manually here, because we need
+    # to retrieve the metric ID to associate it with the koji task analysis.
+
+    metrics_id = await add_new_metrics(
+        "analyze_koji_task",
+        log_text,
+        received_at=datetime.datetime.now(datetime.timezone.utc),
+        compressed_log_content=RemoteLogCompressor.zip_text(log_text),
+    )
+
+    # We need to associate the metric ID with the koji task analysis.
+    # This will create the new row without a response, which we will use as
+    # an indicator that the analysis is in progress.
+    KojiTaskAnalysis.create(
+        koji_instance=task.koji_instance,
+        task_id=task.task_id,
+    )
+    response = await perform_staged_analysis(log_text)
+
+    # Now that we have the response, we can update the metrics and mark the
+    # koji task analysis as completed.
+    update_metrics(metrics_id, response)
+    KojiTaskAnalysis.add_response(task.task_id, metrics_id)
+    return response
 
 
 @app.get("/queue/print")
