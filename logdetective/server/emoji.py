@@ -51,7 +51,9 @@ async def _handle_gitlab_operation(func: Callable, *args):
         else:
             LOG.exception(log_msg)
     except Exception as e:  # pylint: disable=broad-exception-caught
-        LOG.exception("Unexpected error during GitLab operation %s(%s): %s", func, args, e)
+        LOG.exception(
+            "Unexpected error during GitLab operation %s(%s): %s", func, args, e
+        )
 
 
 async def collect_emojis_in_comments(  # pylint: disable=too-many-locals

@@ -340,7 +340,7 @@ def _plot_emoji_data(  # pylint: disable=too-many-locals
         )
         all_counts.extend(counts)
 
-    colors = [cm.viridis(i) for i in numpy.linspace(0, 1, len(reactions_values_dict))]    # pylint: disable=no-member
+    colors = [cm.viridis(i) for i in numpy.linspace(0, 1, len(reactions_values_dict))]  # pylint: disable=no-member
 
     first_emoji = True
     for i, (emoji, dict_counts) in enumerate(reactions_values_dict.items()):

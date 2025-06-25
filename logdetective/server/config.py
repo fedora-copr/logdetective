@@ -52,11 +52,10 @@ def get_log(config: Config):
 
 
 def get_openai_api_client(ineference_config: InferenceConfig):
-    """Set up AsyncOpenAI client with default configuration.
-    """
+    """Set up AsyncOpenAI client with default configuration."""
     return AsyncOpenAI(
-        api_key=ineference_config.api_token,
-        base_url=ineference_config.url)
+        api_key=ineference_config.api_token, base_url=ineference_config.url
+    )
 
 
 SERVER_CONFIG_PATH = os.environ.get("LOGDETECTIVE_SERVER_CONF", None)

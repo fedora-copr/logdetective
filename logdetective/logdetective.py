@@ -74,13 +74,13 @@ def setup_args():
         "--prompts",
         type=str,
         default=f"{os.path.dirname(__file__)}/prompts.yml",
-        help="Path to prompt configuration file."
+        help="Path to prompt configuration file.",
     )
     parser.add_argument(
         "--temperature",
         type=float,
         default=DEFAULT_TEMPERATURE,
-        help="Temperature for inference."
+        help="Temperature for inference.",
     )
     return parser.parse_args()
 
@@ -95,8 +95,7 @@ async def run():  # pylint: disable=too-many-statements,too-many-locals
 
     # Emit warning about use of discontinued args
     if args.n_lines or args.summarizer != "drain":
-        LOG.warning(
-            "LLM based summarization was removed. Drain will be used instead.")
+        LOG.warning("LLM based summarization was removed. Drain will be used instead.")
 
     # Logging facility setup
     log_level = logging.INFO
@@ -148,7 +147,8 @@ async def run():  # pylint: disable=too-many-statements,too-many-locals
 
     prompt = (
         f"{prompts_configuration.default_system_prompt}\n"
-        f"{prompts_configuration.prompt_template}")
+        f"{prompts_configuration.prompt_template}"
+    )
 
     stream = True
     if args.no_stream:
@@ -188,7 +188,7 @@ async def run():  # pylint: disable=too-many-statements,too-many-locals
 
 
 def main():
-    """ Evaluate logdetective program and wait for it to finish """
+    """Evaluate logdetective program and wait for it to finish"""
     asyncio.run(run())
 
 

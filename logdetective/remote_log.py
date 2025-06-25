@@ -64,6 +64,4 @@ class RemoteLog:
         try:
             return await self.get_url_content()
         except RuntimeError as ex:
-            raise HTTPBadRequest(
-                reason=f"We couldn't obtain the logs: {ex}"
-            ) from ex
+            raise HTTPBadRequest(reason=f"We couldn't obtain the logs: {ex}") from ex
