@@ -31,7 +31,9 @@ def mock_AnalyzeRequestMetrics():
 @pytest.mark.parametrize(
     "response",
     [
-        flexmock(response_certainty=37.7, explanation=Explanation(text="abc", logprobs=[])),
+        flexmock(
+            response_certainty=37.7, explanation=Explanation(text="abc", logprobs=[])
+        ),
         flexmock(),  # mimic StreamResponse
     ],
 )

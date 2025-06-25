@@ -72,8 +72,7 @@ async def test_get_url_content():
 @pytest.mark.parametrize("user_role", ["user", "something"])
 @pytest.mark.parametrize("system_role", ["developer", "user"])
 def test_message_formatting(system_role, user_role):
-    """Test message formatting utility function.
-    """
+    """Test message formatting utility function."""
     user_msg = "Hello world!"
     system_msg = "This is a system message!"
     expected_messages_separate_roles = [
@@ -84,14 +83,11 @@ def test_message_formatting(system_role, user_role):
         {
             "role": user_role,
             "content": user_msg,
-        }
+        },
     ]
 
     expected_messages_single_role = [
-        {
-            "role": user_role,
-            "content": f"{system_msg}\n{user_msg}"
-        }
+        {"role": user_role, "content": f"{system_msg}\n{user_msg}"}
     ]
 
     messages = prompt_to_messages(user_msg, system_msg, system_role, user_role)

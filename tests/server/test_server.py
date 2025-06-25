@@ -39,10 +39,11 @@ async def test_process_url():
             assert url_output == "123"
 
 
-@pytest.mark.parametrize("mock_chat_completions", ["This is a mock message"], indirect=True)
+@pytest.mark.parametrize(
+    "mock_chat_completions", ["This is a mock message"], indirect=True
+)
 @pytest.mark.asyncio
 async def test_submit_text_chat_completions(mock_chat_completions):
-
     # Create InferenceConfig
     inference_cfg = InferenceConfig(
         data={

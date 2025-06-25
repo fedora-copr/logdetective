@@ -226,8 +226,7 @@ def populate_db_with_analyze_request_every_15_minutes_for_3_weeks():
 
 @pytest.fixture()
 def mock_chat_completions(monkeypatch, request):
-    """Returns mock ChatCompletion response asynchronously.
-    """
+    """Returns mock ChatCompletion response asynchronously."""
     mock_message = request.param
 
     async def mock_create(*args, **kwargs):

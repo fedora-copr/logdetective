@@ -29,7 +29,9 @@ gitlab_conn = gitlab.Gitlab(
 COLLECT_EMOJIS_RESPONSES = "tests/server/data/test_collect_emojis.yaml"
 COLLECT_EMOJIS_FOR_MR_RESPONSES = "tests/server/data/test_collect_emojis_for_mr.yaml"
 EMOJI_REMOVED_RESPONSES = "tests/server/data/test_emoji_removed.yaml"
-COLLECT_EMOJIS_RESPONSES_WITH_404 = "tests/server/data/test_collect_emojis_with_404.yaml"
+COLLECT_EMOJIS_RESPONSES_WITH_404 = (
+    "tests/server/data/test_collect_emojis_with_404.yaml"
+)
 
 
 def populate_db_with_comments_for_libtiff_mr_26():
@@ -104,9 +106,7 @@ def test_collect_emojis():
 
 def _test_collect_emojis_for_mr():
     for db_session in populate_db_with_comments_for_libtiff_mr_26():
-        asyncio.run(
-            collect_emojis_for_mr(23667077, 26, gitlab_conn)
-        )
+        asyncio.run(collect_emojis_for_mr(23667077, 26, gitlab_conn))
         reactions = db_session.query(Reactions).all()
         assert len(reactions) == 2
         types = [reaction.reaction_type for reaction in reactions]

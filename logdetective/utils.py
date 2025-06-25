@@ -198,8 +198,11 @@ def load_prompts(path: str | None) -> PromptConfig:
 
 
 def prompt_to_messages(
-        user_message: str, system_prompt: str | None = None,
-        system_role: str = "developer", user_role: str = "user") -> List[Dict[str, str]]:
+    user_message: str,
+    system_prompt: str | None = None,
+    system_role: str = "developer",
+    user_role: str = "user",
+) -> List[Dict[str, str]]:
     """Turn prompt into list of message dictionaries.
     If `system_role` and `user_role` are the same, only a single message is created,
     as concatenation of `user_message` and `system_prompt`. This is useful for models which
@@ -208,22 +211,15 @@ def prompt_to_messages(
 
     if system_role == user_role:
         messages = [
-            {
-                "role": system_role,
-                "content": f"{system_prompt}\n{user_message}"
-            }
+            {"role": system_role, "content": f"{system_prompt}\n{user_message}"}
         ]
     else:
-
         messages = [
-            {
-                "role": system_role,
-                "content": system_prompt
-            },
+            {"role": system_role, "content": system_prompt},
             {
                 "role": user_role,
                 "content": user_message,
-            }
+            },
         ]
 
     return messages
