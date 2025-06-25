@@ -34,6 +34,7 @@ class EndpointType(enum.Enum):
     ANALYZE_STAGED = "analyze_log_staged"
     ANALYZE_STREAM = "analyze_log_stream"
     ANALYZE_GITLAB_JOB = "analyze_gitlab_job"
+    ANALYZE_KOJI_TASK = "analyze_koji_task"
 
 
 class AnalyzeRequestMetrics(Base):
