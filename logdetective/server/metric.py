@@ -17,8 +17,8 @@ from logdetective.server.database.models import EndpointType, AnalyzeRequestMetr
 
 async def add_new_metrics(
     api_name: str,
-    url: str,
-    http_session: aiohttp.ClientSession,
+    url: str = None,
+    http_session: aiohttp.ClientSession = None,
     received_at: datetime.datetime = None,
     compressed_log_content: io.BytesIO = None,
 ) -> int:
@@ -28,10 +28,10 @@ async def add_new_metrics(
     the endpoint from where the request was received,
     and the log (in a zip format) for which analysis is requested.
     """
-    remote_log = RemoteLog(url, http_session)
-    compressed_log_content = (
-        compressed_log_content or await RemoteLogCompressor(remote_log).zip_content()
-    )
+    if not compressed_log_content:
+        remote_log = RemoteLog(url, http_session)
+        compressed_log_content = await RemoteLogCompressor(remote_log).zip_content()
+
     return AnalyzeRequestMetrics.create(
         endpoint=EndpointType(api_name),
         compressed_log=compressed_log_content,
