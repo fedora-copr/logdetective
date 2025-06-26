@@ -5,6 +5,10 @@ from logdetective.server.database.models.merge_request_jobs import (
     Comments,
     Reactions,
 )
+from logdetective.server.database.models.koji import (
+    KojihubInstance,
+    KojiTaskAnalysis,
+)
 from logdetective.server.database.models.metrics import (
     AnalyzeRequestMetrics,
     EndpointType,
@@ -18,4 +22,6 @@ __all__ = [
     AnalyzeRequestMetrics.__name__,
     EndpointType.__name__,
     Forge.__name__,
+    KojihubInstance.__name__,
+    KojiTaskAnalysis.__name__,
 ]
