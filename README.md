@@ -332,6 +332,9 @@ HTTPS certificate generated through:
 certbot certonly --standalone -d logdetective01.fedorainfracloud.org
 ```
 
+Certificates need to be be placed into location specified by the`LOGDETECTIVE_CERTDIR`
+env var and the service should be restarted.
+
 Querying statistics
 -------------------
 
