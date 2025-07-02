@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "logdetective"
-version = "1.4.0"
+version = "1.5.0"
 description = "Log using LLM AI to search for build/test failures and provide ideas for fixing these."
 authors = ["Jiri Podivin <jpodivin@gmail.com>"]
 license = "Apache-2.0"
@@ -15,7 +15,7 @@ packages = [
     { include = "logdetective" }
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
