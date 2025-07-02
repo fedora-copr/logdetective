@@ -179,7 +179,7 @@ def format_snippets(snippets: list[str] | list[Tuple[int, str]]) -> str:
             summary += f"""
             Snippet No. {i}:
 
-            {s[1]}
+            {s}
             ================
             """
     return summary
