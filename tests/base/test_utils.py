@@ -29,7 +29,14 @@ def test_compute_certainty(probs):
 @pytest.mark.parametrize("snippets", test_snippets)
 def test_format_snippets(snippets):
     """Test snippet formatting with both simple snippets, and line numbers"""
-    format_snippets(snippets)
+    formatted_snippets = format_snippets(snippets)
+
+    for snippet in snippets:
+        if isinstance(snippet, tuple):
+            assert str(snippet[0]) in formatted_snippets
+            assert snippet[1] in formatted_snippets
+        else:
+            assert snippet in formatted_snippets
 
 
 def test_load_prompts_wrong_path():
