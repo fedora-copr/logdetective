@@ -3,7 +3,7 @@ import logging
 import yaml
 from openai import AsyncOpenAI
 
-from logdetective.utils import load_prompts
+from logdetective.utils import load_prompts, load_skip_snippet_patterns
 from logdetective.server.models import Config, InferenceConfig
 
 
@@ -60,9 +60,11 @@ def get_openai_api_client(ineference_config: InferenceConfig):
 
 SERVER_CONFIG_PATH = os.environ.get("LOGDETECTIVE_SERVER_CONF", None)
 SERVER_PROMPT_PATH = os.environ.get("LOGDETECTIVE_PROMPTS", None)
+SERVER_SKIP_PATTERNS_PATH = os.environ.get("LOGDETECIVE_SKIP_PATTERNS", None)
 
 SERVER_CONFIG = load_server_config(SERVER_CONFIG_PATH)
 PROMPT_CONFIG = load_prompts(SERVER_PROMPT_PATH)
+SKIP_SNIPPETS_CONFIG = load_skip_snippet_patterns(SERVER_SKIP_PATTERNS_PATH)
 
 LOG = get_log(SERVER_CONFIG)
 

@@ -1,0 +1,12 @@
+# This file holds patterns you want to skip during log parsing.
+# By default, no patterns are supplied.
+# Patterns are to be specified as values of dictionary,
+# with each key being a descriptive name of the pattern.
+# Patterns themselves are evaluated as a regular expression.
+# Make sure to avoid regular expressions that may be interpreted
+# as yaml syntax.
+# Example:
+
+# contains_capital_a: "^.*A.*"
+# starts_with_numeric: "^[0-9].*"
+child_exit_code_zero: "Child return code was: 0"
