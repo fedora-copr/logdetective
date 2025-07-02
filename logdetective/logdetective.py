@@ -14,6 +14,7 @@ from logdetective.utils import (
     format_snippets,
     compute_certainty,
     load_prompts,
+    load_skip_snippet_patterns,
 )
 from logdetective.extractors import DrainExtractor
 
@@ -82,6 +83,12 @@ def setup_args():
         default=DEFAULT_TEMPERATURE,
         help="Temperature for inference.",
     )
+    parser.add_argument(
+        "--skip_snippets",
+        type=str,
+        default=f"{os.path.dirname(__file__)}/skip_snippets.yml",
+        help="Path to patterns for skipping snippets.",
+    )
     return parser.parse_args()
 
 
@@ -120,9 +127,14 @@ async def run():  # pylint: disable=too-many-statements,too-many-locals
         LOG.error("You likely do not have enough memory to load the AI model")
         sys.exit(3)
 
+    skip_snippets = load_skip_snippet_patterns(args.skip_snippets)
+
     # Log file summarizer initialization
     extractor = DrainExtractor(
-        args.verbose > 1, context=True, max_clusters=args.n_clusters
+        args.verbose > 1,
+        context=True,
+        max_clusters=args.n_clusters,
+        skip_snippets=skip_snippets,
     )
 
     LOG.info("Getting summary")

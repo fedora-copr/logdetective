@@ -1,5 +1,6 @@
+import re
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from logdetective.constants import (
     PROMPT_TEMPLATE,
@@ -40,3 +41,33 @@ class PromptConfig(BaseModel):
         self.staged_system_prompt = data.get(
             "staged_system_prompt", DEFAULT_SYSTEM_PROMPT
         )
+
+
+class SkipSnippets(BaseModel):
+    """Regular expressions defining snippets we should not analyze"""
+
+    snippet_patterns: dict[str, re.Pattern] = {}
+
+    def __init__(self, data: Optional[dict] = None):
+        super().__init__(data=data)
+        if data is None:
+            return
+        self.snippet_patterns = {
+            key: re.compile(pattern) for key, pattern in data.items()
+        }
+
+    @model_validator(mode="before")
+    @classmethod
+    def check_patterns(cls, data: dict):
+        """Check if all supplied patterns are valid regular expressions.
+        Techically replicating what is done in __init__ but with nicer error message."""
+        patterns = data["data"]
+        for key, pattern in patterns.items():
+            try:
+                re.compile(pattern=pattern)
+            except (TypeError, re.error) as ex:
+                raise ValueError(
+                    f"Invalid pattern `{pattern}` with name `{key}` supplied for skipping in logs."
+                ) from ex
+
+        return data

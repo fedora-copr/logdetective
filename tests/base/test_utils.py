@@ -1,21 +1,29 @@
 from unittest import mock
+import re
 
 import aiohttp
 import aioresponses
 import pytest
+
 
 from logdetective.utils import (
     compute_certainty,
     format_snippets,
     load_prompts,
     prompt_to_messages,
+    filter_snippet_patterns,
+    load_skip_snippet_patterns,
 )
 
 from logdetective.remote_log import RemoteLog
-from logdetective.models import PromptConfig
+from logdetective.models import PromptConfig, SkipSnippets
 from logdetective import constants
 
-from tests.base.test_helpers import test_snippets, test_prompts
+from tests.base.test_helpers import (
+    test_snippets,
+    test_prompts,
+    test_filter_patterns,
+)
 
 
 @pytest.mark.parametrize(
@@ -105,3 +113,56 @@ def test_message_formatting(system_role, user_role):
         assert expected_messages_single_role == messages
     else:
         assert expected_messages_separate_roles == messages
+
+
+def test_snippet_filtering():
+    """Test snippet filtering"""
+
+    # We only need strings not line numbers
+    simple_snippets = test_snippets[0]
+    skip_snippets = SkipSnippets(test_filter_patterns)
+    for snippet in simple_snippets:
+        filter_snippet_patterns(snippet, skip_snippets=skip_snippets)
+
+
+def test_load_skip_snippet_patterns_wrong_path():
+    """Test behavior for case when the path doesn't lead to a any file."""
+    prompts_config = load_skip_snippet_patterns("/there/is/nothing/to/read.yml")
+
+    assert isinstance(prompts_config, SkipSnippets)
+
+    assert len(prompts_config.snippet_patterns) == 0
+
+
+def test_load_skip_snippet_patterns_correct_path():
+    """Test behavior for case when the path is correct.
+    All patterns must be parsed successfully and match
+    those from original source."""
+
+    test_skip_snippet_data = ""
+
+    for key, value in test_filter_patterns.items():
+        test_skip_snippet_data += f'{key}: "{value}"\n'
+
+    with mock.patch("logdetective.utils.open", mock.mock_open(read_data=test_skip_snippet_data)):
+        prompts_config = load_skip_snippet_patterns("/there/is/nothing/to/read.yml")
+
+    assert isinstance(prompts_config, SkipSnippets)
+
+    assert len(prompts_config.snippet_patterns) == len(test_filter_patterns)
+
+    for key, value in prompts_config.snippet_patterns.items():
+
+        assert key in test_filter_patterns
+        assert re.compile(test_filter_patterns[key]) == value
+
+
+def test_load_skip_snippet_patterns_invalid_syntax():
+    """Test behavior for case when the syntax of patterns
+    is incorrect. This must trigger an error."""
+
+    test_skip_snippet_data = "this_is_not_a_regex: $**.^.*\n"
+
+    with mock.patch("logdetective.utils.open", mock.mock_open(read_data=test_skip_snippet_data)):
+        with pytest.raises(ValueError, match="Invalid pattern"):
+            load_skip_snippet_patterns("/there/is/nothing/to/read.yml")
