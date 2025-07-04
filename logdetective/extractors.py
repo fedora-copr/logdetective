@@ -32,25 +32,24 @@ class DrainExtractor:
 
     def __call__(self, log: str) -> list[Tuple[int, str]]:
         out = []
+        # Create chunks
+        chunks = list(get_chunks(log))
+        # Keep only chunks that don't match any of the excluded patterns
+        chunks = [
+            (_, chunk)
+            for _, chunk in chunks
+            if not filter_snippet_patterns(chunk, self.skip_snippets)
+        ]
         # First pass create clusters
-        for _, chunk in get_chunks(log):
-            # Do not process chunks matching any of the excluded patterns
-            if filter_snippet_patterns(chunk, self.skip_snippets):
-                continue
+        for _, chunk in chunks:
             processed_chunk = self.miner.add_log_message(chunk)
             LOG.debug(processed_chunk)
-        # Sort found clusters by size, descending order
-        sorted_clusters = sorted(
-            self.miner.drain.clusters, key=lambda it: it.size, reverse=True
-        )
+        clusters = list(self.miner.drain.clusters)
         # Second pass, only matching lines with clusters,
         # to recover original text
-        for chunk_start, chunk in get_chunks(log):
-            # Chunks matching excluded patterns are again disregarded
-            if filter_snippet_patterns(chunk, self.skip_snippets):
-                continue
+        for chunk_start, chunk in chunks:
             cluster = self.miner.match(chunk, "always")
-            if cluster in sorted_clusters:
+            if cluster in clusters:
                 out.append((chunk_start, chunk))
-                sorted_clusters.remove(cluster)
+                clusters.remove(cluster)
         return out
