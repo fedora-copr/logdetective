@@ -8,7 +8,7 @@ import numpy as np
 import yaml
 
 from llama_cpp import Llama, CreateCompletionResponse, CreateCompletionStreamResponse
-from logdetective.models import PromptConfig
+from logdetective.models import PromptConfig, SkipSnippets
 from logdetective.remote_log import RemoteLog
 
 
@@ -223,3 +223,25 @@ def prompt_to_messages(
         ]
 
     return messages
+
+
+def filter_snippet_patterns(snippet: str, skip_snippets: SkipSnippets) -> bool:
+    """Try to match snippet agains provided patterns to determine if we should
+    filter it out or not."""
+    for key, pattern in skip_snippets.snippet_patterns.items():
+        if pattern.match(snippet):
+            LOG.debug("Snippet `%s` has matched agains skip pattern %s", snippet, key)
+            return True
+
+    return False
+
+
+def load_skip_snippet_patterns(path: str | None) -> SkipSnippets:
+    """Load dictionary of snippet patterns we want to skip."""
+    if path:
+        try:
+            with open(path, "r") as file:
+                return SkipSnippets(yaml.safe_load(file))
+        except FileNotFoundError:
+            LOG.error("Patterns for skipping snippets not found at %s", path)
+    return SkipSnippets({})

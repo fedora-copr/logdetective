@@ -16,7 +16,13 @@ from logdetective.utils import (
     compute_certainty,
     prompt_to_messages,
 )
-from logdetective.server.config import LOG, SERVER_CONFIG, PROMPT_CONFIG, CLIENT
+from logdetective.server.config import (
+    LOG,
+    SERVER_CONFIG,
+    PROMPT_CONFIG,
+    CLIENT,
+    SKIP_SNIPPETS_CONFIG,
+)
 from logdetective.server.models import (
     AnalyzedSnippet,
     InferenceConfig,
@@ -42,7 +48,10 @@ def format_analyzed_snippets(snippets: list[AnalyzedSnippet]) -> str:
 def mine_logs(log: str) -> List[Tuple[int, str]]:
     """Extract snippets from log text"""
     extractor = DrainExtractor(
-        verbose=True, context=True, max_clusters=SERVER_CONFIG.extractor.max_clusters
+        verbose=True,
+        context=True,
+        max_clusters=SERVER_CONFIG.extractor.max_clusters,
+        skip_snippets=SKIP_SNIPPETS_CONFIG,
     )
 
     LOG.info("Getting summary")

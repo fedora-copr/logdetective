@@ -46,6 +46,7 @@ To analyze a log file, run the script with the following command line arguments:
 - `--summarizer` DISABLED: LLM summarization option was removed. Argument is kept for backward compatibility only.(optional, default: "drain"): Choose between LLM and Drain template miner as the log summarizer. You can also provide the path to an existing language model file instead of using a URL.
 - `--n_lines` DISABLED: LLM summarization option was removed. Argument is kept for backward compatibility only. (optional, default: 8): The number of lines per chunk for LLM analysis. This only makes sense when you are summarizing with LLM.
 - `--n_clusters` (optional, default 8): Number of clusters for Drain to organize log chunks into. This only makes sense when you are summarizing with Drain
+- `--skip_snippets` Path to patterns for skipping snippets.
 
 Example usage:
 
