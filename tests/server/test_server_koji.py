@@ -1,13 +1,15 @@
+import koji
 import pytest
 
-
-import koji
+from logdetective.server.models import KojiInstanceConfig, KojiTask, StagedResponse
+from logdetective.server.server import analyze_koji_task
 
 from logdetective.server.koji import (
     LogsTooLargeError,
     get_failed_subtask_info,
     get_failed_log_from_task,
 )
+from tests.server.test_helpers import DatabaseFactory, mock_chat_completions
 
 
 arches = [
@@ -142,14 +144,11 @@ async def test_koji_get_failed_subtask_from_canceledtask(mocker):
     assert taskinfo["arch"] == "anunknownarch"
 
 
-@pytest.mark.asyncio
-async def test_koji_get_failed_log_from_task(mocker):
-    task_id = 133858346
+EXAMPLE_TASK_ID = 133858346
 
-    # Mock the Koji session
+
+def create_mock_koji_session(mocker, task_id):
     mock_session = mocker.Mock()
-
-    # Mock the task info
     mock_session.getTaskInfo.return_value = {
         "id": task_id,
         "state": koji.TASK_STATES["FAILED"],
@@ -171,6 +170,15 @@ async def test_koji_get_failed_log_from_task(mocker):
     mock_session.downloadTaskOutput.return_value = (
         b"Error: Build failed\nDetailed error message"
     )
+    return mock_session
+
+
+@pytest.mark.asyncio
+async def test_koji_get_failed_log_from_task(mocker):
+    task_id = EXAMPLE_TASK_ID
+
+    # Mock the Koji session
+    mock_session = create_mock_koji_session(mocker, task_id)
 
     # Test getting log from a failed task
     log = await get_failed_log_from_task(mock_session, task_id, max_size=1024 * 1024)
@@ -187,3 +195,28 @@ async def test_koji_get_failed_log_from_task(mocker):
     # Test getting a log that is too large
     with pytest.raises(LogsTooLargeError):
         await get_failed_log_from_task(mock_session, task_id, max_size=10)
+
+
+@pytest.mark.parametrize(
+    "mock_chat_completions", ["Task analysis completed."], indirect=True
+)
+@pytest.mark.asyncio
+async def test_koji_analyze_koji_task(mocker, mock_chat_completions):
+    with DatabaseFactory().make_new_db() as _:
+        # Mock the KojiInstanceConfig
+        mock_koji_instance_config = mocker.Mock()
+        mock_koji_conn = create_mock_koji_session(mocker, EXAMPLE_TASK_ID)
+        mock_koji_instance_config.get_connection.return_value = mock_koji_conn
+        mock_koji_instance_config.max_artifact_size = 1024 * 1024
+        mock_koji_instance_config.name = "fedora"
+        mock_koji_instance_config.xmlrpc_url = "https://koji.fedoraproject.org/kojihub"
+
+        koji_task = KojiTask(koji_instance="fedora", task_id=EXAMPLE_TASK_ID)
+
+        response = await analyze_koji_task(koji_task, mock_koji_instance_config)
+
+        assert response is not None
+
+        # Verify the response content
+        assert isinstance(response, StagedResponse)
+        assert response.explanation.text == "Task analysis completed."
