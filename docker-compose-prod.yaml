@@ -10,6 +10,11 @@ services:
     extends:
       file: docker-compose.yaml
       service: server
+    environment:
+      ENV: production
+      LOGDETECTIVE_SERVER_PORT: 443
+    ports:
+      - 443:443
   postgres:
     extends:
       file: docker-compose.yaml
