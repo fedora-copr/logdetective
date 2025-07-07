@@ -342,10 +342,15 @@ class KojiInstanceConfig(BaseModel):
 
     def __init__(self, name: str, data: Optional[dict] = None):
         super().__init__()
-        if data is None:
-            return
 
         self.name = name
+        if data is None:
+            # Set some reasonable defaults
+            self.xmlrpc_url = "https://koji.fedoraproject.org/kojihub"
+            self.tokens = []
+            self.max_artifact_size = 1024 * 1024
+            return
+
         self.xmlrpc_url = data.get(
             "xmlrpc_url", "https://koji.fedoraproject.org/kojihub"
         )
