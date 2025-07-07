@@ -367,13 +367,23 @@ class KojiConfig(BaseModel):
     """Model for Koji configuration of logdetective server."""
 
     instances: Dict[str, KojiInstanceConfig] = {}
+    analysis_timeout: int = 15
+    max_artifact_size: int = 300 * 1024 * 1024
 
     def __init__(self, data: Optional[dict] = None):
         super().__init__()
         if data is None:
             return
 
-        for instance_name, instance_data in data.items():
+        # Handle analysis_timeout with default 15
+        self.analysis_timeout = data.get("analysis_timeout", 15)
+
+        # Handle max_artifact_size with default 300
+        self.max_artifact_size = data.get("max_artifact_size", 300) * 1024 * 1024
+
+        # Handle instances dictionary
+        instances_data = data.get("instances", {})
+        for instance_name, instance_data in instances_data.items():
             self.instances[instance_name] = KojiInstanceConfig(
                 instance_name, instance_data
             )

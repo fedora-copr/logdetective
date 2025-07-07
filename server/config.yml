@@ -41,11 +41,15 @@ gitlab:
       - example_secret
     timeout: 6.0
 koji:
-  "fedora":
-    xmlrpc_url: https://koji.fedoraproject.org/kojihub
-    max_artifact_size: 300
-    tokens:
-      - example_token
+  analysis_timeout: 15
+  max_artifact_size: 300
+  
+  # Koji instances
+  instances:
+    "fedora":
+      xmlrpc_url: https://koji.fedoraproject.org/kojihub
+      tokens:
+        - example_token
 general:
   devmode: False
   packages:
