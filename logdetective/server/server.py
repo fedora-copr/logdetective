@@ -17,6 +17,7 @@ import sentry_sdk
 
 from logdetective.server.database.models.koji import (
     KojiTaskAnalysis,
+    TaskAnalysisTimeoutError,
     TaskNotAnalyzedError,
     TaskNotFoundError,
 )
@@ -221,8 +222,18 @@ async def analyze_rpmbuild_koji(
         )
         return BasicResponse(status_code=202)
 
+    except TaskAnalysisTimeoutError:
+        # Task analysis has timed out, so we assume that the request was lost
+        # and that we need to start another analysis.
+        background_tasks.add_task(
+            analyze_koji_task,
+            task,
+            koji_instance_config,
+        )
+        return BasicResponse(status_code=202)
+
     except TaskNotAnalyzedError:
-        # Task analysis is still in progress, so we need to return a 202
+        # Its still running, so we need to return a 202
         # (Accepted) error.
         return BasicResponse(status_code=202)
 
@@ -249,8 +260,8 @@ async def analyze_koji_task(task: KojiTask, koji_instance_config: KojiInstanceCo
     # We need to associate the metric ID with the koji task analysis.
     # This will create the new row without a response, which we will use as
     # an indicator that the analysis is in progress.
-    KojiTaskAnalysis.create(
-        koji_instance=task.koji_instance,
+    KojiTaskAnalysis.create_or_restart(
+        koji_instance=koji_instance_config.xmlrpc_url,
         task_id=task.task_id,
     )
     response = await perform_staged_analysis(log_text)
