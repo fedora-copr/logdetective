@@ -127,11 +127,8 @@ def test_snippet_filtering():
 
 def test_load_skip_snippet_patterns_wrong_path():
     """Test behavior for case when the path doesn't lead to a any file."""
-    prompts_config = load_skip_snippet_patterns("/there/is/nothing/to/read.yml")
-
-    assert isinstance(prompts_config, SkipSnippets)
-
-    assert len(prompts_config.snippet_patterns) == 0
+    with pytest.raises(FileNotFoundError):
+        load_skip_snippet_patterns("/there/is/nothing/to/read.yml")
 
 
 def test_load_skip_snippet_patterns_correct_path():
@@ -145,7 +142,7 @@ def test_load_skip_snippet_patterns_correct_path():
         test_skip_snippet_data += f'{key}: "{value}"\n'
 
     with mock.patch("logdetective.utils.open", mock.mock_open(read_data=test_skip_snippet_data)):
-        prompts_config = load_skip_snippet_patterns("/there/is/nothing/to/read.yml")
+        prompts_config = load_skip_snippet_patterns("/valid/filters.yml")
 
     assert isinstance(prompts_config, SkipSnippets)
 
