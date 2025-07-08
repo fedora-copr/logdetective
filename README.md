@@ -395,6 +395,28 @@ with spaces, or replacement fields marked with curly braces, `{}` left for inser
 Number of replacement fields in new prompts, must be the same as in originals.
 Although their position may be different.
 
+
+Skip Snippets
+-------------
+
+Certain log chunks may not contribute to the analysis of the problem under any circumstances.
+User can specify regular expressions, matching such log chunks, along with simple description,
+using Skip Snippets feature.
+
+Patterns to be skipped must be defined yaml file as a dictionary, where key is a description
+and value is a regular expression. For example:
+
+```
+child_exit_code_zero: "Child return code was: 0"
+```
+
+Special care must be taken not to write a regular expression which may match
+too many chunks, or which may be evaluated as data structure by the yaml parser.
+
+Example of a valid pattern definition file: `logdetective/skip_patterns.yml`,
+can be used as a starting point and is used as a default if no other definition is provided.
+
+
 License
 -------
 
