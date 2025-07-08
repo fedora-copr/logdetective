@@ -4,11 +4,6 @@ test_snippets = [
         "Snippet 1",
         "Snippet 2",
         "Snippet 3",
-        "This is a snippet number 1",
-        "This snippet has more than 2 characters",
-        "This snippet contains capital A and \n",
-        "",
-        ".....=====....."
     ],
     # Tuples
     [(10, "Snippet 1"), (120, "Snippet 1"), (240, "Snippet 1")],
@@ -27,3 +22,15 @@ test_filter_patterns = {
     "contains_c": ".*c.*",
     "contains_x_followed_by_y": "x.*y"
 }
+# Following must be kept in sync with `test_filter_patterns`
+# bool values of tuples must equal to output of the `filter_snippet_patterns`
+test_snippets_filtering = [
+    ("This is a snippet number 1", False),
+    ("This snippet has more than 2 characters", True),
+    ("This snippet contains capital A and \n", True),
+    ("", False),
+    (".....=====.....", False),
+    ("A nice matching snippet", True),
+    ("x is a good name for independent variable, unlike y", True),
+    ("1. This snippet should be skipped", True)
+]
