@@ -5,6 +5,7 @@ from openai import AsyncOpenAI
 
 from logdetective.utils import load_prompts, load_skip_snippet_patterns
 from logdetective.server.models import Config, InferenceConfig
+import logdetective
 
 
 def load_server_config(path: str | None) -> Config:
@@ -60,7 +61,12 @@ def get_openai_api_client(ineference_config: InferenceConfig):
 
 SERVER_CONFIG_PATH = os.environ.get("LOGDETECTIVE_SERVER_CONF", None)
 SERVER_PROMPT_PATH = os.environ.get("LOGDETECTIVE_PROMPTS", None)
-SERVER_SKIP_PATTERNS_PATH = os.environ.get("LOGDETECIVE_SKIP_PATTERNS", None)
+# The default location for skip patterns is in the same directory
+# as logdetective __init__.py file.
+SERVER_SKIP_PATTERNS_PATH = os.environ.get(
+    "LOGDETECIVE_SKIP_PATTERNS",
+    f"{os.path.dirname(logdetective.__file__)}/skip_snippets.yml",
+)
 
 SERVER_CONFIG = load_server_config(SERVER_CONFIG_PATH)
 PROMPT_CONFIG = load_prompts(SERVER_PROMPT_PATH)

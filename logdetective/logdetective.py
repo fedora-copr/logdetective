@@ -127,7 +127,11 @@ async def run():  # pylint: disable=too-many-statements,too-many-locals
         LOG.error("You likely do not have enough memory to load the AI model")
         sys.exit(3)
 
-    skip_snippets = load_skip_snippet_patterns(args.skip_snippets)
+    try:
+        skip_snippets = load_skip_snippet_patterns(args.skip_snippets)
+    except OSError as e:
+        LOG.error(e)
+        sys.exit(5)
 
     # Log file summarizer initialization
     extractor = DrainExtractor(
