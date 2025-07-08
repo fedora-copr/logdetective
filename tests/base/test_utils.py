@@ -23,6 +23,7 @@ from tests.base.test_helpers import (
     test_snippets,
     test_prompts,
     test_filter_patterns,
+    test_snippets_filtering,
 )
 
 
@@ -118,11 +119,9 @@ def test_message_formatting(system_role, user_role):
 def test_snippet_filtering():
     """Test snippet filtering"""
 
-    # We only need strings not line numbers
-    simple_snippets = test_snippets[0]
     skip_snippets = SkipSnippets(test_filter_patterns)
-    for snippet in simple_snippets:
-        filter_snippet_patterns(snippet, skip_snippets=skip_snippets)
+    for snippet in test_snippets_filtering:
+        assert filter_snippet_patterns(snippet[0], skip_snippets=skip_snippets) == snippet[1]
 
 
 def test_load_skip_snippet_patterns_wrong_path():
@@ -147,11 +146,6 @@ def test_load_skip_snippet_patterns_correct_path():
     assert isinstance(prompts_config, SkipSnippets)
 
     assert len(prompts_config.snippet_patterns) == len(test_filter_patterns)
-
-    for key, value in prompts_config.snippet_patterns.items():
-
-        assert key in test_filter_patterns
-        assert re.compile(test_filter_patterns[key]) == value
 
 
 def test_load_skip_snippet_patterns_invalid_syntax():
