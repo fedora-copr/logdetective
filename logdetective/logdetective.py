@@ -41,7 +41,7 @@ def setup_args():
         "--filename_suffix",
         help="Suffix of the model file name to be retrieved from Hugging Face.\
                             Makes sense only if the model is specified with Hugging Face name.",
-        default="Q4_K_S.gguf",
+        default="Q4_K.gguf",
     )
     parser.add_argument("-n", "--no-stream", action="store_true")
     parser.add_argument(
