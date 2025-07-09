@@ -287,7 +287,7 @@ If the variable is not set, `./models` is mounted inside by default.
 
 Model can be downloaded from [our Hugging Space](https://huggingface.co/fedora-copr) by:
 ```
-$ curl -L -o models/mistral-7b-instruct-v0.2.Q4_K_S.gguf https://huggingface.co/fedora-copr/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/ggml-model-Q4_K_S.gguf
+$ curl -L -o models/mistral-7b-instruct-v0.3.Q4_K.gguf https://huggingface.co/fedora-copr/Mistral-7B-Instruct-v0.3-GGUF/resolve/main/ggml-model-Q4_K.gguf
 ```
 
 Generate a new database revision with alembic
