@@ -47,6 +47,7 @@ from logdetective.server.models import (
     EmojiHook,
     JobHook,
     KojiInstanceConfig,
+    KojiStagedResponse,
     KojiTask,
     Response,
     StagedResponse,
@@ -191,7 +192,7 @@ async def analyze_log_staged(
     return await perform_staged_analysis(log_text)
 
 
-@app.post("/analyze/rpmbuild/koji", response_model=StagedResponse)
+@app.post("/analyze/rpmbuild/koji", response_model=KojiStagedResponse)
 async def analyze_rpmbuild_koji(
     task: KojiTask,
     x_koji_token: Annotated[str, Header()] = "",
@@ -243,7 +244,7 @@ async def analyze_koji_task(task: KojiTask, koji_instance_config: KojiInstanceCo
 
     # Get the log text from the koji task
     koji_conn = koji_instance_config.get_connection()
-    log_text = await get_failed_log_from_koji_task(
+    log_file_name, log_text = await get_failed_log_from_koji_task(
         koji_conn, task.task_id, max_size=SERVER_CONFIG.koji.max_artifact_size
     )
 
@@ -263,6 +264,7 @@ async def analyze_koji_task(task: KojiTask, koji_instance_config: KojiInstanceCo
     KojiTaskAnalysis.create_or_restart(
         koji_instance=koji_instance_config.xmlrpc_url,
         task_id=task.task_id,
+        log_file_name=log_file_name,
     )
     response = await perform_staged_analysis(log_text)
 

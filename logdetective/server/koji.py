@@ -1,6 +1,6 @@
 import asyncio
 import re
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 import backoff
 import koji
@@ -130,7 +130,7 @@ async def get_failed_subtask_info(
 
 async def get_failed_log_from_task(
     koji_session: koji.ClientSession, task_id: int, max_size: int
-) -> str:
+) -> Optional[tuple[str, str]]:
     """
     Get the failed log from a task.
 
@@ -179,4 +179,4 @@ async def get_failed_log_from_task(
     log_contents = await call_koji(
         koji_session.downloadTaskOutput, taskinfo["id"], failure_log_name
     )
-    return log_contents.decode("utf-8")
+    return failure_log_name, log_contents.decode("utf-8")
