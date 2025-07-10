@@ -140,6 +140,17 @@ class StagedResponse(Response):
     snippets: List[AnalyzedSnippet]
 
 
+class KojiStagedResponse(BaseModel):
+    """Model of data returned by Log Detective API when called when a Koji build
+    analysis is requested. Contains list of reponses to prompts for individual
+    snippets.
+    """
+
+    task_id: int
+    log_file_name: str
+    response: StagedResponse
+
+
 class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attributes
     """Model for inference configuration of logdetective server."""
 

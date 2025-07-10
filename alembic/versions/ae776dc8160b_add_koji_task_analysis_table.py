@@ -38,6 +38,12 @@ def upgrade() -> None:
             comment="The koji task ID",
         ),
         sa.Column(
+            "log_file_name",
+            sa.String(255),
+            nullable=False,
+            comment="The name of the log file",
+        ),
+        sa.Column(
             "request_received_at",
             sa.DateTime(),
             nullable=False,

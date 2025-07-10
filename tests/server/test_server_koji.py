@@ -181,10 +181,13 @@ async def test_koji_get_failed_log_from_task(mocker):
     mock_session = create_mock_koji_session(mocker, task_id)
 
     # Test getting log from a failed task
-    log = await get_failed_log_from_task(mock_session, task_id, max_size=1024 * 1024)
+    log_file, log_contents = await get_failed_log_from_task(
+        mock_session, task_id, max_size=1024 * 1024
+    )
 
     # Verify the log content
-    assert log == "Error: Build failed\nDetailed error message"
+    assert log_file == "build.log"
+    assert log_contents == "Error: Build failed\nDetailed error message"
 
     # Verify the correct methods were called
     mock_session.getTaskInfo.assert_called_once_with(task_id)
