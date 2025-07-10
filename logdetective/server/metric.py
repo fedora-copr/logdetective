@@ -2,7 +2,7 @@ import io
 import inspect
 import datetime
 
-from typing import Union
+from typing import Optional, Union
 from functools import wraps
 
 import aiohttp
@@ -17,10 +17,10 @@ from logdetective.server.database.models import EndpointType, AnalyzeRequestMetr
 
 async def add_new_metrics(
     api_name: str,
-    url: str = None,
-    http_session: aiohttp.ClientSession = None,
-    received_at: datetime.datetime = None,
-    compressed_log_content: io.BytesIO = None,
+    url: Optional[str] = None,
+    http_session: Optional[aiohttp.ClientSession] = None,
+    received_at: Optional[datetime.datetime] = None,
+    compressed_log_content: Optional[io.BytesIO] = None,
 ) -> int:
     """Add a new database entry for a received request.
 
@@ -44,7 +44,7 @@ async def add_new_metrics(
 def update_metrics(
     metrics_id: int,
     response: Union[models.Response, models.StagedResponse, StreamingResponse],
-    sent_at: datetime.datetime = None,
+    sent_at: Optional[datetime.datetime] = None,
 ) -> None:
     """Update a database metric entry for a received request,
     filling data for the given response.
