@@ -12,6 +12,11 @@ from logdetective.server.database.models.metrics import (
     AnalyzeRequestMetrics,
     EndpointType,
 )
+from logdetective.server.database.models.exceptions import (
+    KojiTaskNotFoundError,
+    KojiTaskNotAnalyzedError,
+    KojiTaskAnalysisTimeoutError,
+)
 
 __all__ = [
     Base.__name__,
@@ -22,4 +27,7 @@ __all__ = [
     EndpointType.__name__,
     Forge.__name__,
     KojiTaskAnalysis.__name__,
+    KojiTaskNotFoundError.__name__,
+    KojiTaskNotAnalyzedError.__name__,
+    KojiTaskAnalysisTimeoutError.__name__,
 ]

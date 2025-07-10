@@ -17,9 +17,9 @@ import sentry_sdk
 
 from logdetective.server.database.models.koji import (
     KojiTaskAnalysis,
-    TaskAnalysisTimeoutError,
-    TaskNotAnalyzedError,
-    TaskNotFoundError,
+    KojiTaskAnalysisTimeoutError,
+    KojiTaskNotAnalyzedError,
+    KojiTaskNotFoundError,
 )
 
 import logdetective.server.database.base
@@ -212,7 +212,7 @@ async def analyze_rpmbuild_koji(
     # Check if we already have a response for this task
     try:
         return KojiTaskAnalysis.get_response_by_task_id(task.task_id)
-    except TaskNotFoundError:
+    except KojiTaskNotFoundError:
         # Task not yet analyzed, so we need to start the analysis in the
         # background and return a 202 (Accepted) error.
         background_tasks.add_task(
@@ -222,7 +222,7 @@ async def analyze_rpmbuild_koji(
         )
         return BasicResponse(status_code=202)
 
-    except TaskAnalysisTimeoutError:
+    except KojiTaskAnalysisTimeoutError:
         # Task analysis has timed out, so we assume that the request was lost
         # and that we need to start another analysis.
         background_tasks.add_task(
@@ -232,7 +232,7 @@ async def analyze_rpmbuild_koji(
         )
         return BasicResponse(status_code=202)
 
-    except TaskNotAnalyzedError:
+    except KojiTaskNotAnalyzedError:
         # Its still running, so we need to return a 202
         # (Accepted) error.
         return BasicResponse(status_code=202)
