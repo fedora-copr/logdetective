@@ -267,7 +267,7 @@ class GitLabInstanceConfig(BaseModel):  # pylint: disable=too-many-instance-attr
         self.api_path = data.get("api_path", "/api/v4")
         self.api_token = data.get("api_token", None)
         self.webhook_secrets = data.get("webhook_secrets", None)
-        self.max_artifact_size = int(data.get("max_artifact_size")) * 1024 * 1024
+        self.max_artifact_size = int(data.get("max_artifact_size", 300)) * 1024 * 1024
 
         self.timeout = data.get("timeout", 5.0)
         self._conn = Gitlab(
