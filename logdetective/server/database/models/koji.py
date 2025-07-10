@@ -13,6 +13,7 @@ from logdetective.server.database.models.exceptions import (
     KojiTaskNotAnalyzedError,
     KojiTaskAnalysisTimeoutError,
 )
+from logdetective.server.models import KojiStagedResponse
 
 
 class KojiTaskAnalysis(Base):
@@ -23,6 +24,7 @@ class KojiTaskAnalysis(Base):
     id = Column(Integer, primary_key=True)
     koji_instance = Column(String(255), nullable=False, index=True)
     task_id = Column(BigInteger, nullable=False, index=True, unique=True)
+    log_file_name = Column(String(255), nullable=False, index=True)
     request_received_at = Column(
         DateTime,
         nullable=False,
@@ -41,7 +43,7 @@ class KojiTaskAnalysis(Base):
 
     @classmethod
     @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
-    def create_or_restart(cls, koji_instance: str, task_id: int):
+    def create_or_restart(cls, koji_instance: str, task_id: int, log_file_name: str):
         """Create a new koji task analysis"""
         with transaction(commit=True) as session:
             # Check if the task analysis already exists
@@ -61,6 +63,7 @@ class KojiTaskAnalysis(Base):
             koji_task_analysis = KojiTaskAnalysis()
             koji_task_analysis.koji_instance = koji_instance
             koji_task_analysis.task_id = task_id
+            koji_task_analysis.log_file_name = log_file_name
             session.add(koji_task_analysis)
             session.flush()
 
@@ -88,7 +91,7 @@ class KojiTaskAnalysis(Base):
 
     @classmethod
     @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
-    def get_response_by_task_id(cls, task_id: int):
+    def get_response_by_task_id(cls, task_id: int) -> KojiStagedResponse:
         """Get a koji task analysis by task id"""
         with transaction(commit=False) as session:
             koji_task_analysis = session.query(cls).filter_by(task_id=task_id).first()
@@ -113,6 +116,11 @@ class KojiTaskAnalysis(Base):
                 )
 
             # We need to decompress the response message and return it
-            return LLMResponseCompressor.unzip(
+            response = LLMResponseCompressor.unzip(
                 koji_task_analysis.response.compressed_response
+            )
+            return KojiStagedResponse(
+                task_id=task_id,
+                log_file_name=koji_task_analysis.log_file_name,
+                response=response,
             )
