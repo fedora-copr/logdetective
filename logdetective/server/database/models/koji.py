@@ -8,18 +8,11 @@ from logdetective.server.config import SERVER_CONFIG
 from logdetective.server.compressors import LLMResponseCompressor
 from logdetective.server.database.models.metrics import AnalyzeRequestMetrics
 from logdetective.server.database.base import Base, transaction, DB_MAX_RETRIES
-
-
-class TaskNotFoundError(Exception):
-    """Exception raised when a task is not found"""
-
-
-class TaskNotAnalyzedError(Exception):
-    """Exception raised when a task analysis is still in progress"""
-
-
-class TaskAnalysisTimeoutError(Exception):
-    """Exception raised when a task analysis has timed out"""
+from logdetective.server.database.models.exceptions import (
+    KojiTaskNotFoundError,
+    KojiTaskNotAnalyzedError,
+    KojiTaskAnalysisTimeoutError,
+)
 
 
 class KojiTaskAnalysis(Base):
@@ -100,7 +93,7 @@ class KojiTaskAnalysis(Base):
         with transaction(commit=False) as session:
             koji_task_analysis = session.query(cls).filter_by(task_id=task_id).first()
             if not koji_task_analysis:
-                raise TaskNotFoundError(f"Task {task_id} not yet analyzed")
+                raise KojiTaskNotFoundError(f"Task {task_id} not yet analyzed")
 
             if not koji_task_analysis.response:
                 # Check if the task analysis has timed out
@@ -109,13 +102,13 @@ class KojiTaskAnalysis(Base):
                 ) + timedelta(
                     minutes=SERVER_CONFIG.koji.analysis_timeout
                 ) < datetime.now(timezone.utc):
-                    raise TaskAnalysisTimeoutError(
+                    raise KojiTaskAnalysisTimeoutError(
                         f"Task {task_id} analysis has timed out"
                     )
 
                 # Task analysis is still in progress, so we need to let the
                 # consumer know
-                raise TaskNotAnalyzedError(
+                raise KojiTaskNotAnalyzedError(
                     f"Task {task_id} analysis is still in progress"
                 )
 
