@@ -5,33 +5,16 @@ from typing import Any, Callable, Optional
 import backoff
 import koji
 from logdetective.server.config import LOG
+from logdetective.server.exceptions import (
+    LogDetectiveConnectionError,
+    LogsMissingError,
+    LogsTooLargeError,
+    NoFailedTask,
+    UnknownTaskType,
+)
 
 
 FAILURE_LOG_REGEX = re.compile(r"(\w*\.log)")
-
-
-class LogDetectiveKojiException(Exception):
-    """Base exception for Koji-related errors."""
-
-
-class UnknownTaskType(LogDetectiveKojiException):
-    """The task type is not supported."""
-
-
-class NoFailedTask(LogDetectiveKojiException):
-    """The task is not in the FAILED state."""
-
-
-class LogDetectiveConnectionError(LogDetectiveKojiException):
-    """A connection error occurred."""
-
-
-class LogsMissingError(LogDetectiveKojiException):
-    """The logs are missing, possibly due to garbage-collection"""
-
-
-class LogsTooLargeError(LogDetectiveKojiException):
-    """The log archive exceeds the configured maximum size"""
 
 
 def connection_error_giveup(details: backoff._typing.Details) -> None:
@@ -98,7 +81,7 @@ async def get_failed_subtask_info(
         taskinfo["state"] != koji.TASK_STATES["FAILED"]
         and taskinfo["state"] != koji.TASK_STATES["CANCELED"]  # noqa: W503 flake vs lint
     ):
-        raise NoFailedTask(f"The primary task state was {taskinfo['state']}.")
+        raise UnknownTaskType(f"The primary task state was {taskinfo['state']}.")
 
     # If the task is buildArch or buildSRPMFromSCM, we can return it directly.
     if taskinfo["method"] in ["buildArch", "buildSRPMFromSCM"]:

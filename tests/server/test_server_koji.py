@@ -4,8 +4,8 @@ import pytest
 from logdetective.server.models import KojiInstanceConfig, KojiTask, StagedResponse
 from logdetective.server.server import analyze_koji_task
 
+from logdetective.server.exceptions import LogsTooLargeError
 from logdetective.server.koji import (
-    LogsTooLargeError,
     get_failed_subtask_info,
     get_failed_log_from_task,
 )
