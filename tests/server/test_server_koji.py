@@ -213,6 +213,7 @@ async def test_koji_analyze_koji_task(mocker, mock_chat_completions):
         mock_koji_instance_config.max_artifact_size = 1024 * 1024
         mock_koji_instance_config.name = "fedora"
         mock_koji_instance_config.xmlrpc_url = "https://koji.fedoraproject.org/kojihub"
+        mock_koji_instance_config.get_callbacks.return_value = set()
 
         response = await analyze_koji_task(EXAMPLE_TASK_ID, mock_koji_instance_config)
 
