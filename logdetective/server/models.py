@@ -1,4 +1,5 @@
 import asyncio
+from collections import defaultdict
 import datetime
 from logging import BASIC_FORMAT
 from typing import List, Dict, Optional
@@ -343,6 +344,7 @@ class KojiInstanceConfig(BaseModel):
     tokens: List[str] = []
 
     _conn: Optional[koji.ClientSession] = None
+    _callbacks: defaultdict[int, set[str]] = defaultdict(set)
 
     def __init__(self, name: str, data: Optional[dict] = None):
         super().__init__()
@@ -365,6 +367,21 @@ class KojiInstanceConfig(BaseModel):
         if not self._conn:
             self._conn = koji.ClientSession(self.xmlrpc_url)
         return self._conn
+
+    def register_callback(self, task_id: int, callback: str):
+        """Register a callback for a task"""
+        self._callbacks[task_id].add(callback)
+
+    def clear_callbacks(self, task_id: int):
+        """Unregister a callback for a task"""
+        try:
+            del self._callbacks[task_id]
+        except KeyError:
+            pass
+
+    def get_callbacks(self, task_id: int) -> set[str]:
+        """Get the callbacks for a task"""
+        return self._callbacks[task_id]
 
 
 class KojiConfig(BaseModel):
