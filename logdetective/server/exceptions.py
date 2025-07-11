@@ -13,6 +13,10 @@ class LogDetectiveKojiException(LogDetectiveException):
     """Base exception for Koji-related errors."""
 
 
+class KojiInvalidTaskID(LogDetectiveKojiException):
+    """The task ID is invalid."""
+
+
 class UnknownTaskType(LogDetectiveKojiException):
     """The task type is not supported."""
 
