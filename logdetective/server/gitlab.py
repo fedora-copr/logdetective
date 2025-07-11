@@ -13,6 +13,7 @@ import jinja2
 import aiohttp
 
 from logdetective.server.config import SERVER_CONFIG, LOG
+from logdetective.server.exceptions import LogsTooLargeError
 from logdetective.server.llm import perform_staged_analysis
 from logdetective.server.metric import add_new_metrics, update_metrics
 from logdetective.server.models import (
@@ -148,10 +149,6 @@ def is_eligible_package(project_name: str):
 
     # It was allowed and not denied, so return True to indicate it is eligible
     return True
-
-
-class LogsTooLargeError(RuntimeError):
-    """The log archive exceeds the configured maximum size"""
 
 
 async def retrieve_and_preprocess_koji_logs(
