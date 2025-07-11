@@ -40,6 +40,16 @@ gitlab:
     webhook_secrets:
       - example_secret
     timeout: 6.0
+koji:
+  analysis_timeout: 15
+  max_artifact_size: 300
+  
+  # Koji instances
+  instances:
+    "fedora":
+      xmlrpc_url: https://koji.fedoraproject.org/kojihub
+      tokens:
+        - example_token
 general:
   devmode: False
   packages:

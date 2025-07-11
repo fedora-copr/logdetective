@@ -1,4 +1,5 @@
 import asyncio
+from collections import defaultdict
 import datetime
 from logging import BASIC_FORMAT
 from typing import List, Dict, Optional
@@ -15,6 +16,7 @@ import aiohttp
 
 from aiolimiter import AsyncLimiter
 from gitlab import Gitlab
+import koji
 
 from logdetective.constants import (
     DEFAULT_TEMPERATURE,
@@ -132,6 +134,17 @@ class StagedResponse(Response):
     snippets: List[AnalyzedSnippet]
 
 
+class KojiStagedResponse(BaseModel):
+    """Model of data returned by Log Detective API when called when a Koji build
+    analysis is requested. Contains list of reponses to prompts for individual
+    snippets.
+    """
+
+    task_id: int
+    log_file_name: str
+    response: StagedResponse
+
+
 class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attributes
     """Model for inference configuration of logdetective server."""
 
@@ -247,7 +260,7 @@ class GitLabInstanceConfig(BaseModel):  # pylint: disable=too-many-instance-attr
     _http_session: aiohttp.ClientSession = None
 
     # Maximum size of artifacts.zip in MiB. (default: 300 MiB)
-    max_artifact_size: int = 300
+    max_artifact_size: int = 300 * 1024 * 1024
 
     def __init__(self, name: str, data: Optional[dict] = None):
         super().__init__()
@@ -259,7 +272,7 @@ class GitLabInstanceConfig(BaseModel):  # pylint: disable=too-many-instance-attr
         self.api_path = data.get("api_path", "/api/v4")
         self.api_token = data.get("api_token", None)
         self.webhook_secrets = data.get("webhook_secrets", None)
-        self.max_artifact_size = int(data.get("max_artifact_size")) * 1024 * 1024
+        self.max_artifact_size = int(data.get("max_artifact_size", 300)) * 1024 * 1024
 
         self.timeout = data.get("timeout", 5.0)
         self._conn = Gitlab(
@@ -323,6 +336,80 @@ class GitLabConfig(BaseModel):
             self.instances[instance.url] = instance
 
 
+class KojiInstanceConfig(BaseModel):
+    """Model for Koji configuration of logdetective server."""
+
+    name: str = ""
+    xmlrpc_url: str = ""
+    tokens: List[str] = []
+
+    _conn: Optional[koji.ClientSession] = None
+    _callbacks: defaultdict[int, set[str]] = defaultdict(set)
+
+    def __init__(self, name: str, data: Optional[dict] = None):
+        super().__init__()
+
+        self.name = name
+        if data is None:
+            # Set some reasonable defaults
+            self.xmlrpc_url = "https://koji.fedoraproject.org/kojihub"
+            self.tokens = []
+            self.max_artifact_size = 1024 * 1024
+            return
+
+        self.xmlrpc_url = data.get(
+            "xmlrpc_url", "https://koji.fedoraproject.org/kojihub"
+        )
+        self.tokens = data.get("tokens", [])
+
+    def get_connection(self):
+        """Get the Koji connection object"""
+        if not self._conn:
+            self._conn = koji.ClientSession(self.xmlrpc_url)
+        return self._conn
+
+    def register_callback(self, task_id: int, callback: str):
+        """Register a callback for a task"""
+        self._callbacks[task_id].add(callback)
+
+    def clear_callbacks(self, task_id: int):
+        """Unregister a callback for a task"""
+        try:
+            del self._callbacks[task_id]
+        except KeyError:
+            pass
+
+    def get_callbacks(self, task_id: int) -> set[str]:
+        """Get the callbacks for a task"""
+        return self._callbacks[task_id]
+
+
+class KojiConfig(BaseModel):
+    """Model for Koji configuration of logdetective server."""
+
+    instances: Dict[str, KojiInstanceConfig] = {}
+    analysis_timeout: int = 15
+    max_artifact_size: int = 300 * 1024 * 1024
+
+    def __init__(self, data: Optional[dict] = None):
+        super().__init__()
+        if data is None:
+            return
+
+        # Handle analysis_timeout with default 15
+        self.analysis_timeout = data.get("analysis_timeout", 15)
+
+        # Handle max_artifact_size with default 300
+        self.max_artifact_size = data.get("max_artifact_size", 300) * 1024 * 1024
+
+        # Handle instances dictionary
+        instances_data = data.get("instances", {})
+        for instance_name, instance_data in instances_data.items():
+            self.instances[instance_name] = KojiInstanceConfig(
+                instance_name, instance_data
+            )
+
+
 class LogConfig(BaseModel):
     """Logging configuration"""
 
@@ -375,6 +462,7 @@ class Config(BaseModel):
     snippet_inference: InferenceConfig = InferenceConfig()
     extractor: ExtractorConfig = ExtractorConfig()
     gitlab: GitLabConfig = GitLabConfig()
+    koji: KojiConfig = KojiConfig()
     general: GeneralConfig = GeneralConfig()
 
     def __init__(self, data: Optional[dict] = None):
@@ -387,6 +475,7 @@ class Config(BaseModel):
         self.inference = InferenceConfig(data.get("inference"))
         self.extractor = ExtractorConfig(data.get("extractor"))
         self.gitlab = GitLabConfig(data.get("gitlab"))
+        self.koji = KojiConfig(data.get("koji"))
         self.general = GeneralConfig(data.get("general"))
 
         if snippet_inference := data.get("snippet_inference", None):

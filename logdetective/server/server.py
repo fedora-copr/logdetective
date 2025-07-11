@@ -8,12 +8,29 @@ from io import BytesIO
 
 import matplotlib
 import matplotlib.pyplot
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header, Request
+from fastapi import (
+    FastAPI,
+    HTTPException,
+    BackgroundTasks,
+    Depends,
+    Header,
+    Path,
+    Request,
+)
 
 from fastapi.responses import StreamingResponse
 from fastapi.responses import Response as BasicResponse
 import aiohttp
 import sentry_sdk
+
+from logdetective.server.exceptions import KojiInvalidTaskID
+
+from logdetective.server.database.models.koji import (
+    KojiTaskAnalysis,
+    KojiTaskAnalysisTimeoutError,
+    KojiTaskNotAnalyzedError,
+    KojiTaskNotFoundError,
+)
 
 import logdetective.server.database.base
 
@@ -24,6 +41,9 @@ from logdetective.utils import (
 )
 
 from logdetective.server.config import SERVER_CONFIG, PROMPT_CONFIG, LOG
+from logdetective.server.koji import (
+    get_failed_log_from_task as get_failed_log_from_koji_task,
+)
 from logdetective.remote_log import RemoteLog
 from logdetective.server.llm import (
     mine_logs,
@@ -31,11 +51,13 @@ from logdetective.server.llm import (
     submit_text,
 )
 from logdetective.server.gitlab import process_gitlab_job_event
-from logdetective.server.metric import track_request
+from logdetective.server.metric import track_request, add_new_metrics, update_metrics
 from logdetective.server.models import (
     BuildLog,
     EmojiHook,
     JobHook,
+    KojiInstanceConfig,
+    KojiStagedResponse,
     Response,
     StagedResponse,
     TimePeriod,
@@ -49,6 +71,7 @@ from logdetective.server.emoji import (
     collect_emojis,
     collect_emojis_for_mr,
 )
+from logdetective.server.compressors import RemoteLogCompressor
 
 
 LOG_SOURCE_REQUEST_TIMEOUT = os.environ.get("LOG_SOURCE_REQUEST_TIMEOUT", 60)
@@ -176,6 +199,173 @@ async def analyze_log_staged(
     log_text = await remote_log.process_url()
 
     return await perform_staged_analysis(log_text)
+
+
+@app.get(
+    "/analyze/rpmbuild/koji/{koji_instance}/{task_id}",
+    response_model=KojiStagedResponse,
+)
+async def get_koji_task_analysis(
+    koji_instance: Annotated[str, Path(title="The Koji instance to use")],
+    task_id: Annotated[int, Path(title="The task ID to analyze")],
+    x_koji_token: Annotated[str, Header()] = "",
+):
+    """Provide endpoint for retrieving log file analysis of a Koji task"""
+
+    try:
+        koji_instance_config = SERVER_CONFIG.koji.instances[koji_instance]
+    except KeyError:
+        # This Koji instance is not configured, so we will return a 404.
+        return BasicResponse(status_code=404, content="Unknown Koji instance.")
+
+    # This should always be available in a production environment.
+    # In a testing environment, the tokens list may be empty, in which case
+    # it will just proceed.
+    if koji_instance_config.tokens and x_koji_token not in koji_instance_config.tokens:
+        # (Unauthorized) error.
+        return BasicResponse(x_koji_token, status_code=401)
+
+    # Check if we have a response for this task
+    try:
+        return KojiTaskAnalysis.get_response_by_task_id(task_id)
+
+    except (KojiInvalidTaskID, KojiTaskNotFoundError):
+        # This task ID is malformed, out of range, or not found, so we will
+        # return a 404.
+        return BasicResponse(status_code=404)
+
+    except KojiTaskAnalysisTimeoutError:
+        # Task analysis has timed out, so we assume that the request was lost
+        # and that we need to start another analysis.
+        # There isn't a fully-appropriate error code for this, so we'll use
+        # 503 (Service Unavailable) as our best option.
+        return BasicResponse(
+            status_code=503, content="Task analysis timed out, please retry."
+        )
+
+    except KojiTaskNotAnalyzedError:
+        # Its still running, so we need to return a 202
+        # (Accepted) code to let the client know to keep waiting.
+        return BasicResponse(
+            status_code=202, content=f"Analysis still in progress for task {task_id}"
+        )
+
+
+@app.post(
+    "/analyze/rpmbuild/koji/{koji_instance}/{task_id}",
+    response_model=KojiStagedResponse,
+)
+async def analyze_rpmbuild_koji(
+    koji_instance: Annotated[str, Path(title="The Koji instance to use")],
+    task_id: Annotated[int, Path(title="The task ID to analyze")],
+    x_koji_token: Annotated[str, Header()] = "",
+    x_koji_callback: Annotated[str, Header()] = "",
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+):
+    """Provide endpoint for retrieving log file analysis of a Koji task"""
+
+    try:
+        koji_instance_config = SERVER_CONFIG.koji.instances[koji_instance]
+    except KeyError:
+        # This Koji instance is not configured, so we will return a 404.
+        return BasicResponse(status_code=404, content="Unknown Koji instance.")
+
+    # This should always be available in a production environment.
+    # In a testing environment, the tokens list may be empty, in which case
+    # it will just proceed.
+    if koji_instance_config.tokens and x_koji_token not in koji_instance_config.tokens:
+        # (Unauthorized) error.
+        return BasicResponse(x_koji_token, status_code=401)
+
+    # Check if we already have a response for this task
+    try:
+        response = KojiTaskAnalysis.get_response_by_task_id(task_id)
+
+    except KojiInvalidTaskID:
+        # This task ID is malformed or out of range, so we will return a 400.
+        response = BasicResponse(status_code=404, content="Invalid or unknown task ID.")
+
+    except (KojiTaskNotFoundError, KojiTaskAnalysisTimeoutError):
+        # Task not yet analyzed or it timed out, so we need to start the
+        # analysis in the background and return a 202 (Accepted) error.
+
+        background_tasks.add_task(
+            analyze_koji_task,
+            task_id,
+            koji_instance_config,
+        )
+
+        # If a callback URL is provided, we need to add it to the callbacks
+        # table so that we can notify it when the analysis is complete.
+        if x_koji_callback:
+            koji_instance_config.register_callback(task_id, x_koji_callback)
+
+        response = BasicResponse(
+            status_code=202, content=f"Beginning analysis of task {task_id}"
+        )
+
+    except KojiTaskNotAnalyzedError:
+        # Its still running, so we need to return a 202
+        # (Accepted) error.
+        response = BasicResponse(
+            status_code=202, content=f"Analysis still in progress for task {task_id}"
+        )
+
+    return response
+
+
+async def analyze_koji_task(task_id: int, koji_instance_config: KojiInstanceConfig):
+    """Analyze a koji task and return the response"""
+
+    # Get the log text from the koji task
+    koji_conn = koji_instance_config.get_connection()
+    log_file_name, log_text = await get_failed_log_from_koji_task(
+        koji_conn, task_id, max_size=SERVER_CONFIG.koji.max_artifact_size
+    )
+
+    # We need to handle the metric tracking manually here, because we need
+    # to retrieve the metric ID to associate it with the koji task analysis.
+
+    metrics_id = await add_new_metrics(
+        "analyze_koji_task",
+        log_text,
+        received_at=datetime.datetime.now(datetime.timezone.utc),
+        compressed_log_content=RemoteLogCompressor.zip_text(log_text),
+    )
+
+    # We need to associate the metric ID with the koji task analysis.
+    # This will create the new row without a response, which we will use as
+    # an indicator that the analysis is in progress.
+    KojiTaskAnalysis.create_or_restart(
+        koji_instance=koji_instance_config.xmlrpc_url,
+        task_id=task_id,
+        log_file_name=log_file_name,
+    )
+    response = await perform_staged_analysis(log_text)
+
+    # Now that we have the response, we can update the metrics and mark the
+    # koji task analysis as completed.
+    update_metrics(metrics_id, response)
+    KojiTaskAnalysis.add_response(task_id, metrics_id)
+
+    # Notify any callbacks that the analysis is complete.
+    for callback in koji_instance_config.get_callbacks(task_id):
+        LOG.info("Notifying callback %s of task %d completion", callback, task_id)
+        asyncio.create_task(
+            send_koji_callback(callback, task_id)
+        )
+
+    # Now that it's sent, we can clear the callbacks for this task.
+    koji_instance_config.clear_callbacks(task_id)
+
+    return response
+
+
+async def send_koji_callback(callback: str, task_id: int):
+    """Send a callback to the specified URL with the task ID and log file name."""
+    async with aiohttp.ClientSession() as session:
+        async with session.post(callback, json={"task_id": task_id}):
+            pass
 
 
 @app.get("/queue/print")
