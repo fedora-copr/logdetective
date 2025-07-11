@@ -87,13 +87,6 @@ class EmojiHook(BaseModel):
     merge_request: EmojiMergeRequest = Field(default=None)
 
 
-class KojiTask(BaseModel):
-    """Model of a Koji task."""
-
-    koji_instance: str
-    task_id: int
-
-
 class Explanation(BaseModel):
     """Model of snippet or general log explanation from Log Detective"""
 

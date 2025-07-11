@@ -10,7 +10,6 @@ from logdetective.server.exceptions import (
     LogDetectiveConnectionError,
     LogsMissingError,
     LogsTooLargeError,
-    NoFailedTask,
     UnknownTaskType,
 )
 
