@@ -1,7 +1,7 @@
 import koji
 import pytest
 
-from logdetective.server.models import KojiInstanceConfig, KojiTask, StagedResponse
+from logdetective.server.models import KojiInstanceConfig, StagedResponse
 from logdetective.server.server import analyze_koji_task
 
 from logdetective.server.exceptions import LogsTooLargeError
@@ -214,9 +214,7 @@ async def test_koji_analyze_koji_task(mocker, mock_chat_completions):
         mock_koji_instance_config.name = "fedora"
         mock_koji_instance_config.xmlrpc_url = "https://koji.fedoraproject.org/kojihub"
 
-        koji_task = KojiTask(koji_instance="fedora", task_id=EXAMPLE_TASK_ID)
-
-        response = await analyze_koji_task(koji_task, mock_koji_instance_config)
+        response = await analyze_koji_task(EXAMPLE_TASK_ID, mock_koji_instance_config)
 
         assert response is not None
 
