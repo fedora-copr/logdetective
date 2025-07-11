@@ -9,7 +9,7 @@ RUN dnf install -y python3-requests python3-pip gcc gcc-c++ python3-scikit-build
     && echo "gpgkey=https://developer.download.nvidia.com/compute/cuda/repos/fedora41/x86_64/D42D0685.pub" >> /etc/yum.repos.d/cuda.repo \
     && dnf install -y cuda-compiler-12-8 cuda-toolkit-12-8 nvidia-driver-cuda nvidia-driver-cuda-libs nvidia-driver cmake \
     && dnf clean all
-ENV LLAMACPP_VER="96f405393461062450692430e4916809bf71c3c4"
+ENV LLAMACPP_VER="0d5375d54b258ec63edd1fb5d58c37d58ce8be8b"
 ENV PATH=${PATH}:/usr/local/cuda-12.8/bin/
 
 # Clone, checkout, build and move llama.cpp server to path
@@ -17,6 +17,6 @@ ENV PATH=${PATH}:/usr/local/cuda-12.8/bin/
 RUN git clone https://github.com/ggerganov/llama.cpp.git && \
     cd llama.cpp && \
     git checkout $LLAMACPP_VER && \
-    cmake -B build -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=75 && \
+    cmake -B build -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=75 -DLLAMA_CURL=OFF && \
     cmake --build build --config Release -j 4 -t llama-server && \
     mv ./build/bin/llama-server /usr/bin/llama-server
