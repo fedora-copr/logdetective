@@ -6,6 +6,7 @@ import backoff
 import koji
 from logdetective.server.config import LOG
 from logdetective.server.exceptions import (
+    KojiInvalidTaskID,
     LogDetectiveConnectionError,
     LogsMissingError,
     LogsTooLargeError,
@@ -72,6 +73,8 @@ async def get_failed_subtask_info(
 
     # Look up the current task first and check its type.
     taskinfo = await call_koji(koji_session.getTaskInfo, task_id)
+    if not taskinfo:
+        raise KojiInvalidTaskID(f"Task {task_id} does not exist.")
 
     # If the parent isn't FAILED, the children probably aren't either.
     # There's one special case where the user may have canceled the
