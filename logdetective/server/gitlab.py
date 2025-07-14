@@ -329,7 +329,7 @@ async def comment_on_mr(  # pylint: disable=too-many-arguments disable=too-many-
 
     # Submit a new comment to the Merge Request using the Gitlab API
     discussion = await asyncio.to_thread(
-        merge_request.discussions.create, {"body": short_comment}
+        merge_request.notes.create, {"body": short_comment}
     )
 
     # Get the ID of the first note
