@@ -1,6 +1,6 @@
 import enum
 import datetime
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Self
 
 import backoff
 
@@ -15,6 +15,7 @@ from sqlalchemy import (
     desc,
 )
 from sqlalchemy.orm import relationship
+from sqlalchemy.engine import Row
 from sqlalchemy.exc import OperationalError
 from logdetective.server.database.base import Base, transaction, DB_MAX_RETRIES
 
@@ -134,7 +135,7 @@ class GitlabMergeRequestJobs(Base):
     @classmethod
     def get_by_mr_iid(
         cls, forge: Forge, project_id: int, mr_iid
-    ) -> Optional["GitlabMergeRequestJobs"]:
+    ) -> List[Self]:
         """Get all the mr jobs saved for the specified mr iid and project id."""
         with transaction(commit=False) as session:
             comments = (
@@ -262,7 +263,7 @@ class Comments(Base):
         cls,
         forge: Forge,
         comment_id: str,
-    ) -> Optional["Comments"]:
+    ) -> Optional[Self]:
         """Search for a detailed comment
         by its unique forge comment id.
 
@@ -324,7 +325,7 @@ class Comments(Base):
         forge: Forge,
         project_id: int,
         mr_iid: int,
-    ) -> Optional["Comments"]:
+    ) -> List[Self]:
         """Search for all merge request comments.
 
         Args:
@@ -358,7 +359,7 @@ class Comments(Base):
         mr_iid: int,
         job_id: int,
         comment_id: str,
-    ) -> Optional["Comments"]:
+    ) -> Self:
         """Search for a detailed comment
         or create a new one if not found.
 
@@ -372,11 +373,11 @@ class Comments(Base):
         comment = Comments.get_by_gitlab_id(forge, comment_id)
         if comment is None:
             id_ = Comments.create(forge, project_id, mr_iid, job_id, comment_id)
-            comment = GitlabMergeRequestJobs.get_by_id(id_)
+            comment = Comments.get_by_id(id_)
         return comment
 
     @classmethod
-    def get_since(cls, time: datetime.datetime) -> Optional["Comments"]:
+    def get_since(cls, time: datetime.datetime) -> List[Self]:
         """Get all the comments created after the given time."""
         with transaction(commit=False) as session:
             comments = (
@@ -485,7 +486,7 @@ class Reactions(Base):
         mr_iid: int,
         job_id: int,
         comment_id: str,
-    ) -> int:
+    ) -> List[Self]:
         """Get all reactions for a comment
 
         Args:
@@ -524,7 +525,7 @@ class Reactions(Base):
         job_id: int,
         comment_id: str,
         reaction_type: str,
-    ) -> int:
+    ) -> Self | None:
         """Get reaction, of a given type,
         for a comment
 
@@ -589,7 +590,7 @@ class Reactions(Base):
     @classmethod
     def get_since(
         cls, time: datetime.datetime
-    ) -> List[Tuple[datetime.datetime, "Comments"]]:
+    ) -> List[Row[Tuple[datetime.datetime, Self]]]:
         """Get all the reactions on comments created after the given time
         and the comment creation time."""
         with transaction(commit=False) as session:
