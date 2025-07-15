@@ -20,12 +20,10 @@ async def collect_emojis(gitlab_conn: gitlab.Gitlab, period: TimePeriod):
     Collect emoji feedback from logdetective comments saved in database.
     Check only comments created in the last given period of time.
     """
-    comments = Comments.get_since(period.get_period_start_time())
-    comments_for_gitlab_connection = []
-    if comments:
-        comments_for_gitlab_connection = [
-            comment for comment in comments if comment.forge == gitlab_conn.url
-        ]
+    comments = Comments.get_since(period.get_period_start_time()) or []
+    comments_for_gitlab_connection = [
+        comment for comment in comments if comment.forge == gitlab_conn.url
+    ]
     await collect_emojis_in_comments(comments_for_gitlab_connection, gitlab_conn)
 
 
@@ -41,10 +39,9 @@ async def collect_emojis_for_mr(
     except ValueError as ex:
         LOG.exception("Attempt to use unrecognized Forge `%s`", gitlab_conn.url)
         raise ex
-    mr_jobs = GitlabMergeRequestJobs.get_by_mr_iid(url, project_id, mr_iid)
+    mr_jobs = GitlabMergeRequestJobs.get_by_mr_iid(url, project_id, mr_iid) or []
 
-    if mr_jobs:
-        comments = [Comments.get_by_mr_job(mr_job) for mr_job in mr_jobs]
+    comments = [Comments.get_by_mr_job(mr_job) for mr_job in mr_jobs]
     await collect_emojis_in_comments(comments, gitlab_conn)
 
 
