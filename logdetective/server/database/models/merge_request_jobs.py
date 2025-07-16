@@ -157,7 +157,7 @@ class GitlabMergeRequestJobs(Base):
         project_id: int,
         mr_iid: int,
         job_id: int,
-    ) -> Optional["GitlabMergeRequestJobs"]:
+    ) -> Self:
         """Search for a detailed merge request
         or create a new one if not found.
 
