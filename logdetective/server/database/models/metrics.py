@@ -1,7 +1,7 @@
 import io
 import enum
 import datetime
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
 import backoff
 
@@ -204,11 +204,12 @@ class AnalyzeRequestMetrics(Base):
 
     @classmethod
     def get_dictionary_with_datetime_keys(
-        cls, time_format: str, values_dict: dict[str, any]
-    ) -> dict[datetime.datetime, any]:
-        """Convert from a dictionary with str keys to a dictionary with datetime keys"""
+        cls, time_format: str, query_results: List[Tuple[str, int]]
+    ) -> dict[datetime.datetime, int]:
+        """Convert from a list of tuples with str as first values
+        to a dictionary with datetime keys"""
         new_dict = {
-            datetime.datetime.strptime(r[0], time_format): r[1] for r in values_dict
+            datetime.datetime.strptime(e[0], time_format): e[1] for e in query_results
         }
         return new_dict
 
