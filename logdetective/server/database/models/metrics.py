@@ -114,7 +114,7 @@ class AnalyzeRequestMetrics(Base):
     def update(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
         cls,
         id_: int,
-        response_sent_at: datetime,
+        response_sent_at: DateTime,
         response_length: int,
         response_certainty: float,
         compressed_response: bytes,
