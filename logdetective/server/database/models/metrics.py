@@ -1,7 +1,7 @@
 import io
 import enum
 import datetime
-from typing import Optional, List, Tuple
+from typing import Optional, List, Self, Tuple
 
 import backoff
 
@@ -134,7 +134,7 @@ class AnalyzeRequestMetrics(Base):
     def get_metric_by_id(
         cls,
         id_: int,
-    ) -> "AnalyzeRequestMetrics":
+    ) -> Self:
         """Update a row
         with data related to the given response"""
         with transaction(commit=True) as session:
@@ -169,7 +169,7 @@ class AnalyzeRequestMetrics(Base):
         project_id: int,
         mr_iid: int,
         job_id: int,
-    ) -> List["AnalyzeRequestMetrics"]:
+    ) -> List[Self]:
         """Search for all requests triggered by the specified merge request job.
 
         Args:
