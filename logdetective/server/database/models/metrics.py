@@ -123,6 +123,8 @@ class AnalyzeRequestMetrics(Base):
         with data related to the given response"""
         with transaction(commit=True) as session:
             metrics = session.query(AnalyzeRequestMetrics).filter_by(id=id_).first()
+            if metrics is None:
+                raise ValueError("Returned `AnalyzeRequestMetrics` table is empty.")
             metrics.response_sent_at = response_sent_at
             metrics.response_length = response_length
             metrics.response_certainty = response_certainty
@@ -139,6 +141,8 @@ class AnalyzeRequestMetrics(Base):
         with data related to the given response"""
         with transaction(commit=True) as session:
             metric = session.query(AnalyzeRequestMetrics).filter_by(id=id_).first()
+            if metric is None:
+                raise ValueError("Returned `AnalyzeRequestMetrics` table is empty.")
             return metric
 
     def add_mr_job(
