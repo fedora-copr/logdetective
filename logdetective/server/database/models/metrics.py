@@ -204,11 +204,11 @@ class AnalyzeRequestMetrics(Base):
 
     @classmethod
     def get_dictionary_with_datetime_keys(
-        cls, time_format: str, values_dict: dict[str, any]
-    ) -> dict[datetime.datetime, any]:
+        cls, time_format: str, values_dict: dict[str, int]
+    ) -> dict[datetime.datetime, int]:
         """Convert from a dictionary with str keys to a dictionary with datetime keys"""
         new_dict = {
-            datetime.datetime.strptime(r[0], time_format): r[1] for r in values_dict
+            datetime.datetime.strptime(key, time_format): val for key, val in values_dict.items()
         }
         return new_dict
 
