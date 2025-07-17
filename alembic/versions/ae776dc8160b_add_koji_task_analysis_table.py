@@ -1,8 +1,8 @@
 """Add koji_task_analysis table
 
 Revision ID: ae776dc8160b
-Revises: 2f60bb92411f
-Create Date: 2025-01-13 12:00:00.000000
+Revises: 360aea89443f
+Create Date: 2025-07-07 12:00:00.000000
 
 """
 
@@ -14,7 +14,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "ae776dc8160b"
-down_revision: Union[str, None] = "2f60bb92411f"
+down_revision: Union[str, None] = "360aea89443f"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
