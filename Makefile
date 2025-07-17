@@ -39,7 +39,7 @@ alembic-generate-revision: server-up
 		-v $(PWD)/alembic.ini:/src/alembic.ini:ro,z \
 		--network logdetective_default \
 		localhost/logdetective/server:latest \
-		bash -c "cd /src && alembic revision -m \"$(CHANGE)\" --autogenerate"
+		bash -c "cd /src && python -m alembic revision -m \"$(CHANGE)\" --autogenerate"
 
 	@echo "WARNING: Shutting down server..."
 	$(COMPOSE_ENGINE) down server
