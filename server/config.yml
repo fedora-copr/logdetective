@@ -43,7 +43,7 @@ gitlab:
 koji:
   analysis_timeout: 15
   max_artifact_size: 300
-  
+
   # Koji instances
   instances:
     "fedora":
@@ -56,3 +56,8 @@ general:
     - .*
   excluded_packages:
     - ^redhat-internal-.*
+  # If set to value greater than zero, this option enables
+  # filtering of snippets based on their estimated relevance.
+  # Values equal, or higher, than number of snippets produced,
+  # will effectivelly result in no filtering at all.
+  # top_k_snippets: 0

@@ -22,8 +22,8 @@ prompt_template: |
   Analysis:
 
 snippet_prompt_template: |
-  Analyse following RPM build log snippet. Describe contents accurately, without speculation or suggestions for resolution.
-
+  Analyse following RPM build log snippet. Describe contents accurately, without speculation or suggestions for resolution
+  and provide estimate of snippet relevance.
   Your analysis must be as concise as possible, while keeping relevant information intact.
 
   Snippet:

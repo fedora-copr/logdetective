@@ -5,6 +5,7 @@ from typing import List, Tuple, Dict
 
 import backoff
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 import aiohttp
 from openai import AsyncStream
@@ -28,6 +29,8 @@ from logdetective.server.models import (
     InferenceConfig,
     Explanation,
     StagedResponse,
+    SnippetAnalysis,
+    RatedSnippetAnalysis,
 )
 
 
@@ -37,10 +40,7 @@ LLM_CPP_SERVER_TIMEOUT = os.environ.get("LLAMA_CPP_SERVER_TIMEOUT", 600)
 def format_analyzed_snippets(snippets: list[AnalyzedSnippet]) -> str:
     """Format snippets for submission into staged prompt."""
     summary = f"\n{SNIPPET_DELIMITER}\n".join(
-        [
-            f"[{e.text}] at line [{e.line_number}]: [{e.explanation.text}]"
-            for e in snippets
-        ]
+        [f"[{e.text}] at line [{e.line_number}]: [{e.explanation}]" for e in snippets]
     )
     return summary
 
@@ -98,6 +98,7 @@ async def call_llm(
     messages: List[Dict[str, str]],
     inference_cfg: InferenceConfig,
     stream: bool = False,
+    structured_output: dict | None = None,
 ) -> Explanation:
     """Submit prompt to LLM.
     inference_cfg: The configuration section from the config.json representing
@@ -107,26 +108,53 @@ async def call_llm(
 
     LOG.info("Submitting to /v1/chat/completions endpoint")
 
-    async with inference_cfg.get_limiter():
-        response = await CLIENT.chat.completions.create(
-            messages=messages,
-            max_tokens=inference_cfg.max_tokens,
-            logprobs=inference_cfg.log_probs,
-            stream=stream,
-            model=inference_cfg.model,
-            temperature=inference_cfg.temperature,
-        )
+    # OpenAI API does not guarantee that the behavior for parameter set to `None`
+    # and parameter not given at all is the same.
+    # Therefore we must branch on the way we call the API.
+    if structured_output:
+        LOG.info("Requesting structured output from LLM")
+        response_format = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "rated-snippet-analysis",
+                "schema": structured_output,
+            },
+        }
+
+        async with inference_cfg.get_limiter():
+            response = await CLIENT.chat.completions.create(
+                messages=messages,
+                max_tokens=inference_cfg.max_tokens,
+                logprobs=inference_cfg.log_probs,
+                stream=stream,
+                model=inference_cfg.model,
+                temperature=inference_cfg.temperature,
+                response_format=response_format,
+            )
+    else:
+        async with inference_cfg.get_limiter():
+            response = await CLIENT.chat.completions.create(
+                messages=messages,
+                max_tokens=inference_cfg.max_tokens,
+                logprobs=inference_cfg.log_probs,
+                stream=stream,
+                model=inference_cfg.model,
+                temperature=inference_cfg.temperature,
+            )
 
     if not response.choices[0].message.content:
         LOG.error("No response content recieved from %s", inference_cfg.url)
         raise RuntimeError()
+
+    message_content = response.choices[0].message.content
+
     if response.choices[0].logprobs and response.choices[0].logprobs.content:
         logprobs = [e.to_dict() for e in response.choices[0].logprobs.content]
     else:
         logprobs = None
 
     return Explanation(
-        text=response.choices[0].message.content,
+        text=message_content,
         logprobs=logprobs,
     )
 
@@ -166,10 +194,10 @@ async def call_llm_stream(
     return response
 
 
-async def perform_staged_analysis(log_text: str) -> StagedResponse:
-    """Submit the log file snippets to the LLM and retrieve their results"""
-    log_summary = mine_logs(log_text)
-
+async def analyze_snippets(
+    log_summary: List[Tuple[int, str]], structured_output: dict | None = None
+) -> List[SnippetAnalysis | RatedSnippetAnalysis]:
+    """Submit log file snippets to the LLM and gather results"""
     # Process snippets asynchronously
     awaitables = [
         call_llm(
@@ -180,17 +208,116 @@ async def perform_staged_analysis(log_text: str) -> StagedResponse:
                 SERVER_CONFIG.inference.user_role,
             ),
             inference_cfg=SERVER_CONFIG.snippet_inference,
+            structured_output=structured_output,
         )
         for s in log_summary
     ]
-    analyzed_snippets = await asyncio.gather(*awaitables)
+    gathered_responses = await asyncio.gather(*awaitables)
+    analyzed_snippets = []
 
-    analyzed_snippets = [
-        AnalyzedSnippet(line_number=e[0][0], text=e[0][1], explanation=e[1])
-        for e in zip(log_summary, analyzed_snippets)
-    ]
+    for response in gathered_responses:
+        if structured_output:
+            try:
+                snippet = RatedSnippetAnalysis.model_validate_json(response.text)
+            except ValidationError as ex:
+                LOG.error("Invalid data structure returned `%s`", response.text)
+                raise ex
+        else:
+            snippet = SnippetAnalysis(text=response.text)
+        analyzed_snippets.append(snippet)
+
+    return analyzed_snippets
+
+
+def select_relevance(snippet: AnalyzedSnippet) -> float:
+    """Retrieve relevance value from structure, if there is one."""
+    if not isinstance(snippet.explanation, RatedSnippetAnalysis):
+        LOG.exception("Only rated snippets can be ordered by relevance.")
+        raise ValueError
+    return snippet.explanation.relevance
+
+
+def select_line_number(explanation: AnalyzedSnippet) -> int:
+    """Returns line number of original snippet."""
+    return explanation.line_number
+
+
+def filter_snippets(
+    processed_snippets: List[AnalyzedSnippet], top_k: int
+) -> List[AnalyzedSnippet]:
+    """Filter snippets according to criteria in config while keeping them ordered by line number.
+    If all snippets recieved the same score, return them all.
+    AnalyzedSnippet objects must have `explanation` attribute set to `RatedSnippetAnalysis`,
+    otherwise raise `ValueError`."""
+
+    if top_k >= len(processed_snippets):
+        LOG.warning(
+            "The `top-k` parameter >= number of original snippets, skipping filtering."
+        )
+        return processed_snippets
+
+    # Sorting invokes `select_relevance` which also tests if objects actually
+    # have the score assigned. Otherwise it raises exception.
+    processed_snippets = sorted(processed_snippets, key=select_relevance, reverse=True)
+
+    # Check for failure mode when all snippets have
+    # the same relevance. In such cases there is no point in filtering
+    # and all snippets are returned.
+    max_relevance = processed_snippets[0].explanation.relevance
+    min_relevance = processed_snippets[-1].explanation.relevance
+
+    LOG.info(
+        "Analyzed snippets sorted. Max relevance: %d Min relevance: %e",
+        max_relevance,
+        min_relevance,
+    )
+    if max_relevance == min_relevance:
+        LOG.warning("All snippets recieved the same rating. Filtering disabled.")
+        return processed_snippets
+
+    processed_snippets = processed_snippets[:top_k]
+
+    # Re-sorting snippets by line number
+    processed_snippets = sorted(processed_snippets, key=select_line_number)
+
+    return processed_snippets
+
+
+async def perform_staged_analysis(log_text: str) -> StagedResponse:
+    """Submit the log file snippets to the LLM and retrieve their results"""
+    log_summary = mine_logs(log_text)
+
+    if SERVER_CONFIG.general.top_k_snippets:
+        rated_snippets = await analyze_snippets(
+            log_summary=log_summary,
+            structured_output=RatedSnippetAnalysis.model_json_schema(),
+        )
+
+        # Extract original text and line number from `log_summary`
+        processed_snippets = [
+            AnalyzedSnippet(line_number=e[0][0], text=e[0][1], explanation=e[1])
+            for e in zip(log_summary, rated_snippets)
+        ]
+        processed_snippets = filter_snippets(
+            processed_snippets=processed_snippets,
+            top_k=SERVER_CONFIG.general.top_k_snippets,
+        )
+        LOG.info(
+            "Keeping %d of original %d snippets",
+            len(processed_snippets),
+            len(rated_snippets),
+        )
+    else:
+        processed_snippets = await analyze_snippets(log_summary=log_summary)
+
+        # Extract original text and line number from `log_summary`
+        processed_snippets = [
+            AnalyzedSnippet(line_number=e[0][0], text=e[0][1], explanation=e[1])
+            for e in zip(log_summary, processed_snippets)
+        ]
+
     final_prompt = PROMPT_CONFIG.prompt_template_staged.format(
-        format_analyzed_snippets(analyzed_snippets)
+        format_analyzed_snippets(processed_snippets)
     )
     messages = prompt_to_messages(
         final_prompt,
@@ -218,6 +345,6 @@ async def perform_staged_analysis(log_text: str) -> StagedResponse:
 
     return StagedResponse(
         explanation=final_analysis,
-        snippets=analyzed_snippets,
+        snippets=processed_snippets,
         response_certainty=certainty,
     )
