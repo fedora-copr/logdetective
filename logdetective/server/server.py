@@ -48,7 +48,8 @@ from logdetective.remote_log import RemoteLog
 from logdetective.server.llm import (
     mine_logs,
     perform_staged_analysis,
-    submit_text,
+    call_llm,
+    call_llm_stream,
 )
 from logdetective.server.gitlab import process_gitlab_job_event
 from logdetective.server.metric import track_request, add_new_metrics, update_metrics
@@ -165,7 +166,7 @@ async def analyze_log(
         SERVER_CONFIG.inference.system_role,
         SERVER_CONFIG.inference.user_role,
     )
-    response = await submit_text(
+    response = await call_llm(
         messages,
         inference_cfg=SERVER_CONFIG.inference,
     )
@@ -351,9 +352,7 @@ async def analyze_koji_task(task_id: int, koji_instance_config: KojiInstanceConf
     # Notify any callbacks that the analysis is complete.
     for callback in koji_instance_config.get_callbacks(task_id):
         LOG.info("Notifying callback %s of task %d completion", callback, task_id)
-        asyncio.create_task(
-            send_koji_callback(callback, task_id)
-        )
+        asyncio.create_task(send_koji_callback(callback, task_id))
 
     # Now that it's sent, we can clear the callbacks for this task.
     koji_instance_config.clear_callbacks(task_id)
@@ -407,10 +406,9 @@ async def analyze_log_stream(
         SERVER_CONFIG.inference.user_role,
     )
     try:
-        stream = submit_text(
+        stream = call_llm_stream(
             messages,
             inference_cfg=SERVER_CONFIG.inference,
-            stream=True,
         )
     except aiohttp.ClientResponseError as ex:
         raise HTTPException(

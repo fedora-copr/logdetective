@@ -11,7 +11,7 @@ from tests.server.test_helpers import mock_chat_completions
 from logdetective.server.config import SERVER_CONFIG
 from logdetective.server.llm import (
     perform_staged_analysis,
-    submit_text,
+    call_llm,
 )
 from logdetective.remote_log import RemoteLog
 from logdetective.server.config import load_server_config
@@ -63,7 +63,7 @@ async def test_submit_text_chat_completions(mock_chat_completions):
             "content": "Hello world!",
         }
     ]
-    response = await submit_text(messages, inference_cfg=inference_cfg)
+    response = await call_llm(messages, inference_cfg=inference_cfg)
 
     assert isinstance(response, Explanation)
     assert response.text == "This is a mock message"
