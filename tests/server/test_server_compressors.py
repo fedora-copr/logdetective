@@ -5,6 +5,7 @@ from logdetective.server.models import (
     StagedResponse,
     Explanation,
     AnalyzedSnippet,
+    SnippetAnalysis,
 )
 from logdetective.server.compressors import LLMResponseCompressor
 
@@ -28,9 +29,8 @@ async def test_server_response_compressor():
         AnalyzedSnippet(
             text=e[1],
             line_number=e[0],
-            explanation=Explanation(
+            explanation=SnippetAnalysis(
                 text=f"Comment for snippet on line {e[0]}",
-                logprobs=LOGPROBS,
             ),
         )
         for e in [(10, "Snippet 1"), (120, "Snippet 1"), (240, "Snippet 1")]

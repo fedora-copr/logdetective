@@ -6,7 +6,17 @@ test_snippets = [
         "Snippet 3",
     ],
     # Tuples
-    [(10, "Snippet 1"), (120, "Snippet 1"), (240, "Snippet 1")],
+    [
+        (10, "Snippet 1"),
+        (120, "Snippet 2"),
+        (240, "Snippet 3"),
+        (250, "Snippet 4"),
+        (255, "Snippet 5"),
+        (268, "Snippet 6"),
+        (300, "Snippet 7"),
+        (303, "Snippet 8"),
+        (9999, "Snippet Final"),
+    ],
 ]
 
 test_prompts = """

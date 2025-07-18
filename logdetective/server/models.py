@@ -88,6 +88,24 @@ class EmojiHook(BaseModel):
     merge_request: EmojiMergeRequest = Field(default=None)
 
 
+class SnippetAnalysis(BaseModel):
+    """Model of snippet analysis from LLM."""
+
+    text: str = Field(description="Analysis of log snippet contents.")
+
+
+class RatedSnippetAnalysis(SnippetAnalysis):
+    """Model for rated snippet analysis. This model is used to generate
+    json schema for inference with structured output."""
+
+    relevance: int = Field(
+        ge=0,
+        le=100,
+        description="Estimate of likelyhood that snippet contains an error, "
+        "with 0 standing for completely unlikely, 100 for absolutely certain.",
+    )
+
+
 class Explanation(BaseModel):
     """Model of snippet or general log explanation from Log Detective"""
 
@@ -95,6 +113,7 @@ class Explanation(BaseModel):
     logprobs: Optional[List[Dict]] = None
 
     def __str__(self):
+        """Return text of the Explanation"""
         return self.text
 
 
@@ -106,7 +125,7 @@ class AnalyzedSnippet(BaseModel):
     line_number: location of snippet in original log
     """
 
-    explanation: Explanation
+    explanation: SnippetAnalysis | RatedSnippetAnalysis
     text: str
     line_number: int
 
@@ -439,6 +458,7 @@ class GeneralConfig(BaseModel):
     devmode: bool = False
     sentry_dsn: HttpUrl | None = None
     collect_emojis_interval: int = 60 * 60  # seconds
+    top_k_snippets: int = 0
 
     def __init__(self, data: Optional[dict] = None):
         super().__init__()
@@ -452,6 +472,7 @@ class GeneralConfig(BaseModel):
         self.collect_emojis_interval = data.get(
             "collect_emojis_interval", 60 * 60
         )  # seconds
+        self.top_k_snippets = data.get("top_k_snippets", 0)
 
 
 class Config(BaseModel):
