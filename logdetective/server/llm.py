@@ -1,7 +1,7 @@
 import os
 import asyncio
 import random
-from typing import List, Tuple, Union, Dict
+from typing import List, Tuple, Dict
 
 import backoff
 from fastapi import HTTPException
@@ -94,15 +94,14 @@ def we_give_up(details: backoff._typing.Details):
     raise_on_giveup=False,
     on_giveup=we_give_up,
 )
-async def submit_text(
+async def call_llm(
     messages: List[Dict[str, str]],
     inference_cfg: InferenceConfig,
     stream: bool = False,
-) -> Union[Explanation, AsyncStream[ChatCompletionChunk]]:
+) -> Explanation:
     """Submit prompt to LLM.
     inference_cfg: The configuration section from the config.json representing
     the relevant inference server for this request.
-    log_probs: number of token choices to produce log probs for
     """
     LOG.info("Analyzing the text")
 
@@ -118,8 +117,6 @@ async def submit_text(
             temperature=inference_cfg.temperature,
         )
 
-    if isinstance(response, AsyncStream):
-        return response
     if not response.choices[0].message.content:
         LOG.error("No response content recieved from %s", inference_cfg.url)
         raise RuntimeError()
@@ -134,13 +131,48 @@ async def submit_text(
     )
 
 
+@backoff.on_exception(
+    lambda: backoff.constant([10, 30, 120]),
+    aiohttp.ClientResponseError,
+    max_tries=4,  # 4 tries and 3 retries
+    jitter=lambda wait_gen_value: random.uniform(wait_gen_value, wait_gen_value + 30),
+    giveup=should_we_giveup,
+    raise_on_giveup=False,
+    on_giveup=we_give_up,
+)
+async def call_llm_stream(
+    messages: List[Dict[str, str]],
+    inference_cfg: InferenceConfig,
+    stream: bool = False,
+) -> AsyncStream[ChatCompletionChunk]:
+    """Submit prompt to LLM and recieve stream of tokens as a result.
+    inference_cfg: The configuration section from the config.json representing
+    the relevant inference server for this request.
+    """
+    LOG.info("Analyzing the text")
+
+    LOG.info("Submitting to /v1/chat/completions endpoint")
+
+    async with inference_cfg.get_limiter():
+        response = await CLIENT.chat.completions.create(
+            messages=messages,
+            max_tokens=inference_cfg.max_tokens,
+            logprobs=inference_cfg.log_probs,
+            stream=stream,
+            model=inference_cfg.model,
+            temperature=inference_cfg.temperature,
+        )
+
+    return response
+
+
 async def perform_staged_analysis(log_text: str) -> StagedResponse:
     """Submit the log file snippets to the LLM and retrieve their results"""
     log_summary = mine_logs(log_text)
 
     # Process snippets asynchronously
     awaitables = [
-        submit_text(
+        call_llm(
             prompt_to_messages(
                 PROMPT_CONFIG.snippet_prompt_template.format(s),
                 PROMPT_CONFIG.snippet_system_prompt,
@@ -166,7 +198,7 @@ async def perform_staged_analysis(log_text: str) -> StagedResponse:
         SERVER_CONFIG.inference.system_role,
         SERVER_CONFIG.inference.user_role,
     )
-    final_analysis = await submit_text(
+    final_analysis = await call_llm(
         messages,
         inference_cfg=SERVER_CONFIG.inference,
     )
