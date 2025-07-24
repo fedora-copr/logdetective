@@ -11,18 +11,16 @@ import aiohttp
 from openai import AsyncStream
 from openai.types.chat import ChatCompletionChunk
 
-from logdetective.constants import SNIPPET_DELIMITER
-from logdetective.extractors import DrainExtractor
 from logdetective.utils import (
     compute_certainty,
     prompt_to_messages,
+    format_snippets,
 )
 from logdetective.server.config import (
     LOG,
     SERVER_CONFIG,
     PROMPT_CONFIG,
     CLIENT,
-    SKIP_SNIPPETS_CONFIG,
 )
 from logdetective.server.models import (
     AnalyzedSnippet,
@@ -31,58 +29,18 @@ from logdetective.server.models import (
     StagedResponse,
     SnippetAnalysis,
     RatedSnippetAnalysis,
+    Response,
+)
+from logdetective.server.utils import (
+    format_analyzed_snippets,
+    mine_logs,
+    should_we_giveup,
+    we_give_up,
+    filter_snippets,
 )
 
 
 LLM_CPP_SERVER_TIMEOUT = os.environ.get("LLAMA_CPP_SERVER_TIMEOUT", 600)
-
-
-def format_analyzed_snippets(snippets: list[AnalyzedSnippet]) -> str:
-    """Format snippets for submission into staged prompt."""
-    summary = f"\n{SNIPPET_DELIMITER}\n".join(
-        [f"[{e.text}] at line [{e.line_number}]: [{e.explanation}]" for e in snippets]
-    )
-    return summary
-
-
-def mine_logs(log: str) -> List[Tuple[int, str]]:
-    """Extract snippets from log text"""
-    extractor = DrainExtractor(
-        verbose=True,
-        context=True,
-        max_clusters=SERVER_CONFIG.extractor.max_clusters,
-        skip_snippets=SKIP_SNIPPETS_CONFIG,
-    )
-
-    LOG.info("Getting summary")
-    log_summary = extractor(log)
-
-    ratio = len(log_summary) / len(log.split("\n"))
-    LOG.debug("Log summary: \n %s", log_summary)
-    LOG.info("Compression ratio: %s", ratio)
-
-    return log_summary
-
-
-def should_we_giveup(exc: aiohttp.ClientResponseError) -> bool:
-    """
-    From backoff's docs:
-
-    > a function which accepts the exception and returns
-    > a truthy value if the exception should not be retried
-    """
-    LOG.info("Should we give up on retrying error %s", exc)
-    return exc.status < 400
-
-
-def we_give_up(details: backoff._typing.Details):
-    """
-    retries didn't work (or we got a different exc)
-    we give up and raise proper 500 for our API endpoint
-    """
-    LOG.error("Last exception: %s", details["exception"])
-    LOG.error("Inference error: %s", details["args"])
-    raise HTTPException(500, "Request to the inference API failed")
 
 
 @backoff.on_exception(
@@ -229,58 +187,55 @@ async def analyze_snippets(
     return analyzed_snippets
 
 
-def select_relevance(snippet: AnalyzedSnippet) -> float:
-    """Retrieve relevance value from structure, if there is one."""
-    if not isinstance(snippet.explanation, RatedSnippetAnalysis):
-        LOG.exception("Only rated snippets can be ordered by relevance.")
-        raise ValueError
-    return snippet.explanation.relevance
-
-
-def select_line_number(explanation: AnalyzedSnippet) -> int:
-    """Returns line number of original snippet."""
-    return explanation.line_number
-
-
-def filter_snippets(
-    processed_snippets: List[AnalyzedSnippet], top_k: int
-) -> List[AnalyzedSnippet]:
-    """Filter snippets according to criteria in config while keeping them ordered by line number.
-    If all snippets recieved the same score, return them all.
-    AnalyzedSnippet objects must have `explanation` attribute set to `RatedSnippetAnalysis`,
-    otherwise raise `ValueError`."""
-
-    if top_k >= len(processed_snippets):
-        LOG.warning(
-            "The `top-k` parameter >= number of original snippets, skipping filtering."
-        )
-        return processed_snippets
-
-    # Sorting invokes `select_relevance` which also tests if objects actually
-    # have the score assigned. Otherwise it raises exception.
-    processed_snippets = sorted(processed_snippets, key=select_relevance, reverse=True)
-
-    # Check for failure mode when all snippets have
-    # the same relevance. In such cases there is no point in filtering
-    # and all snippets are returned.
-    max_relevance = processed_snippets[0].explanation.relevance
-    min_relevance = processed_snippets[-1].explanation.relevance
-
-    LOG.info(
-        "Analyzed snippets sorted. Max relevance: %d Min relevance: %e",
-        max_relevance,
-        min_relevance,
+async def perfrom_analysis(log_text: str) -> Response:
+    """Sumbit log file snippets in aggregate to LLM and retrieve results"""
+    log_summary = mine_logs(log_text)
+    log_summary = format_snippets(log_summary)
+    messages = prompt_to_messages(
+        PROMPT_CONFIG.prompt_template.format(log_summary),
+        PROMPT_CONFIG.default_system_prompt,
+        SERVER_CONFIG.inference.system_role,
+        SERVER_CONFIG.inference.user_role,
     )
-    if max_relevance == min_relevance:
-        LOG.warning("All snippets recieved the same rating. Filtering disabled.")
-        return processed_snippets
+    response = await call_llm(
+        messages,
+        inference_cfg=SERVER_CONFIG.inference,
+    )
+    certainty = 0
 
-    processed_snippets = processed_snippets[:top_k]
+    if response.logprobs is not None:
+        try:
+            certainty = compute_certainty(response.logprobs)
+        except ValueError as ex:
+            LOG.error("Error encountered while computing certainty: %s", ex)
+            raise HTTPException(
+                status_code=400,
+                detail=f"Couldn't compute certainty with data:\n{response.logprobs}",
+            ) from ex
 
-    # Re-sorting snippets by line number
-    processed_snippets = sorted(processed_snippets, key=select_line_number)
+    return Response(explanation=response, response_certainty=certainty)
 
-    return processed_snippets
+
+async def perform_analyis_stream(log_text: str) -> AsyncStream:
+    """Submit log file snippets in aggregate and return a stream of tokens"""
+    log_summary = mine_logs(log_text)
+    log_summary = format_snippets(log_summary)
+    messages = prompt_to_messages(
+        PROMPT_CONFIG.prompt_template.format(log_summary),
+        PROMPT_CONFIG.default_system_prompt,
+        SERVER_CONFIG.inference.system_role,
+        SERVER_CONFIG.inference.user_role,
+    )
+
+    stream = call_llm_stream(
+        messages,
+        inference_cfg=SERVER_CONFIG.inference,
+    )
+
+    # we need to figure out a better response here, this is how it looks rn:
+    # b'data: {"choices":[{"finish_reason":"stop","index":0,"delta":{}}],
+    #   "created":1744818071,"id":"chatcmpl-c9geTxNcQO7M9wR...
+    return stream
 
 
 async def perform_staged_analysis(log_text: str) -> StagedResponse:

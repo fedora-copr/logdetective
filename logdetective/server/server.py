@@ -34,22 +34,15 @@ from logdetective.server.database.models.exceptions import (
 
 import logdetective.server.database.base
 
-from logdetective.utils import (
-    compute_certainty,
-    format_snippets,
-    prompt_to_messages,
-)
-
-from logdetective.server.config import SERVER_CONFIG, PROMPT_CONFIG, LOG
+from logdetective.server.config import SERVER_CONFIG, LOG
 from logdetective.server.koji import (
     get_failed_log_from_task as get_failed_log_from_koji_task,
 )
 from logdetective.remote_log import RemoteLog
 from logdetective.server.llm import (
-    mine_logs,
     perform_staged_analysis,
-    call_llm,
-    call_llm_stream,
+    perfrom_analysis,
+    perform_analyis_stream,
 )
 from logdetective.server.gitlab import process_gitlab_job_event
 from logdetective.server.metric import track_request, add_new_metrics, update_metrics
@@ -158,31 +151,8 @@ async def analyze_log(
     """
     remote_log = RemoteLog(build_log.url, http_session)
     log_text = await remote_log.process_url()
-    log_summary = mine_logs(log_text)
-    log_summary = format_snippets(log_summary)
-    messages = prompt_to_messages(
-        PROMPT_CONFIG.prompt_template.format(log_summary),
-        PROMPT_CONFIG.default_system_prompt,
-        SERVER_CONFIG.inference.system_role,
-        SERVER_CONFIG.inference.user_role,
-    )
-    response = await call_llm(
-        messages,
-        inference_cfg=SERVER_CONFIG.inference,
-    )
-    certainty = 0
 
-    if response.logprobs is not None:
-        try:
-            certainty = compute_certainty(response.logprobs)
-        except ValueError as ex:
-            LOG.error("Error encountered while computing certainty: %s", ex)
-            raise HTTPException(
-                status_code=400,
-                detail=f"Couldn't compute certainty with data:\n{response.logprobs}",
-            ) from ex
-
-    return Response(explanation=response, response_certainty=certainty)
+    return await perfrom_analysis(log_text)
 
 
 @app.post("/analyze/staged", response_model=StagedResponse)
@@ -397,19 +367,8 @@ async def analyze_log_stream(
     """
     remote_log = RemoteLog(build_log.url, http_session)
     log_text = await remote_log.process_url()
-    log_summary = mine_logs(log_text)
-    log_summary = format_snippets(log_summary)
-    messages = prompt_to_messages(
-        PROMPT_CONFIG.prompt_template.format(log_summary),
-        PROMPT_CONFIG.default_system_prompt,
-        SERVER_CONFIG.inference.system_role,
-        SERVER_CONFIG.inference.user_role,
-    )
     try:
-        stream = call_llm_stream(
-            messages,
-            inference_cfg=SERVER_CONFIG.inference,
-        )
+        stream = perform_analyis_stream(log_text)
     except aiohttp.ClientResponseError as ex:
         raise HTTPException(
             status_code=400,
@@ -417,9 +376,6 @@ async def analyze_log_stream(
             f"[{ex.status}] {ex.message}",
         ) from ex
 
-    # we need to figure out a better response here, this is how it looks rn:
-    # b'data: {"choices":[{"finish_reason":"stop","index":0,"delta":{}}],
-    #   "created":1744818071,"id":"chatcmpl-c9geTxNcQO7M9wR...
     return StreamingResponse(stream)
 
 
