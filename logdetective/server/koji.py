@@ -4,7 +4,6 @@ from typing import Any, Callable, Optional
 
 import backoff
 import koji
-from logdetective.server.config import LOG
 from logdetective.server.exceptions import (
     KojiInvalidTaskID,
     LogDetectiveConnectionError,
@@ -12,23 +11,16 @@ from logdetective.server.exceptions import (
     LogsTooLargeError,
     UnknownTaskType,
 )
-
+from logdetective.server.utils import connection_error_giveup
 
 FAILURE_LOG_REGEX = re.compile(r"(\w*\.log)")
-
-
-def connection_error_giveup(details: backoff._typing.Details) -> None:
-    """
-    Too many connection errors, give up.
-    """
-    LOG.error("Too many connection errors, giving up. %s", details["exception"])
-    raise LogDetectiveConnectionError() from details["exception"]
 
 
 @backoff.on_exception(
     backoff.expo,
     koji.GenericError,
     max_time=60,
+    on_giveup=connection_error_giveup,
 )
 async def call_koji(func: Callable, *args, **kwargs) -> Any:
     """
