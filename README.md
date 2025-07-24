@@ -79,6 +79,7 @@ Note that streaming with some models (notably Meta-Llama-3 is broken) is broken 
 
 Real Example
 ------------
+
 Let's have a look at a real world example. Log Detective can work with any logs though we optimize it for RPM build logs.
 
 We're going to analyze a failed build of a python-based library that happened in Fedora Koji buildsystem:
@@ -142,7 +143,7 @@ It looks like a wall of text. Similar to any log. The main difference is that he
 
 
 Contributing
-------------
+============
 
 Contributions are welcome! Please submit a pull request if you have any improvements or new features to add. Make sure your changes pass all existing tests before submitting.
 For bigger code changes, please consult us first by creating an issue.
@@ -259,7 +260,7 @@ podman-compose up server
 - Run Visual Stdio Code debug configuration named *Python Debug: Remote Attach*
 
 Server
-------
+======
 
 FastApi based server is implemented in `logdetective/server.py`. In order to run it in a development mode,
 simply start llama-cpp-python server with your chosen model as described in llama-cpp-python [docs](https://llama-cpp-python.readthedocs.io/en/latest/server/#running-the-server).
@@ -289,6 +290,30 @@ Model can be downloaded from [our Hugging Space](https://huggingface.co/fedora-c
 ```
 $ curl -L -o models/mistral-7b-instruct-v0.3.Q4_K.gguf https://huggingface.co/fedora-copr/Mistral-7B-Instruct-v0.3-GGUF/resolve/main/ggml-model-Q4_K.gguf
 ```
+
+Filtering snippet analysis by relevance
+---------------------------------------
+
+When using `/analyze/staged` API, it is possible to enable filtering analyzed snippets by their estimated relavance, submitting only those with highest meansure of relevance for final analysis.
+
+**Note**: This feautre requires LLM provider with support for JSON structured output. Smaller models, even though techically capable of providing structured output, may not be able to appropriatelly estimate snippet relevance.
+
+Filtering is disabled by default and must be enabled by setting value of `top_k_snippets` field in `general` section of server configuration. Value indicates number of snippets with highest estimated relavance that will be submitted for final analysis.
+
+Example:
+
+```
+general:
+  devmode: False
+  packages:
+    - .*
+  excluded_packages:
+    - ^redhat-internal-.*
+  top_k_snippets: 10
+```
+
+If all snippets are rated the same, the filtering is skipped and warning raised in logs.
+Values higher than total number of snippets, as set by `max_clusters` in the `extrator` section of config, also result in filtering being skipped.
 
 Generate a new database revision with alembic
 ---------------------------------------------
