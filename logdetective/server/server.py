@@ -666,7 +666,7 @@ async def collect_emoji_task():
             instance.url,
             datetime.datetime.now(datetime.timezone.utc),
         )
-        await collect_emojis(instance.get_connection(), TimePeriod(weeks="54"))
+        await collect_emojis(instance.get_connection(), TimePeriod(weeks=54))
         LOG.info(
             "Collect emoji feedback finished at %s",
             datetime.datetime.now(datetime.timezone.utc),
