@@ -7,6 +7,7 @@ from typing import Annotated
 from io import BytesIO
 
 import matplotlib
+import matplotlib.figure
 import matplotlib.pyplot
 from fastapi import (
     FastAPI,
