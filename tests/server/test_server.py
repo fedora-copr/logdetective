@@ -6,16 +6,18 @@ import pytest
 
 from fastapi import HTTPException
 
-from tests.server.test_helpers import mock_chat_completions
+from tests.server.test_helpers import (
+    mock_chat_completions,
+    MOCK_LOG,
+)
 
 from logdetective.server.config import SERVER_CONFIG
-from logdetective.server.llm import (
-    perform_staged_analysis,
-    call_llm,
-)
+from logdetective.server.llm import perform_staged_analysis, call_llm, perfrom_analysis
 from logdetective.remote_log import RemoteLog
 from logdetective.server.config import load_server_config
 from logdetective.server.models import InferenceConfig, Explanation
+
+MOCK_EXPLANATION = "Mock explanation"
 
 
 @pytest.mark.asyncio
@@ -98,3 +100,23 @@ async def test_perform_staged_analysis_with_errors():
         )
         with pytest.raises(HTTPException):
             await perform_staged_analysis("abc")
+
+
+@pytest.mark.parametrize("mock_chat_completions", [MOCK_EXPLANATION], indirect=True)
+@pytest.mark.asyncio
+async def test_perform_analysis(
+    mock_chat_completions,
+):
+    result = await perfrom_analysis(MOCK_LOG)
+
+    assert result.explanation.text == MOCK_EXPLANATION
+
+
+@pytest.mark.parametrize("mock_chat_completions", [MOCK_EXPLANATION], indirect=True)
+@pytest.mark.asyncio
+async def test_perform_staged_analysis(
+    mock_chat_completions,
+):
+    result = await perform_staged_analysis(MOCK_LOG)
+
+    assert result.explanation.text == MOCK_EXPLANATION
