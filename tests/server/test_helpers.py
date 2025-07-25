@@ -5,7 +5,7 @@ from typing import Generator, Optional
 
 import pytest
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, session
 from flexmock import flexmock
 
 from openai.types.chat.chat_completion import Choice, ChatCompletion
@@ -250,3 +250,20 @@ def mock_chat_completions(monkeypatch, request):
         return completion
 
     monkeypatch.setattr(AsyncCompletions, "create", mock_create)
+
+
+@pytest.fixture
+def build_log():
+    return {"build_log": flexmock(url="https://example.com/logs/123")}
+
+
+@pytest.fixture
+def mock_AnalyzeRequestMetrics():
+    update_response_metrics = flexmock()
+    all_metrics = (
+        flexmock().should_receive("first").and_return(update_response_metrics).mock()
+    )
+    query = flexmock().should_receive("filter_by").and_return(all_metrics).mock()
+    flexmock(session.Session).should_receive("query").and_return(query)
+    flexmock(session.Session).should_receive("add").and_return()
+    flexmock(AnalyzeRequestMetrics).should_receive("create").once().and_return(1)

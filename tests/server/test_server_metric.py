@@ -9,22 +9,7 @@ from logdetective.server.models import Explanation
 from logdetective.server.database.models import AnalyzeRequestMetrics
 from logdetective.server.metric import track_request
 
-
-@pytest.fixture
-def build_log():
-    return {"build_log": flexmock(url="https://example.com/logs/123")}
-
-
-@pytest.fixture
-def mock_AnalyzeRequestMetrics():
-    update_response_metrics = flexmock()
-    all_metrics = (
-        flexmock().should_receive("first").and_return(update_response_metrics).mock()
-    )
-    query = flexmock().should_receive("filter_by").and_return(all_metrics).mock()
-    flexmock(session.Session).should_receive("query").and_return(query)
-    flexmock(session.Session).should_receive("add").and_return()
-    flexmock(AnalyzeRequestMetrics).should_receive("create").once().and_return(1)
+from tests.server.test_helpers import build_log, mock_AnalyzeRequestMetrics
 
 
 @pytest.mark.asyncio
