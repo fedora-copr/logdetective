@@ -1,6 +1,6 @@
 import pytest
 
-from logdetective.server.llm import format_analyzed_snippets, filter_snippets
+from logdetective.server.utils import format_analyzed_snippets, filter_snippets
 from logdetective.server.models import (
     AnalyzedSnippet,
     SnippetAnalysis,
