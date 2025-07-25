@@ -12,7 +12,10 @@ from openai.types.chat.chat_completion import Choice, ChatCompletion
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
 from openai.resources.chat.completions import AsyncCompletions
 
-from logdetective.server.models import Response, Explanation
+from logdetective.server.models import (
+    Response,
+    Explanation,
+)
 from logdetective.server.database import base
 from logdetective.server.database.base import init, destroy
 from logdetective.server.database.models import (
@@ -26,6 +29,14 @@ from logdetective.server.database.models import (
 from logdetective.server.compressors import LLMResponseCompressor, RemoteLogCompressor
 
 
+MOCK_LOG = """
+Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
+Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+"""
+
+
 class DatabaseFactory:  # pylint: disable=too-few-public-methods
     @staticmethod
     def get_pg_test_url() -> str:
@@ -37,7 +48,9 @@ class DatabaseFactory:  # pylint: disable=too-few-public-methods
 
     def __init__(self):
         """Connect to a postgres container for testing purposes."""
-        self.engine = create_engine(self.get_pg_test_url())
+        self.engine = create_engine(
+            self.get_pg_test_url(), connect_args={"connect_timeout": 10}
+        )
         self.SessionFactory = sessionmaker(autoflush=True, bind=self.engine)
         flexmock(base, engine=self.engine, SessionFactory=self.SessionFactory)
 
