@@ -86,7 +86,7 @@ jobs:
 
       # Extract metadata (tags, labels) for Docker cuda image
       # https://github.com/docker/metadata-action
-      - name: Extract metadata for CUDA image
+      - name: Extract metadata for llama.cpp image with CUDA support
         id: meta-cuda
         uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5.7.0
         with:
@@ -98,12 +98,12 @@ jobs:
 
       # Build Docker image with Buildx
       # https://github.com/docker/build-push-action
-      - name: Build and push CUDA image
+      - name: Build and push llama.cpp image with CUDA support
         id: build-image-cuda
         uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
         with:
           context: .
-          file: Containerfile.cuda
+          file: Containerfile.llama.cpp
           push: ${{ github.event_name != 'pull_request' && contains(github.ref, 'refs/tags/') }}
           tags: ${{ steps.meta-cuda.outputs.tags }}
           labels: ${{ steps.meta-cuda.outputs.labels }}
@@ -130,7 +130,7 @@ jobs:
       # repository is public to avoid leaking data.  If you would like to publish
       # transparency data even for private images, pass --force to cosign below.
       # https://github.com/sigstore/cosign
-      - name: Sign the published Docker cuda image
+      - name: Sign the published Docker llama.cpp image with CUDA support
         if: ${{ github.event_name != 'pull_request' && contains(github.ref, 'refs/tags/') }}
         env:
           # https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable
