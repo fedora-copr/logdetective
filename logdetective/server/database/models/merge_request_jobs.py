@@ -13,6 +13,7 @@ from sqlalchemy import (
     ForeignKey,
     UniqueConstraint,
     desc,
+    Boolean,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.engine import Row
@@ -133,9 +134,7 @@ class GitlabMergeRequestJobs(Base):
             return mr
 
     @classmethod
-    def get_by_mr_iid(
-        cls, forge: Forge, project_id: int, mr_iid
-    ) -> List[Self]:
+    def get_by_mr_iid(cls, forge: Forge, project_id: int, mr_iid) -> List[Self]:
         """Get all the mr jobs saved for the specified mr iid and project id."""
         with transaction(commit=False) as session:
             comments = (
@@ -199,7 +198,12 @@ class Comments(Base):
     created_at = Column(
         DateTime, nullable=False, comment="Timestamp when the comment was created"
     )
-
+    discussion_missing = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        comment="Parent discussion missing",
+    )
     __table_args__ = (
         UniqueConstraint("forge", "comment_id", name="uix_forge_comment_id"),
     )
@@ -405,6 +409,13 @@ class Comments(Base):
             )
 
             return comments
+
+    def mark_as_missing_discussion(self):
+        """Mark comment as lacking parent discussion."""
+
+        with transaction(commit=True) as session:
+            self.discussion_missing = True
+            session.flush()
 
 
 class Reactions(Base):

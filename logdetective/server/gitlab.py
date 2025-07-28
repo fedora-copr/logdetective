@@ -9,6 +9,7 @@ from fastapi import HTTPException
 import gitlab
 import gitlab.v4
 import gitlab.v4.objects
+import gitlab.exceptions
 import jinja2
 import aiohttp
 
@@ -379,6 +380,10 @@ async def suppress_latest_comment(
         # No existing comment, so nothing to do.
         return
 
+    # If there previously were issues retrieving discussion to which this comment belongs
+    # do not do anything else.
+    if previous_comment.discussion_missing:
+        return
     # Retrieve its content from the Gitlab API
 
     # Look up the merge request
@@ -387,9 +392,15 @@ async def suppress_latest_comment(
     )
 
     # Find the discussion matching the latest comment ID
-    discussion = await asyncio.to_thread(
-        merge_request.discussions.get, previous_comment.comment_id
-    )
+    try:
+        discussion = await asyncio.to_thread(
+            merge_request.discussions.get, previous_comment.comment_id
+        )
+    except gitlab.exceptions.GitlabGetError as ex:
+        if ex.response_code == 404:
+            previous_comment.mark_as_missing_discussion()
+            return
+        raise ex
 
     # Get the ID of the first note
     note_id = discussion.attributes["notes"][0]["id"]
