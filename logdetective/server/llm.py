@@ -66,9 +66,14 @@ async def call_llm(
 
     LOG.info("Submitting to /v1/chat/completions endpoint")
 
+    kwargs = {}
+
     # OpenAI API does not guarantee that the behavior for parameter set to `None`
     # and parameter not given at all is the same.
-    # Therefore we must branch on the way we call the API.
+    # We build a dictionary of parameters based on the configuration.
+    if inference_cfg.log_probs:
+        LOG.info("Requesting log probabilities from LLM")
+        kwargs["logprobs"] = inference_cfg.log_probs
     if structured_output:
         LOG.info("Requesting structured output from LLM")
         response_format = {
@@ -78,27 +83,17 @@ async def call_llm(
                 "schema": structured_output,
             },
         }
+        kwargs["response_format"] = response_format
 
-        async with inference_cfg.get_limiter():
-            response = await CLIENT.chat.completions.create(
-                messages=messages,
-                max_tokens=inference_cfg.max_tokens,
-                logprobs=inference_cfg.log_probs,
-                stream=stream,
-                model=inference_cfg.model,
-                temperature=inference_cfg.temperature,
-                response_format=response_format,
-            )
-    else:
-        async with inference_cfg.get_limiter():
-            response = await CLIENT.chat.completions.create(
-                messages=messages,
-                max_tokens=inference_cfg.max_tokens,
-                logprobs=inference_cfg.log_probs,
-                stream=stream,
-                model=inference_cfg.model,
-                temperature=inference_cfg.temperature,
-            )
+    async with inference_cfg.get_limiter():
+        response = await CLIENT.chat.completions.create(
+            messages=messages,
+            max_tokens=inference_cfg.max_tokens,
+            stream=stream,
+            model=inference_cfg.model,
+            temperature=inference_cfg.temperature,
+            **kwargs,
+        )
 
     if not response.choices[0].message.content:
         LOG.error("No response content recieved from %s", inference_cfg.url)
