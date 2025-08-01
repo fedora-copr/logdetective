@@ -434,7 +434,7 @@ async def generate_mr_comment(
     content = tpl.render(
         package=job.project_name,
         explanation=response.explanation.text,
-        certainty=f"{response.response_certainty:.2f}",
+        certainty=response.response_certainty,
         emoji_face=emoji_face,
         snippets=response.snippets,
         log_url=log_url,
