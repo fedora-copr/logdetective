@@ -3,10 +3,8 @@ import aiohttp
 import aioresponses
 
 from flexmock import flexmock
-from sqlalchemy.orm import session
 
 from logdetective.server.models import Explanation
-from logdetective.server.database.models import AnalyzeRequestMetrics
 from logdetective.server.metric import track_request
 
 from tests.server.test_helpers import build_log, mock_AnalyzeRequestMetrics
