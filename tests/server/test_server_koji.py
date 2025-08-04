@@ -1,7 +1,7 @@
 import koji
 import pytest
 
-from logdetective.server.models import KojiInstanceConfig, StagedResponse
+from logdetective.server.models import StagedResponse
 from logdetective.server.server import analyze_koji_task
 
 from logdetective.server.exceptions import LogsTooLargeError

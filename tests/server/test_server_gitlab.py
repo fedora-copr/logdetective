@@ -1,5 +1,4 @@
 import os
-import sys
 import io
 import zipfile
 import pytest
