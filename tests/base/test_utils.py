@@ -121,7 +121,9 @@ def test_snippet_filtering():
 
     skip_snippets = SkipSnippets(test_filter_patterns)
     for snippet in test_snippets_filtering:
-        assert filter_snippet_patterns(snippet[0], skip_snippets=skip_snippets) == snippet[1]
+        assert (
+            filter_snippet_patterns(snippet[0], skip_snippets=skip_snippets) == snippet[1]
+        )
 
 
 def test_load_skip_snippet_patterns_wrong_path():
@@ -140,7 +142,9 @@ def test_load_skip_snippet_patterns_correct_path():
     for key, value in test_filter_patterns.items():
         test_skip_snippet_data += f'{key}: "{value}"\n'
 
-    with mock.patch("logdetective.utils.open", mock.mock_open(read_data=test_skip_snippet_data)):
+    with mock.patch(
+        "logdetective.utils.open", mock.mock_open(read_data=test_skip_snippet_data)
+    ):
         prompts_config = load_skip_snippet_patterns("/valid/filters.yml")
 
     assert isinstance(prompts_config, SkipSnippets)
@@ -154,6 +158,8 @@ def test_load_skip_snippet_patterns_invalid_syntax():
 
     test_skip_snippet_data = "this_is_not_a_regex: $**.^.*\n"
 
-    with mock.patch("logdetective.utils.open", mock.mock_open(read_data=test_skip_snippet_data)):
+    with mock.patch(
+        "logdetective.utils.open", mock.mock_open(read_data=test_skip_snippet_data)
+    ):
         with pytest.raises(ValueError, match="Invalid pattern"):
             load_skip_snippet_patterns("/there/is/nothing/to/read.yml")

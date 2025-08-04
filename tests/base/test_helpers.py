@@ -30,7 +30,7 @@ test_filter_patterns = {
     "starts_one_or_two": "^[12]",
     "starts_with_capital_a": "^A",
     "contains_c": ".*c.*",
-    "contains_x_followed_by_y": "x.*y"
+    "contains_x_followed_by_y": "x.*y",
 }
 # Following must be kept in sync with `test_filter_patterns`
 # bool values of tuples must equal to output of the `filter_snippet_patterns`
@@ -42,5 +42,5 @@ test_snippets_filtering = [
     (".....=====.....", False),
     ("A nice matching snippet", True),
     ("x is a good name for independent variable, unlike y", True),
-    ("1. This snippet should be skipped", True)
+    ("1. This snippet should be skipped", True),
 ]
