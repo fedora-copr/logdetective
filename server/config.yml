@@ -26,6 +26,8 @@ extractor:
   context: true
   max_clusters: 25
   verbose: false
+# Set this value to reasonable number based on maximum context length of your model
+  # max_snippet_len: 2000
 gitlab:
   "GitLab SaaS":
     url: https://gitlab.com
