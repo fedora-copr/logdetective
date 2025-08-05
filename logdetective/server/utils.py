@@ -29,6 +29,7 @@ def mine_logs(log: str) -> List[Tuple[int, str]]:
         context=True,
         max_clusters=SERVER_CONFIG.extractor.max_clusters,
         skip_snippets=SKIP_SNIPPETS_CONFIG,
+        max_snippet_len=SERVER_CONFIG.extractor.max_snippet_len
     )
 
     LOG.info("Getting summary")

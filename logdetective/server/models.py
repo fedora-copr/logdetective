@@ -247,6 +247,7 @@ class ExtractorConfig(BaseModel):
     context: bool = True
     max_clusters: int = 8
     verbose: bool = False
+    max_snippet_len: int = 2000
 
     def __init__(self, data: Optional[dict] = None):
         super().__init__()
@@ -256,6 +257,7 @@ class ExtractorConfig(BaseModel):
         self.context = data.get("context", True)
         self.max_clusters = data.get("max_clusters", 8)
         self.verbose = data.get("verbose", False)
+        self.max_snippet_len = data.get("max_snippet_len", 2000)
 
 
 class GitLabInstanceConfig(BaseModel):  # pylint: disable=too-many-instance-attributes

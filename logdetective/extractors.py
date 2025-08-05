@@ -20,7 +20,8 @@ class DrainExtractor:
         context: bool = False,
         max_clusters=8,
         skip_snippets: SkipSnippets = SkipSnippets({}),
-    ):
+        max_snippet_len: int = 2000
+    ):  # pylint: disable=R0913,R0917
         config = TemplateMinerConfig()
         config.load(f"{os.path.dirname(__file__)}/drain3.ini")
         config.profiling_enabled = verbose
@@ -29,11 +30,12 @@ class DrainExtractor:
         self.verbose = verbose
         self.context = context
         self.skip_snippets = skip_snippets
+        self.max_snippet_len = max_snippet_len
 
     def __call__(self, log: str) -> list[Tuple[int, str]]:
         out = []
         # Create chunks
-        chunks = list(get_chunks(log))
+        chunks = list(get_chunks(log, self.max_snippet_len))
         # Keep only chunks that don't match any of the excluded patterns
         chunks = [
             (_, chunk)

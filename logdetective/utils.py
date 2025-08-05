@@ -39,7 +39,7 @@ def chunk_continues(text: str, index: int) -> bool:
     return False
 
 
-def get_chunks(text: str) -> Generator[Tuple[int, str], None, None]:
+def get_chunks(text: str, max_len: int = 2000) -> Generator[Tuple[int, str], None, None]:
     """Split log into chunks according to heuristic
     based on whitespace and backslash presence.
     """
@@ -54,7 +54,7 @@ def get_chunks(text: str) -> Generator[Tuple[int, str], None, None]:
         chunk += text[i]
         if text[i] == "\n":
             next_line_number += 1
-            if i + 1 < text_len and chunk_continues(text, i):
+            if i + 1 < text_len and chunk_continues(text, i) and i + 1 < max_len:
                 i += 1
                 continue
             yield (original_line_number, chunk)
