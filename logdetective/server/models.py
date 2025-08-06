@@ -244,7 +244,6 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
 class ExtractorConfig(BaseModel):
     """Model for extractor configuration of logdetective server."""
 
-    context: bool = True
     max_clusters: int = 8
     verbose: bool = False
     max_snippet_len: int = 2000
@@ -254,7 +253,6 @@ class ExtractorConfig(BaseModel):
         if data is None:
             return
 
-        self.context = data.get("context", True)
         self.max_clusters = data.get("max_clusters", 8)
         self.verbose = data.get("verbose", False)
         self.max_snippet_len = data.get("max_snippet_len", 2000)
