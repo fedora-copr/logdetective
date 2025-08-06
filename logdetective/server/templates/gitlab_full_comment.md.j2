@@ -12,7 +12,7 @@ In this case, we are {{ "%.2f" | format(certainty) }}% certain of the response {
 {% for snippet in snippets %}
 <li>
 <b>Line {{ snippet.line_number }}:</b> <code>{{ snippet.text }}</code>
-{{ snippet.explanation }}
+{{ snippet.explanation.text }}
 </li>
 {% endfor %}
 </ul>
