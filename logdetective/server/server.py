@@ -117,23 +117,25 @@ def requires_token_when_set(authentication: Annotated[str | None, Header()] = No
         LOG.info("LOGDETECTIVE_TOKEN env var not set, authentication disabled")
         # no token required, means local dev environment
         return
-    token = None
     if authentication:
         try:
             token = authentication.split(" ", 1)[1]
-        except (ValueError, IndexError):
+        except (ValueError, IndexError) as ex:
             LOG.warning(
-                "Authentication header has invalid structure (%s), it should be 'Bearer TOKEN'",
+                "Authentication header has invalid structure '%s', it should be 'Bearer TOKEN'",
                 authentication,
             )
             # eat the exception and raise 401 below
-            token = None
+            raise HTTPException(
+                status_code=401,
+                detail=f"Invalid authentication, HEADER '{authentication}' not valid.",
+            ) from ex
         if token == API_TOKEN:
             return
-    LOG.info(
-        "LOGDETECTIVE_TOKEN env var is set (%s), clien token = %s", API_TOKEN, token
-    )
-    raise HTTPException(status_code=401, detail=f"Token {token} not valid.")
+        LOG.info("Provided token '%s' does not match expected value.", token)
+        raise HTTPException(status_code=401, detail=f"Token '{token}' not valid.")
+    LOG.error("No authentication header provided but LOGDETECTIVE_TOKEN env var is set")
+    raise HTTPException(status_code=401, detail="No token provided.")
 
 
 app = FastAPI(dependencies=[Depends(requires_token_when_set)], lifespan=lifespan)
