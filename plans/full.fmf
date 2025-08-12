@@ -14,3 +14,11 @@ prepare:
   - name: Install PostgreSQL
     how: install
     package: postgresql
+
+  - name: Install krb5-devel
+    how: install
+    package: krb5-devel
+
+  - name: Install libffi
+    how: install
+    package: libffi
