@@ -9,6 +9,7 @@ require:
 - gcc-c++
 - git
 - libffi
+- python3-devel
 
 component:
 - logdetective
