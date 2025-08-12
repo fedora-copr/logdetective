@@ -8,6 +8,7 @@ require:
 - python3-tox
 - gcc-c++
 - git
+- libffi
 
 component:
 - logdetective
