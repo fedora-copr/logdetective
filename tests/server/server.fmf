@@ -10,6 +10,8 @@ require:
 - git
 - krb5-devel
 - libffi
+- python3-devel
+
 
 component:
 - logdetective
