@@ -9,6 +9,7 @@ require:
 - gcc-c++
 - git
 - krb5-devel
+- libffi
 
 component:
 - logdetective
