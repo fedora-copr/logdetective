@@ -1,5 +1,6 @@
 import logging
 import os
+import subprocess as sp
 from typing import Iterator, List, Dict, Tuple, Generator
 from urllib.parse import urlparse
 
@@ -8,9 +9,9 @@ import numpy as np
 import yaml
 
 from llama_cpp import Llama, CreateCompletionResponse, CreateCompletionStreamResponse
+from logdetective.constants import SNIPPET_DELIMITER
 from logdetective.models import PromptConfig, SkipSnippets
 from logdetective.remote_log import RemoteLog
-
 
 LOG = logging.getLogger("logdetective")
 
@@ -39,7 +40,9 @@ def chunk_continues(text: str, index: int) -> bool:
     return False
 
 
-def get_chunks(text: str, max_len: int = 2000) -> Generator[Tuple[int, str], None, None]:
+def get_chunks(
+    text: str, max_len: int = 2000
+) -> Generator[Tuple[int, str], None, None]:
     """Split log into chunks according to heuristic
     based on whitespace and backslash presence.
     """
@@ -173,14 +176,14 @@ def format_snippets(snippets: list[str] | list[Tuple[int, str]]) -> str:
             Snippet No. {i} at line #{s[0]}:
 
             {s[1]}
-            ================
+            {SNIPPET_DELIMITER}
             """
         else:
             summary += f"""
             Snippet No. {i}:
 
             {s}
-            ================
+            {SNIPPET_DELIMITER}
             """
     return summary
 
@@ -247,3 +250,44 @@ def load_skip_snippet_patterns(path: str | None) -> SkipSnippets:
             raise e
 
     return SkipSnippets({})
+
+
+def check_csgrep() -> bool:
+    """Verifies presence of csgrep in path"""
+    try:
+        result = sp.run(
+            ["csgrep", "--version"],
+            text=True,
+            check=True,
+            shell=False,
+            capture_output=True,
+            timeout=1.0,
+        )
+    except (FileNotFoundError, sp.TimeoutExpired, sp.CalledProcessError) as ex:
+        LOG.error("Required binary `csgrep` was not found in path: %s", ex)
+        return False
+    if result.returncode == 0:
+        return True
+    LOG.error("Issue was encountered while calling `csgrep`: `%s`", result.stderr)
+
+    return False
+
+
+def mine_logs(log: str, extractors: list) -> List[Tuple[int, str]]:
+    """Extract snippets from log text using extractors provided.
+    Each extractor is applied in turn on original log.
+    Depending on characteristics of extractors used, there may be
+    an overlap in snippets extracted."""
+
+    log_summary = []
+
+    LOG.info("Getting summary")
+
+    for extractor in extractors:
+        log_summary.extend(extractor(log))
+
+    ratio = len("\n".join([text for _, text in log_summary])) / len(log)
+    LOG.debug("Log summary: \n %s", log_summary)
+    LOG.info("Snippets: %s Compression ratio: %s", len(log_summary), ratio)
+
+    return log_summary

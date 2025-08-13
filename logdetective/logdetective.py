@@ -15,8 +15,10 @@ from logdetective.utils import (
     compute_certainty,
     load_prompts,
     load_skip_snippet_patterns,
+    check_csgrep,
+    mine_logs,
 )
-from logdetective.extractors import DrainExtractor
+from logdetective.extractors import DrainExtractor, CSGrepExtractor
 
 LOG = logging.getLogger("logdetective")
 
@@ -89,10 +91,13 @@ def setup_args():
         default=f"{os.path.dirname(__file__)}/skip_snippets.yml",
         help="Path to patterns for skipping snippets.",
     )
+    parser.add_argument(
+        "--csgrep", action="store_true", help="Use csgrep to process the log."
+    )
     return parser.parse_args()
 
 
-async def run():  # pylint: disable=too-many-statements,too-many-locals
+async def run():  # pylint: disable=too-many-statements,too-many-locals,too-many-branches
     """Main execution function."""
     args = setup_args()
 
@@ -134,12 +139,24 @@ async def run():  # pylint: disable=too-many-statements,too-many-locals
         sys.exit(5)
 
     # Log file summarizer initialization
-    extractor = DrainExtractor(
-        args.verbose > 1,
-        context=True,
-        max_clusters=args.n_clusters,
-        skip_snippets=skip_snippets,
+    extractors = []
+    extractors.append(
+        DrainExtractor(
+            args.verbose > 1,
+            max_clusters=args.n_clusters,
+            skip_snippets=skip_snippets,
+        )
     )
+
+    if args.csgrep:
+        if not check_csgrep():
+            LOG.error(
+                "You have requested use of `csgrep` when it isn't available on your system."
+            )
+            sys.exit(6)
+        extractors.append(
+            CSGrepExtractor(args.verbose > 1, skip_snippets=skip_snippets)
+        )
 
     LOG.info("Getting summary")
 
@@ -150,12 +167,8 @@ async def run():  # pylint: disable=too-many-statements,too-many-locals
             # file does not exist
             LOG.error(e)
             sys.exit(4)
-        log_summary = extractor(log)
 
-    ratio = len(log_summary) / len(log.split("\n"))
-
-    LOG.info("Compression ratio: %s", ratio)
-
+    log_summary = mine_logs(log=log, extractors=extractors)
     LOG.info("Analyzing the text")
 
     log_summary = format_snippets(log_summary)

@@ -1,6 +1,7 @@
 import os
 import asyncio
 import random
+import time
 from typing import List, Tuple, Dict
 
 import backoff
@@ -15,6 +16,7 @@ from logdetective.utils import (
     compute_certainty,
     prompt_to_messages,
     format_snippets,
+    mine_logs,
 )
 from logdetective.server.config import (
     LOG,
@@ -33,10 +35,10 @@ from logdetective.server.models import (
 )
 from logdetective.server.utils import (
     format_analyzed_snippets,
-    mine_logs,
     should_we_giveup,
     we_give_up,
     filter_snippets,
+    construct_final_prompt,
 )
 
 
@@ -184,10 +186,13 @@ async def analyze_snippets(
 
 async def perfrom_analysis(log_text: str) -> Response:
     """Sumbit log file snippets in aggregate to LLM and retrieve results"""
-    log_summary = mine_logs(log_text)
+    log_summary = mine_logs(log_text, SERVER_CONFIG.extractor.get_extractors())
     log_summary = format_snippets(log_summary)
+
+    final_prompt = construct_final_prompt(log_summary, PROMPT_CONFIG.prompt_template)
+
     messages = prompt_to_messages(
-        PROMPT_CONFIG.prompt_template.format(log_summary),
+        final_prompt,
         PROMPT_CONFIG.default_system_prompt,
         SERVER_CONFIG.inference.system_role,
         SERVER_CONFIG.inference.user_role,
@@ -213,10 +218,13 @@ async def perfrom_analysis(log_text: str) -> Response:
 
 async def perform_analyis_stream(log_text: str) -> AsyncStream:
     """Submit log file snippets in aggregate and return a stream of tokens"""
-    log_summary = mine_logs(log_text)
+    log_summary = mine_logs(log_text, SERVER_CONFIG.extractor.get_extractors())
     log_summary = format_snippets(log_summary)
+
+    final_prompt = construct_final_prompt(log_summary, PROMPT_CONFIG.prompt_template)
+
     messages = prompt_to_messages(
-        PROMPT_CONFIG.prompt_template.format(log_summary),
+        final_prompt,
         PROMPT_CONFIG.default_system_prompt,
         SERVER_CONFIG.inference.system_role,
         SERVER_CONFIG.inference.user_role,
@@ -235,8 +243,8 @@ async def perform_analyis_stream(log_text: str) -> AsyncStream:
 
 async def perform_staged_analysis(log_text: str) -> StagedResponse:
     """Submit the log file snippets to the LLM and retrieve their results"""
-    log_summary = mine_logs(log_text)
-
+    log_summary = mine_logs(log_text, SERVER_CONFIG.extractor.get_extractors())
+    start = time.time()
     if SERVER_CONFIG.general.top_k_snippets:
         rated_snippets = await analyze_snippets(
             log_summary=log_summary,
@@ -265,10 +273,11 @@ async def perform_staged_analysis(log_text: str) -> StagedResponse:
             AnalyzedSnippet(line_number=e[0][0], text=e[0][1], explanation=e[1])
             for e in zip(log_summary, processed_snippets)
         ]
+    delta = time.time() - start
+    LOG.info("Snippet analysis performed in %f s", delta)
+    log_summary = format_analyzed_snippets(processed_snippets)
+    final_prompt = construct_final_prompt(log_summary, PROMPT_CONFIG.prompt_template_staged)
 
-    final_prompt = PROMPT_CONFIG.prompt_template_staged.format(
-        format_analyzed_snippets(processed_snippets)
-    )
     messages = prompt_to_messages(
         final_prompt,
         PROMPT_CONFIG.staged_system_prompt,

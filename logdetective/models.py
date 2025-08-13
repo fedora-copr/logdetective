@@ -71,3 +71,29 @@ class SkipSnippets(BaseModel):
                 ) from ex
 
         return data
+
+
+class CSGrepEvent(BaseModel):
+    """`csgrep` splits error and warning messages into individual events."""
+
+    file_name: str
+    line: int
+    event: str
+    message: str
+    verbosity_level: int
+
+
+class CSGrepDefect(BaseModel):
+    """Defects detected by `csgrep`"""
+
+    checker: str
+    language: str
+    tool: str
+    key_event_idx: int
+    events: list[CSGrepEvent]
+
+
+class CSGrepOutput(BaseModel):
+    """Parsed output of `gsgrep`"""
+
+    defects: list[CSGrepDefect]
