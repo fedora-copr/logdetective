@@ -11,6 +11,7 @@ require:
 - libffi
 - python3-devel
 - libffi-devel
+- csdiff
 
 component:
 - logdetective
