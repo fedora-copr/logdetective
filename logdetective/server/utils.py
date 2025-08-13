@@ -1,15 +1,10 @@
-from typing import List, Tuple
+from typing import List
 
 import aiohttp
 from fastapi import HTTPException
 
 from logdetective.constants import SNIPPET_DELIMITER
-from logdetective.extractors import DrainExtractor
-from logdetective.server.config import (
-    LOG,
-    SERVER_CONFIG,
-    SKIP_SNIPPETS_CONFIG,
-)
+from logdetective.server.config import LOG
 from logdetective.server.exceptions import LogDetectiveConnectionError
 from logdetective.server.models import AnalyzedSnippet, RatedSnippetAnalysis
 
@@ -20,26 +15,6 @@ def format_analyzed_snippets(snippets: list[AnalyzedSnippet]) -> str:
         [f"[{e.text}] at line [{e.line_number}]: [{e.explanation}]" for e in snippets]
     )
     return summary
-
-
-def mine_logs(log: str) -> List[Tuple[int, str]]:
-    """Extract snippets from log text"""
-    extractor = DrainExtractor(
-        verbose=True,
-        context=True,
-        max_clusters=SERVER_CONFIG.extractor.max_clusters,
-        skip_snippets=SKIP_SNIPPETS_CONFIG,
-        max_snippet_len=SERVER_CONFIG.extractor.max_snippet_len
-    )
-
-    LOG.info("Getting summary")
-    log_summary = extractor(log)
-
-    ratio = len(log_summary) / len(log.split("\n"))
-    LOG.debug("Log summary: \n %s", log_summary)
-    LOG.info("Compression ratio: %s", ratio)
-
-    return log_summary
 
 
 def connection_error_giveup(details: dict) -> None:
@@ -120,3 +95,10 @@ def filter_snippets(
     processed_snippets = sorted(processed_snippets, key=select_line_number)
 
     return processed_snippets
+
+
+def construct_final_prompt(formatted_snippets: str, prompt_template: str) -> str:
+    """Create final prompt from processed snippets and csgrep output, if it is available."""
+
+    final_prompt = prompt_template.format(formatted_snippets)
+    return final_prompt
