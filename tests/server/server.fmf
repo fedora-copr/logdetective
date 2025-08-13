@@ -11,6 +11,7 @@ require:
 - krb5-devel
 - libffi
 - python3-devel
+- libffi-devel
 
 
 component:
