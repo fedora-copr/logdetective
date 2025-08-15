@@ -1,4 +1,4 @@
-FROM fedora:41
+FROM fedora:42
 # Fedora's llama-cpp-python is segfaulting on the mistral model we use :/
 RUN dnf install -y \
     fastapi-cli \
