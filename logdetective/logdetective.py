@@ -15,6 +15,8 @@ from logdetective.utils import (
     compute_certainty,
     load_prompts,
     load_skip_snippet_patterns,
+    check_csgrep,
+    get_csgrep_messages,
 )
 from logdetective.extractors import DrainExtractor
 
@@ -89,10 +91,13 @@ def setup_args():
         default=f"{os.path.dirname(__file__)}/skip_snippets.yml",
         help="Path to patterns for skipping snippets.",
     )
+    parser.add_argument(
+        "--csgrep", action="store_true", help="Use csgrep to process the log."
+    )
     return parser.parse_args()
 
 
-async def run():  # pylint: disable=too-many-statements,too-many-locals
+async def run():  # pylint: disable=too-many-statements,too-many-locals,too-many-branches
     """Main execution function."""
     args = setup_args()
 
@@ -159,6 +164,15 @@ async def run():  # pylint: disable=too-many-statements,too-many-locals
     LOG.info("Analyzing the text")
 
     log_summary = format_snippets(log_summary)
+    if args.csgrep:
+        if not check_csgrep():
+            LOG.error(
+                "You have requested use of `csgrep` to parse log file when it isn't available on your system."
+            )
+            sys.exit(6)
+        csgrep_report = get_csgrep_messages(log)
+        log_summary += format_snippets(csgrep_report)
+
     LOG.info("Log summary: \n %s", log_summary)
 
     prompt = (

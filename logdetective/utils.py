@@ -1,14 +1,16 @@
 import logging
 import os
+import subprocess as sp
 from typing import Iterator, List, Dict, Tuple, Generator
 from urllib.parse import urlparse
 
 import aiohttp
 import numpy as np
+from pydantic import ValidationError
 import yaml
 
 from llama_cpp import Llama, CreateCompletionResponse, CreateCompletionStreamResponse
-from logdetective.models import PromptConfig, SkipSnippets
+from logdetective.models import PromptConfig, SkipSnippets, CSGrepOutput
 from logdetective.remote_log import RemoteLog
 
 
@@ -39,7 +41,9 @@ def chunk_continues(text: str, index: int) -> bool:
     return False
 
 
-def get_chunks(text: str, max_len: int = 2000) -> Generator[Tuple[int, str], None, None]:
+def get_chunks(
+    text: str, max_len: int = 2000
+) -> Generator[Tuple[int, str], None, None]:
     """Split log into chunks according to heuristic
     based on whitespace and backslash presence.
     """
@@ -247,3 +251,63 @@ def load_skip_snippet_patterns(path: str | None) -> SkipSnippets:
             raise e
 
     return SkipSnippets({})
+
+
+def check_csgrep() -> bool:
+    """Verifies presence of csgrep in path"""
+    try:
+        result = sp.run(
+            ["csgrep", "--version"],
+            text=True,
+            check=True,
+            shell=False,
+            capture_output=True,
+            timeout=1.0,
+        )
+    except (FileNotFoundError, sp.TimeoutExpired, sp.CalledProcessError) as ex:
+        LOG.error("Required binary `csgrep` was not found in path: %s", ex)
+        return False
+    if result.returncode == 0:
+        return True
+    LOG.error("Issue was encountered while calling `csgrep`: `%s`", result.stderr)
+
+    return False
+
+
+def get_csgrep_messages(text: str) -> List[str]:
+    """Extract error messages from log using csgrep"""
+    messages = []
+
+    try:
+        # We are not running binary in check mode, since csgrep
+        # can produce many errors due to log file syntax
+        result = sp.run(
+            ["csgrep", "--event=error", "--remove-duplicates", "--mode=json"],
+            input=text,
+            shell=False,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=1.0,
+        )
+    except sp.TimeoutExpired as ex:
+        LOG.exception("Exception encountered while parsing log with csgrep %s", ex)
+        raise ex
+    if result.returncode != 0:
+        # This can happen even if `csgrep` managed to extract useful info.
+        # Most commonly, when it encountered unexpected syntax in the log.
+        LOG.error("csgrep call resulted in error: `%s`", result.stderr)
+    if not result.stdout:
+        return []
+
+    # Parse JSON output from csgrep
+    try:
+        report = CSGrepOutput.model_validate_json(result.stdout)
+    except ValidationError as ex:
+        LOG.exception("Exception encountered while parsing csgrpe output %s", ex)
+        raise ex
+    for defect in report.defects:
+        # Single original error message can be split across multiple events
+        # before returning, we will turn them back into single string.
+        messages.append("\n".join([event.message for event in defect.events]))
+    return messages
