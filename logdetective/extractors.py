@@ -15,6 +15,7 @@ LOG = logging.getLogger("logdetective")
 
 class Extractor:
     """Base extractor class."""
+
     def __init__(
         self,
         verbose: bool = False,
@@ -28,7 +29,9 @@ class Extractor:
     def __call__(self, log: str) -> list[Tuple[int, str]]:
         raise NotImplementedError
 
-    def filter_snippet_patterns(self, chunks: list[tuple[int, str]]) -> list[tuple[int, str]]:
+    def filter_snippet_patterns(
+        self, chunks: list[tuple[int, str]]
+    ) -> list[tuple[int, str]]:
         """Keep only chunks that don't match any of the excluded patterns"""
         chunks = [
             (_, chunk)
@@ -114,7 +117,13 @@ class CSGrepExtractor(DrainExtractor):
             # We are not running binary in check mode, since csgrep
             # can produce many errors due to log file syntax
             result = sp.run(
-                ["csgrep", "--event=error", "--remove-duplicates", "--mode=json"],
+                [
+                    "csgrep",
+                    "--event=error",
+                    "--remove-duplicates",
+                    "--mode=json",
+                    "--quiet",
+                ],
                 input=log,
                 shell=False,
                 check=False,
