@@ -27,6 +27,7 @@ from logdetective.constants import (
 )
 
 from logdetective.extractors import Extractor, DrainExtractor, CSGrepExtractor
+from logdetective.utils import check_csgrep
 
 
 class BuildLog(BaseModel):
@@ -259,13 +260,11 @@ class ExtractorConfig(BaseModel):
             DrainExtractor(
                 verbose=self.verbose,
                 max_snippet_len=self.max_snippet_len,
-                max_clusters=self.max_clusters
+                max_clusters=self.max_clusters,
             )
         ]
 
         if self.csgrep:
-            # TODO(jpodivin) verify that csgrep is available
-
             self._extractors.append(
                 CSGrepExtractor(
                     verbose=self.verbose,
@@ -274,7 +273,7 @@ class ExtractorConfig(BaseModel):
             )
 
     def __init__(self, data: Optional[dict] = None):
-        super().__init__()
+        super().__init__(data=data)
 
         if data is None:
             self._setup_extractors()
@@ -291,6 +290,16 @@ class ExtractorConfig(BaseModel):
         """Return list of initialized extractors, each will be applied in turn
         on original log text to retrieve snippets."""
         return self._extractors
+
+    @field_validator("csgrep", mode="after")
+    @classmethod
+    def validate_csgrep(cls, value: bool) -> bool:
+        """Verify that csgrep is available if requested."""
+        if not check_csgrep():
+            raise ValueError(
+                "Requested csgrep extractor but `csgrep` binary is not in the PATH"
+            )
+        return value
 
 
 class GitLabInstanceConfig(BaseModel):  # pylint: disable=too-many-instance-attributes
