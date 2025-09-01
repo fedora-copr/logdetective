@@ -142,10 +142,11 @@ class CSGrepExtractor(DrainExtractor):
         for defect in report.defects:
             # Single original error message can be split across multiple events
             # before returning, we will turn them back into single string.
-            # We must also extract the original line number. This is always in
-            # the first event.
-            line_n = defect.events[0].line
-            chunks.append((line_n, "\n".join([event.message for event in defect.events])))
+            # We must also extract the original line number.
+            # Line number is NOT location of message in the log, but location of
+            # the issue in source, we can't really mix the two, so we'll set it to `0`.
+
+            chunks.append((0, "\n".join([event.message for event in defect.events])))
 
         chunks = self.filter_snippet_patterns(chunks)
         LOG.info("Total %d messages extracted with csgrep", len(chunks))
