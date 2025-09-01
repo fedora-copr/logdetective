@@ -442,6 +442,33 @@ Example of a valid pattern definition file: `logdetective/skip_patterns.yml`,
 can be used as a starting point and is used as a default if no other definition is provided.
 
 
+Extracting snippets with csgrep
+-------------------------------
+
+When working with logs containing messages from GCC, it can be beneficial to employ
+additional extractor based on `csgrep` tool, to ensure that the messages are kept intact.
+Since `csgrep` is not available as a python package, it must be installed separately,
+with a package manager or from [source](https://github.com/csutils/csdiff).
+
+The binary is available as part of `csdiff` package on Fedora.
+
+```
+dnf install csdiff
+```
+
+When working with CLI Log Detective, the csgrep extractor can be activated using option `--csgrep`.
+While in server mode, the `csgrep` field in `extractor` config needs to be set to `true`.
+
+```
+csgrep: true
+```
+
+Both options are disabled by default and error will be produced if the option is used,
+but `csgrep` is not present in the $PATH.
+
+The container images are built with `csdiff` installed.
+
+
 License
 -------
 
