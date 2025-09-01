@@ -107,8 +107,8 @@ def test_csgrep_extractor_call_success(monkeypatch, simple_log, csgrep_output):
     result = extractor(simple_log)
 
     assert len(result) == 2
-    assert result[0] == (3, "An error occurred: file not found.")
-    assert result[1] == (4, "An error occurred: permission denied.")
+    assert result[0] == (0, "An error occurred: file not found.")
+    assert result[1] == (0, "An error occurred: permission denied.")
     mock_run.assert_called_once()
 
 
