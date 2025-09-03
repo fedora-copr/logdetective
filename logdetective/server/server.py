@@ -106,35 +106,35 @@ async def get_http_session(request: Request) -> aiohttp.ClientSession:
     return request.app.http
 
 
-def requires_token_when_set(authentication: Annotated[str | None, Header()] = None):
+def requires_token_when_set(authorization: Annotated[str | None, Header()] = None):
     """
-    FastAPI Depend function that expects a header named Authentication
+    FastAPI Depend function that expects a header named Authorization
 
     If LOGDETECTIVE_TOKEN env var is set, validate the client-supplied token
     otherwise ignore it
     """
     if not API_TOKEN:
-        LOG.info("LOGDETECTIVE_TOKEN env var not set, authentication disabled")
+        LOG.info("LOGDETECTIVE_TOKEN env var not set, authorization disabled")
         # no token required, means local dev environment
         return
-    if authentication:
+    if authorization:
         try:
-            token = authentication.split(" ", 1)[1]
+            token = authorization.split(" ", 1)[1]
         except (ValueError, IndexError) as ex:
             LOG.warning(
-                "Authentication header has invalid structure '%s', it should be 'Bearer TOKEN'",
-                authentication,
+                "Authorization header has invalid structure '%s', it should be 'Bearer TOKEN'",
+                authorization,
             )
             # eat the exception and raise 401 below
             raise HTTPException(
                 status_code=401,
-                detail=f"Invalid authentication, HEADER '{authentication}' not valid.",
+                detail=f"Invalid authorization, HEADER '{authorization}' not valid.",
             ) from ex
         if token == API_TOKEN:
             return
         LOG.info("Provided token '%s' does not match expected value.", token)
         raise HTTPException(status_code=401, detail=f"Token '{token}' not valid.")
-    LOG.error("No authentication header provided but LOGDETECTIVE_TOKEN env var is set")
+    LOG.error("No authorization header provided but LOGDETECTIVE_TOKEN env var is set")
     raise HTTPException(status_code=401, detail="No token provided.")
 
 
