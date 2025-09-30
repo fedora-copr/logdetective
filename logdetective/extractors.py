@@ -26,6 +26,9 @@ class Extractor:
         self.skip_snippets = skip_snippets
         self.max_snippet_len = max_snippet_len
 
+        if self.verbose:
+            LOG.setLevel(logging.DEBUG)
+
     def __call__(self, log: str) -> list[Tuple[int, str]]:
         raise NotImplementedError
 
