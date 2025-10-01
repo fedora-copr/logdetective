@@ -11,9 +11,13 @@ import gitlab.v4
 import gitlab.v4.objects
 import jinja2
 import aiohttp
+import backoff
 
 from logdetective.server.config import SERVER_CONFIG, LOG
-from logdetective.server.exceptions import LogsTooLargeError
+from logdetective.server.exceptions import (
+    LogsTooLargeError,
+    LogDetectiveConnectionError,
+)
 from logdetective.server.llm import perform_staged_analysis
 from logdetective.server.metric import add_new_metrics, update_metrics
 from logdetective.server.models import (
@@ -29,6 +33,7 @@ from logdetective.server.database.models import (
     GitlabMergeRequestJobs,
 )
 from logdetective.server.compressors import RemoteLogCompressor
+from logdetective.server.utils import connection_error_giveup
 
 MR_REGEX = re.compile(r"refs/merge-requests/(\d+)/.*$")
 FAILURE_LOG_REGEX = re.compile(r"(\w*\.log)")
@@ -91,8 +96,8 @@ async def process_gitlab_job_event(
         log_url, preprocessed_log = await retrieve_and_preprocess_koji_logs(
             gitlab_cfg, job
         )
-    except LogsTooLargeError:
-        LOG.error("Could not retrieve logs. Too large.")
+    except (LogsTooLargeError, LogDetectiveConnectionError) as ex:
+        LOG.error("Could not retrieve logs due to %s", ex)
         raise
 
     # Submit log to Log Detective and await the results.
@@ -151,6 +156,9 @@ def is_eligible_package(project_name: str):
     return True
 
 
+@backoff.on_exception(
+    backoff.expo, ConnectionResetError, max_time=60, on_giveup=connection_error_giveup
+)
 async def retrieve_and_preprocess_koji_logs(
     gitlab_cfg: GitLabInstanceConfig,
     job: gitlab.v4.objects.ProjectJob,
