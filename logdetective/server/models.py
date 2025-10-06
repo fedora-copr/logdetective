@@ -307,6 +307,7 @@ class GitLabInstanceConfig(BaseModel):  # pylint: disable=too-many-instance-attr
 
     name: str = None
     url: str = None
+    # Path to API of the gitlab instance, assuming `url` as prefix.
     api_path: str = None
     api_token: str = None
 
