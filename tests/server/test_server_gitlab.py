@@ -7,10 +7,18 @@ import aiohttp
 import responses
 import aioresponses
 from packaging.version import Version
+from pytest_mock import MockerFixture
 
 from flexmock import flexmock
 
-from tests.server.test_helpers import DatabaseFactory, mock_chat_completions
+from tests.server.test_helpers import (
+    DatabaseFactory,
+    mock_chat_completions,
+    create_zip_archive,
+    mock_artifact_download,
+    mock_job,
+    gitlab_cfg,
+)
 
 from logdetective.server.gitlab import (
     is_eligible_package,
@@ -24,6 +32,7 @@ from logdetective.server.database.models import (
     Forge,
 )
 from logdetective.server import gitlab, llm
+from logdetective.server.exceptions import LogsTooLargeError
 
 
 @pytest_asyncio.fixture
@@ -391,3 +400,64 @@ async def test_regression_unknown_arch_logs():
 
     assert "task_failed.log" not in url
     assert "build.log" in url
+    assert url.startswith(gitlab_cfg.url)
+
+
+@pytest.mark.asyncio
+async def test_fallback_to_task_failed_log_if_no_match(
+    mocker: MockerFixture, gitlab_cfg, mock_job
+):
+    """
+    Tests that if task_failed.log doesn't mention a specific log,
+    it returns the task_failed.log itself.
+    """
+    log_content = "A generic failure occurred. Check Koji for details."
+    files = {"kojilogs/x86_64-build/task_failed.log": log_content}
+    zip_content = create_zip_archive(files)
+    mock_artifact_download(mocker, zip_content)
+    mocker.patch(
+        "logdetective.server.gitlab.check_artifacts_file_size", return_value=True
+    )
+
+    log_url, log_file = await retrieve_and_preprocess_koji_logs(gitlab_cfg, mock_job)
+
+    assert "artifacts/kojilogs/x86_64-build/task_failed.log" in log_url
+    assert log_file.read().decode("utf-8") == log_content
+    assert log_url.startswith(gitlab_cfg.url)
+
+
+@pytest.mark.asyncio
+async def test_raises_file_not_found_on_no_failures(
+    mocker: MockerFixture, gitlab_cfg, mock_job
+):
+    """
+    Tests that FileNotFoundError is raised if no task_failed.log is found.
+    """
+    files = {"kojilogs/x86_64-build/build.log": "This build was successful."}
+    zip_content = create_zip_archive(files)
+    mock_artifact_download(mocker, zip_content)
+    mocker.patch(
+        "logdetective.server.gitlab.check_artifacts_file_size", return_value=True
+    )
+
+    with pytest.raises(
+        FileNotFoundError, match="Could not detect failed architecture."
+    ):
+        await retrieve_and_preprocess_koji_logs(gitlab_cfg, mock_job)
+
+
+@pytest.mark.asyncio
+async def test_raises_logs_too_large_error(mocker: MockerFixture, gitlab_cfg, mock_job):
+    """
+    Tests that LogsTooLargeError is raised if check_artifacts_file_size returns False.
+    """
+    mocker.patch(
+        "logdetective.server.gitlab.check_artifacts_file_size", return_value=False
+    )
+    mock_to_thread = mocker.patch("asyncio.to_thread")
+
+    with pytest.raises(LogsTooLargeError):
+        await retrieve_and_preprocess_koji_logs(gitlab_cfg, mock_job)
+
+    # Ensure we didn't attempt to download the file
+    mock_to_thread.assert_not_called()

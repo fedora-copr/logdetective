@@ -1,12 +1,15 @@
 import datetime
+import io
 import random
 from contextlib import contextmanager
 from typing import Generator, Optional
+import zipfile
 
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, session
 from flexmock import flexmock
+from pytest_mock import MockerFixture
 
 from openai.types.chat.chat_completion import Choice, ChatCompletion
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
@@ -27,6 +30,7 @@ from logdetective.server.database.models import (
     Forge,
 )
 from logdetective.server.compressors import LLMResponseCompressor, RemoteLogCompressor
+from logdetective.server.models import GitLabInstanceConfig
 
 
 MOCK_LOG = """
@@ -280,3 +284,64 @@ def mock_AnalyzeRequestMetrics():
     flexmock(session.Session).should_receive("query").and_return(query)
     flexmock(session.Session).should_receive("add").and_return()
     flexmock(AnalyzeRequestMetrics).should_receive("create").once().and_return(1)
+
+
+class MockGitlabJob:
+    # pylint: disable=too-few-public-methods
+    """A mock representation of a gitlab.v4.objects.ProjectJob object."""
+
+    def __init__(self, project_id: int, job_id: int):
+        self.project_id = project_id
+        self.id = job_id
+        self.job_artifacts_called = False
+
+    def artifacts(self, streamed: bool = False, action=None):
+        """Mock method for downloading artifacts."""
+        self.job_artifacts_called = True
+        # In the real function, this method's logic is handled by the mock
+        # for asyncio.to_thread, so this body can be empty.
+
+
+def create_zip_archive(files_to_add: dict[str, str]) -> bytes:
+    """Creates an in-memory zip archive from a dictionary of filename: content."""
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for filename, content in files_to_add.items():
+            zip_file.writestr(filename, content.encode("utf-8"))
+    zip_buffer.seek(0)
+    return zip_buffer.read()
+
+
+def mock_artifact_download(mocker: MockerFixture, zip_content: bytes):
+    """Mocks the asyncio.to_thread call that simulates the artifact download."""
+
+    async def dummy_coro():
+        pass
+
+    def mock_side_effect(func, *args, **kwargs):
+        action = kwargs.get("action")
+        if action and callable(action):
+            action(zip_content)
+        return dummy_coro()
+
+    mocker.patch("asyncio.to_thread", side_effect=mock_side_effect)
+
+
+@pytest.fixture
+def gitlab_cfg() -> GitLabInstanceConfig:
+    """Provides a standard GitLabInstanceConfig for tests."""
+    return GitLabInstanceConfig(
+        name="mocked_gitlab",
+        data={
+            "url": "https://gitlab.com",
+            "api_path": "/api/v4",
+            "api_token": "empty",
+            "max_artifact_size": 300,
+        },
+    )
+
+
+@pytest.fixture
+def mock_job() -> MockGitlabJob:
+    """Provides a standard MockGitlabJob for tests."""
+    return MockGitlabJob(project_id=42, job_id=101)
