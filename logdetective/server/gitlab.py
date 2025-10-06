@@ -264,8 +264,7 @@ async def retrieve_and_preprocess_koji_logs(
     LOG.debug("Failed architecture: %s", failed_arch)
 
     log_path = failed_arches[failed_arch].as_posix()
-
-    log_url = f"{gitlab_cfg.api_path}/projects/{job.project_id}/jobs/{job.id}/artifacts/{log_path}"  # pylint: disable=line-too-long
+    log_url = f"{gitlab_cfg.url}/{gitlab_cfg.api_path}/projects/{job.project_id}/jobs/{job.id}/artifacts/{log_path}"  # pylint: disable=line-too-long
     LOG.debug("Returning contents of %s%s", gitlab_cfg.url, log_url)
 
     # Return the log as a file-like object with .read() function
