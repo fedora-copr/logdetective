@@ -5,20 +5,20 @@ Please know that the explanation was provided by AI and may be incorrect.
 In this case, we are {{ "%.2f" | format(certainty) }}% certain of the response {{ emoji_face }}.
 {% endif %}
 
+<b>Snippets:</b>
+
+<ul>
+{% for snippet in snippets %}
+  <li>
+    <b>Line {{ snippet.line_number }}:</b> <code>{{ snippet.text }}</code>
+  {{ snippet.explanation.text }}
+  </li>
+{% endfor %}
+</ul>
+
 <details>
   <summary>Description</summary>
   {{ explanation }}
-</details>
-
-<details>
-<ul>
-{% for snippet in snippets %}
-<li>
-<b>Line {{ snippet.line_number }}:</b> <code>{{ snippet.text }}</code>
-{{ snippet.explanation.text }}
-</li>
-{% endfor %}
-</ul>
 </details>
 
 <details>
@@ -34,8 +34,8 @@ In this case, we are {{ "%.2f" | format(certainty) }}% certain of the response {
   <p>
     Additional logs are available from:
     <ul>
-    <li><a href="{{ artifacts_url }}">artifacts.zip</a></li>
-  </ul>
+      <li><a href="{{ artifacts_url }}">artifacts.zip</a></li>
+    </ul>
   </p>
 
   <p>
