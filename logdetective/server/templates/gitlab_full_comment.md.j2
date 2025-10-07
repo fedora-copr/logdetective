@@ -1,11 +1,14 @@
-The package {{ package }} failed to build, here is a possible explanation why.
+The package {{ package }} build has experienced an issue.
 
 Please know that the explanation was provided by AI and may be incorrect.
 {% if certainty > 0 %}
 In this case, we are {{ "%.2f" | format(certainty) }}% certain of the response {{ emoji_face }}.
 {% endif %}
 
-{{ explanation }}
+<details>
+  <summary>Description</summary>
+  {{ explanation }}
+</details>
 
 <details>
 <ul>
