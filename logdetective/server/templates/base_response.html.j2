@@ -1,0 +1,59 @@
+<b>Log Detective report
+    {% if project %}for {{ project }}{% endif %}
+</b>
+<p>
+    Analysis:
+    <br>
+    {{ explanation }}
+    <br>
+    <details>
+        <summary>Analysis details</summary>
+        <ul>
+            {% for snippet in snippets %}
+                <li>
+                    <b>Line {{ snippet.line_number }}:</b> <code>{{ snippet.text }}</code>
+                    {{ snippet.explanation.text }}
+                </li>
+            {% endfor %}
+        </ul>
+    </details>
+</p>
+<br>
+<details>
+    <summary>Help</summary>
+    <p>
+        Log Detective analyses logs using template mining algorithm and LLMs.
+        Providing overview of the primary issue, while highlighting potentially important log lines.
+    </p>
+    <p>
+        Log Detective may offer potential solution to problem.
+        However, it is designed to do so only when sufficiently confident in the response.
+        <br>
+        Even so, as with any LLM based AI system, recommendations of Log Detective must be taken with caution.
+        Before acting on any recommendations of Log Detective, consider following:
+    </p>
+    <ul>
+        <li>
+            <b>Do you understand how does the proposed solution work? And why should it solve your problem?</b>
+        </li>
+        <li>Did Log Detective work with sufficient information to make this suggestion?</li>
+        <li>Are the suggested actions safe in the context of your work?</li>
+        <li>Do results of snippet analysis align with results of final analysis?</li>
+        <li>Are there any potentially adverse outcomes from implementing proposed solution?</li>
+    </ul>
+</details>
+<br>
+{% render_contacts %}
+<details>
+    <summary>Contacts</summary>
+    <p>Don't hesitate to reach out with your questions or suggestions.</p>
+    <ul>
+        <li>
+            <a href="https://github.com/fedora-copr/logdetective">Source</a>
+        </li>
+        <li>
+            <a href="https://github.com/fedora-copr/logdetective/issues">Issue tracker</a>
+        </li>
+    </ul>
+</details>
+{% endif %}
