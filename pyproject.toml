@@ -97,3 +97,7 @@ disable = [
 testpaths = [
     "tests",
 ]
+
+[tool.djlint]
+profile="jinja"
+extension=".j2"
