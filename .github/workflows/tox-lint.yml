@@ -19,3 +19,4 @@ jobs:
           tox -e lint
           tox -e ruff
           tox -e style
+          tox -e djlint
