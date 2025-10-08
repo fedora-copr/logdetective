@@ -5,7 +5,7 @@
 
 == NAME
 
-logdetective - Analyze and summarize log files using LLM or Drain templates
+logdetective - Analyze and summarize log files using Drain templates
 
 == SYNOPSIS
 
@@ -13,9 +13,7 @@ logdetective - Analyze and summarize log files using LLM or Drain templates
 
 == DESCRIPTION
 
-*logdetective* is a tool that analyzes log files using either a large language
-model (LLM) or the Drain log template miner. It can consume logs from a local
-path or a URL, summarize them, and cluster them for easier inspection.
+*logdetective* is a tool that analyzes log files using the Drain log template miner. It can consume logs from a local path or a URL, summarize them, and cluster them for easier inspection.
 
 == POSITIONAL ARGUMENTS
 
@@ -25,37 +23,47 @@ path or a URL, summarize them, and cluster them for easier inspection.
 == OPTIONS
 
 *-h*, *--help*::
-  Show this help message and exit.
+  Show usage description and exit.
 
 *-M* *MODEL*, *--model* *MODEL*::
-  The path or URL of the language model for analysis. As we are using LLama.cpp we want this to be in the gguf format. You can include the download link to the model here. If the model is already on your machine it will skip the download. (optional, default: "Mistral-7B-Instruct-v0.2-GGUF")
+  The path to the language model for analysis (if stored locally). You can also specify the model by name based on the repo on Hugging face (see Examples). Repo id must be in the form `'namespace/repo_name'`. As we are using `LLama.cpp` we want this to be in the gguf format. If the model is already on your machine it will skip the download. (optional, default: "fedora-copr/Mistral-7B-Instruct-v0.3-GGUF")
 
 *-F* *FILENAME_SUFFIX*, *--filename_suffix* *FILENAME_SUFFIX*::
-  Define the suffix of the model file name to retrieve from Hugging Face. This option only applies when the model is specified by name (not a path).
+  Define the suffix of the model file name to retrieve from Hugging Face. This option only applies when the model is specified by its Hugging face repo name, and not its path. (default `Q4_K.gguf`)
 
 *-n*, *--no-stream*::
   Disable streaming output of analysis results.
-
-*-S* *SUMMARIZER*, *--summarizer* *SUMMARIZER*::
-  Choose between LLM and Drain template miner as the log summarizer. You can also provide the path to an existing language model file instead of using a URL. (optional, default: "drain")
-
-*-N* *N_LINES*, *--n_lines* *N_LINES*::
-  Number of lines per chunk for LLM analysis. Only applicable when `LLM` is used as the summarizer. (optional, default: 8)
 
 *-C* *N_CLUSTERS*, *--n_clusters* *N_CLUSTERS*::
   Number of clusters to use with the Drain summarizer. Ignored if `LLM` summarizer is selected. (optional, default 8)
 
 *-v*, *--verbose*::
-  Enable verbose output during processing.
+  Enable verbose output during processing (use `-vv` or `-vvv` for higher levels of verbosity). 
 
 *-q*, *--quiet*::
   Suppress non-essential output.
 
-*--prompts* *PROMPTS*::
-  Path to prompt configuration file where you can customize prompts sent to `LLM`.
+*--prompts* *PROMPTS_FILE*::
+  Path to prompt configuration file where you can customize (override default) prompts sent to the LLM. See https://github.com/fedora-copr/logdetective/blob/main/logdetective/prompts.yml for reference. 
+  +
+  Prompts need to have a form compatible with Python format string syntax (see https://docs.python.org/3/library/string.html#format-string-syntax) with spaces, or replacement fields marked with curly braces, `{}` left for insertion of snippets. Number of replacement fields in new prompts must be the same as in original, although their position may be different.
 
 *--temperature* *TEMPERATURE*::
-  Temperature for inference.
+  Temperature for inference. Higher temperature leads to more creative and variable outputs. (default 0.8)
+
+*--csgrep*::
+  Use `csgrep` to process the log before analysis. When working with logs containing messages from GCC, it can be beneficial to employ additional extractor based on `csgrep` tool, to ensure that the messages are kept intact. Since `csgrep` is not available as a Python package, it must be installed separately, with a package manager or from https://github.com/csutils/csdiff.
+
+*--skip_snippets* *SNIPPETS_FILE*::
+  Path to patterns for skipping snippets. User can specify regular expressions matching log chunks (which may not contribute to the analysis of the problem), along with simple description. Patterns to be skipped must be defined in a `yaml` file as a dictionary, where key is a description and value is a regex. 
+  +
+  Examples:
+
+    contains_capital_a: "^.*A.*"
+
+    starts_with_numeric: "^[0-9].*"
+
+    child_exit_code_zero: "Child return code was: 0"
 
 == EXAMPLES
 
@@ -67,19 +75,22 @@ Or if the log file is stored locally:
 
   $ logdetective ./data/logs.txt
 
-Analyze a local log file using an LLM model:
+Analyze a local log file using an LLM model found locally:
 
-  $ logdetective -M /path/to/llm-model -S LLM -N 100 /var/log/syslog
+  $ logdetective -M /path/to/llm-model /var/log/syslog
 
-With specific models:
+With specific model from HuggingFace (`namespace/repo_name`, note that `--filename_suffix` is also needed):
 
-  $ logdetective https://example.com/logs.txt --model https://huggingface.co/QuantFactory/Meta-Llama-3-8B-Instruct-GGUF/resolve/main/Meta-Llama-3-8B-Instruct.Q5_K_S.gguf?download=true
-  $ logdetective https://example.com/logs.txt --model QuantFactory/Meta-Llama-3-8B-Instruct-GGUF
+  $ logdetective https://example.com/logs.txt --model QuantFactory/Meta-Llama-3-8B-Instruct-GGUF --filename_suffix Q5_K_S.gguf
 
-Cluster logs from a URL using Drain:
+Cluster logs from a URL (using Drain):
 
-  $ logdetective -S Drain -C 10 https://example.com/logs.txt
+  $ logdetective -C 10 https://example.com/logs.txt
 
 == SEE ALSO
 
 https://logdetective.com
+
+== ADDITIONAL NOTES
+
+Note that *logdetective* works as intended with Text Generation models in GGUF format. Additionally, models labeled with Instruct are preferred.
