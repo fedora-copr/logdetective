@@ -69,9 +69,9 @@ Example of altered prompts:
      logdetective https://kojipkgs.fedoraproject.org//work/tasks/3367/131313367/build.log --prompts ~/my-prompts.yml
 
 
-Note that streaming with some models (notably Meta-Llama-3) is broken and can be worked around by `no-stream` option:
+Note that streaming with some models (notably Meta-Llama-3) is broken and can be worked around by `no_stream` option:
 
-    logdetective https://example.com/logs.txt --model QuantFactory/Meta-Llama-3-8B-Instruct-GGUF --filename_suffix Q5_K_M.gguf --no-stream
+    logdetective https://example.com/logs.txt --model QuantFactory/Meta-Llama-3-8B-Instruct-GGUF --filename_suffix Q5_K_M.gguf --no_stream
 
 
 Real Example

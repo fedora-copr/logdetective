@@ -31,7 +31,7 @@ logdetective - Analyze and summarize log files using LLM and Drain templates
 *-F* *FILENAME_SUFFIX*, *--filename_suffix* *FILENAME_SUFFIX*::
   Define the suffix of the model file name to retrieve from Hugging Face. This option only applies when the model is specified by its Hugging face repo name, and not its path. (default `Q4_K.gguf`)
 
-*-n*, *--no-stream*::
+*-n*, *--no_stream*::
   Disable streaming output of analysis results.
 
 *-C* *N_CLUSTERS*, *--n_clusters* *N_CLUSTERS*::
