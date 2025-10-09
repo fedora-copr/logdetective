@@ -41,12 +41,13 @@ Usage
 -----
 
 To analyze a log file, run the script with the following command line arguments:
-- `url` (required): The URL of the log file to be analyzed.
-- `--model` (optional, default: "Mistral-7B-Instruct-v0.2-GGUF"): The path or URL of the language model for analysis. As we are using LLama.cpp we want this to be in the `gguf` format. You can include the download link to the model here. If the model is already on your machine it will skip the download.
+- `file` (required): The path or URL of the log file to be analyzed.
+- `--model` (optional, default: "Mistral-7B-Instruct-v0.3-GGUF"): The path or Hugging space name of the language model for analysis. For models from Hugging Face, write them as `namespace/repo_name`. As we are using LLama.cpp we want this to be in the `gguf` format. If the model is already on your machine it will skip the download.
+- `--filename_suffix` (optional, default "Q4_K.gguf"): You can specify which suffix of the file to use. This option is applied when specifying model using the Hugging Face repository.
 - `--summarizer` DISABLED: LLM summarization option was removed. Argument is kept for backward compatibility only.(optional, default: "drain"): Choose between LLM and Drain template miner as the log summarizer. You can also provide the path to an existing language model file instead of using a URL.
 - `--n_lines` DISABLED: LLM summarization option was removed. Argument is kept for backward compatibility only. (optional, default: 8): The number of lines per chunk for LLM analysis. This only makes sense when you are summarizing with LLM.
-- `--n_clusters` (optional, default 8): Number of clusters for Drain to organize log chunks into. This only makes sense when you are summarizing with Drain
-- `--skip_snippets` Path to patterns for skipping snippets.
+- `--n_clusters` (optional, default 8): Number of clusters for Drain to organize log chunks into. This only makes sense when you are summarizing with Drain.
+- `--skip_snippets` Path to patterns for skipping snippets (in YAML).
 
 Example usage:
 
@@ -56,14 +57,10 @@ Or if the log file is stored locally:
 
     logdetective ./data/logs.txt
 
-Example you want to use a different model:
+Examples of using different models. Note the use of `--filename_suffix` (or `-F`) option, useful for models that were quantized:
 
-    logdetective https://example.com/logs.txt --model https://huggingface.co/QuantFactory/Meta-Llama-3-8B-Instruct-GGUF/resolve/main/Meta-Llama-3-8B-Instruct.Q5_K_S.gguf?download=true
-    logdetective https://example.com/logs.txt --model QuantFactory/Meta-Llama-3-8B-Instruct-GGUF
-
-Example of different suffix (useful for models that were quantized)
-
-    logdetective https://kojipkgs.fedoraproject.org//work/tasks/3367/131313367/build.log --model 'fedora-copr/granite-3.2-8b-instruct-GGUF' -F Q4_K.gguf
+    logdetective https://example.com/logs.txt --model QuantFactory/Meta-Llama-3-8B-Instruct-GGUF --filename_suffix Q5_K_S.gguf
+    logdetective https://kojipkgs.fedoraproject.org//work/tasks/3367/131313367/build.log --model 'fedora-copr/granite-3.2-8b-instruct-GGUF' -F Q4_K_M.gguf
 
 Example of altered prompts:
 
@@ -72,9 +69,9 @@ Example of altered prompts:
      logdetective https://kojipkgs.fedoraproject.org//work/tasks/3367/131313367/build.log --prompts ~/my-prompts.yml
 
 
-Note that streaming with some models (notably Meta-Llama-3 is broken) is broken and can be worked around by `no-stream` option:
+Note that streaming with some models (notably Meta-Llama-3) is broken and can be worked around by `no-stream` option:
 
-    logdetective https://example.com/logs.txt --model QuantFactory/Meta-Llama-3-8B-Instruct-GGUF --no-stream
+    logdetective https://example.com/logs.txt --model QuantFactory/Meta-Llama-3-8B-Instruct-GGUF --filename_suffix Q5_K_M.gguf --no-stream
 
 
 Real Example
