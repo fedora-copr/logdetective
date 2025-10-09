@@ -46,7 +46,7 @@ def setup_args():
                             Makes sense only if the model is specified with Hugging Face name.",
         default="Q4_K.gguf",
     )
-    parser.add_argument("-n", "--no-stream", action="store_true")
+    parser.add_argument("-n", "--no_stream", action="store_true")
     parser.add_argument(
         "-S",
         "--summarizer",
