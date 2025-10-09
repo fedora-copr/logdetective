@@ -5,7 +5,7 @@
 
 == NAME
 
-logdetective - Analyze and summarize log files using Drain templates
+logdetective - Analyze and summarize log files using LLM and Drain templates
 
 == SYNOPSIS
 
@@ -13,7 +13,7 @@ logdetective - Analyze and summarize log files using Drain templates
 
 == DESCRIPTION
 
-*logdetective* is a tool that analyzes log files using the Drain log template miner. It can consume logs from a local path or a URL, summarize them, and cluster them for easier inspection.
+*logdetective* is a tool that analyzes log files with a LLM using the Drain log template miner. It can consume logs from a local path or a URL, summarize them, and cluster them for easier inspection.
 
 == POSITIONAL ARGUMENTS
 
@@ -38,13 +38,13 @@ logdetective - Analyze and summarize log files using Drain templates
   Number of clusters to use with the Drain summarizer. Ignored if `LLM` summarizer is selected. (optional, default 8)
 
 *-v*, *--verbose*::
-  Enable verbose output during processing (use `-vv` or `-vvv` for higher levels of verbosity). 
+  Enable verbose output during processing (use `-vv` or `-vvv` for higher levels of verbosity).
 
 *-q*, *--quiet*::
   Suppress non-essential output.
 
 *--prompts* *PROMPTS_FILE*::
-  Path to prompt configuration file where you can customize (override default) prompts sent to the LLM. See https://github.com/fedora-copr/logdetective/blob/main/logdetective/prompts.yml for reference. 
+  Path to prompt configuration file where you can customize (override default) prompts sent to the LLM. See https://github.com/fedora-copr/logdetective/blob/main/logdetective/prompts.yml for reference.
   +
   Prompts need to have a form compatible with Python format string syntax (see https://docs.python.org/3/library/string.html#format-string-syntax) with spaces, or replacement fields marked with curly braces, `{}` left for insertion of snippets. Number of replacement fields in new prompts must be the same as in original, although their position may be different.
 
@@ -55,7 +55,7 @@ logdetective - Analyze and summarize log files using Drain templates
   Use `csgrep` to process the log before analysis. When working with logs containing messages from GCC, it can be beneficial to employ additional extractor based on `csgrep` tool, to ensure that the messages are kept intact. Since `csgrep` is not available as a Python package, it must be installed separately, with a package manager or from https://github.com/csutils/csdiff.
 
 *--skip_snippets* *SNIPPETS_FILE*::
-  Path to patterns for skipping snippets. User can specify regular expressions matching log chunks (which may not contribute to the analysis of the problem), along with simple description. Patterns to be skipped must be defined in a `yaml` file as a dictionary, where key is a description and value is a regex. 
+  Path to patterns for skipping snippets. User can specify regular expressions matching log chunks (which may not contribute to the analysis of the problem), along with simple description. Patterns to be skipped must be defined in a `yaml` file as a dictionary, where key is a description and value is a regex.
   +
   Examples:
 
@@ -75,9 +75,9 @@ Or if the log file is stored locally:
 
   $ logdetective ./data/logs.txt
 
-Analyze a local log file using an LLM model found locally:
+Analyze a local log file using a LLM found locally:
 
-  $ logdetective -M /path/to/llm-model /var/log/syslog
+  $ logdetective -M /path/to/llm /var/log/syslog
 
 With specific model from HuggingFace (`namespace/repo_name`, note that `--filename_suffix` is also needed):
 
@@ -93,4 +93,4 @@ https://logdetective.com
 
 == ADDITIONAL NOTES
 
-Note that *logdetective* works as intended with Text Generation models in GGUF format. Additionally, models labeled with Instruct are preferred.
+Note that *logdetective* works as intended with instruction tuned text generation models in GGUF format.
