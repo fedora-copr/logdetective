@@ -1,60 +1,60 @@
 The package {{ package }} build has experienced an issue.
-
 Please know that the explanation was provided by AI and may be incorrect.
 {% if certainty > 0 %}
-In this case, we are {{ "%.2f" | format(certainty) }}% certain of the response {{ emoji_face }}.
+    In this case, we are {{ "%.2f" | format(certainty) }}% certain of the response {{ emoji_face }}.
 {% endif %}
-
 <details>
-  <summary>Description</summary>
-  {{ explanation }}
+    <summary>Description</summary>
+    {{ explanation }}
 </details>
-
 <details>
-  <summary>Logs</summary>
-  <p>
-    Log Detective analyzed the following logs files to provide an explanation:
-  </p>
-
-  <ul>
-    <li><a href="{{ log_url }}">{{ log_url }}</a></li>
-  </ul>
-
-  <p>
-    Additional logs are available from:
+    <summary>Logs</summary>
+    <p>Log Detective analyzed the following logs files to provide an explanation:</p>
     <ul>
-      <li><a href="{{ artifacts_url }}">artifacts.zip</a></li>
+        <li>
+            <a href="{{ log_url }}">{{ log_url }}</a>
+        </li>
     </ul>
-  </p>
-
-  <p>
-    Please know that these log files are automatically removed after some
-    time, so you might need a backup.
-  </p>
+    <p>
+        Additional logs are available from:
+        <ul>
+            <li>
+                <a href="{{ artifacts_url }}">artifacts.zip</a>
+            </li>
+        </ul>
+    </p>
+    <p>
+        Please know that these log files are automatically removed after some
+        time, so you might need a backup.
+    </p>
 </details>
-
 <details>
-  <summary>Help</summary>
-  <p>Don't hesitate to reach out.</p>
-
-  <ul>
-    <li><a href="https://github.com/fedora-copr/logdetective">Upstream</a></li>
-    <li><a href="https://github.com/fedora-copr/logdetective/issues">Issue tracker</a></li>
-    <li><a href="https://redhat.enterprise.slack.com/archives/C06DWNVKKDE">Slack</a></li>
-    <li><a href="https://log-detective.com/documentation">Documentation</a></li>
-  </ul>
+    <summary>Help</summary>
+    <p>Don't hesitate to reach out.</p>
+    <ul>
+        <li>
+            <a href="https://github.com/fedora-copr/logdetective">Upstream</a>
+        </li>
+        <li>
+            <a href="https://github.com/fedora-copr/logdetective/issues">Issue tracker</a>
+        </li>
+        <li>
+            <a href="https://redhat.enterprise.slack.com/archives/C06DWNVKKDE">Slack</a>
+        </li>
+        <li>
+            <a href="https://log-detective.com/documentation">Documentation</a>
+        </li>
+    </ul>
 </details>
-
-
 ---
 This comment was created by [Log Detective][log-detective].
-
-Was the provided feedback accurate and helpful? <br>Please vote with :thumbsup:
-or :thumbsdown: to help us improve.<br>
-
+Was the provided feedback accurate and helpful?
+<br>
+Please vote with :thumbsup:
+or :thumbsdown: to help us improve.
+<br>
 <i>If this Log Detective report contains harmful content, please use the
-[Gitlab reporting feature for harmful content](https://docs.gitlab.com/user/report_abuse/)
+    [Gitlab reporting feature for harmful content](https://docs.gitlab.com/user/report_abuse/)
 and contact the [Log Detective developers](https://github.com/fedora-copr/logdetective/issues).</i>
-
 [log-detective]: https://log-detective.com/
 [contact]: https://github.com/fedora-copr
