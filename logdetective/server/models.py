@@ -182,6 +182,7 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
     http_timeout: float = 5.0
     user_role: str = USER_ROLE_DEFAULT
     system_role: str = SYSTEM_ROLE_DEFAULT
+    llm_api_timeout: float = 15.0
     _http_session: aiohttp.ClientSession = None
     _limiter: AsyncLimiter = AsyncLimiter(LLM_DEFAULT_REQUESTS_PER_MINUTE)
 
@@ -203,6 +204,7 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
         self._requests_per_minute = data.get(
             "requests_per_minute", LLM_DEFAULT_REQUESTS_PER_MINUTE
         )
+        self.llm_api_timeout = data.get("llm_api_timeout", 15.0)
         self._limiter = AsyncLimiter(self._requests_per_minute)
 
     def __del__(self):
