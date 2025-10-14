@@ -20,6 +20,8 @@ arches = [
     "s390x",
 ]
 
+SIMPLE_METHODS = ["buildArch", "buildSRPMFromSCM"]
+
 
 @pytest.mark.parametrize("arch", arches)
 @pytest.mark.asyncio
@@ -72,14 +74,17 @@ subtask_arches = [
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("method", SIMPLE_METHODS)
 @pytest.mark.parametrize("taskid,arch", subtask_arches)
-async def test_koji_get_failed_subtask_info_arches(mocker, taskid, arch):
+async def test_koji_get_failed_subtask_info_arches(mocker, taskid, arch, method):
+    """Test retrieval of substasks for tasks of type `buildArch` or `buildSRPMFromSCM`.
+    These should be returned directly, without going trough architectures."""
     # Mock the Koji session
     mock_session = mocker.Mock()
 
     mock_session.getTaskInfo.return_value = {
         "state": koji.TASK_STATES["FAILED"],
-        "method": "buildArch",
+        "method": method,
         "arch": arch,
     }
 
@@ -91,14 +96,15 @@ async def test_koji_get_failed_subtask_info_arches(mocker, taskid, arch):
     assert taskinfo["state"] == koji.TASK_STATES["FAILED"]
 
     # We passed it a parent, make sure we got the child back
-    assert taskinfo["method"] == "buildArch"
+    assert taskinfo["method"] == method
 
     # Several arches failed; make sure we received x86_64
     assert taskinfo["arch"] == arch
 
 
+@pytest.mark.parametrize("method", SIMPLE_METHODS)
 @pytest.mark.asyncio
-async def test_koji_get_failed_subtask_from_canceledtask(mocker):
+async def test_koji_get_failed_subtask_from_canceledtask(mocker, method):
     # Mock the Koji session
     mock_session = mocker.Mock()
 
@@ -112,17 +118,17 @@ async def test_koji_get_failed_subtask_from_canceledtask(mocker):
     mock_session.getTaskDescendents.return_value = {
         "133858238": [
             {
-                "method": "buildArch",
+                "method": method,
                 "state": koji.TASK_STATES["FAILED"],
                 "arch": "i686",
             },
             {
-                "method": "buildArch",
+                "method": method,
                 "state": koji.TASK_STATES["FAILED"],
                 "arch": "anunknownarch",
             },
             {
-                "method": "buildArch",
+                "method": method,
                 "state": koji.TASK_STATES["CANCELED"],
                 "arch": "x86_64",
             },
@@ -137,7 +143,7 @@ async def test_koji_get_failed_subtask_from_canceledtask(mocker):
     assert taskinfo["state"] == koji.TASK_STATES["FAILED"]
 
     # We passed it a parent, make sure we got the child back
-    assert taskinfo["method"] == "buildArch"
+    assert taskinfo["method"] == method
 
     # Several arches failed; Of the remaining arches, we don't recognize
     # either of them, so we return the first one alphabetically.
