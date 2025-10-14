@@ -367,8 +367,13 @@ def mock_job() -> MockGitlabJob:
     return MockGitlabJob(project_id=42, job_id=101)
 
 
-def create_mock_koji_session(mocker, task_id, method, arch="x86_64"):
+def create_mock_koji_session(
+    mocker, task_id, method, arch="x86_64", list_task_output=True
+):
+    """Mock koji session. Returns responses to `getTaskOutput`, `listTaskOutput` and `downloadTaskOutput` methods.
+    If `list_task_output` is set to `False` will instead return `None` for the `listTaskOutput`."""
     mock_session = mocker.Mock()
+
     mock_session.getTaskInfo.return_value = {
         "id": task_id,
         "state": koji.TASK_STATES["FAILED"],
@@ -380,14 +385,18 @@ def create_mock_koji_session(mocker, task_id, method, arch="x86_64"):
         "faultString": "BuildError: error building package (arch x86_64), mock exited with status 1; see build.log or root.log for more information"  # pylint: disable=line-too-long
     }
 
-    # Mock the build log response
-    mock_session.listTaskOutput.return_value = {
-        "build.log": {
-            "st_size": "43",
-        },
-    }
-
     mock_session.downloadTaskOutput.return_value = (
         b"Error: Build failed\nDetailed error message"
     )
+
+    if list_task_output:
+        # Mock the build log response
+        mock_session.listTaskOutput.return_value = {
+            "build.log": {
+                "st_size": "43",
+            },
+        }
+    else:
+        mock_session.listTaskOutput.return_value = None
+
     return mock_session

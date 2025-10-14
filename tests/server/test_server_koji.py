@@ -4,7 +4,7 @@ import pytest
 from logdetective.server.models import StagedResponse
 from logdetective.server.server import analyze_koji_task
 
-from logdetective.server.exceptions import LogsTooLargeError
+from logdetective.server.exceptions import LogsTooLargeError, LogsMissingError
 from logdetective.server.koji import (
     get_failed_subtask_info,
     get_failed_log_from_task,
@@ -175,6 +175,28 @@ async def test_koji_get_failed_log_from_task_logs_too_large(mocker, method):
 
     # Test getting a log that is too large
     with pytest.raises(LogsTooLargeError):
+        await get_failed_log_from_task(mock_session, task_id, max_size=10)
+
+    # Verify the correct methods were called
+    mock_session.getTaskInfo.assert_called_once_with(task_id)
+    mock_session.getTaskResult.assert_called_once_with(task_id, raise_fault=False)
+    mock_session.listTaskOutput.assert_called_once_with(task_id, stat=True)
+    mock_session.downloadTaskOutput.assert_not_called()
+
+
+@pytest.mark.parametrize("method", SIMPLE_METHODS)
+@pytest.mark.asyncio
+async def test_koji_get_failed_log_from_task_log_missing(mocker, method):
+    """Test that attempt to download log larger than a limit raises an exception."""
+    task_id = EXAMPLE_TASK_ID
+
+    # Mock the Koji session
+    mock_session = create_mock_koji_session(
+        mocker, task_id, method, list_task_output=False
+    )
+
+    # Test getting a log that is too large
+    with pytest.raises(LogsMissingError):
         await get_failed_log_from_task(mock_session, task_id, max_size=10)
 
     # Verify the correct methods were called
