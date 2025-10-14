@@ -163,9 +163,25 @@ async def test_koji_get_failed_log_from_task(mocker, method):
     mock_session.listTaskOutput.assert_called_once_with(task_id, stat=True)
     mock_session.downloadTaskOutput.assert_called_once_with(task_id, "build.log")
 
+
+@pytest.mark.parametrize("method", SIMPLE_METHODS)
+@pytest.mark.asyncio
+async def test_koji_get_failed_log_from_task_logs_too_large(mocker, method):
+    """Test that attempt to download log larger than a limit raises an exception."""
+    task_id = EXAMPLE_TASK_ID
+
+    # Mock the Koji session
+    mock_session = create_mock_koji_session(mocker, task_id, method)
+
     # Test getting a log that is too large
     with pytest.raises(LogsTooLargeError):
         await get_failed_log_from_task(mock_session, task_id, max_size=10)
+
+    # Verify the correct methods were called
+    mock_session.getTaskInfo.assert_called_once_with(task_id)
+    mock_session.getTaskResult.assert_called_once_with(task_id, raise_fault=False)
+    mock_session.listTaskOutput.assert_called_once_with(task_id, stat=True)
+    mock_session.downloadTaskOutput.assert_not_called()
 
 
 @pytest.mark.parametrize("method", SIMPLE_METHODS)
