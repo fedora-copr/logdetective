@@ -367,12 +367,12 @@ def mock_job() -> MockGitlabJob:
     return MockGitlabJob(project_id=42, job_id=101)
 
 
-def create_mock_koji_session(mocker, task_id):
+def create_mock_koji_session(mocker, task_id, method):
     mock_session = mocker.Mock()
     mock_session.getTaskInfo.return_value = {
         "id": task_id,
         "state": koji.TASK_STATES["FAILED"],
-        "method": "buildArch",
+        "method": method,
         "arch": "x86_64",
     }
 
