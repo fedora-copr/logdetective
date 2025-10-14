@@ -9,21 +9,18 @@ from logdetective.server.koji import (
     get_failed_subtask_info,
     get_failed_log_from_task,
 )
-from tests.server.test_helpers import DatabaseFactory, mock_chat_completions
+from tests.server.test_helpers import (
+    DatabaseFactory,
+    mock_chat_completions,
+    create_mock_koji_session,
+    ARCHES,
+    SIMPLE_METHODS,
+    SUBTASK_ARCHES,
+    EXAMPLE_TASK_ID,
+)
 
 
-arches = [
-    "x86_64",
-    "aarch64",
-    "ppc64le",
-    "riscv",
-    "s390x",
-]
-
-SIMPLE_METHODS = ["buildArch", "buildSRPMFromSCM"]
-
-
-@pytest.mark.parametrize("arch", arches)
+@pytest.mark.parametrize("arch", ARCHES)
 @pytest.mark.asyncio
 async def test_koji_get_failed_subtask_info(mocker, arch):
     # Mock the Koji session
@@ -66,16 +63,9 @@ async def test_koji_get_failed_subtask_info(mocker, arch):
     assert taskinfo["arch"] == "x86_64"
 
 
-subtask_arches = [
-    (133801422, "x86_64"),
-    (133801421, "aarch64"),
-    (133801420, "ppc64le"),
-]
-
-
 @pytest.mark.asyncio
 @pytest.mark.parametrize("method", SIMPLE_METHODS)
-@pytest.mark.parametrize("taskid,arch", subtask_arches)
+@pytest.mark.parametrize("taskid,arch", SUBTASK_ARCHES)
 async def test_koji_get_failed_subtask_info_arches(mocker, taskid, arch, method):
     """Test retrieval of substasks for tasks of type `buildArch` or `buildSRPMFromSCM`.
     These should be returned directly, without going trough architectures."""
@@ -148,35 +138,6 @@ async def test_koji_get_failed_subtask_from_canceledtask(mocker, method):
     # Several arches failed; Of the remaining arches, we don't recognize
     # either of them, so we return the first one alphabetically.
     assert taskinfo["arch"] == "anunknownarch"
-
-
-EXAMPLE_TASK_ID = 133858346
-
-
-def create_mock_koji_session(mocker, task_id):
-    mock_session = mocker.Mock()
-    mock_session.getTaskInfo.return_value = {
-        "id": task_id,
-        "state": koji.TASK_STATES["FAILED"],
-        "method": "buildArch",
-        "arch": "x86_64",
-    }
-
-    mock_session.getTaskResult.return_value = {
-        "faultString": "BuildError: error building package (arch x86_64), mock exited with status 1; see build.log or root.log for more information"  # pylint: disable=line-too-long
-    }
-
-    # Mock the build log response
-    mock_session.listTaskOutput.return_value = {
-        "build.log": {
-            "st_size": "43",
-        },
-    }
-
-    mock_session.downloadTaskOutput.return_value = (
-        b"Error: Build failed\nDetailed error message"
-    )
-    return mock_session
 
 
 @pytest.mark.asyncio

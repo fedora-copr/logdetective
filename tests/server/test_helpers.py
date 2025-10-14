@@ -15,6 +15,8 @@ from openai.types.chat.chat_completion import Choice, ChatCompletion
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
 from openai.resources.chat.completions import AsyncCompletions
 
+import koji
+
 from logdetective.server.models import (
     Response,
     Explanation,
@@ -39,6 +41,24 @@ Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliqu
 Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
 Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
 """
+
+ARCHES = [
+    "x86_64",
+    "aarch64",
+    "ppc64le",
+    "riscv",
+    "s390x",
+]
+
+SIMPLE_METHODS = ["buildArch", "buildSRPMFromSCM"]
+
+SUBTASK_ARCHES = [
+    (133801422, "x86_64"),
+    (133801421, "aarch64"),
+    (133801420, "ppc64le"),
+]
+
+EXAMPLE_TASK_ID = 133858346
 
 
 class DatabaseFactory:  # pylint: disable=too-few-public-methods
@@ -345,3 +365,29 @@ def gitlab_cfg() -> GitLabInstanceConfig:
 def mock_job() -> MockGitlabJob:
     """Provides a standard MockGitlabJob for tests."""
     return MockGitlabJob(project_id=42, job_id=101)
+
+
+def create_mock_koji_session(mocker, task_id):
+    mock_session = mocker.Mock()
+    mock_session.getTaskInfo.return_value = {
+        "id": task_id,
+        "state": koji.TASK_STATES["FAILED"],
+        "method": "buildArch",
+        "arch": "x86_64",
+    }
+
+    mock_session.getTaskResult.return_value = {
+        "faultString": "BuildError: error building package (arch x86_64), mock exited with status 1; see build.log or root.log for more information"  # pylint: disable=line-too-long
+    }
+
+    # Mock the build log response
+    mock_session.listTaskOutput.return_value = {
+        "build.log": {
+            "st_size": "43",
+        },
+    }
+
+    mock_session.downloadTaskOutput.return_value = (
+        b"Error: Build failed\nDetailed error message"
+    )
+    return mock_session
