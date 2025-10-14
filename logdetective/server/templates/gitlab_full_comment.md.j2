@@ -3,14 +3,16 @@ Please know that the explanation was provided by AI and may be incorrect.
 {% if certainty > 0 %}
     In this case, we are {{ "%.2f" | format(certainty) }}% certain of the response {{ emoji_face }}.
 {% endif %}
+
 <b>Snippets:</b>
+
 <ul>
-    {% for snippet in snippets %}
-        <li>
-            <b>Line {{ snippet.line_number }}:</b> <code>{{ snippet.text }}</code>
-            {{ snippet.explanation.text }}
-        </li>
-    {% endfor %}
+{% for snippet in snippets %}
+<li>
+<b>Line {{ snippet.line_number }}:</b> <code>{{ snippet.text }}</code>
+{{ snippet.explanation.text }}
+</li>
+{% endfor %}
 </ul>
 <details>
     <summary>Description</summary>
