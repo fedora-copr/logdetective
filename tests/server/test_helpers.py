@@ -4,6 +4,7 @@ import random
 from contextlib import contextmanager
 from typing import Generator, Optional
 import zipfile
+from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import create_engine
@@ -399,4 +400,18 @@ def create_mock_koji_session(
     else:
         mock_session.listTaskOutput.return_value = None
 
+    return mock_session
+
+
+def create_mock_client_response(mocker, content_length=4096):
+    """Creates a mock aiohttp.ClientSession that can be awaited."""
+    # This is the mock response object that head() will eventually return.
+    mock_response = mocker.Mock()
+    mock_response.headers = {"content-length": str(content_length)}
+
+    # This is the mock for the session object itself.
+    mock_session = mocker.MagicMock()
+    # We configure its `head` method to be an async function (coroutine)
+    # that returns our mock response.
+    mock_session.head = AsyncMock(return_value=mock_response)
     return mock_session
