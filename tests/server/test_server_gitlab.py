@@ -8,6 +8,7 @@ import responses
 import aioresponses
 from packaging.version import Version
 from pytest_mock import MockerFixture
+from fastapi import HTTPException
 
 from flexmock import flexmock
 
@@ -496,3 +497,101 @@ async def test_check_artifacts_file_size_too_large(
     )
     result_large = await check_artifacts_file_size(gitlab_cfg, mock_job)
     assert result_large is False
+
+
+@pytest.mark.asyncio
+async def test_check_artifacts_file_size_handles_http_error(
+    mocker: MockerFixture, gitlab_cfg, mock_job
+):
+    """Test that check_artifacts_file_size raises an HTTPException if the HEAD
+    request fails.
+    """
+    mock_session = create_mock_client_response(mocker)
+    # Configure the mock to raise a ClientResponseError, which is what aiohttp does on 4xx/5xx
+    mock_session.head.side_effect = aiohttp.ClientResponseError(
+        request_info=mocker.Mock(),
+        history=mocker.Mock(),
+        status=404,
+        message="Not Found",
+    )
+    mocker.patch(
+        "logdetective.server.models.GitLabInstanceConfig.get_http_session",
+        return_value=mock_session,
+    )
+
+    with pytest.raises(HTTPException, match="Unable to check artifact URL"):
+        await check_artifacts_file_size(gitlab_cfg, mock_job)
+
+
+@pytest.mark.asyncio
+async def test_architecture_prioritization(
+    mocker: MockerFixture, gitlab_cfg, mock_job
+):
+    """Test that the correct architecture is chosen when multiple have failed.
+    x86_64 should be preferred over aarch64.
+    """
+    files = {
+        "kojilogs/aarch64-build/task_failed.log": "see build.log",
+        "kojilogs/aarch64-build/aarch64-build/task_failed.log": "see build.log",
+        "kojilogs/aarch64-build/aarch64-build/build.log": "aarch64 failure",
+        "kojilogs/aarch64-build/x86_64-build/task_failed.log": "see root.log",
+        "kojilogs/aarch64-build/x86_64-build/root.log": "x86_64 failure",
+    }
+    zip_content = create_zip_archive(files)
+    mock_artifact_download(mocker, zip_content)
+    mocker.patch(
+        "logdetective.server.gitlab.check_artifacts_file_size", return_value=True
+    )
+
+    log_url, log_file = await retrieve_and_preprocess_koji_logs(gitlab_cfg, mock_job)
+
+    assert "x86_64-build/root.log" in log_url
+    assert log_file.read().decode("utf-8") == "x86_64 failure"
+
+
+@pytest.mark.asyncio
+async def test_toplevel_failure_fallback(mocker: MockerFixture, gitlab_cfg, mock_job):
+    """Test that a top-level failure is handled correctly when no specific
+    architecture has failed.
+    """
+    files = {
+        "kojilogs/noarch-build/task_failed.log": "Target build already exists",
+        "kojilogs/noarch-build/x86_64-build/build.log": "this one didn't fail",
+    }
+    zip_content = create_zip_archive(files)
+    mock_artifact_download(mocker, zip_content)
+    mocker.patch(
+        "logdetective.server.gitlab.check_artifacts_file_size", return_value=True
+    )
+
+    log_url, log_file = await retrieve_and_preprocess_koji_logs(gitlab_cfg, mock_job)
+
+    assert "kojilogs/noarch-build/task_failed.log" in log_url
+    assert log_file.read().decode("utf-8") == "Target build already exists"
+
+
+@pytest.mark.asyncio
+async def test_unrecognized_architecture_handling(
+    mocker: MockerFixture, gitlab_cfg, mock_job
+):
+    """Test that if only unrecognized architectures have failed, one is
+    chosen alphabetically.
+    """
+    files = {
+        "kojilogs/noarch-build/task_failed.log": "see build.log",
+        "kojilogs/noarch-build/a-arch-build/task_failed.log": "see build.log",
+        "kojilogs/noarch-build/a-arch-build/build.log": "a-arch failure",
+        "kojilogs/noarch-build/b-arch-build/task_failed.log": "see build.log",
+        "kojilogs/noarch-build/b-arch-build/build.log": "b-arch failure",
+    }
+    zip_content = create_zip_archive(files)
+    mock_artifact_download(mocker, zip_content)
+    mocker.patch(
+        "logdetective.server.gitlab.check_artifacts_file_size", return_value=True
+    )
+
+    log_url, log_file = await retrieve_and_preprocess_koji_logs(gitlab_cfg, mock_job)
+
+    # Should pick 'a-arch' as it comes first alphabetically
+    assert "a-arch-build/build.log" in log_url
+    assert log_file.read().decode("utf-8") == "a-arch failure"
