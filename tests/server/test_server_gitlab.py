@@ -348,6 +348,7 @@ async def test_process_gitlab_job_event(
         )
         with session_factory() as db_session:
             metric = db_session.get(AnalyzeRequestMetrics, 1)
+            assert isinstance(metric, AnalyzeRequestMetrics)
             assert (
                 RemoteLogCompressor.unzip(metric.compressed_log)  # noqa: W504 flake vs ruff
                 == "ERROR: some sort of error"  # noqa: W503 flake vs lint
