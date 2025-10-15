@@ -18,11 +18,13 @@ from tests.server.test_helpers import (
     mock_artifact_download,
     mock_job,
     gitlab_cfg,
+    create_mock_client_response,
 )
 
 from logdetective.server.gitlab import (
     is_eligible_package,
     retrieve_and_preprocess_koji_logs,
+    check_artifacts_file_size,
 )
 from logdetective.server.server import process_gitlab_job_event
 from logdetective.server.models import JobHook, GitLabInstanceConfig, Config
@@ -461,3 +463,35 @@ async def test_raises_logs_too_large_error(mocker: MockerFixture, gitlab_cfg, mo
 
     # Ensure we didn't attempt to download the file
     mock_to_thread.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_check_artifacts_file_size(mocker: MockerFixture, gitlab_cfg, mock_job):
+    """Test check_artifacts_file_size in case the file doesn't exceed the limit."""
+    # Test case where artifact size is within the limit
+    mock_session_ok = create_mock_client_response(
+        mocker, content_length=gitlab_cfg.max_artifact_size
+    )
+    # Patch the public method for getting the session, which is better practice
+    mocker.patch(
+        "logdetective.server.models.GitLabInstanceConfig.get_http_session",
+        return_value=mock_session_ok,
+    )
+    result_ok = await check_artifacts_file_size(gitlab_cfg, mock_job)
+    assert result_ok is True
+
+
+@pytest.mark.asyncio
+async def test_check_artifacts_file_size_too_large(
+    mocker: MockerFixture, gitlab_cfg, mock_job
+):
+    """Test check_artifacts_file_size in case the file exceeds the limit."""
+    mock_session_large = create_mock_client_response(
+        mocker, content_length=gitlab_cfg.max_artifact_size + 1
+    )
+    mocker.patch(
+        "logdetective.server.models.GitLabInstanceConfig.get_http_session",
+        return_value=mock_session_large,
+    )
+    result_large = await check_artifacts_file_size(gitlab_cfg, mock_job)
+    assert result_large is False
