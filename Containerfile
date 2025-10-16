@@ -38,8 +38,12 @@ COPY ./alembic.ini /src/alembic.ini
 COPY ./alembic /src/alembic
 COPY ./files /src/files
 COPY ./server /src/server
+COPY ./pyproject.toml /src/pyproject.toml
+COPY ./README.md /src/README.md
 
 COPY ./files/Current-IT-Root-CAs.pem /etc/pki/ca-trust/source/anchors/
 RUN update-ca-trust
 
 WORKDIR /src
+
+RUN pip3 install .
