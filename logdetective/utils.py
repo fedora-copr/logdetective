@@ -60,10 +60,15 @@ def get_chunks(
             if i + 1 < text_len and chunk_continues(text, i) and i + 1 < max_len:
                 i += 1
                 continue
+            chunk = chunk.strip()
             yield (original_line_number, chunk)
             original_line_number = next_line_number + 1
             chunk = ""
         i += 1
+    # There may be cases when something is left over
+    chunk = chunk.strip()
+    if chunk:
+        yield (original_line_number, chunk)
 
 
 def initialize_model(
