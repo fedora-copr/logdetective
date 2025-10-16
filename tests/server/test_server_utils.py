@@ -1,6 +1,10 @@
 import pytest
 
-from logdetective.server.utils import format_analyzed_snippets, filter_snippets
+from logdetective.server.utils import (
+    format_analyzed_snippets,
+    filter_snippets,
+    get_version,
+)
 from logdetective.server.models import (
     AnalyzedSnippet,
     SnippetAnalysis,
@@ -112,3 +116,8 @@ def test_filter_too_large_k(snippets):
     for i, snippet in enumerate(filtered_snippets):
         assert snippet.line_number == snippets[i].line_number
         assert snippet.explanation == snippets[i].explanation
+
+
+def test_obtain_version_number():
+    response = get_version()
+    assert response.status_code == 200
