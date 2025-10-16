@@ -67,6 +67,7 @@ from logdetective.server.emoji import (
     collect_emojis_for_mr,
 )
 from logdetective.server.compressors import RemoteLogCompressor
+from logdetective.server.utils import get_version
 
 
 LOG_SOURCE_REQUEST_TIMEOUT = os.environ.get("LOG_SOURCE_REQUEST_TIMEOUT", 60)
@@ -355,6 +356,12 @@ async def async_log(msg):
     async with SERVER_CONFIG.inference.get_limiter():
         LOG.critical(msg)
     return msg
+
+
+@app.get("/version")
+async def get_version_wrapper():
+    """Get the version of logdetective"""
+    return get_version()
 
 
 @app.post("/analyze/stream", response_class=StreamingResponse)
