@@ -2,58 +2,15 @@ import subprocess as sp
 from unittest.mock import MagicMock
 import pytest
 
-from logdetective.models import SkipSnippets, CSGrepOutput, CSGrepDefect, CSGrepEvent
+from logdetective.models import SkipSnippets
 from logdetective.extractors import DrainExtractor, CSGrepExtractor, Extractor
 
-
-@pytest.fixture
-def simple_log():
-    """Provides a simple log for testing."""
-    return """This is a test log.
-This is another test log.
-An error occurred: file not found.
-An error occurred: permission denied.
-Another line.
-    """
-
-
-@pytest.fixture
-def csgrep_output():
-    """Provides a sample csgrep JSON output using the new data structures."""
-    return CSGrepOutput(
-        defects=[
-            CSGrepDefect(
-                checker="some-checker",
-                language="C",
-                tool="gcc",
-                key_event_idx=0,
-                events=[
-                    CSGrepEvent(
-                        file_name="test.c",
-                        line=3,
-                        event="error",
-                        message="An error occurred: file not found.",
-                        verbosity_level=1,
-                    )
-                ],
-            ),
-            CSGrepDefect(
-                checker="another-checker",
-                language="C++",
-                tool="g++",
-                key_event_idx=0,
-                events=[
-                    CSGrepEvent(
-                        file_name="test.cpp",
-                        line=4,
-                        event="error",
-                        message="An error occurred: permission denied.",
-                        verbosity_level=1,
-                    )
-                ],
-            ),
-        ]
-    ).model_dump_json()
+from tests.base.test_helpers import (
+    simple_log,
+    csgrep_output,
+    package_unavailable_log,
+    DNF_PACKAGE_UNAVAILABLE_EXPECTED_SNIPPETS,
+)
 
 
 # --- Tests for Extractor base ---
@@ -87,9 +44,21 @@ def test_drain_extractor_call(simple_log):
     extractor = DrainExtractor(max_clusters=2)
     result = extractor(simple_log)
     # The extractor should identify the two unique "An error occurred" lines
-    assert len(result) > 0
-    assert "An error occurred: file not found" in result[0][1]
-    assert "An error occurred: permission denied." in result[1][1]
+    assert len(result) == 2
+    messages = [e[1] for e in result]
+    assert "An error occurred: permission denied." in messages
+    assert "Another line." in messages
+
+
+def test_drain_extractor_package_unavailable_log(package_unavailable_log):
+    """Tests DrainExtractor to ensure with DNF package unavailable message."""
+    extractor = DrainExtractor(max_clusters=4)
+    result = extractor(package_unavailable_log)
+    # The extractor should identify the two unique "An error occurred" lines
+    assert len(result) == 4
+    messages = [e[1] for e in result]
+    for chunk in DNF_PACKAGE_UNAVAILABLE_EXPECTED_SNIPPETS:
+        assert chunk in messages
 
 
 # --- Tests for CSGrepExtractor ---
