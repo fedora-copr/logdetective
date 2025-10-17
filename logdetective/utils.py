@@ -16,59 +16,61 @@ from logdetective.remote_log import RemoteLog
 LOG = logging.getLogger("logdetective")
 
 
-def chunk_continues(text: str, index: int) -> bool:
+def new_message(text: str) -> bool:
     """Set of heuristics for determining whether or not
     does the current chunk of log text continue on next line.
 
     Following rules are checked, in order:
-    * is the next character is whitespace
-    * is the previous character backslash '\\'
-    * is the previous character colon ':'
-
+    * is the first character is whitespace
+    * is the first character backslash '|'
     """
     conditionals = [
-        lambda i, string: string[i + 1].isspace(),
-        lambda i, string: string[i - 1] == "\\",
-        lambda i, string: string[i - 1] == ":",
+        lambda string: string[0].isspace(),
+        lambda string: string[0] == "|",
     ]
 
     for c in conditionals:
-        y = c(index, text)
+        y = c(text)
         if y:
-            return True
+            return False
 
-    return False
+    return True
 
 
 def get_chunks(
-    text: str, max_len: int = 2000
+    text: str, max_chunk_len: int = 2000
 ) -> Generator[Tuple[int, str], None, None]:
     """Split log into chunks according to heuristic
     based on whitespace and backslash presence.
     """
-    text_len = len(text)
-    i = 0
+    lines = text.splitlines()
+
+    # Chunk we will be yielding
     chunk = ""
-    # Keep track of the original and next line number
-    # every `\n` hit increases the next_line_number by one.
-    original_line_number = 0
-    next_line_number = 0
-    while i < text_len:
-        chunk += text[i]
-        if text[i] == "\n":
-            next_line_number += 1
-            if i + 1 < text_len and chunk_continues(text, i) and len(chunk) < max_len:
-                i += 1
-                continue
-            chunk = chunk.strip()
-            yield (original_line_number, chunk)
-            original_line_number = next_line_number + 1
-            chunk = ""
-        i += 1
-    # There may be cases when something is left over
-    chunk = chunk.strip()
-    if chunk:
-        yield (original_line_number, chunk)
+    # Number of line where the message started
+    original_line = 0
+    for i, line in enumerate(lines):
+        if len(line) == 0:
+            continue
+        if new_message(line):
+            # Yield chunk if we have it
+            if len(chunk) > 0:
+                yield (original_line, chunk)
+            original_line = i
+            chunk = line
+        else:
+            chunk += "\n" + line
+        if len(chunk) > max_chunk_len:
+            # If the chunk is too long, keep splitting into smaller chunks
+            # until we reach manageable size
+            while len(chunk) > max_chunk_len:
+                remainder = chunk[max_chunk_len:]
+                chunk = chunk[:max_chunk_len]
+                yield (original_line, chunk)
+                chunk = remainder
+
+    # if we still have some text left over
+    yield (original_line, chunk)
 
 
 def initialize_model(
