@@ -57,7 +57,7 @@ def get_chunks(
         chunk += text[i]
         if text[i] == "\n":
             next_line_number += 1
-            if i + 1 < text_len and chunk_continues(text, i) and i + 1 < max_len:
+            if i + 1 < text_len and chunk_continues(text, i) and len(chunk) < max_len:
                 i += 1
                 continue
             chunk = chunk.strip()
