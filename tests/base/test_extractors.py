@@ -42,12 +42,13 @@ def test_drain_extractor_call(simple_log):
     clusters and extracts log messages correctly.
     """
     extractor = DrainExtractor(max_clusters=2)
-    result = extractor(simple_log)
+    result = extractor("".join(simple_log))
     # The extractor should identify the two unique "An error occurred" lines
     assert len(result) == 2
     messages = [e[1] for e in result]
-    assert "An error occurred: permission denied." in messages
-    assert "Another line." in messages
+    # Two of the longest messages must be included in the results
+    assert simple_log[6].strip() in messages
+    assert simple_log[7].strip() in messages
 
 
 def test_drain_extractor_package_unavailable_log(package_unavailable_log):
