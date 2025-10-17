@@ -68,13 +68,22 @@ DNF_PACKAGE_UNAVAILABLE_EXPECTED_SNIPPETS = [
 
 
 @pytest.fixture
-def simple_log():
+def simple_log() -> list[str]:
     """Provides a simple log for testing."""
-    return """This is a test log.
-This is another test log.
-An error occurred: file not found.
-An error occurred: permission denied.
-Another line."""
+    return [
+        "This is a test log.\n",
+        "This is another test log.\n",
+        "An error occurred: file not found.\n",
+        "An error occurred: permission denied.\n",
+        "Another line.\n",
+        "",  # Empty line
+        """This is a message with continuation:
+            it continues here,
+            here,
+            and here.\n""",
+        """This message is splint into an introduction:
+            and a very long continuation, and a very long continuation, and a very long continuation,
+            and a very long continuation ............."""]
 
 
 @pytest.fixture
