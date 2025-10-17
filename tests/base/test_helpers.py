@@ -74,8 +74,7 @@ def simple_log():
 This is another test log.
 An error occurred: file not found.
 An error occurred: permission denied.
-Another line.
-    """
+Another line."""
 
 
 @pytest.fixture

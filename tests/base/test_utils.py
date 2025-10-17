@@ -12,6 +12,7 @@ from logdetective.utils import (
     prompt_to_messages,
     filter_snippet_patterns,
     load_skip_snippet_patterns,
+    get_chunks,
 )
 
 from logdetective.remote_log import RemoteLog
@@ -23,6 +24,7 @@ from tests.base.test_helpers import (
     test_prompts,
     test_filter_patterns,
     test_snippets_filtering,
+    simple_log,
 )
 
 
@@ -162,3 +164,19 @@ def test_load_skip_snippet_patterns_invalid_syntax():
     ):
         with pytest.raises(ValueError, match="Invalid pattern"):
             load_skip_snippet_patterns("/there/is/nothing/to/read.yml")
+
+
+@pytest.mark.parametrize("max_chunk_len", [10, 20, 100])
+def test_get_chunks_max_length(simple_log, max_chunk_len):
+    """Test that maximum length of chunks is properly enforced
+    and that no text is lost"""
+
+    chunks = list(get_chunks(simple_log, max_chunk_len=max_chunk_len))
+    reconstructed_text = ""
+    for c in chunks:
+        assert len(c[1]) <= max_chunk_len
+
+        reconstructed_text += c[1]
+    simple_log_lines = list(simple_log.split("\n"))
+    for line in simple_log_lines:
+        assert line in reconstructed_text
