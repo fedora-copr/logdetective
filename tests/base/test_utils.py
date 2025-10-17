@@ -170,13 +170,14 @@ def test_load_skip_snippet_patterns_invalid_syntax():
 def test_get_chunks_max_length(simple_log, max_chunk_len):
     """Test that maximum length of chunks is properly enforced
     and that no text is lost"""
-
-    chunks = list(get_chunks(simple_log, max_chunk_len=max_chunk_len))
+    log = "".join(simple_log)
+    chunks = list(get_chunks(log, max_chunk_len=max_chunk_len))
     reconstructed_text = ""
     for c in chunks:
         assert len(c[1]) <= max_chunk_len
-
+        assert c[1] in log
         reconstructed_text += c[1]
-    simple_log_lines = list(simple_log.split("\n"))
-    for line in simple_log_lines:
-        assert line in reconstructed_text
+
+    for _, line in enumerate(simple_log):
+        if len(line) > 0:
+            assert line.strip() in reconstructed_text
