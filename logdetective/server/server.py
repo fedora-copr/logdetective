@@ -90,7 +90,7 @@ async def lifespan(fapp: FastAPI):
     )
 
     # Ensure that the database is initialized.
-    logdetective.server.database.base.init()
+    await logdetective.server.database.base.init()
 
     # Start the background task scheduler for collecting emojis
     asyncio.create_task(schedule_collect_emojis_task())
@@ -307,11 +307,10 @@ async def analyze_koji_task(task_id: int, koji_instance_config: KojiInstanceConf
         received_at=datetime.datetime.now(datetime.timezone.utc),
         compressed_log_content=RemoteLogCompressor.zip_text(log_text),
     )
-
     # We need to associate the metric ID with the koji task analysis.
     # This will create the new row without a response, which we will use as
     # an indicator that the analysis is in progress.
-    KojiTaskAnalysis.create_or_restart(
+    await KojiTaskAnalysis.create_or_restart(
         koji_instance=koji_instance_config.xmlrpc_url,
         task_id=task_id,
         log_file_name=log_file_name,
@@ -320,8 +319,8 @@ async def analyze_koji_task(task_id: int, koji_instance_config: KojiInstanceConf
 
     # Now that we have the response, we can update the metrics and mark the
     # koji task analysis as completed.
-    update_metrics(metrics_id, response)
-    KojiTaskAnalysis.add_response(task_id, metrics_id)
+    await update_metrics(metrics_id, response)
+    await KojiTaskAnalysis.add_response(task_id, metrics_id)
 
     # Notify any callbacks that the analysis is complete.
     for callback in koji_instance_config.get_callbacks(task_id):
@@ -623,22 +622,24 @@ async def get_metrics(
     async def handler():
         """Show statistics for the specified endpoint and plot."""
         if plot == Plot.REQUESTS:
-            fig = plot_engine.requests_per_time(period_since_now, endpoint_type)
+            fig = await plot_engine.requests_per_time(period_since_now, endpoint_type)
             return _svg_figure_response(fig)
         if plot == Plot.RESPONSES:
-            fig = plot_engine.average_time_per_responses(
+            fig = await plot_engine.average_time_per_responses(
                 period_since_now, endpoint_type
             )
             return _svg_figure_response(fig)
         if plot == Plot.EMOJIS:
-            fig = plot_engine.emojis_per_time(period_since_now)
+            fig = await plot_engine.emojis_per_time(period_since_now)
             return _svg_figure_response(fig)
         # BOTH
-        fig_requests = plot_engine.requests_per_time(period_since_now, endpoint_type)
-        fig_responses = plot_engine.average_time_per_responses(
+        fig_requests = await plot_engine.requests_per_time(
             period_since_now, endpoint_type
         )
-        fig_emojis = plot_engine.emojis_per_time(period_since_now)
+        fig_responses = await plot_engine.average_time_per_responses(
+            period_since_now, endpoint_type
+        )
+        fig_emojis = await plot_engine.emojis_per_time(period_since_now)
         return _multiple_svg_figures_response([fig_requests, fig_responses, fig_emojis])
 
     descriptions = {

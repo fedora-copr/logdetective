@@ -50,7 +50,7 @@ class AnalyzeRequestMetrics(Base):
         comment="The service endpoint that was called",
     )
     request_received_at = Column(
-        DateTime,
+        DateTime(timezone=True),
         nullable=False,
         index=True,
         default=datetime.datetime.now(datetime.timezone.utc),
@@ -69,7 +69,9 @@ class AnalyzeRequestMetrics(Base):
         comment="Given response (with explanation and snippets) saved in a zip format",
     )
     response_sent_at = Column(
-        DateTime, nullable=True, comment="Timestamp when the response was sent back"
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Timestamp when the response was sent back",
     )
     response_length = Column(
         Integer, nullable=True, comment="Length of the response in chars"
@@ -90,7 +92,7 @@ class AnalyzeRequestMetrics(Base):
 
     @classmethod
     @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
-    def create(
+    async def create(
         cls,
         endpoint: EndpointType,
         compressed_log: io.BytesIO,
@@ -98,7 +100,7 @@ class AnalyzeRequestMetrics(Base):
     ) -> int:
         """Create AnalyzeRequestMetrics new line
         with data related to a received request"""
-        with transaction(commit=True) as session:
+        async with transaction(commit=True) as session:
             metrics = AnalyzeRequestMetrics()
             metrics.endpoint = endpoint
             metrics.compressed_log = compressed_log
@@ -106,12 +108,12 @@ class AnalyzeRequestMetrics(Base):
                 datetime.timezone.utc
             )
             session.add(metrics)
-            session.flush()
+            await session.flush()
             return metrics.id
 
     @classmethod
     @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
-    def update(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
+    async def update(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
         cls,
         id_: int,
         response_sent_at: DateTime,
@@ -121,8 +123,10 @@ class AnalyzeRequestMetrics(Base):
     ) -> None:
         """Update a row
         with data related to the given response"""
-        with transaction(commit=True) as session:
-            metrics = session.query(AnalyzeRequestMetrics).filter_by(id=id_).first()
+        query = select(AnalyzeRequestMetrics).filter(AnalyzeRequestMetrics.id == id_)
+        async with transaction(commit=True) as session:
+            query_result = await session.execute(query)
+            metrics = query_result.scalars().first()
             if metrics is None:
                 raise ValueError("Returned `AnalyzeRequestMetrics` table is empty.")
             metrics.response_sent_at = response_sent_at
@@ -133,19 +137,21 @@ class AnalyzeRequestMetrics(Base):
 
     @classmethod
     @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
-    def get_metric_by_id(
+    async def get_metric_by_id(
         cls,
         id_: int,
     ) -> Self:
         """Update a row
         with data related to the given response"""
-        with transaction(commit=True) as session:
-            metric = session.query(AnalyzeRequestMetrics).filter_by(id=id_).first()
+        query = select(AnalyzeRequestMetrics).filter(AnalyzeRequestMetrics.id == id_)
+        async with transaction(commit=True) as session:
+            query_result = await session.execute(query)
+            metric = query_result.scalars().first()
             if metric is None:
                 raise ValueError("Returned `AnalyzeRequestMetrics` table is empty.")
             return metric
 
-    def add_mr_job(
+    async def add_mr_job(
         self,
         forge: Forge,
         project_id: int,
@@ -161,13 +167,15 @@ class AnalyzeRequestMetrics(Base):
           mr_iid: merge request forge iid
           job_id: forge job id
         """
-        mr_job = GitlabMergeRequestJobs.get_or_create(forge, project_id, mr_iid, job_id)
+        mr_job = await GitlabMergeRequestJobs.get_or_create(
+            forge, project_id, mr_iid, job_id
+        )
         self.merge_request_job_id = mr_job.id
-        with transaction(commit=True) as session:
-            session.merge(self)
+        async with transaction(commit=True) as session:
+            await session.merge(self)
 
     @classmethod
-    def get_requests_metrics_for_mr_job(
+    async def get_requests_metrics_for_mr_job(
         cls,
         forge: Forge,
         project_id: int,
@@ -182,19 +190,20 @@ class AnalyzeRequestMetrics(Base):
           mr_iid: merge request forge iid
           job_id: forge job id
         """
-        with transaction(commit=False) as session:
-            mr_job_alias = aliased(GitlabMergeRequestJobs)
-            metrics = (
-                session.query(cls)
-                .join(mr_job_alias, cls.merge_request_job_id == mr_job_alias.id)
-                .filter(
-                    mr_job_alias.forge == forge,
-                    mr_job_alias.mr_iid == mr_iid,
-                    mr_job_alias.project_id == project_id,
-                    mr_job_alias.job_id == job_id,
-                )
-                .all()
+        mr_job_alias = aliased(GitlabMergeRequestJobs)
+        query = (
+            select(cls)
+            .join(mr_job_alias, cls.merge_request_job_id == mr_job_alias.id)
+            .filter(
+                mr_job_alias.forge == forge,
+                mr_job_alias.mr_iid == mr_iid,
+                mr_job_alias.project_id == project_id,
+                mr_job_alias.job_id == job_id,
             )
+        )
+        async with transaction(commit=False) as session:
+            query_result = await session.execute(query)
+            metrics = query_result.scalars().all()
             return metrics
 
     @classmethod
@@ -242,7 +251,7 @@ class AnalyzeRequestMetrics(Base):
         return requests_by_time_format
 
     @classmethod
-    def get_requests_in_period(
+    async def get_requests_in_period(
         cls,
         start_time: datetime.datetime,
         end_time: datetime.datetime,
@@ -261,7 +270,7 @@ class AnalyzeRequestMetrics(Base):
         Returns:
             dict[datetime, int]: A dictionary mapping datetime objects to request counts
         """
-        with transaction(commit=False) as session:
+        async with transaction(commit=False) as session:
             requests_by_time_format = cls._get_requests_by_time_for_postgres(
                 start_time, end_time, time_format, endpoint
             )
@@ -271,13 +280,13 @@ class AnalyzeRequestMetrics(Base):
                 func.count(distinct(requests_by_time_format.c.id)),  # pylint: disable=not-callable
             ).group_by("time_format")
 
-            counts = session.execute(count_requests_by_time_format)
-            results = counts.fetchall()
+            query_results = await session.execute(count_requests_by_time_format)
+            results = query_results.all()
 
             return cls.get_dictionary_with_datetime_keys(time_format, results)
 
     @classmethod
-    def _get_average_responses_times_for_postgres(
+    async def _get_average_responses_times_for_postgres(
         cls, start_time, end_time, time_format, endpoint
     ):
         """Get average responses time.
@@ -285,7 +294,7 @@ class AnalyzeRequestMetrics(Base):
         func.to_char is PostgreSQL specific.
         Let's unit tests replace this function with the SQLite version.
         """
-        with transaction(commit=False) as session:
+        async with transaction(commit=False) as session:
             pgsql_time_format = cls.get_postgres_time_format(time_format)
 
             average_responses_times = (
@@ -307,11 +316,12 @@ class AnalyzeRequestMetrics(Base):
                 .order_by("time_range")
             )
 
-            results = session.execute(average_responses_times).fetchall()
+            query_results = await session.execute(average_responses_times)
+            results = query_results.all()
             return results
 
     @classmethod
-    def get_responses_average_time_in_period(
+    async def get_responses_average_time_in_period(
         cls,
         start_time: datetime.datetime,
         end_time: datetime.datetime,
@@ -332,9 +342,11 @@ class AnalyzeRequestMetrics(Base):
             dict[datetime, int]: A dictionary mapping datetime objects
             to average responses times
         """
-        with transaction(commit=False) as _:
-            average_responses_times = cls._get_average_responses_times_for_postgres(
-                start_time, end_time, time_format, endpoint
+        async with transaction(commit=False) as _:
+            average_responses_times = (
+                await cls._get_average_responses_times_for_postgres(
+                    start_time, end_time, time_format, endpoint
+                )
             )
 
             return cls.get_dictionary_with_datetime_keys(
@@ -342,7 +354,7 @@ class AnalyzeRequestMetrics(Base):
             )
 
     @classmethod
-    def _get_average_responses_lengths_for_postgres(
+    async def _get_average_responses_lengths_for_postgres(
         cls, start_time, end_time, time_format, endpoint
     ):
         """Get average responses length.
@@ -350,7 +362,7 @@ class AnalyzeRequestMetrics(Base):
         func.to_char is PostgreSQL specific.
         Let's unit tests replace this function with the SQLite version.
         """
-        with transaction(commit=False) as session:
+        async with transaction(commit=False) as session:
             pgsql_time_format = cls.get_postgres_time_format(time_format)
 
             average_responses_lengths = (
@@ -366,11 +378,12 @@ class AnalyzeRequestMetrics(Base):
                 .order_by("time_range")
             )
 
-            results = session.execute(average_responses_lengths).fetchall()
+            query_results = await session.execute(average_responses_lengths)
+            results = query_results.all()
             return results
 
     @classmethod
-    def get_responses_average_length_in_period(
+    async def get_responses_average_length_in_period(
         cls,
         start_time: datetime.datetime,
         end_time: datetime.datetime,
@@ -391,9 +404,11 @@ class AnalyzeRequestMetrics(Base):
             dict[datetime, int]: A dictionary mapping datetime objects
             to average responses lengths
         """
-        with transaction(commit=False) as _:
-            average_responses_lengths = cls._get_average_responses_lengths_for_postgres(
-                start_time, end_time, time_format, endpoint
+        async with transaction(commit=False) as _:
+            average_responses_lengths = (
+                await cls._get_average_responses_lengths_for_postgres(
+                    start_time, end_time, time_format, endpoint
+                )
             )
 
             return cls.get_dictionary_with_datetime_keys(

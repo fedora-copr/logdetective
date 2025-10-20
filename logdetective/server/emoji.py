@@ -20,7 +20,7 @@ async def collect_emojis(gitlab_conn: gitlab.Gitlab, period: TimePeriod):
     Collect emoji feedback from logdetective comments saved in database.
     Check only comments created in the last given period of time.
     """
-    comments = Comments.get_since(period.get_period_start_time()) or []
+    comments = await Comments.get_since(period.get_period_start_time()) or []
     comments_for_gitlab_connection = [
         comment for comment in comments if comment.forge == gitlab_conn.url
     ]
@@ -39,9 +39,9 @@ async def collect_emojis_for_mr(
     except ValueError as ex:
         LOG.exception("Attempt to use unrecognized Forge `%s`", gitlab_conn.url)
         raise ex
-    mr_jobs = GitlabMergeRequestJobs.get_by_mr_iid(url, project_id, mr_iid) or []
+    mr_jobs = await GitlabMergeRequestJobs.get_by_mr_iid(url, project_id, mr_iid) or []
 
-    comments = [Comments.get_by_mr_job(mr_job) for mr_job in mr_jobs]
+    comments = [await Comments.get_by_mr_job(mr_job) for mr_job in mr_jobs]
     await collect_emojis_in_comments(comments, gitlab_conn)
 
 
@@ -73,7 +73,7 @@ async def collect_emojis_in_comments(  # pylint: disable=too-many-locals
     projects = {}
     merge_requests = {}
     for comment in comments:
-        mr_job_db = GitlabMergeRequestJobs.get_by_id(comment.merge_request_job_id)
+        mr_job_db = await GitlabMergeRequestJobs.get_by_id(comment.merge_request_job_id)
         if not mr_job_db:
             continue
         if mr_job_db.id not in projects:
@@ -114,7 +114,7 @@ async def collect_emojis_in_comments(  # pylint: disable=too-many-locals
         # because we need to remove them
         old_emojis = [
             reaction.reaction_type
-            for reaction in Reactions.get_all_reactions(
+            for reaction in await Reactions.get_all_reactions(
                 comment.forge,
                 mr_job_db.project_id,
                 mr_job_db.mr_iid,
@@ -123,7 +123,7 @@ async def collect_emojis_in_comments(  # pylint: disable=too-many-locals
             )
         ]
         for key, value in emoji_counts.items():
-            Reactions.create_or_update(
+            await Reactions.create_or_update(
                 comment.forge,
                 mr_job_db.project_id,
                 mr_job_db.mr_iid,
@@ -136,7 +136,7 @@ async def collect_emojis_in_comments(  # pylint: disable=too-many-locals
                 old_emojis.remove(key)
 
         # not updated reactions has been removed, drop them
-        Reactions.delete(
+        await Reactions.delete(
             comment.forge,
             mr_job_db.project_id,
             mr_job_db.mr_iid,

@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import Column, BigInteger, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Column, BigInteger, DateTime, ForeignKey, Integer, String, select
 from sqlalchemy.orm import relationship
 from sqlalchemy.exc import OperationalError
 import backoff
@@ -26,7 +26,7 @@ class KojiTaskAnalysis(Base):
     task_id = Column(BigInteger, nullable=False, index=True, unique=True)
     log_file_name = Column(String(255), nullable=False, index=True)
     request_received_at = Column(
-        DateTime,
+        DateTime(timezone=True),
         nullable=False,
         index=True,
         default=datetime.now(timezone.utc),
@@ -43,20 +43,22 @@ class KojiTaskAnalysis(Base):
 
     @classmethod
     @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
-    def create_or_restart(cls, koji_instance: str, task_id: int, log_file_name: str):
+    async def create_or_restart(
+        cls, koji_instance: str, task_id: int, log_file_name: str
+    ):
         """Create a new koji task analysis"""
-        with transaction(commit=True) as session:
+        query = select(cls).filter(
+            cls.koji_instance == koji_instance, cls.task_id == task_id
+        )
+        async with transaction(commit=True) as session:
             # Check if the task analysis already exists
-            koji_task_analysis = (
-                session.query(cls)
-                .filter_by(koji_instance=koji_instance, task_id=task_id)
-                .first()
-            )
+            query_result = await session.execute(query)
+            koji_task_analysis = query_result.first()
             if koji_task_analysis:
                 # If it does, update the request_received_at timestamp
                 koji_task_analysis.request_received_at = datetime.now(timezone.utc)
                 session.add(koji_task_analysis)
-                session.flush()
+                await session.flush()
                 return
 
             # If it doesn't, create a new one
@@ -65,14 +67,19 @@ class KojiTaskAnalysis(Base):
             koji_task_analysis.task_id = task_id
             koji_task_analysis.log_file_name = log_file_name
             session.add(koji_task_analysis)
-            session.flush()
+            await session.flush()
 
     @classmethod
     @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
-    def add_response(cls, task_id: int, metric_id: int):
+    async def add_response(cls, task_id: int, metric_id: int):
         """Add a response to a koji task analysis"""
-        with transaction(commit=True) as session:
-            koji_task_analysis = session.query(cls).filter_by(task_id=task_id).first()
+        query = select(cls).filter(cls.task_id == task_id)
+        metrics_query = select(AnalyzeRequestMetrics).filter(
+            AnalyzeRequestMetrics.id == metric_id
+        )
+        async with transaction(commit=True) as session:
+            query_result = await session.execute(query)
+            koji_task_analysis = query_result.scalars().first()
             # Ensure that the task analysis doesn't already have a response
             if koji_task_analysis.response:
                 # This is probably due to an analysis that took so long that
@@ -81,20 +88,20 @@ class KojiTaskAnalysis(Base):
                 # returned to the consumer, so we'll just drop this extra one
                 # on the floor and keep the one saved in the database.
                 return
-
-            metric = (
-                session.query(AnalyzeRequestMetrics).filter_by(id=metric_id).first()
-            )
+            metrics_query_result = await session.execute(metrics_query)
+            metric = metrics_query_result.scalars().first()
             koji_task_analysis.response = metric
             session.add(koji_task_analysis)
-            session.flush()
+            await session.flush()
 
     @classmethod
     @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
-    def get_response_by_task_id(cls, task_id: int) -> KojiStagedResponse:
+    async def get_response_by_task_id(cls, task_id: int) -> KojiStagedResponse:
         """Get a koji task analysis by task id"""
-        with transaction(commit=False) as session:
-            koji_task_analysis = session.query(cls).filter_by(task_id=task_id).first()
+        query = select(cls).filter(cls.task_id == task_id)
+        async with transaction(commit=False) as session:
+            query_result = await session.execute(query)
+            koji_task_analysis = query_result.scalars().first()
             if not koji_task_analysis:
                 raise KojiTaskNotFoundError(f"Task {task_id} not yet analyzed")
 

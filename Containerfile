@@ -13,8 +13,7 @@ RUN dnf install -y \
     git-core python3-gunicorn \
     python3-gitlab \
     python3-diskcache \
-    python3-sqlalchemy \
-    python3-psycopg2 \
+    python3-sqlalchemy+asyncio \
     python3-alembic \
     python3-matplotlib \
     python3-aiohttp \
@@ -22,6 +21,7 @@ RUN dnf install -y \
     python3-sentry-sdk+fastapi \
     python3-koji \
     csdiff \
+    python3-asyncpg \
     && dnf clean all
 # the newest 0.2.86 fails to build, it seems vendored llama-cpp is missing in the archive
 RUN pip3 install aiolimiter llama_cpp_python==0.2.85 sse-starlette starlette-context openai==1.82.1 \

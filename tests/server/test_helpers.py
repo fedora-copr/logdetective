@@ -1,14 +1,13 @@
 import datetime
 import io
 import random
-from contextlib import contextmanager
-from typing import Generator, Optional
+from contextlib import asynccontextmanager
+from typing import Optional, AsyncGenerator
 import zipfile
 from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, session
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from flexmock import flexmock
 from pytest_mock import MockerFixture
 
@@ -69,38 +68,38 @@ class DatabaseFactory:  # pylint: disable=too-few-public-methods
         Database container is started by `tox -e pytest` command,
         connection details for the container are specified in tox.ini"""
 
-        return "postgresql+psycopg2://user:password@localhost:5432/test_db"
+        return "postgresql+asyncpg://user:password@localhost:5432/test_db"
 
     def __init__(self):
         """Connect to a postgres container for testing purposes."""
-        self.engine = create_engine(
-            self.get_pg_test_url(), connect_args={"connect_timeout": 10}
+        self.engine = create_async_engine(
+            self.get_pg_test_url(), connect_args={"command_timeout": 10}
         )
-        self.SessionFactory = sessionmaker(autoflush=True, bind=self.engine)
+        self.SessionFactory = async_sessionmaker(autoflush=True, bind=self.engine)
         flexmock(base, engine=self.engine, SessionFactory=self.SessionFactory)
 
-    @contextmanager
-    def make_new_db(self):
+    @asynccontextmanager
+    async def make_new_db(self):
         try:
-            init()
+            await init()
             yield self.SessionFactory
         finally:
-            destroy()
+            await destroy()
 
 
 class PopulateDatabase:  # pylint: disable=too-few-public-methods
     def __init__(self):
         self.db_factory = DatabaseFactory()
 
-    @contextmanager
-    def populate_db_at_regular_intervals(  # pylint: disable=too-many-positional-arguments
+    @asynccontextmanager
+    async def populate_db_at_regular_intervals(  # pylint: disable=too-many-positional-arguments
         self,
         interval: datetime.timedelta = datetime.timedelta(minutes=15),
         duration: datetime.timedelta = datetime.timedelta(hours=23),
         end_time: Optional[datetime.datetime] = None,
         endpoint_type: Optional[EndpointType] = EndpointType.ANALYZE,
-    ) -> Generator:
-        with self.db_factory.make_new_db() as session_factory:  # pylint: disable=contextmanager-generator-missing-cleanup
+    ) -> AsyncGenerator:
+        async with self.db_factory.make_new_db() as session_factory:  # pylint: disable=contextmanager-generator-missing-cleanup
             end_time = end_time or datetime.datetime.now(datetime.timezone.utc)
             start_time = end_time - duration
 
@@ -108,7 +107,7 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
             increasing_response_time = 1
             increasing_response_length = 500
             while current_time < end_time:
-                id_ = AnalyzeRequestMetrics.create(
+                id_ = await AnalyzeRequestMetrics.create(
                     endpoint=endpoint_type,
                     compressed_log=RemoteLogCompressor.zip_text(
                         "Some log for a failed build"
@@ -119,7 +118,7 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
                     seconds=increasing_response_time
                 )
                 increasing_response_length += 500
-                AnalyzeRequestMetrics.update(
+                await AnalyzeRequestMetrics.update(
                     id_=id_,
                     response_sent_at=response_time,
                     response_length=increasing_response_length,
@@ -138,14 +137,14 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
 
             yield session_factory
 
-    @contextmanager
-    def populate_db_with_emojis_at_regular_intervals(  # pylint: disable=too-many-positional-arguments
+    @asynccontextmanager
+    async def populate_db_with_emojis_at_regular_intervals(  # pylint: disable=too-many-positional-arguments
         self,
         interval: datetime.timedelta = datetime.timedelta(minutes=15),
         duration: datetime.timedelta = datetime.timedelta(hours=23),
         end_time: Optional[datetime.datetime] = None,
-    ) -> Generator:
-        with self.db_factory.make_new_db() as session_factory:  # pylint: disable=contextmanager-generator-missing-cleanup
+    ) -> AsyncGenerator:
+        async with self.db_factory.make_new_db() as session_factory:  # pylint: disable=contextmanager-generator-missing-cleanup
             end_time = end_time or datetime.datetime.now(datetime.timezone.utc)
             start_time = end_time - duration
 
@@ -155,27 +154,27 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
             mr_iid = 1
             comment_id = "a"
             while current_time < end_time:
-                GitlabMergeRequestJobs.create(
+                await GitlabMergeRequestJobs.create(
                     forge=Forge.gitlab_com,
                     project_id=project_id,
                     mr_iid=mr_iid,
                     job_id=job_id,
                 )
-                id_ = Comments.create(
+                id_ = await Comments.create(
                     forge=Forge.gitlab_com,
                     project_id=project_id,
                     mr_iid=mr_iid,
                     job_id=job_id,
                     comment_id=comment_id,
                 )
-                with session_factory() as db_session:
-                    comment = Comments.get_by_id(id_)
+                async with session_factory() as db_session:
+                    comment = await Comments.get_by_id(id_)
                     comment.created_at = current_time
                     db_session.add(comment)
-                    db_session.flush()
-                    db_session.commit()
+                    await db_session.flush()
+                    await db_session.commit()
 
-                Reactions.create_or_update(
+                await Reactions.create_or_update(
                     forge=Forge.gitlab_com,
                     project_id=project_id,
                     mr_iid=mr_iid,
@@ -186,7 +185,7 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
                     ),
                     count=random.randint(1, 10),
                 )
-                Reactions.create_or_update(
+                await Reactions.create_or_update(
                     forge=Forge.gitlab_com,
                     project_id=project_id,
                     mr_iid=mr_iid,
@@ -210,53 +209,53 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
             yield session_factory
 
     @classmethod
-    @contextmanager
-    def populate_db(cls, duration=datetime.timedelta, endpoint=EndpointType):
+    @asynccontextmanager
+    async def populate_db(cls, duration=datetime.timedelta, endpoint=EndpointType):
         """Populate the db, one request every 15 minutes.
         and responses increasing for 1 hour, and then back to 1.
         For the last duration time.
         """
-        with cls().populate_db_at_regular_intervals(
+        async with cls().populate_db_at_regular_intervals(
             duration=duration,
             endpoint_type=endpoint,
         ) as session_factory:
             yield session_factory
 
     @classmethod
-    @contextmanager
-    def populate_db_with_emojis(cls, duration=datetime.timedelta):
+    @asynccontextmanager
+    async def populate_db_with_emojis(cls, duration=datetime.timedelta):
         """Populate the db, one comment every 15 minutes."""
-        with cls().populate_db_with_emojis_at_regular_intervals(
+        async with cls().populate_db_with_emojis_at_regular_intervals(
             duration=duration,
         ) as session_factory:
             yield session_factory
 
 
 @pytest.fixture(scope="function")
-@contextmanager
-def populate_db_with_analyze_request_every_15_minutes_for_15_hours():
+@asynccontextmanager
+async def populate_db_with_analyze_request_every_15_minutes_for_15_hours():
     duration = datetime.timedelta(hours=15)
-    with PopulateDatabase().populate_db_at_regular_intervals(
+    async with PopulateDatabase().populate_db_at_regular_intervals(
         duration=duration
     ) as session_factory:
         yield session_factory
 
 
 @pytest.fixture(scope="function")
-@contextmanager
-def populate_db_with_analyze_request_every_15_minutes_for_9_days():
+@asynccontextmanager
+async def populate_db_with_analyze_request_every_15_minutes_for_9_days():
     duration = datetime.timedelta(days=9)
-    with PopulateDatabase().populate_db_at_regular_intervals(
+    async with PopulateDatabase().populate_db_at_regular_intervals(
         duration=duration
     ) as session_factory:
         yield session_factory
 
 
 @pytest.fixture(scope="function")
-@contextmanager
-def populate_db_with_analyze_request_every_15_minutes_for_3_weeks():
+@asynccontextmanager
+async def populate_db_with_analyze_request_every_15_minutes_for_3_weeks():
     duration = datetime.timedelta(weeks=3)
-    with PopulateDatabase().populate_db_at_regular_intervals(
+    async with PopulateDatabase().populate_db_at_regular_intervals(
         duration=duration
     ) as session_factory:
         yield session_factory
@@ -296,15 +295,19 @@ def build_log():
 
 
 @pytest.fixture
-def mock_AnalyzeRequestMetrics():
-    update_response_metrics = flexmock()
-    all_metrics = (
-        flexmock().should_receive("first").and_return(update_response_metrics).mock()
+def mock_AnalyzeRequestMetrics(mocker: MockerFixture):
+    mock_create = mocker.patch(
+        "logdetective.server.database.models.AnalyzeRequestMetrics.create",
+        new_callable=AsyncMock,
+        return_value=1,
     )
-    query = flexmock().should_receive("filter_by").and_return(all_metrics).mock()
-    flexmock(session.Session).should_receive("query").and_return(query)
-    flexmock(session.Session).should_receive("add").and_return()
-    flexmock(AnalyzeRequestMetrics).should_receive("create").once().and_return(1)
+
+    mock_update = mocker.patch(
+        "logdetective.server.database.models.AnalyzeRequestMetrics.update",
+        new_callable=AsyncMock,
+    )
+
+    return {"mock_create": mock_create, "mock_update": mock_update}
 
 
 class MockGitlabJob:
@@ -371,8 +374,9 @@ def mock_job() -> MockGitlabJob:
 def create_mock_koji_session(
     mocker, task_id, method, arch="x86_64", list_task_output=True
 ):
-    """Mock koji session. Returns responses to `getTaskOutput`, `listTaskOutput` and `downloadTaskOutput` methods.
-    If `list_task_output` is set to `False` will instead return `None` for the `listTaskOutput`."""
+    """Mock koji session. Returns responses to `getTaskOutput`, `listTaskOutput`
+    and `downloadTaskOutput` methods. If `list_task_output` is set to `False`
+    will instead return `None` for the `listTaskOutput`."""
     mock_session = mocker.Mock()
 
     mock_session.getTaskInfo.return_value = {

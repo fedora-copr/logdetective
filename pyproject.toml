@@ -46,8 +46,6 @@ aiolimiter = ">=1.0.0,<2.0.0"
 
 fastapi = {version = ">=0.111.1,<1.0.0", optional = true }
 sqlalchemy = {version = ">=2.0.36,<3.0.0", optional = true }
-psycopg2-binary = {version = ">=2.9.9,<3.0.0", optional = true }
-psycopg2 = {version = ">=2.9.9,<3.0.0", optional = true }
 alembic = {version = ">=1.13.3,<2.0.0", optional = true }
 matplotlib = {version = ">=3.8.4,<4.0.0", optional = true }
 backoff = {version = "2.2.1", optional = true }
@@ -61,13 +59,24 @@ pytest-mock = {version = ">=3.14.1,<4.0.0", optional = true}
 flexmock = {version = ">=0.12.2,<0.13.0", optional = true}
 pytest = {version = ">=8.4.1,<9.0.0", optional = true}
 pytest-cov = {version = "^7.0.0", extras = ["testing"], optional = true}
+asyncpg = {version = "^0.30.0", optional = true}
 
 [tool.poetry.extras]
-server = ["fastapi", "sqlalchemy", "psycopg2", "alembic", "matplotlib", "backoff", "aiolimiter", "sentry-sdk", "openai", "koji"]
+server = [
+    "fastapi",
+    "sqlalchemy",
+    "alembic",
+    "matplotlib",
+    "backoff",
+    "aiolimiter",
+    "sentry-sdk",
+    "openai",
+    "koji",
+    "asyncpg"
+]
 server-testing = [
     "fastapi",
     "sqlalchemy",
-    "psycopg2-binary",
     "alembic",
     "matplotlib",
     "backoff",
@@ -76,6 +85,7 @@ server-testing = [
     "koji",
     "pytest-mock",
     "responses",
+    "asyncpg",
 ]
 testing = [
     "pytest",

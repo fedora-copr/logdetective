@@ -163,7 +163,7 @@ def _add_line_chart(  # pylint: disable=too-many-arguments disable=too-many-posi
         ax.tick_params(axis="y", labelcolor=color)
 
 
-def requests_per_time(
+async def requests_per_time(
     period_of_time: TimePeriod,
     endpoint: EndpointType = EndpointType.ANALYZE,
     end_time: Optional[datetime.datetime] = None,
@@ -191,7 +191,7 @@ def requests_per_time(
     end_time = end_time or datetime.datetime.now(datetime.timezone.utc)
     start_time = period_of_time.get_period_start_time(end_time)
     plot_def = Definition(period_of_time)
-    requests_counts = AnalyzeRequestMetrics.get_requests_in_period(
+    requests_counts = await AnalyzeRequestMetrics.get_requests_in_period(
         start_time, end_time, plot_def.time_format, endpoint
     )
     timestamps, counts = create_time_series_arrays(
@@ -218,7 +218,7 @@ def requests_per_time(
     return fig
 
 
-def average_time_per_responses(  # pylint: disable=too-many-locals
+async def average_time_per_responses(  # pylint: disable=too-many-locals
     period_of_time: TimePeriod,
     endpoint: EndpointType = EndpointType.ANALYZE,
     end_time: Optional[datetime.datetime] = None,
@@ -246,8 +246,10 @@ def average_time_per_responses(  # pylint: disable=too-many-locals
     end_time = end_time or datetime.datetime.now(datetime.timezone.utc)
     start_time = period_of_time.get_period_start_time(end_time)
     plot_def = Definition(period_of_time)
-    responses_average_time = AnalyzeRequestMetrics.get_responses_average_time_in_period(
-        start_time, end_time, plot_def.time_format, endpoint
+    responses_average_time = (
+        await AnalyzeRequestMetrics.get_responses_average_time_in_period(
+            start_time, end_time, plot_def.time_format, endpoint
+        )
     )
     timestamps, average_time = create_time_series_arrays(
         responses_average_time,
@@ -262,7 +264,7 @@ def average_time_per_responses(  # pylint: disable=too-many-locals
         ax1, plot_def, timestamps, average_time, "average response time (seconds)"
     )
 
-    responses_average_length = (
+    responses_average_length = await (
         AnalyzeRequestMetrics.get_responses_average_length_in_period(
             start_time, end_time, plot_def.time_format, endpoint
         )
@@ -292,7 +294,7 @@ def average_time_per_responses(  # pylint: disable=too-many-locals
     return fig
 
 
-def _collect_emoji_data(
+async def _collect_emoji_data(
     start_time: datetime.datetime, plot_def: Definition
 ) -> Dict[str, Dict[datetime.datetime, int]]:
     """Collect and organize emoji feedback data
@@ -300,7 +302,7 @@ def _collect_emoji_data(
     Counts all emojis given to logdetective comments created since start_time.
     Collect counts in time accordingly to the plot definition.
     """
-    reactions = Reactions.get_since(start_time)
+    reactions = await Reactions.get_since(start_time)
     reactions_values_dict: Dict[str, Dict] = {}
     for comment_created_at, reaction in reactions:
         comment_created_at_formatted = comment_created_at.strptime(
@@ -369,7 +371,7 @@ def _plot_emoji_data(  # pylint: disable=too-many-locals
     return emoji_lines, emoji_labels
 
 
-def emojis_per_time(
+async def emojis_per_time(
     period_of_time: TimePeriod,
     end_time: Optional[datetime.datetime] = None,
 ) -> figure.Figure:
@@ -395,7 +397,7 @@ def emojis_per_time(
     plot_def = Definition(period_of_time)
     end_time = end_time or datetime.datetime.now(datetime.timezone.utc)
     start_time = period_of_time.get_period_start_time(end_time)
-    reactions_values_dict = _collect_emoji_data(start_time, plot_def)
+    reactions_values_dict = await _collect_emoji_data(start_time, plot_def)
 
     fig, ax = pyplot.subplots(figsize=(12, 6))
 
