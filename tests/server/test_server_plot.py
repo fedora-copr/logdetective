@@ -1,6 +1,8 @@
 import datetime
 import tempfile
 
+from matplotlib.figure import Figure
+
 import pytest
 
 from tests.server.test_helpers import PopulateDatabase
@@ -33,9 +35,10 @@ def test_day_Definition():
     "endpoint",
     [EndpointType.ANALYZE, EndpointType.ANALYZE_STAGED],
 )
-def test_create_time_series_arrays(endpoint):
+@pytest.mark.asyncio
+async def test_create_time_series_arrays(endpoint):
     duration = datetime.timedelta(hours=15)
-    with PopulateDatabase.populate_db(
+    async with PopulateDatabase.populate_db(
         duration=duration,
         endpoint=endpoint,
     ) as _:
@@ -43,7 +46,7 @@ def test_create_time_series_arrays(endpoint):
         plot_details = plot.Definition(period)
         end_time = datetime.datetime.now(datetime.timezone.utc)
         start_time = period.get_period_start_time(end_time)
-        counts_dict = AnalyzeRequestMetrics.get_requests_in_period(
+        counts_dict = await AnalyzeRequestMetrics.get_requests_in_period(
             start_time, end_time, plot_details.time_format, endpoint
         )
         timestamps, counts = create_time_series_arrays(
@@ -58,30 +61,30 @@ def test_create_time_series_arrays(endpoint):
         )  # since we have added requests just for the last 15 hours
 
 
-def _save_fig(fig):
+def _save_fig(fig: Figure):
     with tempfile.NamedTemporaryFile(suffix=".svg", delete=False) as tmp_file:
         temp_filename = tmp_file.name
     fig.savefig(temp_filename, bbox_inches="tight")  # for inspecting it later
 
 
-def _test_plot(
+async def _test_plot(
     duration: datetime.timedelta,
     period: models.TimePeriod,
     plot: callable,
     endpoint: EndpointType = None,
 ) -> None:
     if plot is emojis_per_time:
-        with PopulateDatabase.populate_db_with_emojis(
+        async with PopulateDatabase.populate_db_with_emojis(
             duration=duration,
         ) as _:
-            fig = plot(period)
+            fig = await plot(period)
     else:
-        with PopulateDatabase.populate_db(
+        async with PopulateDatabase.populate_db(
             duration=duration,
             endpoint=endpoint,
         ) as _:
-            fig = plot(period, endpoint)
-    assert fig
+            fig = await plot(period, endpoint)
+    assert isinstance(fig, Figure)
     _save_fig(fig)
 
 
@@ -115,10 +118,11 @@ def _test_plot(
         ),
     ],
 )
-def test_hourly_plots(endpoint, plot):
+@pytest.mark.asyncio
+async def test_hourly_plots(endpoint, plot):
     duration = datetime.timedelta(hours=14)
     period = models.TimePeriod(hours=22)
-    _test_plot(duration, period, plot, endpoint)
+    await _test_plot(duration, period, plot, endpoint)
 
 
 @pytest.mark.parametrize(
@@ -151,10 +155,11 @@ def test_hourly_plots(endpoint, plot):
         ),
     ],
 )
-def test_daily_plots(endpoint, plot):
+@pytest.mark.asyncio
+async def test_daily_plots(endpoint, plot):
     duration = datetime.timedelta(days=9)
     period = models.TimePeriod(days=15)
-    _test_plot(duration, period, plot, endpoint)
+    await _test_plot(duration, period, plot, endpoint)
 
 
 @pytest.mark.parametrize(
@@ -187,7 +192,8 @@ def test_daily_plots(endpoint, plot):
         ),
     ],
 )
-def test_weekly_plots(endpoint, plot):
+@pytest.mark.asyncio
+async def test_weekly_plots(endpoint, plot):
     duration = datetime.timedelta(weeks=3)
     period = models.TimePeriod(weeks=5)
-    _test_plot(duration, period, plot, endpoint)
+    await _test_plot(duration, period, plot, endpoint)

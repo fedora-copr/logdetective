@@ -8,6 +8,8 @@ import responses
 import aioresponses
 from packaging.version import Version
 from pytest_mock import MockerFixture
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from fastapi import HTTPException
 
 from flexmock import flexmock
@@ -33,6 +35,7 @@ from logdetective.server.compressors import RemoteLogCompressor
 from logdetective.server.database.models import (
     AnalyzeRequestMetrics,
     Forge,
+    GitlabMergeRequestJobs,
 )
 from logdetective.server import gitlab, llm
 from logdetective.server.exceptions import LogsTooLargeError
@@ -330,7 +333,7 @@ async def mock_job_hook():
 async def test_process_gitlab_job_event(
     mock_config, mock_job_hook, mock_chat_completions
 ):
-    with DatabaseFactory().make_new_db() as session_factory:
+    async with DatabaseFactory().make_new_db() as session_factory:
         _, _, job_hook = mock_job_hook
         gitlab_instance = GitLabInstanceConfig(
             name="mocked_gitlab",
@@ -347,8 +350,18 @@ async def test_process_gitlab_job_event(
             forge=Forge.gitlab_com,
             job_hook=job_hook,
         )
-        with session_factory() as db_session:
-            metric = db_session.get(AnalyzeRequestMetrics, 1)
+        async with session_factory() as db_session:
+            query = (
+                select(AnalyzeRequestMetrics)
+                .where(AnalyzeRequestMetrics.id == 1)
+                .options(
+                    selectinload(AnalyzeRequestMetrics.mr_job).selectinload(
+                        GitlabMergeRequestJobs.comment
+                    )
+                )
+            )
+            query_results = await db_session.execute(query)
+            metric = query_results.scalars().first()
             assert isinstance(metric, AnalyzeRequestMetrics)
             assert (
                 RemoteLogCompressor.unzip(metric.compressed_log)  # noqa: W504 flake vs ruff
@@ -524,9 +537,7 @@ async def test_check_artifacts_file_size_handles_http_error(
 
 
 @pytest.mark.asyncio
-async def test_architecture_prioritization(
-    mocker: MockerFixture, gitlab_cfg, mock_job
-):
+async def test_architecture_prioritization(mocker: MockerFixture, gitlab_cfg, mock_job):
     """Test that the correct architecture is chosen when multiple have failed.
     x86_64 should be preferred over aarch64.
     """

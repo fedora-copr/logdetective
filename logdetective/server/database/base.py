@@ -1,15 +1,14 @@
 from os import getenv
-from contextlib import contextmanager
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
-
+from contextlib import asynccontextmanager
+from sqlalchemy.orm import declarative_base
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from logdetective import logger
 
 
 def get_pg_url() -> str:
     """create postgresql connection string"""
     return (
-        f"postgresql+psycopg2://{getenv('POSTGRESQL_USER')}"
+        f"postgresql+asyncpg://{getenv('POSTGRESQL_USER')}"
         f":{getenv('POSTGRESQL_PASSWORD')}@{getenv('POSTGRESQL_HOST', 'postgres')}"
         f":{getenv('POSTGRESQL_PORT', '5432')}/{getenv('POSTGRESQL_DATABASE')}"
     )
@@ -23,13 +22,13 @@ sqlalchemy_echo = getenv("SQLALCHEMY_ECHO", "False").lower() in (
     "y",
     "1",
 )
-engine = create_engine(get_pg_url(), echo=sqlalchemy_echo)
-SessionFactory = sessionmaker(autoflush=True, bind=engine)  # pylint: disable=invalid-name
+engine = create_async_engine(get_pg_url(), echo=sqlalchemy_echo)
+SessionFactory = async_sessionmaker(autoflush=True, bind=engine)  # pylint: disable=invalid-name
 Base = declarative_base()
 
 
-@contextmanager
-def transaction(commit: bool = False):
+@asynccontextmanager
+async def transaction(commit: bool = False):
     """
     Context manager for 'framing' a db transaction.
 
@@ -39,27 +38,30 @@ def transaction(commit: bool = False):
     """
 
     session = SessionFactory()
-    try:
-        yield session
-        if commit:
-            session.commit()
-    except Exception as ex:
-        logger.warning("Exception while working with database: %s", str(ex))
-        session.rollback()
-        raise
-    finally:
-        session.close()
+    async with session:
+        try:
+            yield session
+            if commit:
+                await session.commit()
+        except Exception as ex:
+            logger.warning("Exception while working with database: %s", str(ex))
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
 
 
-def init():
+async def init():
     """Init db"""
-    Base.metadata.create_all(engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
     logger.debug("Database initialized")
 
 
-def destroy():
+async def destroy():
     """Destroy db"""
-    Base.metadata.drop_all(engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
     logger.warning("Database cleaned")
 
 

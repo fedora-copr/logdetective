@@ -80,7 +80,7 @@ async def process_gitlab_job_event(
     # Check if this is a resubmission of an existing, completed job.
     # If it is, we'll exit out here and not waste time retrieving the logs,
     # running a new analysis or trying to submit a new comment.
-    mr_job_db = GitlabMergeRequestJobs.get_by_details(
+    mr_job_db = await GitlabMergeRequestJobs.get_by_details(
         forge=forge,
         project_id=project.id,
         mr_iid=merge_request_iid,
@@ -109,7 +109,7 @@ async def process_gitlab_job_event(
         compressed_log_content=RemoteLogCompressor.zip_text(log_text),
     )
     staged_response = await perform_staged_analysis(log_text=log_text)
-    update_metrics(metrics_id, staged_response)
+    await update_metrics(metrics_id, staged_response)
     preprocessed_log.close()
 
     # check if this project is on the opt-in list for posting comments.
@@ -357,13 +357,13 @@ async def comment_on_mr(  # pylint: disable=too-many-arguments disable=too-many-
     await asyncio.to_thread(note.save)
 
     # Save the new comment to the database
-    metrics = AnalyzeRequestMetrics.get_metric_by_id(metrics_id)
-    Comments.create(
+    metrics = await AnalyzeRequestMetrics.get_metric_by_id(metrics_id)
+    await Comments.create(
         forge,
         project.id,
         merge_request_iid,
         job.id,
-        discussion.id,
+        str(discussion.id),
         metrics,
     )
 
@@ -378,7 +378,7 @@ async def suppress_latest_comment(
     superseded by a new push."""
 
     # Ask the database for the last known comment for this MR
-    previous_comment = Comments.get_latest_comment(
+    previous_comment = await Comments.get_latest_comment(
         gitlab_instance, project.id, merge_request_iid
     )
 

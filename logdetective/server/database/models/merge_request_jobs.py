@@ -13,6 +13,7 @@ from sqlalchemy import (
     ForeignKey,
     UniqueConstraint,
     desc,
+    select,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.engine import Row
@@ -70,7 +71,7 @@ class GitlabMergeRequestJobs(Base):
 
     @classmethod
     @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
-    def create(
+    async def create(
         cls,
         forge: Forge,
         project_id: int,
@@ -86,28 +87,30 @@ class GitlabMergeRequestJobs(Base):
           mr_iid: merge request forge iid
           job_id: forge job id
         """
-        with transaction(commit=True) as session:
+        async with transaction(commit=True) as session:
             mr = cls()
             mr.forge = forge
             mr.project_id = project_id
             mr.mr_iid = mr_iid
             mr.job_id = job_id
             session.add(mr)
-            session.flush()
+            await session.flush()
             return mr.id
 
     @classmethod
-    def get_by_id(
+    async def get_by_id(
         cls,
         id_: int,
     ) -> Optional["GitlabMergeRequestJobs"]:
         """Search for a given PostgreSQL id"""
-        with transaction(commit=False) as session:
-            mr = session.query(cls).filter_by(id=id_).first()
+        query = select(cls).where(cls.id == id_)
+        async with transaction(commit=False) as session:
+            query_result = await session.execute(query)
+            mr = query_result.scalars().first()
             return mr
 
     @classmethod
-    def get_by_details(
+    async def get_by_details(
         cls,
         forge: Forge,
         project_id: int,
@@ -122,36 +125,34 @@ class GitlabMergeRequestJobs(Base):
           mr_iid: merge request forge iid
           job_id: forge job id
         """
-        with transaction(commit=False) as session:
-            mr = (
-                session.query(cls)
-                .filter_by(
-                    forge=forge, project_id=project_id, mr_iid=mr_iid, job_id=job_id
-                )
-                .first()
-            )
+        query = select(cls).where(
+            cls.forge == forge,
+            cls.project_id == project_id,
+            cls.mr_iid == mr_iid,
+            cls.job_id == job_id,
+        )
+        async with transaction(commit=False) as session:
+            query_result = await session.execute(query)
+            mr = query_result.scalars().first()
             return mr
 
     @classmethod
-    def get_by_mr_iid(
-        cls, forge: Forge, project_id: int, mr_iid
-    ) -> List[Self]:
+    async def get_by_mr_iid(cls, forge: Forge, project_id: int, mr_iid) -> List[Self]:
         """Get all the mr jobs saved for the specified mr iid and project id."""
-        with transaction(commit=False) as session:
-            comments = (
-                session.query(cls)
-                .filter(
-                    GitlabMergeRequestJobs.forge == forge,
-                    GitlabMergeRequestJobs.project_id == project_id,
-                    GitlabMergeRequestJobs.mr_iid == mr_iid,
-                )
-                .all()
-            )
+        query = select(cls).where(
+            GitlabMergeRequestJobs.forge == forge,
+            GitlabMergeRequestJobs.project_id == project_id,
+            GitlabMergeRequestJobs.mr_iid == mr_iid,
+        )
+
+        async with transaction(commit=False) as session:
+            query_result = await session.execute(query)
+            comments = query_result.scalars().all()
 
             return comments
 
     @classmethod
-    def get_or_create(
+    async def get_or_create(
         cls,
         forge: Forge,
         project_id: int,
@@ -167,10 +168,12 @@ class GitlabMergeRequestJobs(Base):
           mr_iid: merge request forge iid
           job_id: forge job id
         """
-        mr = GitlabMergeRequestJobs.get_by_details(forge, project_id, mr_iid, job_id)
+        mr = await GitlabMergeRequestJobs.get_by_details(
+            forge, project_id, mr_iid, job_id
+        )
         if mr is None:
-            id_ = GitlabMergeRequestJobs.create(forge, project_id, mr_iid, job_id)
-            mr = GitlabMergeRequestJobs.get_by_id(id_)
+            id_ = await GitlabMergeRequestJobs.create(forge, project_id, mr_iid, job_id)
+            mr = await GitlabMergeRequestJobs.get_by_id(id_)
         return mr
 
 
@@ -197,7 +200,9 @@ class Comments(Base):
         comment="The comment gitlab id",
     )
     created_at = Column(
-        DateTime, nullable=False, comment="Timestamp when the comment was created"
+        DateTime(timezone=True),
+        nullable=False,
+        comment="Timestamp when the comment was created",
     )
 
     __table_args__ = (
@@ -209,7 +214,7 @@ class Comments(Base):
 
     @classmethod
     @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
-    def create(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
+    async def create(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
         cls,
         forge: Forge,
         project_id: int,
@@ -230,8 +235,8 @@ class Comments(Base):
           job_id: forge job id
           comment_id: forge comment id
         """
-        with transaction(commit=True) as session:
-            mr_job = GitlabMergeRequestJobs.get_or_create(
+        async with transaction(commit=True) as session:
+            mr_job = await GitlabMergeRequestJobs.get_or_create(
                 forge, project_id, mr_iid, job_id
             )
 
@@ -245,21 +250,23 @@ class Comments(Base):
             comment.created_at = datetime.datetime.now(datetime.timezone.utc)
             comment.merge_request_job_id = mr_job.id
             session.add(comment)
-            session.flush()
+            await session.flush()
             return comment.id
 
     @classmethod
-    def get_by_id(
+    async def get_by_id(
         cls,
         id_: int,
     ) -> Optional["Comments"]:
         """Search for a given PostgreSQL id"""
-        with transaction(commit=False) as session:
-            comment = session.query(cls).filter_by(id=id_).first()
+        query = select(cls).where(cls.id == id_)
+        async with transaction(commit=False) as session:
+            query_result = await session.execute(query)
+            comment = query_result.scalars().first()
             return comment
 
     @classmethod
-    def get_by_gitlab_id(
+    async def get_by_gitlab_id(
         cls,
         forge: Forge,
         comment_id: str,
@@ -271,24 +278,21 @@ class Comments(Base):
           forge: forge name
           comment_id: forge comment id
         """
-        with transaction(commit=False) as session:
-            comment = (
-                session.query(cls)
-                .join(
-                    GitlabMergeRequestJobs,
-                    cls.merge_request_job_id == GitlabMergeRequestJobs.id,
-                )
-                .filter(
-                    GitlabMergeRequestJobs.forge == forge,
-                    cls.comment_id == comment_id,
-                )
-                .first()
+        query = (
+            select(cls)
+            .join(
+                GitlabMergeRequestJobs,
+                cls.merge_request_job_id == GitlabMergeRequestJobs.id,
             )
-
+            .filter(GitlabMergeRequestJobs.forge == forge, cls.comment_id == comment_id)
+        )
+        async with transaction(commit=False) as session:
+            query_result = await session.execute(query)
+            comment = query_result.scalars().first()
             return comment
 
     @classmethod
-    def get_latest_comment(
+    async def get_latest_comment(
         cls,
         forge: Forge,
         project_id: int,
@@ -301,26 +305,26 @@ class Comments(Base):
           project_id: forge project id
           mr_iid: merge request forge iid
         """
-        with transaction(commit=False) as session:
-            comment = (
-                session.query(cls)
-                .join(
-                    GitlabMergeRequestJobs,
-                    cls.merge_request_job_id == GitlabMergeRequestJobs.id,
-                )
-                .filter(
-                    GitlabMergeRequestJobs.forge == forge,
-                    GitlabMergeRequestJobs.project_id == project_id,
-                    GitlabMergeRequestJobs.mr_iid == mr_iid,
-                )
-                .order_by(desc(cls.created_at))
-                .first()
+        query = (
+            select(cls)
+            .join(
+                GitlabMergeRequestJobs,
+                cls.merge_request_job_id == GitlabMergeRequestJobs.id,
             )
-
+            .filter(
+                GitlabMergeRequestJobs.forge == forge,
+                GitlabMergeRequestJobs.project_id == project_id,
+                GitlabMergeRequestJobs.mr_iid == mr_iid,
+            )
+            .order_by(desc(cls.created_at))
+        )
+        async with transaction(commit=False) as session:
+            query_result = await session.execute(query)
+            comment = query_result.scalars().first()
             return comment
 
     @classmethod
-    def get_mr_comments(
+    async def get_mr_comments(
         cls,
         forge: Forge,
         project_id: int,
@@ -333,26 +337,26 @@ class Comments(Base):
           project_id: forge project id
           mr_iid: merge request forge iid
         """
-        with transaction(commit=False) as session:
-            comments = (
-                session.query(cls)
-                .join(
-                    GitlabMergeRequestJobs,
-                    cls.merge_request_job_id == GitlabMergeRequestJobs.id,
-                )
-                .filter(
-                    GitlabMergeRequestJobs.forge == forge,
-                    GitlabMergeRequestJobs.project_id == project_id,
-                    GitlabMergeRequestJobs.mr_iid == mr_iid,
-                )
-                .order_by(desc(cls.created_at))
-                .all()
+        query = (
+            select(cls)
+            .join(
+                GitlabMergeRequestJobs,
+                cls.merge_request_job_id == GitlabMergeRequestJobs.id,
             )
-
+            .filter(
+                GitlabMergeRequestJobs.forge == forge,
+                GitlabMergeRequestJobs.project_id == project_id,
+                GitlabMergeRequestJobs.mr_iid == mr_iid,
+            )
+            .order_by(desc(cls.created_at))
+        )
+        async with transaction(commit=False) as session:
+            query_result = await session.execute(query)
+            comments = query_result.scalars().all()
             return comments
 
     @classmethod
-    def get_or_create(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
+    async def get_or_create(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
         cls,
         forge: Forge,
         project_id: int,
@@ -370,40 +374,31 @@ class Comments(Base):
           job_id: forge job id
           comment_id: forge comment id
         """
-        comment = Comments.get_by_gitlab_id(forge, comment_id)
+        comment = await Comments.get_by_gitlab_id(forge, comment_id)
         if comment is None:
-            id_ = Comments.create(forge, project_id, mr_iid, job_id, comment_id)
-            comment = Comments.get_by_id(id_)
+            id_ = await Comments.create(forge, project_id, mr_iid, job_id, comment_id)
+            comment = await Comments.get_by_id(id_)
         return comment
 
     @classmethod
-    def get_since(cls, time: datetime.datetime) -> List[Self]:
+    async def get_since(cls, time: datetime.datetime) -> List[Self]:
         """Get all the comments created after the given time."""
-        with transaction(commit=False) as session:
-            comments = (
-                session.query(cls)
-                .filter(
-                    Comments.created_at > time,
-                )
-                .all()
-            )
+        query = select(cls).filter(Comments.created_at > time)
+        async with transaction(commit=False) as session:
+            query_result = await session.execute(query)
+            comments = query_result.scalars().all()
 
             return comments
 
     @classmethod
-    def get_by_mr_job(
+    async def get_by_mr_job(
         cls, merge_request_job: GitlabMergeRequestJobs
     ) -> Optional["Comments"]:
         """Get the comment added for the specified merge request's job."""
-        with transaction(commit=False) as session:
-            comments = (
-                session.query(cls)
-                .filter(
-                    Comments.merge_request_job == merge_request_job,
-                )
-                .first()  # just one
-            )
-
+        query = select(cls).filter(Comments.merge_request_job == merge_request_job)
+        async with transaction(commit=False) as session:
+            query_result = await session.execute(query)
+            comments = query_result.scalars().first()
             return comments
 
 
@@ -440,7 +435,7 @@ class Reactions(Base):
 
     @classmethod
     @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
-    def create_or_update(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
+    async def create_or_update(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
         cls,
         forge: Forge,
         project_id: int,
@@ -462,11 +457,13 @@ class Reactions(Base):
           reaction_type: a str, ex. thumb_up
           count: number of reactions, of this type, given in the comment
         """
-        comment = Comments.get_or_create(forge, project_id, mr_iid, job_id, comment_id)
-        reaction = cls.get_reaction_by_type(
+        comment = await Comments.get_or_create(
+            forge, project_id, mr_iid, job_id, comment_id
+        )
+        reaction = await cls.get_reaction_by_type(
             forge, project_id, mr_iid, job_id, comment_id, reaction_type
         )
-        with transaction(commit=True) as session:
+        async with transaction(commit=True) as session:
             if reaction:
                 reaction.count = count  # just update
             else:
@@ -475,11 +472,11 @@ class Reactions(Base):
                 reaction.reaction_type = reaction_type
                 reaction.count = count
             session.add(reaction)
-            session.flush()
+            await session.flush()
             return reaction.id
 
     @classmethod
-    def get_all_reactions(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
+    async def get_all_reactions(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
         cls,
         forge: Forge,
         project_id: int,
@@ -496,28 +493,28 @@ class Reactions(Base):
           job_id: forge job id
           comment_id: forge comment id
         """
-        with transaction(commit=False) as session:
-            reactions = (
-                session.query(cls)
-                .join(Comments, cls.comment_id == Comments.id)
-                .join(
-                    GitlabMergeRequestJobs,
-                    Comments.merge_request_job_id == GitlabMergeRequestJobs.id,
-                )
-                .filter(
-                    Comments.comment_id == comment_id,
-                    GitlabMergeRequestJobs.forge == forge,
-                    GitlabMergeRequestJobs.project_id == project_id,
-                    GitlabMergeRequestJobs.mr_iid == mr_iid,
-                    GitlabMergeRequestJobs.job_id == job_id,
-                )
-                .all()
+        query = (
+            select(cls)
+            .join(Comments, cls.comment_id == Comments.id)
+            .join(
+                GitlabMergeRequestJobs,
+                Comments.merge_request_job_id == GitlabMergeRequestJobs.id,
             )
-
+            .filter(
+                Comments.comment_id == comment_id,
+                GitlabMergeRequestJobs.forge == forge,
+                GitlabMergeRequestJobs.project_id == project_id,
+                GitlabMergeRequestJobs.mr_iid == mr_iid,
+                GitlabMergeRequestJobs.job_id == job_id,
+            )
+        )
+        async with transaction(commit=False) as session:
+            query_result = await session.execute(query)
+            reactions = query_result.scalars().all()
             return reactions
 
     @classmethod
-    def get_reaction_by_type(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
+    async def get_reaction_by_type(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
         cls,
         forge: Forge,
         project_id: int,
@@ -537,30 +534,30 @@ class Reactions(Base):
           comment_id: forge comment id
           reaction_type: str like "thumb-up"
         """
-        with transaction(commit=False) as session:
-            reaction = (
-                session.query(cls)
-                .join(Comments, cls.comment_id == Comments.id)
-                .join(
-                    GitlabMergeRequestJobs,
-                    Comments.merge_request_job_id == GitlabMergeRequestJobs.id,
-                )
-                .filter(
-                    Comments.comment_id == comment_id,
-                    GitlabMergeRequestJobs.forge == forge,
-                    GitlabMergeRequestJobs.project_id == project_id,
-                    GitlabMergeRequestJobs.mr_iid == mr_iid,
-                    GitlabMergeRequestJobs.job_id == job_id,
-                    Reactions.reaction_type == reaction_type,
-                )
-                .first()
+        query = (
+            select(cls)
+            .join(Comments, cls.comment_id == Comments.id)
+            .join(
+                GitlabMergeRequestJobs,
+                Comments.merge_request_job_id == GitlabMergeRequestJobs.id,
             )
-
+            .filter(
+                Comments.comment_id == comment_id,
+                GitlabMergeRequestJobs.forge == forge,
+                GitlabMergeRequestJobs.project_id == project_id,
+                GitlabMergeRequestJobs.mr_iid == mr_iid,
+                GitlabMergeRequestJobs.job_id == job_id,
+                Reactions.reaction_type == reaction_type,
+            )
+        )
+        async with transaction(commit=False) as session:
+            query_result = await session.execute(query)
+            reaction = query_result.scalars().first()
             return reaction
 
     @classmethod
     @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
-    def delete(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
+    async def delete(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
         cls,
         forge: Forge,
         project_id: int,
@@ -580,25 +577,27 @@ class Reactions(Base):
           reaction_type: a str iterable, ex. ['thumbsup', 'thumbsdown']
         """
         for reaction_type in reaction_types:
-            reaction = cls.get_reaction_by_type(
+            reaction = await cls.get_reaction_by_type(
                 forge, project_id, mr_iid, job_id, comment_id, reaction_type
             )
-            with transaction(commit=True) as session:
-                session.delete(reaction)
-                session.flush()
+            async with transaction(commit=True) as session:
+                await session.delete(reaction)
+                await session.flush()
 
     @classmethod
-    def get_since(
+    async def get_since(
         cls, time: datetime.datetime
     ) -> List[Row[Tuple[datetime.datetime, Self]]]:
         """Get all the reactions on comments created after the given time
         and the comment creation time."""
-        with transaction(commit=False) as session:
-            reactions = (
-                session.query(Comments.created_at, cls)
-                .join(Comments, cls.comment_id == Comments.id)
-                .filter(Comments.created_at > time)
-                .all()
-            )
+        query = (
+            select(Comments.created_at, cls)
+            .join(Comments, cls.comment_id == Comments.id)
+            .filter(Comments.created_at > time)
+        )
+
+        async with transaction(commit=False) as session:
+            query_results = await session.execute(query)
+            reactions = query_results.all()
 
             return reactions

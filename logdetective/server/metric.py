@@ -32,7 +32,7 @@ async def add_new_metrics(
         remote_log = RemoteLog(url, http_session)
         compressed_log_content = await RemoteLogCompressor(remote_log).zip_content()
 
-    return AnalyzeRequestMetrics.create(
+    return await AnalyzeRequestMetrics.create(
         endpoint=EndpointType(api_name),
         compressed_log=compressed_log_content,
         request_received_at=received_at
@@ -41,7 +41,7 @@ async def add_new_metrics(
     )
 
 
-def update_metrics(
+async def update_metrics(
     metrics_id: int,
     response: Union[models.Response, models.StagedResponse, StreamingResponse],
     sent_at: Optional[datetime.datetime] = None,
@@ -73,12 +73,12 @@ def update_metrics(
     response_certainty = (
         response.response_certainty if hasattr(response, "response_certainty") else None
     )
-    AnalyzeRequestMetrics.update(
-        metrics_id,
-        response_sent_at,
-        response_length,
-        response_certainty,
-        compressed_response,
+    await AnalyzeRequestMetrics.update(
+        id_=metrics_id,
+        response_sent_at=response_sent_at,
+        response_length=response_length,
+        response_certainty=response_certainty,
+        compressed_response=compressed_response,
     )
 
 
@@ -112,7 +112,7 @@ def track_request(name=None):
                 name if name else f.__name__, log_url, kwargs["http_session"]
             )
             response = await f(*args, **kwargs)
-            update_metrics(metrics_id, response)
+            await update_metrics(metrics_id, response)
             return response
 
         if inspect.iscoroutinefunction(f):
