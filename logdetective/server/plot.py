@@ -264,8 +264,8 @@ async def average_time_per_responses(  # pylint: disable=too-many-locals
         ax1, plot_def, timestamps, average_time, "average response time (seconds)"
     )
 
-    responses_average_length = await (
-        AnalyzeRequestMetrics.get_responses_average_length_in_period(
+    responses_average_length =  (
+        await AnalyzeRequestMetrics.get_responses_average_length_in_period(
             start_time, end_time, plot_def.time_format, endpoint
         )
     )
