@@ -371,8 +371,9 @@ def mock_job() -> MockGitlabJob:
 def create_mock_koji_session(
     mocker, task_id, method, arch="x86_64", list_task_output=True
 ):
-    """Mock koji session. Returns responses to `getTaskOutput`, `listTaskOutput` and `downloadTaskOutput` methods.
-    If `list_task_output` is set to `False` will instead return `None` for the `listTaskOutput`."""
+    """Mock koji session. Returns responses to `getTaskOutput`, `listTaskOutput`
+    and `downloadTaskOutput` methods. If `list_task_output` is set to `False`
+    will instead return `None` for the `listTaskOutput`."""
     mock_session = mocker.Mock()
 
     mock_session.getTaskInfo.return_value = {
