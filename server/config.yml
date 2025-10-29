@@ -28,30 +28,31 @@ extractor:
   verbose: false
 # Set this value to reasonable number based on maximum context length of your model
   # max_snippet_len: 2000
-gitlab:
-  "GitLab SaaS":
-    url: https://gitlab.com
-    api_token: glpat-XXXXXX
-    webhook_secrets: []
-    max_artifact_size: 300
-    timeout: 5.0
-  "GitLab Internal":
-    url: https://gitlab.example.com
-    api_token: glpat-XXXXXX
-    max_artifact_size: 300
-    webhook_secrets:
-      - example_secret
-    timeout: 6.0
-koji:
-  analysis_timeout: 15
-  max_artifact_size: 300
+# Configuration for gitlab and koji
+# gitlab:
+#   "GitLab SaaS":
+#     url: https://gitlab.com
+#     api_token: glpat-XXXXXX
+#     webhook_secrets: []
+#     max_artifact_size: 300
+#     timeout: 5.0
+#   "GitLab Internal":
+#     url: https://gitlab.example.com
+#     api_token: glpat-XXXXXX
+#     max_artifact_size: 300
+#     webhook_secrets:
+#       - example_secret
+#     timeout: 6.0
+# koji:
+#   analysis_timeout: 15
+#   max_artifact_size: 300
 
-  # Koji instances
-  instances:
-    "fedora":
-      xmlrpc_url: https://koji.fedoraproject.org/kojihub
-      tokens:
-        - example_token
+#   # Koji instances
+#   instances:
+#     "fedora":
+#       xmlrpc_url: https://koji.fedoraproject.org/kojihub
+#       tokens:
+#         - example_token
 general:
   devmode: False
   packages:
