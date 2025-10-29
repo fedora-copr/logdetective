@@ -73,6 +73,20 @@ Note that streaming with some models (notably Meta-Llama-3) is broken and can be
 
     logdetective https://example.com/logs.txt --model QuantFactory/Meta-Llama-3-8B-Instruct-GGUF --filename_suffix Q5_K_M.gguf --no-stream
 
+Choice of LLM
+-------------
+
+While Log Detective is compatible with a wide range of LLMs, it does require an instruction tuned model to function properly.
+
+Whether or not the model has been trained to work with instructions can be determined by examining the model card, or simply by checking if it has `instruct` in its name.
+
+When deployed as a server, Log Detective uses `/chat/completions` API as defined by OpenAI. The API must support both `system` and `user` roles, in order to properly work with a system prompt.
+
+Configuration fields `system_role` and `user_role` can be used to set role names for APIs with non-standard roles.
+
+> **Note:**
+> In cases when no system role is available, it is possible to set both fields to the same value. This will concatenate system and standard prompt.
+> This may have negative impact coherence of response.
 
 Real Example
 ------------
