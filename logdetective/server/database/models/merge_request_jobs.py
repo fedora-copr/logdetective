@@ -1,12 +1,12 @@
+from __future__ import annotations
 import enum
 import datetime
-from typing import Optional, List, Tuple, Self
+from typing import Optional, List, Tuple, Self, TYPE_CHECKING
 
 import backoff
 
 from sqlalchemy import (
     Enum,
-    Column,
     BigInteger,
     DateTime,
     String,
@@ -15,10 +15,14 @@ from sqlalchemy import (
     desc,
     select,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.engine import Row
 from sqlalchemy.exc import OperationalError
 from logdetective.server.database.base import Base, transaction, DB_MAX_RETRIES
+
+
+if TYPE_CHECKING:
+    from .metrics import AnalyzeRequestMetrics
 
 
 class Forge(str, enum.Enum):
@@ -35,21 +39,26 @@ class GitlabMergeRequestJobs(Base):
 
     __tablename__ = "gitlab_merge_request_jobs"
 
-    id = Column(BigInteger, primary_key=True)
-    forge = Column(Enum(Forge), nullable=False, index=True, comment="The forge name")
-    project_id = Column(
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    forge: Mapped[Forge] = mapped_column(
+        Enum(Forge),
+        nullable=False,
+        index=True,
+        comment="The forge name"
+    )
+    project_id: Mapped[int] = mapped_column(
         BigInteger,
         nullable=False,
         index=True,
         comment="The project gitlab id",
     )
-    mr_iid = Column(
+    mr_iid: Mapped[int] = mapped_column(
         BigInteger,
         nullable=False,
         index=False,
         comment="The merge request gitlab iid",
     )
-    job_id = Column(
+    job_id: Mapped[int] = mapped_column(
         BigInteger,
         nullable=False,
         index=True,
@@ -63,11 +72,14 @@ class GitlabMergeRequestJobs(Base):
         ),
     )
 
-    comment = relationship(
+    comment: Mapped[List["Comments"]] = relationship(
         "Comments", back_populates="merge_request_job", uselist=False
     )  # 1 comment for 1 job
 
-    request_metrics = relationship("AnalyzeRequestMetrics", back_populates="mr_job")
+    request_metrics: Mapped[List["AnalyzeRequestMetrics"]] = relationship(
+        "AnalyzeRequestMetrics",
+        back_populates="mr_job"
+    )
 
     @classmethod
     @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
@@ -183,8 +195,8 @@ class Comments(Base):
 
     __tablename__ = "comments"
 
-    id = Column(BigInteger, primary_key=True)
-    merge_request_job_id = Column(
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    merge_request_job_id: Mapped[int] = mapped_column(
         BigInteger,
         ForeignKey("gitlab_merge_request_jobs.id"),
         nullable=False,
@@ -192,14 +204,19 @@ class Comments(Base):
         index=True,
         comment="The associated merge request job (db) id",
     )
-    forge = Column(Enum(Forge), nullable=False, index=True, comment="The forge name")
-    comment_id = Column(
+    forge: Mapped[Forge] = mapped_column(
+        Enum(Forge),
+        nullable=False,
+        index=True,
+        comment="The forge name"
+    )
+    comment_id: Mapped[str] = mapped_column(
         String(50),  # e.g. 'd5a3ff139356ce33e37e73add446f16869741b50'
         nullable=False,
         index=True,
         comment="The comment gitlab id",
     )
-    created_at = Column(
+    created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
         comment="Timestamp when the comment was created",
@@ -209,8 +226,11 @@ class Comments(Base):
         UniqueConstraint("forge", "comment_id", name="uix_forge_comment_id"),
     )
 
-    merge_request_job = relationship("GitlabMergeRequestJobs", back_populates="comment")
-    reactions = relationship("Reactions", back_populates="comment")
+    merge_request_job: Mapped["GitlabMergeRequestJobs"] = relationship(
+        "GitlabMergeRequestJobs",
+        back_populates="comment"
+    )
+    reactions: Mapped[list["Reactions"]] = relationship("Reactions", back_populates="comment")
 
     @classmethod
     @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
@@ -408,20 +428,20 @@ class Reactions(Base):
 
     __tablename__ = "reactions"
 
-    id = Column(BigInteger, primary_key=True)
-    comment_id = Column(
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    comment_id: Mapped[int] = mapped_column(
         BigInteger,
         ForeignKey("comments.id"),
         nullable=False,
         index=True,
         comment="The associated comment (db) id",
     )
-    reaction_type = Column(
+    reaction_type: Mapped[str] = mapped_column(
         String(127),  # e.g. 'thumbs-up'
         nullable=False,
         comment="The type of reaction",
     )
-    count = Column(
+    count: Mapped[int] = mapped_column(
         BigInteger,
         nullable=False,
         comment="The number of reactions, of this type, given in the comment",
@@ -431,7 +451,7 @@ class Reactions(Base):
         UniqueConstraint("comment_id", "reaction_type", name="uix_comment_reaction"),
     )
 
-    comment = relationship("Comments", back_populates="reactions")
+    comment: Mapped["Comments"] = relationship("Comments", back_populates="reactions")
 
     @classmethod
     @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)

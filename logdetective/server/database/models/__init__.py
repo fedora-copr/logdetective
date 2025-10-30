@@ -30,4 +30,4 @@ __all__ = [
     KojiTaskNotFoundError.__name__,
     KojiTaskNotAnalyzedError.__name__,
     KojiTaskAnalysisTimeoutError.__name__,
-]
+]  # pylint: disable=undefined-all-variable
