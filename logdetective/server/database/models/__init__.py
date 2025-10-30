@@ -1,4 +1,3 @@
-from logdetective.server.database.base import Base
 from logdetective.server.database.models.merge_request_jobs import (
     Forge,
     GitlabMergeRequestJobs,
@@ -18,8 +17,9 @@ from logdetective.server.database.models.exceptions import (
     KojiTaskAnalysisTimeoutError,
 )
 
+# pylint: disable=undefined-all-variable
+
 __all__ = [
-    Base.__name__,
     GitlabMergeRequestJobs.__name__,
     Comments.__name__,
     Reactions.__name__,
@@ -30,4 +30,4 @@ __all__ = [
     KojiTaskNotFoundError.__name__,
     KojiTaskNotAnalyzedError.__name__,
     KojiTaskAnalysisTimeoutError.__name__,
-]  # pylint: disable=undefined-all-variable
+]
