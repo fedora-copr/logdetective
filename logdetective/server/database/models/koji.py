@@ -1,6 +1,9 @@
+from __future__ import annotations
+from typing import Optional
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import Column, BigInteger, DateTime, ForeignKey, Integer, String, select
-from sqlalchemy.orm import relationship
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, select
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from sqlalchemy.exc import OperationalError
 import backoff
 
@@ -21,25 +24,28 @@ class KojiTaskAnalysis(Base):
 
     __tablename__ = "koji_task_analysis"
 
-    id = Column(Integer, primary_key=True)
-    koji_instance = Column(String(255), nullable=False, index=True)
-    task_id = Column(BigInteger, nullable=False, index=True, unique=True)
-    log_file_name = Column(String(255), nullable=False, index=True)
-    request_received_at = Column(
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    koji_instance: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    task_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True, unique=True)
+    log_file_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    request_received_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
         index=True,
         default=datetime.now(timezone.utc),
         comment="Timestamp when the request was received",
     )
-    response_id = Column(
+    response_id: Mapped[Optional[int]] = mapped_column(
         Integer,
         ForeignKey("analyze_request_metrics.id"),
         nullable=True,
         index=False,
         comment="The id of the analyze request metrics for this task",
     )
-    response = relationship("AnalyzeRequestMetrics")
+    response: Mapped[Optional["AnalyzeRequestMetrics"]] = relationship(
+        "AnalyzeRequestMetrics",
+        back_populates="koji_tasks"
+    )
 
     @classmethod
     @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)

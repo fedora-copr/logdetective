@@ -1,6 +1,6 @@
 from os import getenv
 from contextlib import asynccontextmanager
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from logdetective import logger
 
@@ -24,7 +24,10 @@ sqlalchemy_echo = getenv("SQLALCHEMY_ECHO", "False").lower() in (
 )
 engine = create_async_engine(get_pg_url(), echo=sqlalchemy_echo)
 SessionFactory = async_sessionmaker(autoflush=True, bind=engine)  # pylint: disable=invalid-name
-Base = declarative_base()
+
+
+class Base(DeclarativeBase):
+    """Declarative base class for all ORM models."""
 
 
 @asynccontextmanager

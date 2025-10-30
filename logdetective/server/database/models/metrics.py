@@ -1,12 +1,12 @@
+from __future__ import annotations
 import io
 import enum
 import datetime
-from typing import Optional, List, Self, Tuple
+from typing import Optional, List, Self, Tuple, TYPE_CHECKING
 
 import backoff
 
 from sqlalchemy import (
-    Column,
     Integer,
     Float,
     DateTime,
@@ -17,7 +17,7 @@ from sqlalchemy import (
     ForeignKey,
     LargeBinary,
 )
-from sqlalchemy.orm import relationship, aliased
+from sqlalchemy.orm import Mapped, mapped_column, relationship, aliased
 from sqlalchemy.exc import OperationalError
 
 from logdetective.server.database.base import Base, transaction, DB_MAX_RETRIES
@@ -25,6 +25,10 @@ from logdetective.server.database.models.merge_request_jobs import (
     GitlabMergeRequestJobs,
     Forge,
 )
+
+
+if TYPE_CHECKING:
+    from .koji import KojiTaskAnalysis
 
 
 class EndpointType(enum.Enum):
@@ -42,45 +46,45 @@ class AnalyzeRequestMetrics(Base):
 
     __tablename__ = "analyze_request_metrics"
 
-    id = Column(Integer, primary_key=True)
-    endpoint = Column(
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    endpoint: Mapped[EndpointType] = mapped_column(
         Enum(EndpointType),
         nullable=False,
         index=True,
         comment="The service endpoint that was called",
     )
-    request_received_at = Column(
+    request_received_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
         index=True,
         default=datetime.datetime.now(datetime.timezone.utc),
         comment="Timestamp when the request was received",
     )
-    compressed_log = Column(
+    compressed_log: Mapped[bytes] = mapped_column(
         LargeBinary(length=314572800),  # 300MB limit (300 * 1024 * 1024)
         nullable=False,
         index=False,
         comment="Log processed, saved in a zip format",
     )
-    compressed_response = Column(
+    compressed_response: Mapped[Optional[bytes]] = mapped_column(
         LargeBinary(length=314572800),  # 300MB limit (300 * 1024 * 1024)
         nullable=True,
         index=False,
         comment="Given response (with explanation and snippets) saved in a zip format",
     )
-    response_sent_at = Column(
+    response_sent_at: Mapped[Optional[datetime.datetime]] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
         comment="Timestamp when the response was sent back",
     )
-    response_length = Column(
+    response_length: Mapped[Optional[int]] = mapped_column(
         Integer, nullable=True, comment="Length of the response in chars"
     )
-    response_certainty = Column(
+    response_certainty: Mapped[Optional[float]] = mapped_column(
         Float, nullable=True, comment="Certainty for generated response"
     )
 
-    merge_request_job_id = Column(
+    merge_request_job_id: Mapped[Optional[int]] = mapped_column(
         Integer,
         ForeignKey("gitlab_merge_request_jobs.id"),
         nullable=True,
@@ -88,7 +92,15 @@ class AnalyzeRequestMetrics(Base):
         comment="Is this an analyze request coming from a merge request?",
     )
 
-    mr_job = relationship("GitlabMergeRequestJobs", back_populates="request_metrics")
+    mr_job: Mapped[Optional["GitlabMergeRequestJobs"]] = relationship(
+        "GitlabMergeRequestJobs",
+        back_populates="request_metrics"
+    )
+
+    koji_tasks: Mapped[List["KojiTaskAnalysis"]] = relationship(
+        "KojiTaskAnalysis",
+        back_populates="response"
+    )
 
     @classmethod
     @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
