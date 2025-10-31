@@ -19,7 +19,6 @@ prompt_template: |
 
   {}
 
-  Analysis:
 
 snippet_prompt_template: |
   Analyse following RPM build log snippet. Describe contents accurately, without speculation or suggestions for resolution
@@ -30,7 +29,6 @@ snippet_prompt_template: |
 
   {}
 
-  Analysis:
 
 prompt_template_staged: |
   Given following log snippets, their explanation, and nothing else, explain what failure, if any, occurred during build of this package.
@@ -47,7 +45,6 @@ prompt_template_staged: |
 
   {}
 
-  Analysis:
 
 # System prompts
 # System prompts are meant to serve as general guide for model behavior,
