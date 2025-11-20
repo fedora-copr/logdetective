@@ -174,11 +174,6 @@ async def run():  # pylint: disable=too-many-statements,too-many-locals,too-many
     log_summary = format_snippets(log_summary)
     LOG.info("Log summary: \n %s", log_summary)
 
-    prompt = (
-        f"{prompts_configuration.default_system_prompt}\n"
-        f"{prompts_configuration.prompt_template}"
-    )
-
     stream = True
     if args.no_stream:
         stream = False
@@ -186,30 +181,38 @@ async def run():  # pylint: disable=too-many-statements,too-many-locals,too-many
         log_summary,
         model,
         stream,
-        prompt_template=prompt,
+        prompt_templates=prompts_configuration,
         temperature=args.temperature,
     )
     probs = []
     print("Explanation:")
     # We need to extract top token probability from the response
-    # CreateCompletionResponse structure of llama-cpp-python.
+    # CreateChatCompletionResponse structure of llama-cpp-python.
     # `compute_certainty` function expects list of dictionaries with form
     # { 'logprob': <float> } as expected from the OpenAI API.
 
     if args.no_stream:
-        print(response["choices"][0]["text"])
+        print(response["choices"][0]["message"]["content"])
         probs = [
-            {"logprob": e} for e in response["choices"][0]["logprobs"]["token_logprobs"]
+            {"logprob": e["logprob"]} for e in response["choices"][0]["logprobs"]["content"]
         ]
 
     else:
         # Stream the output
         for chunk in response:
+            # What might happen, is that first (or possibly any other) chunk may not contain
+            # fields choices[0].delta.content or choices[0].logprobs -> if so, we just skip it
+            if any([
+                'content' not in chunk["choices"][0]["delta"],
+                'logprobs' not in chunk["choices"][0]
+            ]):
+                continue
+
             if isinstance(chunk["choices"][0]["logprobs"], dict):
                 probs.append(
-                    {"logprob": chunk["choices"][0]["logprobs"]["token_logprobs"][0]}
+                    {"logprob": chunk["choices"][0]["logprobs"]["content"][0]["logprob"]}
                 )
-            delta = chunk["choices"][0]["text"]
+            delta = chunk["choices"][0]["delta"]["content"]
             print(delta, end="", flush=True)
     certainty = compute_certainty(probs)
 
