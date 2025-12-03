@@ -1,5 +1,7 @@
 import pytest
 
+from fastapi.responses import Response as BasicResponse
+
 from logdetective.server.utils import (
     format_analyzed_snippets,
     filter_snippets,
@@ -119,5 +121,12 @@ def test_filter_too_large_k(snippets):
 
 
 def test_obtain_version_number():
-    response = get_version()
+    """Test that we can retrieve a valid version string
+    and that it can be used to make a response for API"""
+    version = get_version()
+    assert isinstance(version, str)
+    assert len(version) != 0
+
+    response = BasicResponse(content=get_version())
+
     assert response.status_code == 200

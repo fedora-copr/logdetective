@@ -150,6 +150,7 @@ app = FastAPI(
         "name": "Apache 2.0",
         "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
     },
+    version=get_version(),
     dependencies=[Depends(requires_token_when_set)], lifespan=lifespan)
 
 
@@ -368,10 +369,10 @@ async def async_log(msg):
     return msg
 
 
-@app.get("/version")
+@app.get("/version", response_class=BasicResponse)
 async def get_version_wrapper():
     """Get the version of logdetective"""
-    return get_version()
+    return BasicResponse(content=get_version())
 
 
 @app.post("/analyze/stream", response_class=StreamingResponse)

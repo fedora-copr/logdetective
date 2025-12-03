@@ -3,7 +3,6 @@ from importlib.metadata import version
 
 import aiohttp
 from fastapi import HTTPException
-from fastapi.responses import Response as BasicResponse
 
 from logdetective.constants import SNIPPET_DELIMITER
 from logdetective.server.config import LOG
@@ -106,6 +105,6 @@ def construct_final_prompt(formatted_snippets: str, prompt_template: str) -> str
     return final_prompt
 
 
-def get_version() -> BasicResponse:
+def get_version() -> str:
     """Obtain the version number using importlib"""
-    return BasicResponse(content=version('logdetective'))
+    return version('logdetective')
