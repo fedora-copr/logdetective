@@ -314,7 +314,7 @@ async def analyze_koji_task(task_id: int, koji_instance_config: KojiInstanceConf
     # to retrieve the metric ID to associate it with the koji task analysis.
 
     metrics_id = await add_new_metrics(
-        "analyze_koji_task",
+        EndpointType.ANALYZE_KOJI_TASK,
         log_text,
         received_at=datetime.datetime.now(datetime.timezone.utc),
         compressed_log_content=RemoteLogCompressor.zip_text(log_text),
