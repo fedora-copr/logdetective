@@ -139,7 +139,9 @@ def requires_token_when_set(authorization: Annotated[str | None, Header()] = Non
     raise HTTPException(status_code=401, detail="No token provided.")
 
 
-app = FastAPI(dependencies=[Depends(requires_token_when_set)], lifespan=lifespan)
+app = FastAPI(
+    title="Log Detective",
+    dependencies=[Depends(requires_token_when_set)], lifespan=lifespan)
 
 
 @app.post("/analyze", response_model=Response)
