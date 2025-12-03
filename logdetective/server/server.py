@@ -146,6 +146,10 @@ app = FastAPI(
         "url": "https://github.com/fedora-copr/logdetective",
         "email": "copr-devel@lists.fedorahosted.org"
     },
+    license_info={
+        "name": "Apache 2.0",
+        "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
+    },
     dependencies=[Depends(requires_token_when_set)], lifespan=lifespan)
 
 
