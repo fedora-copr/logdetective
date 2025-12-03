@@ -1,5 +1,4 @@
 from __future__ import annotations
-import io
 import enum
 import datetime
 from typing import Optional, List, Self, Tuple, TYPE_CHECKING
@@ -107,7 +106,7 @@ class AnalyzeRequestMetrics(Base):
     async def create(
         cls,
         endpoint: EndpointType,
-        compressed_log: io.BytesIO,
+        compressed_log: bytes,
         request_received_at: Optional[datetime.datetime] = None,
     ) -> int:
         """Create AnalyzeRequestMetrics new line

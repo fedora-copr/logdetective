@@ -1,4 +1,3 @@
-import io
 import inspect
 import datetime
 
@@ -13,14 +12,15 @@ from logdetective.remote_log import RemoteLog
 from logdetective.server.config import LOG
 from logdetective.server.compressors import LLMResponseCompressor, RemoteLogCompressor
 from logdetective.server.database.models import EndpointType, AnalyzeRequestMetrics
+from logdetective.server.exceptions import LogDetectiveMetricsError
 
 
 async def add_new_metrics(
-    api_name: str,
+    api_name: EndpointType,
     url: Optional[str] = None,
     http_session: Optional[aiohttp.ClientSession] = None,
     received_at: Optional[datetime.datetime] = None,
-    compressed_log_content: Optional[io.BytesIO] = None,
+    compressed_log_content: Optional[bytes] = None,
 ) -> int:
     """Add a new database entry for a received request.
 
@@ -29,6 +29,10 @@ async def add_new_metrics(
     and the log (in a zip format) for which analysis is requested.
     """
     if not compressed_log_content:
+        if not (url and http_session):
+            raise LogDetectiveMetricsError(
+                f"""Remote log can not be retrieved without URL and http session.
+                URL: {url}, http session:{http_session}""")
         remote_log = RemoteLog(url, http_session)
         compressed_log_content = await RemoteLogCompressor(remote_log).zip_content()
 
@@ -109,7 +113,8 @@ def track_request(name=None):
         async def async_decorated_function(*args, **kwargs):
             log_url = kwargs["build_log"].url
             metrics_id = await add_new_metrics(
-                name if name else f.__name__, log_url, kwargs["http_session"]
+                api_name=EndpointType(name if name else f.__name__),
+                url=log_url, http_session=kwargs["http_session"]
             )
             response = await f(*args, **kwargs)
             await update_metrics(metrics_id, response)

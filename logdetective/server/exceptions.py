@@ -31,3 +31,7 @@ class LogDetectiveConnectionError(LogDetectiveKojiException):
 
 class LogsTooLargeError(LogDetectiveKojiException):
     """The log archive exceeds the configured maximum size"""
+
+
+class LogDetectiveMetricsError(LogDetectiveException):
+    """Exception was encountered while recording metrics"""
