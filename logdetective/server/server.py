@@ -141,6 +141,11 @@ def requires_token_when_set(authorization: Annotated[str | None, Header()] = Non
 
 app = FastAPI(
     title="Log Detective",
+    contact={
+        "name": "Log Detective developers",
+        "url": "https://github.com/fedora-copr/logdetective",
+        "email": "copr-devel@lists.fedorahosted.org"
+    },
     dependencies=[Depends(requires_token_when_set)], lifespan=lifespan)
 
 
