@@ -69,7 +69,7 @@ def create_time_series_arrays(
     plot_def: Definition,
     start_time: datetime.datetime,
     end_time: datetime.datetime,
-    value_type: Optional[Union[int, float]] = int,
+    value_type: Optional[Union[type[int], type[float]]] = int,
 ) -> tuple[numpy.ndarray, numpy.ndarray]:
     """Create time series arrays from a dictionary of values.
 
