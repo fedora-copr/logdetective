@@ -36,20 +36,17 @@ class TextCompressor:
         zip_buffer.seek(0)
         return zip_buffer.getvalue()
 
-    def unzip(self, zip_data: Union[bytes, io.BytesIO]) -> str:
+    def unzip(self, zip_data: bytes) -> Dict[str, str]:
         """
         Uncompress data created by TextCompressor.zip().
 
         Args:
-            zip_data: A zipped stream of bytes or BytesIO object
+            zip_data: A zipped stream of bytes
 
         Returns:
             {file_name: str}: The decompressed content as a dict of file names and UTF-8 strings
         """
-        if isinstance(zip_data, bytes):
-            zip_buffer = io.BytesIO(zip_data)
-        else:
-            zip_buffer = zip_data
+        zip_buffer = io.BytesIO(zip_data)
 
         content = {}
         with zipfile.ZipFile(zip_buffer, "r") as zip_file:
@@ -95,12 +92,12 @@ class RemoteLogCompressor:
         return self.zip_text(content_text)
 
     @classmethod
-    def unzip(cls, zip_data: Union[bytes, io.BytesIO]) -> str:
+    def unzip(cls, zip_data: bytes) -> str:
         """
         Uncompress the zipped content of the remote log.
 
         Args:
-            zip_data: Compressed data as bytes or BytesIO
+            zip_data: Compressed data as bytes
 
         Returns:
             str: The decompressed log content
@@ -147,13 +144,13 @@ class LLMResponseCompressor:
 
     @classmethod
     def unzip(
-        cls, zip_data: Union[bytes, io.BytesIO]
+        cls, zip_data: bytes
     ) -> Union[StagedResponse, Response]:
         """
         Uncompress the zipped content of the LLM response.
 
         Args:
-            zip_data: Compressed data as bytes or BytesIO
+            zip_data: Compressed data as bytes
 
         Returns:
             Union[StagedResponse, Response]: The decompressed (partial) response object,
