@@ -192,22 +192,21 @@ def format_snippets(snippets: list[str] | list[Tuple[int, str]]) -> str:
     Line number must be first element in the tuple. Mixed format of snippets
     is permitted, but may have impact on inference.
     """
-    summary = ""
+    summary = "\n"
     for i, s in enumerate(snippets):
         if isinstance(s, tuple):
-            summary += f"""
-            Snippet No. {i} at line #{s[0]}:
-
-            {s[1]}
-            {SNIPPET_DELIMITER}
-            """
+            line_number, snippet_content = s
+            header = f"Snippet No. {i} at line #{line_number}:"
         else:
-            summary += f"""
-            Snippet No. {i}:
-
-            {s}
-            {SNIPPET_DELIMITER}
-            """
+            header = f"Snippet No. {i}:"
+            snippet_content = s
+        summary += (
+            f"{header}\n"
+            "\n"
+            f"{snippet_content}\n"
+            f"{SNIPPET_DELIMITER}\n"
+            f"\n"
+        )
     return summary
 
 
