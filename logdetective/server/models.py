@@ -500,8 +500,8 @@ class LogConfig(BaseModel):
 class GeneralConfig(BaseModel):
     """General config options for Log Detective"""
 
-    packages: List[str] = None
-    excluded_packages: List[str] = None
+    packages: List[str] = []
+    excluded_packages: List[str] = []
     devmode: bool = False
     sentry_dsn: HttpUrl | None = None
     collect_emojis_interval: int = 60 * 60  # seconds
