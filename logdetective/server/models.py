@@ -568,7 +568,8 @@ class TimePeriod(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def check_exclusive_fields(cls, data):
-        """Check that only one key between weeks, days and hours is defined"""
+        """Check that only one key between weeks, days and hours is defined,
+        if no period is specified, fall back to 2 days."""
         if isinstance(data, dict):
             how_many_fields = sum(
                 1
@@ -594,6 +595,7 @@ class TimePeriod(BaseModel):
 
     def get_time_period(self) -> datetime.timedelta:
         """Get the period of time represented by this input model.
+        Will default to 2 days, if no period is set.
 
         Returns:
             datetime.timedelta: The time period as a timedelta object.
@@ -605,10 +607,12 @@ class TimePeriod(BaseModel):
             delta = datetime.timedelta(days=self.days)
         elif self.hours:
             delta = datetime.timedelta(hours=self.hours)
+        else:
+            delta = datetime.timedelta(days=2)
         return delta
 
     def get_period_start_time(
-        self, end_time: datetime.datetime = None
+        self, end_time: Optional[datetime.datetime] = None
     ) -> datetime.datetime:
         """Calculate the start time of this period based on the end time.
 
@@ -621,5 +625,5 @@ class TimePeriod(BaseModel):
         """
         time = end_time or datetime.datetime.now(datetime.timezone.utc)
         if time.tzinfo is None:
-            end_time = end_time.replace(tzinfo=datetime.timezone.utc)
+            time = time.replace(tzinfo=datetime.timezone.utc)
         return time - self.get_time_period()
