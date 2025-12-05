@@ -61,6 +61,22 @@ async def test_create_time_series_arrays(endpoint):
         )  # since we have added requests just for the last 15 hours
 
 
+@pytest.mark.parametrize(
+    "end_time",
+    [None, datetime.datetime(1970, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)]
+)
+@pytest.mark.asyncio
+async def test_get_period_start_time(end_time):
+    """Test that start time retrieval works with and without set `end_time`."""
+    period = models.TimePeriod(hours=22)
+    start_time = period.get_period_start_time(end_time)
+
+    if end_time:
+        assert start_time == end_time - period.get_time_period()
+    else:
+        assert start_time <= datetime.datetime.now(datetime.timezone.utc) - period.get_time_period()
+
+
 def _save_fig(fig: Figure):
     with tempfile.NamedTemporaryFile(suffix=".svg", delete=False) as tmp_file:
         temp_filename = tmp_file.name
