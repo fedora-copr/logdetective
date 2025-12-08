@@ -270,6 +270,32 @@ podman-compose up server
 
 - Run Visual Stdio Code debug configuration named *Python Debug: Remote Attach*
 
+Visual Studio Code CLI debugging
+--------------------------------
+
+When debugging the CLI application, the `./scripts/debug_runner.py` script can be used
+as a stand in for stump script created during package installation.
+
+Using `launch.json`, or similar alternative, arguments can be specified for testing.
+
+Example:
+
+```
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Debug Installed Module",
+            "type": "debugpy",
+            "request": "launch",
+            "console": "integratedTerminal",
+            "program": "${workspaceFolder}/scripts/debug_runner.py",
+            "args": [<URL_OF_A_LOG>]
+        }
+    ]
+}
+```
+
 Server
 ======
 
