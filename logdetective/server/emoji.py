@@ -42,6 +42,10 @@ async def collect_emojis_for_mr(
     mr_jobs = await GitlabMergeRequestJobs.get_by_mr_iid(url, project_id, mr_iid) or []
 
     comments = [await Comments.get_by_mr_job(mr_job) for mr_job in mr_jobs]
+    # Filter all cases when no comments were found. This shouldn't happen if the database
+    # is in good order. But checking for it can't hurt.
+    comments = [comment for comment in comments if isinstance(comment, Comments)]
+
     await collect_emojis_in_comments(comments, gitlab_conn)
 
 
