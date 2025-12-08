@@ -541,7 +541,7 @@ async def schedule_emoji_collection_for_mr(
     key = (forge, project_id, mr_iid)
 
     # FIXME: Look up the connection from the Forge  # pylint: disable=fixme
-    gitlab_conn = SERVER_CONFIG.gitlab.instances[forge.value]
+    gitlab_conn = SERVER_CONFIG.gitlab.instances[forge.value].get_connection()
 
     LOG.debug("Looking up emojis for %s, %d, %d", forge, project_id, mr_iid)
     await collect_emojis_for_mr(project_id, mr_iid, gitlab_conn)
