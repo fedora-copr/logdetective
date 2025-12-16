@@ -50,6 +50,16 @@ services:
       - "${POSTGRESQL_PORT:-5432}:${POSTGRESQL_PORT:-5432}"
     env_file: .env
 
+  packit-interface:
+    image: quay.io/logdetective/packit:latest
+    depends_on:
+      - server
+    # Port 8090 is the default for logdetective-packit container
+    # github.com/fedora-copr/logdetective-packit
+    ports:
+      - "${PACKIT_INTERFACE_PORT:-8090}:${PACKIT_INTERFACE_PORT:-8090}"
+    env_file: .env
+
 volumes:
   database_data:
     driver: local
