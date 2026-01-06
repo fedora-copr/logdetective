@@ -9,16 +9,15 @@ Please know that the explanation was provided by AI and may be incorrect.
     {{ explanation }}
 </details>
 <details>
-    <summary>Snippets</summary>
-    <ul>
-    {% for snippet in snippets %}
-    <li>
-    <b>Line {{ snippet.line_number }}:</b> <code>{{ snippet.text }}</code>
-    <br>
-    {{ snippet.explanation.text }}
-    </li>
-    {% endfor %}
-    </ul>
+{#
+    Formatted so that we don't trigger GitLab markdown
+#}
+<summary>Snippets</summary>
+<ul>
+{% for snippet in snippets -%}
+<li><div><b>Line {{ snippet.line_number }}:</b> <code>{{ snippet.text | e }}</code><br>{{ snippet.explanation.text | e }}</div></li>
+{%- endfor %}
+</ul>
 </details>
 <details>
     <summary>Logs</summary>
