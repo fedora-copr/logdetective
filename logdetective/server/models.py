@@ -10,6 +10,7 @@ from pydantic import (
     field_validator,
     NonNegativeFloat,
     HttpUrl,
+    PrivateAttr,
 )
 
 import aiohttp
@@ -183,8 +184,9 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
     user_role: str = USER_ROLE_DEFAULT
     system_role: str = SYSTEM_ROLE_DEFAULT
     llm_api_timeout: float = 15.0
-    _http_session: aiohttp.ClientSession = None
-    _limiter: AsyncLimiter = AsyncLimiter(LLM_DEFAULT_REQUESTS_PER_MINUTE)
+    _http_session: aiohttp.ClientSession | None = PrivateAttr(default=None)
+    _limiter: AsyncLimiter = PrivateAttr(
+        default_factory=lambda: AsyncLimiter(LLM_DEFAULT_REQUESTS_PER_MINUTE))
 
     def __init__(self, data: Optional[dict] = None):
         super().__init__()
@@ -254,7 +256,7 @@ class ExtractorConfig(BaseModel):
     max_snippet_len: int = 2000
     csgrep: bool = False
 
-    _extractors: List[Extractor] = []
+    _extractors: List[Extractor] = PrivateAttr(default_factory=list)
 
     def _setup_extractors(self):
         """Initialize extractors with common settings."""
@@ -322,8 +324,8 @@ class GitLabInstanceConfig(BaseModel):  # pylint: disable=too-many-instance-attr
     webhook_secrets: Optional[List[str]] = None
 
     timeout: float = 5.0
-    _conn: Gitlab = None
-    _http_session: aiohttp.ClientSession = None
+    _conn: Gitlab | None = PrivateAttr(default=None)
+    _http_session: aiohttp.ClientSession | None = PrivateAttr(default=None)
 
     # Maximum size of artifacts.zip in MiB. (default: 300 MiB)
     max_artifact_size: int = 300 * 1024 * 1024
@@ -409,8 +411,8 @@ class KojiInstanceConfig(BaseModel):
     xmlrpc_url: str = ""
     tokens: List[str] = []
 
-    _conn: Optional[koji.ClientSession] = None
-    _callbacks: defaultdict[int, set[str]] = defaultdict(set)
+    _conn: Optional[koji.ClientSession] = PrivateAttr(default=None)
+    _callbacks: defaultdict[int, set[str]] = PrivateAttr(default_factory=lambda: defaultdict(set))
 
     def __init__(self, name: str, data: Optional[dict] = None):
         super().__init__()
