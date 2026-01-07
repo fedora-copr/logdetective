@@ -184,7 +184,6 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
     user_role: str = USER_ROLE_DEFAULT
     system_role: str = SYSTEM_ROLE_DEFAULT
     llm_api_timeout: float = 15.0
-    _http_session: aiohttp.ClientSession | None = PrivateAttr(default=None)
     _limiter: AsyncLimiter = PrivateAttr(
         default_factory=lambda: AsyncLimiter(LLM_DEFAULT_REQUESTS_PER_MINUTE))
 
@@ -208,40 +207,6 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
         )
         self.llm_api_timeout = data.get("llm_api_timeout", 15.0)
         self._limiter = AsyncLimiter(self._requests_per_minute)
-
-    def __del__(self):
-        # Close connection when this object is destroyed
-        if self._http_session:
-            try:
-                loop = asyncio.get_running_loop()
-                loop.create_task(self._http_session.close())
-            except RuntimeError:
-                # No loop running, so create one to close the session
-                loop = asyncio.new_event_loop()
-                loop.run_until_complete(self._http_session.close())
-                loop.close()
-            except Exception:  # pylint: disable=broad-exception-caught
-                # We should only get here if we're shutting down, so we don't
-                # really care if the close() completes cleanly.
-                pass
-
-    def get_http_session(self):
-        """Return the internal HTTP session so it can be used to contect the
-        LLM server. May be used as a context manager."""
-
-        # Create the session on the first attempt. We need to do this "lazily"
-        # because it needs to happen once the event loop is running, even
-        # though the initialization itself is synchronous.
-        if not self._http_session:
-            self._http_session = aiohttp.ClientSession(
-                base_url=self.url,
-                timeout=aiohttp.ClientTimeout(
-                    total=self.http_timeout,
-                    connect=3.07,
-                ),
-            )
-
-        return self._http_session
 
     def get_limiter(self):
         """Return the limiter object so it can be used as a context manager"""
