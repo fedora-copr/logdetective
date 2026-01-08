@@ -1,6 +1,6 @@
 import asyncio
 
-from typing import List, Callable
+from typing import List
 from collections import Counter
 
 import gitlab
@@ -49,25 +49,6 @@ async def collect_emojis_for_mr(
     await collect_emojis_in_comments(comments, gitlab_conn)
 
 
-async def _handle_gitlab_operation(func: Callable, *args):
-    """
-    It handles errors for the specified GitLab operation.
-    After executing it in a separate thread.
-    """
-    try:
-        return await asyncio.to_thread(func, *args)
-    except (gitlab.GitlabError, gitlab.GitlabGetError) as e:
-        log_msg = f"Error during GitLab operation {func}{args}: {e}"
-        if "Not Found" in str(e):
-            LOG.error(log_msg)
-        else:
-            LOG.exception(log_msg)
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        LOG.exception(
-            "Unexpected error during GitLab operation %s(%s): %s", func, args, e
-        )
-
-
 async def collect_emojis_in_comments(  # pylint: disable=too-many-locals
     comments: List[Comments], gitlab_conn: gitlab.Gitlab
 ):
@@ -80,37 +61,54 @@ async def collect_emojis_in_comments(  # pylint: disable=too-many-locals
         mr_job_db = await GitlabMergeRequestJobs.get_by_id(comment.merge_request_job_id)
         if not mr_job_db:
             continue
-        if mr_job_db.id not in projects:
-            project = await _handle_gitlab_operation(
-                gitlab_conn.projects.get, mr_job_db.project_id
-            )
-            if not project:
-                continue
-            projects[mr_job_db.id] = project
-        else:
-            project = projects[mr_job_db.id]
-        merge_request_iid = mr_job_db.mr_iid
-        if merge_request_iid not in merge_requests:
-            merge_request = await _handle_gitlab_operation(
-                project.mergerequests.get, merge_request_iid
-            )
-            if not merge_request:
-                continue
-            merge_requests[merge_request_iid] = merge_request
-        else:
-            merge_request = merge_requests[merge_request_iid]
+        try:
+            if mr_job_db.id not in projects:
+                project = await asyncio.to_thread(
+                    gitlab_conn.projects.get, mr_job_db.project_id
+                )
 
-        discussion = await _handle_gitlab_operation(
-            merge_request.discussions.get, comment.comment_id
-        )
-        if not discussion:
-            continue
+                projects[mr_job_db.id] = project
+            else:
+                project = projects[mr_job_db.id]
+            merge_request_iid = mr_job_db.mr_iid
+            if merge_request_iid not in merge_requests:
+                merge_request = await asyncio.to_thread(
+                    project.mergerequests.get, merge_request_iid
+                )
 
-        # Get the ID of the first note
-        note_id = discussion.attributes["notes"][0]["id"]
-        note = await _handle_gitlab_operation(merge_request.notes.get, note_id)
-        if not note:
-            continue
+                merge_requests[merge_request_iid] = merge_request
+            else:
+                merge_request = merge_requests[merge_request_iid]
+
+            discussion = await asyncio.to_thread(
+                merge_request.discussions.get, comment.comment_id
+            )
+
+            # Get the ID of the first note
+            if "notes" not in discussion.attributes or len(discussion.attributes["notes"]) == 0:
+                LOG.warning(
+                    "No notes were found in comment %s in merge request %d",
+                    comment.comment_id,
+                    merge_request_iid,
+                )
+                continue
+
+            note_id = discussion.attributes["notes"][0]["id"]
+            note = await asyncio.to_thread(merge_request.notes.get, note_id)
+
+        # Log warning with full stack trace, in case we can't find the right
+        # discussion, merge request or project.
+        # All of these objects can be lost, and we shouldn't treat as an error.
+        # Other exceptions are raised.
+        except gitlab.GitlabError as e:
+            if e.response_code == 404:
+                LOG.warning(
+                    "Couldn't retrieve emoji counts for comment %s due to GitlabError",
+                    comment.comment_id, exc_info=True)
+                continue
+            LOG.error("Error encountered while processing emoji counts for GitLab comment %s",
+                      comment.comment_id, exc_info=True)
+            raise
 
         emoji_counts = Counter(emoji.name for emoji in note.awardemojis.list())
 
