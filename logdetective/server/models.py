@@ -12,10 +12,7 @@ from pydantic import (
     HttpUrl,
     PrivateAttr,
 )
-
 import aiohttp
-
-from aiolimiter import AsyncLimiter
 from gitlab import Gitlab
 import koji
 
@@ -184,8 +181,7 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
     user_role: str = USER_ROLE_DEFAULT
     system_role: str = SYSTEM_ROLE_DEFAULT
     llm_api_timeout: float = 15.0
-    _limiter: AsyncLimiter = PrivateAttr(
-        default_factory=lambda: AsyncLimiter(LLM_DEFAULT_REQUESTS_PER_MINUTE))
+    requests_per_minute: int = LLM_DEFAULT_REQUESTS_PER_MINUTE
 
     def __init__(self, data: Optional[dict] = None):
         super().__init__()
@@ -202,15 +198,10 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
         self.max_queue_size = data.get("max_queue_size", LLM_DEFAULT_MAX_QUEUE_SIZE)
         self.user_role = data.get("user_role", USER_ROLE_DEFAULT)
         self.system_role = data.get("system_role", SYSTEM_ROLE_DEFAULT)
-        self._requests_per_minute = data.get(
+        self.requests_per_minute = data.get(
             "requests_per_minute", LLM_DEFAULT_REQUESTS_PER_MINUTE
         )
         self.llm_api_timeout = data.get("llm_api_timeout", 15.0)
-        self._limiter = AsyncLimiter(self._requests_per_minute)
-
-    def get_limiter(self):
-        """Return the limiter object so it can be used as a context manager"""
-        return self._limiter
 
 
 class ExtractorConfig(BaseModel):

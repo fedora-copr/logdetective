@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 
 import aiohttp
+from aiolimiter import AsyncLimiter
 from openai import AsyncStream
 from openai.types.chat import ChatCompletionChunk
 
@@ -41,7 +42,6 @@ from logdetective.server.utils import (
     construct_final_prompt,
 )
 
-
 LLM_CPP_SERVER_TIMEOUT = os.environ.get("LLAMA_CPP_SERVER_TIMEOUT", 600)
 
 
@@ -57,6 +57,7 @@ LLM_CPP_SERVER_TIMEOUT = os.environ.get("LLAMA_CPP_SERVER_TIMEOUT", 600)
 async def call_llm(
     messages: List[Dict[str, str]],
     inference_cfg: InferenceConfig,
+    async_request_limiter: AsyncLimiter,
     stream: bool = False,
     structured_output: dict | None = None,
 ) -> Explanation:
@@ -87,7 +88,7 @@ async def call_llm(
         }
         kwargs["response_format"] = response_format
 
-    async with inference_cfg.get_limiter():
+    async with async_request_limiter:
         response = await CLIENT.chat.completions.create(
             messages=messages,
             max_tokens=inference_cfg.max_tokens,
@@ -126,6 +127,7 @@ async def call_llm(
 async def call_llm_stream(
     messages: List[Dict[str, str]],
     inference_cfg: InferenceConfig,
+    async_request_limiter: AsyncLimiter,
     stream: bool = False,
 ) -> AsyncStream[ChatCompletionChunk]:
     """Submit prompt to LLM and recieve stream of tokens as a result.
@@ -136,7 +138,7 @@ async def call_llm_stream(
 
     LOG.info("Submitting to /v1/chat/completions endpoint")
 
-    async with inference_cfg.get_limiter():
+    async with async_request_limiter:
         response = await CLIENT.chat.completions.create(
             messages=messages,
             max_tokens=inference_cfg.max_tokens,
@@ -150,7 +152,9 @@ async def call_llm_stream(
 
 
 async def analyze_snippets(
-    log_summary: List[Tuple[int, str]], structured_output: dict | None = None
+    log_summary: List[Tuple[int, str]],
+    async_request_limiter: AsyncLimiter,
+    structured_output: dict | None = None,
 ) -> List[SnippetAnalysis | RatedSnippetAnalysis]:
     """Submit log file snippets to the LLM and gather results"""
     # Process snippets asynchronously
@@ -162,6 +166,7 @@ async def analyze_snippets(
                 SERVER_CONFIG.inference.system_role,
                 SERVER_CONFIG.inference.user_role,
             ),
+            async_request_limiter=async_request_limiter,
             inference_cfg=SERVER_CONFIG.snippet_inference,
             structured_output=structured_output,
         )
@@ -184,7 +189,9 @@ async def analyze_snippets(
     return analyzed_snippets
 
 
-async def perfrom_analysis(log_text: str) -> Response:
+async def perfrom_analysis(
+    log_text: str, async_request_limiter: AsyncLimiter
+) -> Response:
     """Sumbit log file snippets in aggregate to LLM and retrieve results"""
     log_summary = mine_logs(log_text, SERVER_CONFIG.extractor.get_extractors())
     log_summary = format_snippets(log_summary)
@@ -199,6 +206,7 @@ async def perfrom_analysis(log_text: str) -> Response:
     )
     response = await call_llm(
         messages,
+        async_request_limiter=async_request_limiter,
         inference_cfg=SERVER_CONFIG.inference,
     )
     certainty = 0
@@ -216,7 +224,9 @@ async def perfrom_analysis(log_text: str) -> Response:
     return Response(explanation=response, response_certainty=certainty)
 
 
-async def perform_analyis_stream(log_text: str) -> AsyncStream:
+async def perform_analyis_stream(
+    log_text: str, async_request_limiter: AsyncLimiter
+) -> AsyncStream:
     """Submit log file snippets in aggregate and return a stream of tokens"""
     log_summary = mine_logs(log_text, SERVER_CONFIG.extractor.get_extractors())
     log_summary = format_snippets(log_summary)
@@ -232,6 +242,7 @@ async def perform_analyis_stream(log_text: str) -> AsyncStream:
 
     stream = call_llm_stream(
         messages,
+        async_request_limiter=async_request_limiter,
         inference_cfg=SERVER_CONFIG.inference,
     )
 
@@ -241,13 +252,16 @@ async def perform_analyis_stream(log_text: str) -> AsyncStream:
     return stream
 
 
-async def perform_staged_analysis(log_text: str) -> StagedResponse:
+async def perform_staged_analysis(
+    log_text: str, async_request_limiter: AsyncLimiter
+) -> StagedResponse:
     """Submit the log file snippets to the LLM and retrieve their results"""
     log_summary = mine_logs(log_text, SERVER_CONFIG.extractor.get_extractors())
     start = time.time()
     if SERVER_CONFIG.general.top_k_snippets:
         rated_snippets = await analyze_snippets(
             log_summary=log_summary,
+            async_request_limiter=async_request_limiter,
             structured_output=RatedSnippetAnalysis.model_json_schema(),
         )
 
@@ -266,7 +280,9 @@ async def perform_staged_analysis(log_text: str) -> StagedResponse:
             len(rated_snippets),
         )
     else:
-        processed_snippets = await analyze_snippets(log_summary=log_summary)
+        processed_snippets = await analyze_snippets(
+            log_summary=log_summary, async_request_limiter=async_request_limiter
+        )
 
         # Extract original text and line number from `log_summary`
         processed_snippets = [
@@ -276,7 +292,9 @@ async def perform_staged_analysis(log_text: str) -> StagedResponse:
     delta = time.time() - start
     LOG.info("Snippet analysis performed in %f s", delta)
     log_summary = format_analyzed_snippets(processed_snippets)
-    final_prompt = construct_final_prompt(log_summary, PROMPT_CONFIG.prompt_template_staged)
+    final_prompt = construct_final_prompt(
+        log_summary, PROMPT_CONFIG.prompt_template_staged
+    )
 
     messages = prompt_to_messages(
         final_prompt,
@@ -286,6 +304,7 @@ async def perform_staged_analysis(log_text: str) -> StagedResponse:
     )
     final_analysis = await call_llm(
         messages,
+        async_request_limiter=async_request_limiter,
         inference_cfg=SERVER_CONFIG.inference,
     )
 
