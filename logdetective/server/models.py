@@ -21,9 +21,6 @@ from logdetective.constants import (
     USER_ROLE_DEFAULT,
 )
 
-from logdetective.extractors import Extractor, DrainExtractor, CSGrepExtractor
-from logdetective.utils import check_csgrep
-
 
 class BuildLog(BaseModel):
     """Model of data submitted to API."""
@@ -209,54 +206,16 @@ class ExtractorConfig(BaseModel):
     max_snippet_len: int = 2000
     csgrep: bool = False
 
-    _extractors: List[Extractor] = PrivateAttr(default_factory=list)
-
-    def _setup_extractors(self):
-        """Initialize extractors with common settings."""
-        self._extractors = [
-            DrainExtractor(
-                verbose=self.verbose,
-                max_snippet_len=self.max_snippet_len,
-                max_clusters=self.max_clusters,
-            )
-        ]
-
-        if self.csgrep:
-            self._extractors.append(
-                CSGrepExtractor(
-                    verbose=self.verbose,
-                    max_snippet_len=self.max_snippet_len,
-                )
-            )
-
     def __init__(self, data: Optional[dict] = None):
         super().__init__(data=data)
 
         if data is None:
-            self._setup_extractors()
             return
 
         self.max_clusters = data.get("max_clusters", 8)
         self.verbose = data.get("verbose", False)
         self.max_snippet_len = data.get("max_snippet_len", 2000)
         self.csgrep = data.get("csgrep", False)
-
-        self._setup_extractors()
-
-    def get_extractors(self) -> List[Extractor]:
-        """Return list of initialized extractors, each will be applied in turn
-        on original log text to retrieve snippets."""
-        return self._extractors
-
-    @field_validator("csgrep", mode="after")
-    @classmethod
-    def validate_csgrep(cls, value: bool) -> bool:
-        """Verify that csgrep is available if requested."""
-        if not check_csgrep():
-            raise ValueError(
-                "Requested csgrep extractor but `csgrep` binary is not in the PATH"
-            )
-        return value
 
 
 class GitLabInstanceConfig(BaseModel):  # pylint: disable=too-many-instance-attributes

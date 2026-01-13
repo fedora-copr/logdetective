@@ -17,6 +17,7 @@ from logdetective.server.llm import perform_staged_analysis, call_llm, perfrom_a
 from logdetective.remote_log import RemoteLog
 from logdetective.server.config import load_server_config
 from logdetective.server.models import InferenceConfig, Explanation
+from logdetective.server.server import initialize_extractors
 
 MOCK_EXPLANATION = "Mock explanation"
 
@@ -103,8 +104,11 @@ async def test_perform_staged_analysis_with_errors():
             "http://localhost:8080/v1/chat/completions", status=400, body="Bad Response"
         )
         async_limiter = AsyncLimiter(SERVER_CONFIG.inference.requests_per_minute)
+        extractors = initialize_extractors(SERVER_CONFIG.extractor)
         with pytest.raises(HTTPException):
-            await perform_staged_analysis("abc", async_request_limiter=async_limiter)
+            await perform_staged_analysis(
+                "abc", async_request_limiter=async_limiter, extractors=extractors
+            )
 
 
 @pytest.mark.parametrize("mock_chat_completions", [MOCK_EXPLANATION], indirect=True)
@@ -113,7 +117,10 @@ async def test_perform_analysis(
     mock_chat_completions,
 ):
     async_limiter = AsyncLimiter(100)
-    result = await perfrom_analysis(MOCK_LOG, async_request_limiter=async_limiter)
+    extractors = initialize_extractors(SERVER_CONFIG.extractor)
+    result = await perfrom_analysis(
+        MOCK_LOG, async_request_limiter=async_limiter, extractors=extractors
+    )
 
     assert result.explanation.text == MOCK_EXPLANATION
 
@@ -124,8 +131,10 @@ async def test_perform_staged_analysis(
     mock_chat_completions,
 ):
     async_limiter = AsyncLimiter(100)
+    extractors = initialize_extractors(SERVER_CONFIG.extractor)
+
     result = await perform_staged_analysis(
-        MOCK_LOG, async_request_limiter=async_limiter
+        MOCK_LOG, async_request_limiter=async_limiter, extractors=extractors
     )
 
     assert result.explanation.text == MOCK_EXPLANATION
