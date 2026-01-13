@@ -10,6 +10,7 @@ from packaging.version import Version
 from pytest_mock import MockerFixture
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
+from aiolimiter import AsyncLimiter
 from fastapi import HTTPException
 
 from flexmock import flexmock
@@ -345,10 +346,12 @@ async def test_process_gitlab_job_event(
             },
         )
         http_session = aiohttp.ClientSession()
+        async_request_limiter = AsyncLimiter(100)
         await process_gitlab_job_event(
             gitlab_cfg=gitlab_instance,
             forge=Forge.gitlab_com,
             job_hook=job_hook,
+            async_request_limiter=async_request_limiter,
         )
         async with session_factory() as db_session:
             query = (

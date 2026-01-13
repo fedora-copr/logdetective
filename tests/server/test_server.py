@@ -4,6 +4,7 @@ import aiohttp
 import aioresponses
 import pytest
 
+from aiolimiter import AsyncLimiter
 from fastapi import HTTPException
 
 from tests.server.test_helpers import (
@@ -65,7 +66,10 @@ async def test_submit_text_chat_completions(mock_chat_completions):
             "content": "Hello world!",
         }
     ]
-    response = await call_llm(messages, inference_cfg=inference_cfg)
+    async_limiter = AsyncLimiter(inference_cfg.requests_per_minute)
+    response = await call_llm(
+        messages, inference_cfg=inference_cfg, async_request_limiter=async_limiter
+    )
 
     assert isinstance(response, Explanation)
     assert response.text == "This is a mock message"
@@ -98,8 +102,9 @@ async def test_perform_staged_analysis_with_errors():
         mock.post(
             "http://localhost:8080/v1/chat/completions", status=400, body="Bad Response"
         )
+        async_limiter = AsyncLimiter(SERVER_CONFIG.inference.requests_per_minute)
         with pytest.raises(HTTPException):
-            await perform_staged_analysis("abc")
+            await perform_staged_analysis("abc", async_request_limiter=async_limiter)
 
 
 @pytest.mark.parametrize("mock_chat_completions", [MOCK_EXPLANATION], indirect=True)
@@ -107,7 +112,8 @@ async def test_perform_staged_analysis_with_errors():
 async def test_perform_analysis(
     mock_chat_completions,
 ):
-    result = await perfrom_analysis(MOCK_LOG)
+    async_limiter = AsyncLimiter(100)
+    result = await perfrom_analysis(MOCK_LOG, async_request_limiter=async_limiter)
 
     assert result.explanation.text == MOCK_EXPLANATION
 
@@ -117,6 +123,9 @@ async def test_perform_analysis(
 async def test_perform_staged_analysis(
     mock_chat_completions,
 ):
-    result = await perform_staged_analysis(MOCK_LOG)
+    async_limiter = AsyncLimiter(100)
+    result = await perform_staged_analysis(
+        MOCK_LOG, async_request_limiter=async_limiter
+    )
 
     assert result.explanation.text == MOCK_EXPLANATION

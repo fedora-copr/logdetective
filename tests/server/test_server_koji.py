@@ -1,5 +1,6 @@
 import koji
 import pytest
+from aiolimiter import AsyncLimiter
 
 from logdetective.server.models import StagedResponse
 from logdetective.server.server import analyze_koji_task
@@ -222,7 +223,11 @@ async def test_koji_analyze_koji_task(mocker, mock_chat_completions, method):
         mock_koji_instance_config.xmlrpc_url = "https://koji.fedoraproject.org/kojihub"
         mock_koji_instance_config.get_callbacks.return_value = set()
 
-        response = await analyze_koji_task(EXAMPLE_TASK_ID, mock_koji_instance_config)
+        response = await analyze_koji_task(
+            EXAMPLE_TASK_ID,
+            mock_koji_instance_config,
+            async_request_limiter=AsyncLimiter(100),
+        )
 
         assert response is not None
 

@@ -4,6 +4,7 @@ import zipfile
 from pathlib import Path, PurePath
 from tempfile import TemporaryFile
 
+from aiolimiter import AsyncLimiter
 from fastapi import HTTPException
 
 import gitlab
@@ -43,6 +44,7 @@ async def process_gitlab_job_event(
     gitlab_cfg: GitLabInstanceConfig,
     forge: Forge,
     job_hook: JobHook,
+    async_request_limiter: AsyncLimiter,
 ):  # pylint: disable=too-many-locals
     """Handle a received job_event webhook from GitLab"""
     LOG.debug("Received webhook message from %s:\n%s", forge.value, job_hook)
@@ -108,7 +110,9 @@ async def process_gitlab_job_event(
         http_session=gitlab_cfg.get_http_session(),
         compressed_log_content=RemoteLogCompressor.zip_text(log_text),
     )
-    staged_response = await perform_staged_analysis(log_text=log_text)
+    staged_response = await perform_staged_analysis(
+        log_text=log_text, async_request_limiter=async_request_limiter
+    )
     await update_metrics(metrics_id, staged_response)
     preprocessed_log.close()
 

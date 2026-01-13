@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from typing import Annotated
 from io import BytesIO
 
+from aiolimiter import AsyncLimiter
 import matplotlib
 import matplotlib.figure
 import matplotlib.pyplot
@@ -89,6 +90,11 @@ async def lifespan(fapp: FastAPI):
         )
     )
 
+    # General limiter for async requests
+    fapp.state.llm_request_limiter = AsyncLimiter(
+        max_rate=SERVER_CONFIG.inference.requests_per_minute
+    )
+
     # Ensure that the database is initialized.
     await logdetective.server.database.base.init()
 
@@ -144,20 +150,24 @@ app = FastAPI(
     contact={
         "name": "Log Detective developers",
         "url": "https://github.com/fedora-copr/logdetective",
-        "email": "copr-devel@lists.fedorahosted.org"
+        "email": "copr-devel@lists.fedorahosted.org",
     },
     license_info={
         "name": "Apache-2.0",
         "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
     },
     version=get_version(),
-    dependencies=[Depends(requires_token_when_set)], lifespan=lifespan)
+    dependencies=[Depends(requires_token_when_set)],
+    lifespan=lifespan,
+)
 
 
 @app.post("/analyze", response_model=Response)
 @track_request()
 async def analyze_log(
-    build_log: BuildLog, http_session: aiohttp.ClientSession = Depends(get_http_session)
+    build_log: BuildLog,
+    request: Request,
+    http_session: aiohttp.ClientSession = Depends(get_http_session),
 ):
     """Provide endpoint for log file submission and analysis.
     Request must be in form {"url":"<YOUR_URL_HERE>"}.
@@ -168,13 +178,17 @@ async def analyze_log(
     remote_log = RemoteLog(build_log.url, http_session)
     log_text = await remote_log.process_url()
 
-    return await perfrom_analysis(log_text)
+    return await perfrom_analysis(
+        log_text, async_request_limiter=request.app.state.llm_request_limiter
+    )
 
 
 @app.post("/analyze/staged", response_model=StagedResponse)
 @track_request()
 async def analyze_log_staged(
-    build_log: BuildLog, http_session: aiohttp.ClientSession = Depends(get_http_session)
+    build_log: BuildLog,
+    request: Request,
+    http_session: aiohttp.ClientSession = Depends(get_http_session),
 ):
     """Provide endpoint for log file submission and analysis.
     Request must be in form {"url":"<YOUR_URL_HERE>"}.
@@ -185,7 +199,9 @@ async def analyze_log_staged(
     remote_log = RemoteLog(build_log.url, http_session)
     log_text = await remote_log.process_url()
 
-    return await perform_staged_analysis(log_text)
+    return await perform_staged_analysis(
+        log_text, request.app.state.llm_request_limiter
+    )
 
 
 @app.get(
@@ -245,10 +261,11 @@ async def get_koji_task_analysis(
 async def analyze_rpmbuild_koji(
     koji_instance: Annotated[str, Path(title="The Koji instance to use")],
     task_id: Annotated[int, Path(title="The task ID to analyze")],
+    request: Request,
     x_koji_token: Annotated[str, Header()] = "",
     x_koji_callback: Annotated[str, Header()] = "",
     background_tasks: BackgroundTasks = BackgroundTasks(),
-):
+):  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
     """Provide endpoint for retrieving log file analysis of a Koji task"""
 
     try:
@@ -280,6 +297,7 @@ async def analyze_rpmbuild_koji(
             analyze_koji_task,
             task_id,
             koji_instance_config,
+            request.app.state.llm_request_limiter,
         )
 
         # If a callback URL is provided, we need to add it to the callbacks
@@ -301,7 +319,11 @@ async def analyze_rpmbuild_koji(
     return response
 
 
-async def analyze_koji_task(task_id: int, koji_instance_config: KojiInstanceConfig):
+async def analyze_koji_task(
+    task_id: int,
+    koji_instance_config: KojiInstanceConfig,
+    async_request_limiter: AsyncLimiter,
+):
     """Analyze a koji task and return the response"""
 
     # Get the log text from the koji task
@@ -327,7 +349,9 @@ async def analyze_koji_task(task_id: int, koji_instance_config: KojiInstanceConf
         task_id=task_id,
         log_file_name=log_file_name,
     )
-    response = await perform_staged_analysis(log_text)
+    response = await perform_staged_analysis(
+        log_text, async_request_limiter=async_request_limiter
+    )
 
     # Now that we have the response, we can update the metrics and mark the
     # koji task analysis as completed.
@@ -353,18 +377,18 @@ async def send_koji_callback(callback: str, task_id: int):
 
 
 @app.get("/queue/print")
-async def queue_print(msg: str):
+async def queue_print(msg: str, request: Request):
     """Debug endpoint to test the LLM request queue"""
     LOG.info("Will print %s", msg)
 
-    result = await async_log(msg)
+    result = await async_log(msg, request)
 
     LOG.info("Printed %s and returned it", result)
 
 
-async def async_log(msg):
+async def async_log(msg: str, request: Request):
     """Debug function to test the LLM request queue"""
-    async with SERVER_CONFIG.inference.get_limiter():
+    async with request.app.state.llm_request_limiter:
         LOG.critical(msg)
     return msg
 
@@ -378,7 +402,9 @@ async def get_version_wrapper():
 @app.post("/analyze/stream", response_class=StreamingResponse)
 @track_request()
 async def analyze_log_stream(
-    build_log: BuildLog, http_session: aiohttp.ClientSession = Depends(get_http_session)
+    build_log: BuildLog,
+    request: Request,
+    http_session: aiohttp.ClientSession = Depends(get_http_session),
 ):
     """Stream response endpoint for Logdetective.
     Request must be in form {"url":"<YOUR_URL_HERE>"}.
@@ -389,7 +415,9 @@ async def analyze_log_stream(
     remote_log = RemoteLog(build_log.url, http_session)
     log_text = await remote_log.process_url()
     try:
-        stream = perform_analyis_stream(log_text)
+        stream = perform_analyis_stream(
+            log_text, async_request_limiter=request.app.state.llm_request_limiter
+        )
     except aiohttp.ClientResponseError as ex:
         raise HTTPException(
             status_code=400,
@@ -421,6 +449,7 @@ def is_valid_webhook_secret(forge, x_gitlab_token):
 async def receive_gitlab_job_event_webhook(
     job_hook: JobHook,
     background_tasks: BackgroundTasks,
+    request: Request,
     x_gitlab_instance: Annotated[str | None, Header()],
     x_gitlab_token: Annotated[str | None, Header()] = None,
 ):
@@ -446,6 +475,7 @@ async def receive_gitlab_job_event_webhook(
         gitlab_cfg,
         forge,
         job_hook,
+        request.app.state.llm_request_limiter
     )
 
     # No return value or body is required for a webhook.
