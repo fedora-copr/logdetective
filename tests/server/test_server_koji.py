@@ -224,8 +224,9 @@ async def test_koji_analyze_koji_task(mocker, mock_chat_completions, method):
         mock_koji_instance_config.get_callbacks.return_value = set()
 
         response = await analyze_koji_task(
-            EXAMPLE_TASK_ID,
-            mock_koji_instance_config,
+            task_id=EXAMPLE_TASK_ID,
+            koji_instance_config=mock_koji_instance_config,
+            koji_connection=mock_koji_conn,
             async_request_limiter=AsyncLimiter(100),
         )
 
