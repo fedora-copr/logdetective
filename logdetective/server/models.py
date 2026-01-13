@@ -1,4 +1,3 @@
-import asyncio
 from collections import defaultdict
 import datetime
 from logging import BASIC_FORMAT
@@ -12,9 +11,7 @@ from pydantic import (
     HttpUrl,
     PrivateAttr,
 )
-import aiohttp
-from gitlab import Gitlab
-import koji
+
 
 from logdetective.constants import (
     DEFAULT_TEMPERATURE,
@@ -280,8 +277,6 @@ class GitLabInstanceConfig(BaseModel):  # pylint: disable=too-many-instance-attr
     webhook_secrets: Optional[List[str]] = None
 
     timeout: float = 5.0
-    _conn: Gitlab | None = PrivateAttr(default=None)
-    _http_session: aiohttp.ClientSession | None = PrivateAttr(default=None)
 
     # Maximum size of artifacts.zip in MiB. (default: 300 MiB)
     max_artifact_size: int = 300 * 1024 * 1024
@@ -299,50 +294,6 @@ class GitLabInstanceConfig(BaseModel):  # pylint: disable=too-many-instance-attr
         self.max_artifact_size = int(data.get("max_artifact_size", 300)) * 1024 * 1024
 
         self.timeout = data.get("timeout", 5.0)
-        self._conn = Gitlab(
-            url=self.url,
-            private_token=self.api_token,
-            timeout=self.timeout,
-        )
-
-    def get_connection(self):
-        """Get the Gitlab connection object"""
-        return self._conn
-
-    def get_http_session(self):
-        """Return the internal HTTP session so it can be used to contect the
-        Gitlab server. May be used as a context manager."""
-
-        # Create the session on the first attempt. We need to do this "lazily"
-        # because it needs to happen once the event loop is running, even
-        # though the initialization itself is synchronous.
-        if not self._http_session:
-            self._http_session = aiohttp.ClientSession(
-                base_url=self.url,
-                headers={"Authorization": f"Bearer {self.api_token}"},
-                timeout=aiohttp.ClientTimeout(
-                    total=self.timeout,
-                    connect=3.07,
-                ),
-            )
-
-        return self._http_session
-
-    def __del__(self):
-        # Close connection when this object is destroyed
-        if self._http_session:
-            try:
-                loop = asyncio.get_running_loop()
-                loop.create_task(self._http_session.close())
-            except RuntimeError:
-                # No loop running, so create one to close the session
-                loop = asyncio.new_event_loop()
-                loop.run_until_complete(self._http_session.close())
-                loop.close()
-            except Exception:  # pylint: disable=broad-exception-caught
-                # We should only get here if we're shutting down, so we don't
-                # really care if the close() completes cleanly.
-                pass
 
 
 class GitLabConfig(BaseModel):
@@ -367,8 +318,9 @@ class KojiInstanceConfig(BaseModel):
     xmlrpc_url: str = ""
     tokens: List[str] = []
 
-    _conn: Optional[koji.ClientSession] = PrivateAttr(default=None)
-    _callbacks: defaultdict[int, set[str]] = PrivateAttr(default_factory=lambda: defaultdict(set))
+    _callbacks: defaultdict[int, set[str]] = PrivateAttr(
+        default_factory=lambda: defaultdict(set)
+    )
 
     def __init__(self, name: str, data: Optional[dict] = None):
         super().__init__()
@@ -385,12 +337,6 @@ class KojiInstanceConfig(BaseModel):
             "xmlrpc_url", "https://koji.fedoraproject.org/kojihub"
         )
         self.tokens = data.get("tokens", [])
-
-    def get_connection(self):
-        """Get the Koji connection object"""
-        if not self._conn:
-            self._conn = koji.ClientSession(self.xmlrpc_url)
-        return self._conn
 
     def register_callback(self, task_id: int, callback: str):
         """Register a callback for a task"""

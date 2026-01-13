@@ -10,6 +10,8 @@ from aiolimiter import AsyncLimiter
 import matplotlib
 import matplotlib.figure
 import matplotlib.pyplot
+from koji import ClientSession
+from gitlab import Gitlab
 from fastapi import (
     FastAPI,
     HTTPException,
@@ -19,7 +21,6 @@ from fastapi import (
     Path,
     Request,
 )
-
 from fastapi.responses import StreamingResponse
 from fastapi.responses import Response as BasicResponse
 import aiohttp
@@ -50,6 +51,7 @@ from logdetective.server.gitlab import process_gitlab_job_event
 from logdetective.server.metric import track_request, add_new_metrics, update_metrics
 from logdetective.server.models import (
     BuildLog,
+    Config,
     EmojiHook,
     JobHook,
     KojiInstanceConfig,
@@ -79,6 +81,42 @@ if sentry_dsn := SERVER_CONFIG.general.sentry_dsn:
     sentry_sdk.init(dsn=str(sentry_dsn), traces_sample_rate=1.0)
 
 
+class ConnectionManager:
+    """
+    Manager for all connections and sesssions.
+    """
+
+    koji_connections: dict[str, ClientSession] = {}
+    gitlab_connections: dict[str, Gitlab] = {}
+    gitlab_http_sessions: dict[str, aiohttp.ClientSession] = {}
+
+    async def initialize(self, service_config: Config):
+        """Initialize all managed objects"""
+
+        for connection, config in service_config.gitlab.instances.items():
+            self.gitlab_connections[connection] = Gitlab(
+                url=config.url,
+                private_token=config.api_token,
+                timeout=config.timeout,
+            )
+            self.gitlab_http_sessions[connection] = aiohttp.ClientSession(
+                base_url=config.url,
+                headers={"Authorization": f"Bearer {config.api_token}"},
+                timeout=aiohttp.ClientTimeout(
+                    total=config.timeout,
+                    connect=3.07,
+                ),
+            )
+        for connection, config in service_config.koji.instances.items():
+            self.koji_connections[connection] = ClientSession(baseurl=config.xmlrpc_url)
+
+    async def close(self):
+        """Close all managed http sessions"""
+        for session in self.gitlab_http_sessions.values():
+
+            await session.close()
+
+
 @asynccontextmanager
 async def lifespan(fapp: FastAPI):
     """
@@ -95,14 +133,20 @@ async def lifespan(fapp: FastAPI):
         max_rate=SERVER_CONFIG.inference.requests_per_minute
     )
 
+    # Manager for connections and sessions
+    fapp.state.connection_manager = ConnectionManager()
+
+    await fapp.state.connection_manager.initialize(service_config=SERVER_CONFIG)
+
     # Ensure that the database is initialized.
     await logdetective.server.database.base.init()
 
     # Start the background task scheduler for collecting emojis
-    asyncio.create_task(schedule_collect_emojis_task())
+    asyncio.create_task(schedule_collect_emojis_task(fapp.state.connection_manager))
 
     yield
 
+    await fapp.state.connection_manager.close()
     await fapp.http.close()
 
 
@@ -293,10 +337,14 @@ async def analyze_rpmbuild_koji(
         # Task not yet analyzed or it timed out, so we need to start the
         # analysis in the background and return a 202 (Accepted) error.
 
+        koji_connection = request.app.state.connection_manager.koji_connections[
+            koji_instance
+        ]
         background_tasks.add_task(
             analyze_koji_task,
             task_id,
             koji_instance_config,
+            koji_connection,
             request.app.state.llm_request_limiter,
         )
 
@@ -322,14 +370,14 @@ async def analyze_rpmbuild_koji(
 async def analyze_koji_task(
     task_id: int,
     koji_instance_config: KojiInstanceConfig,
+    koji_connection: ClientSession,
     async_request_limiter: AsyncLimiter,
 ):
     """Analyze a koji task and return the response"""
 
     # Get the log text from the koji task
-    koji_conn = koji_instance_config.get_connection()
     log_file_name, log_text = await get_failed_log_from_koji_task(
-        koji_conn, task_id, max_size=SERVER_CONFIG.koji.max_artifact_size
+        koji_connection, task_id, max_size=SERVER_CONFIG.koji.max_artifact_size
     )
 
     # We need to handle the metric tracking manually here, because we need
@@ -470,12 +518,20 @@ async def receive_gitlab_job_event_webhook(
 
     # Handle the message in the background so we can return 204 immediately
     gitlab_cfg = SERVER_CONFIG.gitlab.instances[forge.value]
+    gitlab_connection = request.app.state.connection_manager.gitlab_connections[
+        forge.value
+    ]
+    gitlab_http_session = request.app.state.connection_manager.gitlab_http_sessions[
+        forge.value
+    ]
     background_tasks.add_task(
         process_gitlab_job_event,
         gitlab_cfg,
+        gitlab_connection,
+        gitlab_http_session,
         forge,
         job_hook,
-        request.app.state.llm_request_limiter
+        request.app.state.llm_request_limiter,
     )
 
     # No return value or body is required for a webhook.
@@ -497,6 +553,7 @@ async def receive_gitlab_emoji_event_webhook(
     x_gitlab_token: Annotated[str | None, Header()],
     emoji_hook: EmojiHook,
     background_tasks: BackgroundTasks,
+    request: Request,
 ):
     """Webhook endpoint for receiving emoji event notifications from Gitlab
     https://docs.gitlab.com/user/project/integrations/webhook_events/#emoji-events
@@ -549,10 +606,14 @@ async def receive_gitlab_emoji_event_webhook(
     # Inform the lookup table that we are processing this emoji
     emoji_lookup[key] = False
 
+    gitlab_connection = request.app.state.connection_manager.gitlab_connections[
+        x_gitlab_instance
+    ]
     # Create a background task to process the emojis on this Merge Request.
     background_tasks.add_task(
         schedule_emoji_collection_for_mr,
         forge,
+        gitlab_connection,
         emoji_hook.merge_request.target_project_id,
         emoji_hook.merge_request.iid,
         background_tasks,
@@ -564,17 +625,21 @@ async def receive_gitlab_emoji_event_webhook(
 
 
 async def schedule_emoji_collection_for_mr(
-    forge: Forge, project_id: int, mr_iid: int, background_tasks: BackgroundTasks
+    forge: Forge,
+    gitlab_connection: Gitlab,
+    project_id: int,
+    mr_iid: int,
+    background_tasks: BackgroundTasks,
 ):
     """Background task to update the database on emoji reactions"""
 
     key = (forge, project_id, mr_iid)
 
     # FIXME: Look up the connection from the Forge  # pylint: disable=fixme
-    gitlab_conn = SERVER_CONFIG.gitlab.instances[forge.value].get_connection()
+    # gitlab_conn = SERVER_CONFIG.gitlab.instances[forge.value].get_connection()
 
     LOG.debug("Looking up emojis for %s, %d, %d", forge, project_id, mr_iid)
-    await collect_emojis_for_mr(project_id, mr_iid, gitlab_conn)
+    await collect_emojis_for_mr(project_id, mr_iid, gitlab_connection)
 
     # Check whether we've been asked to re-schedule this lookup because
     # another request came in while it was processing.
@@ -585,6 +650,7 @@ async def schedule_emoji_collection_for_mr(
         background_tasks.add_task(
             schedule_emoji_collection_for_mr,
             forge,
+            gitlab_connection,
             project_id,
             mr_iid,
             background_tasks,
@@ -707,25 +773,27 @@ async def get_metrics(
     return await handler()
 
 
-async def collect_emoji_task():
+async def collect_emoji_task(connection_manager: ConnectionManager):
     """Collect emoji feedback.
     Query only comments created in the last year.
     """
 
-    for instance in SERVER_CONFIG.gitlab.instances.values():
+    for instance_url, instance in SERVER_CONFIG.gitlab.instances.items():
         LOG.info(
             "Collect emoji feedback for %s started at %s",
             instance.url,
             datetime.datetime.now(datetime.timezone.utc),
         )
-        await collect_emojis(instance.get_connection(), TimePeriod(weeks=54))
+        await collect_emojis(
+            connection_manager.gitlab_connections[instance_url], TimePeriod(weeks=54)
+        )
         LOG.info(
             "Collect emoji feedback finished at %s",
             datetime.datetime.now(datetime.timezone.utc),
         )
 
 
-async def schedule_collect_emojis_task():
+async def schedule_collect_emojis_task(connection_manager: ConnectionManager):
     """Schedule the collect_emojis_task to run on a configured interval"""
     while True:
         seconds_until_run = SERVER_CONFIG.general.collect_emojis_interval
@@ -733,6 +801,6 @@ async def schedule_collect_emojis_task():
         await asyncio.sleep(seconds_until_run)
 
         try:
-            await collect_emoji_task()
+            await collect_emoji_task(connection_manager=connection_manager)
         except Exception as e:  # pylint: disable=broad-exception-caught
             LOG.exception("Error in collect_emoji_task: %s", e)

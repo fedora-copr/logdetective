@@ -42,16 +42,19 @@ FAILURE_LOG_REGEX = re.compile(r"(\w*\.log)")
 
 async def process_gitlab_job_event(
     gitlab_cfg: GitLabInstanceConfig,
+    gitlab_connection: gitlab.Gitlab,
+    http_session: aiohttp.ClientSession,
     forge: Forge,
     job_hook: JobHook,
     async_request_limiter: AsyncLimiter,
-):  # pylint: disable=too-many-locals
+):  # pylint: disable=too-many-locals disable=too-many-arguments disable=too-many-positional-arguments
     """Handle a received job_event webhook from GitLab"""
     LOG.debug("Received webhook message from %s:\n%s", forge.value, job_hook)
 
     # Look up the project this job belongs to
-    gitlab_conn = gitlab_cfg.get_connection()
-    project = await asyncio.to_thread(gitlab_conn.projects.get, job_hook.project_id)
+    project = await asyncio.to_thread(
+        gitlab_connection.projects.get, job_hook.project_id
+    )
     LOG.info("Processing failed job for %s", project.name)
 
     # Retrieve data about the job from the GitLab API
@@ -96,7 +99,7 @@ async def process_gitlab_job_event(
     # Retrieve the build logs from the merge request artifacts and preprocess them
     try:
         log_url, preprocessed_log = await retrieve_and_preprocess_koji_logs(
-            gitlab_cfg, job
+            gitlab_cfg, job, http_session
         )
     except (LogsTooLargeError, LogDetectiveConnectionError) as ex:
         LOG.error("Could not retrieve logs due to %s", ex)
@@ -107,7 +110,7 @@ async def process_gitlab_job_event(
     metrics_id = await add_new_metrics(
         api_name=EndpointType.ANALYZE_GITLAB_JOB,
         url=log_url,
-        http_session=gitlab_cfg.get_http_session(),
+        http_session=http_session,
         compressed_log_content=RemoteLogCompressor.zip_text(log_text),
     )
     staged_response = await perform_staged_analysis(
@@ -166,6 +169,7 @@ def is_eligible_package(project_name: str):
 async def retrieve_and_preprocess_koji_logs(
     gitlab_cfg: GitLabInstanceConfig,
     job: gitlab.v4.objects.ProjectJob,
+    http_session: aiohttp.ClientSession,
 ):  # pylint: disable=too-many-branches,too-many-locals
     """Download logs from the merge request artifacts
 
@@ -177,7 +181,7 @@ async def retrieve_and_preprocess_koji_logs(
     Detective. The calling function is responsible for closing this object."""
 
     # Make sure the file isn't too large to process.
-    if not await check_artifacts_file_size(gitlab_cfg, job):
+    if not await check_artifacts_file_size(gitlab_cfg, job, http_session):
         raise LogsTooLargeError(
             f"Oversized logs for job {job.id} in project {job.project_id}"
         )
@@ -278,6 +282,7 @@ async def retrieve_and_preprocess_koji_logs(
 async def check_artifacts_file_size(
     gitlab_cfg: GitLabInstanceConfig,
     job: gitlab.v4.objects.ProjectJob,
+    http_session: aiohttp.ClientSession,
 ):
     """Method to determine if the artifacts are too large to process"""
     # First, make sure that the artifacts are of a reasonable size. The
@@ -289,7 +294,7 @@ async def check_artifacts_file_size(
     )
     LOG.debug("checking artifact URL %s%s", gitlab_cfg.url, artifacts_path)
     try:
-        head_response = await gitlab_cfg.get_http_session().head(
+        head_response = await http_session.head(
             artifacts_path,
             allow_redirects=True,
             raise_for_status=True,
