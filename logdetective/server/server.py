@@ -26,6 +26,7 @@ from fastapi.responses import Response as BasicResponse
 import aiohttp
 import sentry_sdk
 
+from logdetective.extractors import DrainExtractor, CSGrepExtractor, Extractor
 from logdetective.server.exceptions import KojiInvalidTaskID
 
 from logdetective.server.database.models.koji import KojiTaskAnalysis
@@ -59,6 +60,7 @@ from logdetective.server.models import (
     Response,
     StagedResponse,
     TimePeriod,
+    ExtractorConfig,
 )
 from logdetective.server import plot as plot_engine
 from logdetective.server.database.models import (
@@ -79,6 +81,27 @@ API_TOKEN = os.environ.get("LOGDETECTIVE_TOKEN", None)
 
 if sentry_dsn := SERVER_CONFIG.general.sentry_dsn:
     sentry_sdk.init(dsn=str(sentry_dsn), traces_sample_rate=1.0)
+
+
+def initialize_extractors(extractor_config: ExtractorConfig) -> list[Extractor]:
+    """Set up extractors based on provided ExtractorConfig."""
+    extractors: list[Extractor] = [
+        DrainExtractor(
+            verbose=extractor_config.verbose,
+            max_snippet_len=extractor_config.max_snippet_len,
+            max_clusters=extractor_config.max_clusters,
+        )
+    ]
+
+    if extractor_config.csgrep:
+        extractors.append(
+            CSGrepExtractor(
+                verbose=extractor_config.verbose,
+                max_snippet_len=extractor_config.max_snippet_len,
+            )
+        )
+
+    return extractors
 
 
 class ConnectionManager:
@@ -137,6 +160,9 @@ async def lifespan(fapp: FastAPI):
     fapp.state.connection_manager = ConnectionManager()
 
     await fapp.state.connection_manager.initialize(service_config=SERVER_CONFIG)
+
+    # Set up extractors
+    fapp.state.extractors = initialize_extractors(SERVER_CONFIG.extractor)
 
     # Ensure that the database is initialized.
     await logdetective.server.database.base.init()
@@ -223,7 +249,9 @@ async def analyze_log(
     log_text = await remote_log.process_url()
 
     return await perfrom_analysis(
-        log_text, async_request_limiter=request.app.state.llm_request_limiter
+        log_text,
+        async_request_limiter=request.app.state.llm_request_limiter,
+        extractors=request.app.state.extractors
     )
 
 
@@ -244,7 +272,9 @@ async def analyze_log_staged(
     log_text = await remote_log.process_url()
 
     return await perform_staged_analysis(
-        log_text, request.app.state.llm_request_limiter
+        log_text,
+        async_request_limiter=request.app.state.llm_request_limiter,
+        extractors=request.app.state.extractors,
     )
 
 
@@ -346,6 +376,7 @@ async def analyze_rpmbuild_koji(
             koji_instance_config,
             koji_connection,
             request.app.state.llm_request_limiter,
+            request.app.state.extractors
         )
 
         # If a callback URL is provided, we need to add it to the callbacks
@@ -372,6 +403,7 @@ async def analyze_koji_task(
     koji_instance_config: KojiInstanceConfig,
     koji_connection: ClientSession,
     async_request_limiter: AsyncLimiter,
+    extractors: list[Extractor]
 ):
     """Analyze a koji task and return the response"""
 
@@ -398,7 +430,9 @@ async def analyze_koji_task(
         log_file_name=log_file_name,
     )
     response = await perform_staged_analysis(
-        log_text, async_request_limiter=async_request_limiter
+        log_text,
+        async_request_limiter=async_request_limiter,
+        extractors=extractors
     )
 
     # Now that we have the response, we can update the metrics and mark the
@@ -464,7 +498,9 @@ async def analyze_log_stream(
     log_text = await remote_log.process_url()
     try:
         stream = perform_analyis_stream(
-            log_text, async_request_limiter=request.app.state.llm_request_limiter
+            log_text,
+            async_request_limiter=request.app.state.llm_request_limiter,
+            extractors=request.app.state.extractors,
         )
     except aiohttp.ClientResponseError as ex:
         raise HTTPException(
@@ -532,6 +568,7 @@ async def receive_gitlab_job_event_webhook(
         forge,
         job_hook,
         request.app.state.llm_request_limiter,
+        request.app.state.extractors
     )
 
     # No return value or body is required for a webhook.

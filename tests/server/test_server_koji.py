@@ -2,6 +2,7 @@ import koji
 import pytest
 from aiolimiter import AsyncLimiter
 
+from logdetective.extractors import DrainExtractor
 from logdetective.server.models import StagedResponse
 from logdetective.server.server import analyze_koji_task
 
@@ -228,6 +229,7 @@ async def test_koji_analyze_koji_task(mocker, mock_chat_completions, method):
             koji_instance_config=mock_koji_instance_config,
             koji_connection=mock_koji_conn,
             async_request_limiter=AsyncLimiter(100),
+            extractors=[DrainExtractor()],
         )
 
         assert response is not None

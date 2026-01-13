@@ -14,6 +14,7 @@ import jinja2
 import aiohttp
 import backoff
 
+from logdetective.extractors import Extractor
 from logdetective.server.config import SERVER_CONFIG, LOG
 from logdetective.server.exceptions import (
     LogsTooLargeError,
@@ -47,6 +48,7 @@ async def process_gitlab_job_event(
     forge: Forge,
     job_hook: JobHook,
     async_request_limiter: AsyncLimiter,
+    extractors: list[Extractor],
 ):  # pylint: disable=too-many-locals disable=too-many-arguments disable=too-many-positional-arguments
     """Handle a received job_event webhook from GitLab"""
     LOG.debug("Received webhook message from %s:\n%s", forge.value, job_hook)
@@ -114,7 +116,9 @@ async def process_gitlab_job_event(
         compressed_log_content=RemoteLogCompressor.zip_text(log_text),
     )
     staged_response = await perform_staged_analysis(
-        log_text=log_text, async_request_limiter=async_request_limiter
+        log_text=log_text,
+        async_request_limiter=async_request_limiter,
+        extractors=extractors,
     )
     await update_metrics(metrics_id, staged_response)
     preprocessed_log.close()

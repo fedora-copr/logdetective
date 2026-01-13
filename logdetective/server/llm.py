@@ -13,6 +13,7 @@ from aiolimiter import AsyncLimiter
 from openai import AsyncStream
 from openai.types.chat import ChatCompletionChunk
 
+from logdetective.extractors import Extractor
 from logdetective.utils import (
     compute_certainty,
     prompt_to_messages,
@@ -190,10 +191,12 @@ async def analyze_snippets(
 
 
 async def perfrom_analysis(
-    log_text: str, async_request_limiter: AsyncLimiter
+    log_text: str,
+    async_request_limiter: AsyncLimiter,
+    extractors: List[Extractor],
 ) -> Response:
     """Sumbit log file snippets in aggregate to LLM and retrieve results"""
-    log_summary = mine_logs(log_text, SERVER_CONFIG.extractor.get_extractors())
+    log_summary = mine_logs(log_text, extractors)
     log_summary = format_snippets(log_summary)
 
     final_prompt = construct_final_prompt(log_summary, PROMPT_CONFIG.prompt_template)
@@ -225,10 +228,12 @@ async def perfrom_analysis(
 
 
 async def perform_analyis_stream(
-    log_text: str, async_request_limiter: AsyncLimiter
+    log_text: str,
+    async_request_limiter: AsyncLimiter,
+    extractors: List[Extractor],
 ) -> AsyncStream:
     """Submit log file snippets in aggregate and return a stream of tokens"""
-    log_summary = mine_logs(log_text, SERVER_CONFIG.extractor.get_extractors())
+    log_summary = mine_logs(log_text, extractors)
     log_summary = format_snippets(log_summary)
 
     final_prompt = construct_final_prompt(log_summary, PROMPT_CONFIG.prompt_template)
@@ -253,10 +258,12 @@ async def perform_analyis_stream(
 
 
 async def perform_staged_analysis(
-    log_text: str, async_request_limiter: AsyncLimiter
+    log_text: str,
+    async_request_limiter: AsyncLimiter,
+    extractors: List[Extractor],
 ) -> StagedResponse:
     """Submit the log file snippets to the LLM and retrieve their results"""
-    log_summary = mine_logs(log_text, SERVER_CONFIG.extractor.get_extractors())
+    log_summary = mine_logs(log_text, extractors)
     start = time.time()
     if SERVER_CONFIG.general.top_k_snippets:
         rated_snippets = await analyze_snippets(

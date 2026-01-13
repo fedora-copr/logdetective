@@ -49,9 +49,6 @@ def test_default_initialization_and_configuration():
     assert config.max_snippet_len == 2000
     assert config.csgrep is False
 
-    extractors = config.get_extractors()
-    assert len(extractors) == 1
-
 
 def test_initialization_with_custom_data():
     """Tests that ExtractorConfig correctly uses custom values from a provided
@@ -70,26 +67,3 @@ def test_initialization_with_custom_data():
     assert config.verbose is True
     assert config.max_snippet_len == 500
     assert config.csgrep is True
-
-    extractors = config.get_extractors()
-    assert len(extractors) == 2
-
-
-def test_csgrep_is_not_included_when_false():
-    """Tests that get_extractors returns only the DrainExtractor when csgrep is explicitly False."""
-
-    config = ExtractorConfig(data={"csgrep": False})
-
-    extractors = config.get_extractors()
-    assert len(extractors) == 1
-    assert isinstance(extractors[0], DrainExtractor)
-
-
-def test_csgrep_is_included_when_true():
-    """Tests that get_extractors returns both extractors when csgrep is explicitly True."""
-    config = ExtractorConfig(data={"csgrep": True})
-
-    extractors = config.get_extractors()
-    assert len(extractors) == 2
-    assert isinstance(extractors[0], DrainExtractor)
-    assert isinstance(extractors[1], CSGrepExtractor)
