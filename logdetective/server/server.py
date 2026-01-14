@@ -46,8 +46,8 @@ from logdetective.server.koji import (
 from logdetective.remote_log import RemoteLog
 from logdetective.server.llm import (
     perform_staged_analysis,
-    perfrom_analysis,
-    perform_analyis_stream,
+    perform_analysis,
+    perform_analysis_stream,
 )
 from logdetective.server.gitlab import process_gitlab_job_event
 from logdetective.server.metric import track_request, add_new_metrics, update_metrics
@@ -278,7 +278,7 @@ async def analyze_log(
     remote_log = RemoteLog(build_log.url, http_session)
     log_text = await remote_log.process_url()
 
-    return await perfrom_analysis(
+    return await perform_analysis(
         log_text,
         async_request_limiter=request.app.state.llm_request_limiter,
         extractors=request.app.state.extractors
@@ -529,7 +529,7 @@ async def analyze_log_stream(
     remote_log = RemoteLog(build_log.url, http_session)
     log_text = await remote_log.process_url()
     try:
-        stream = perform_analyis_stream(
+        stream = perform_analysis_stream(
             log_text,
             async_request_limiter=request.app.state.llm_request_limiter,
             extractors=request.app.state.extractors,
