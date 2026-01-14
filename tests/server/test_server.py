@@ -15,7 +15,7 @@ from tests.server.test_helpers import (
 )
 
 from logdetective.server.config import SERVER_CONFIG
-from logdetective.server.llm import perform_staged_analysis, call_llm, perfrom_analysis
+from logdetective.server.llm import perform_staged_analysis, call_llm, perform_analysis
 from logdetective.remote_log import RemoteLog
 from logdetective.server.config import load_server_config
 from logdetective.server.models import InferenceConfig, Explanation, Config
@@ -120,7 +120,7 @@ async def test_perform_analysis(
 ):
     async_limiter = AsyncLimiter(100)
     extractors = initialize_extractors(SERVER_CONFIG.extractor)
-    result = await perfrom_analysis(
+    result = await perform_analysis(
         MOCK_LOG, async_request_limiter=async_limiter, extractors=extractors
     )
 

@@ -190,7 +190,7 @@ async def analyze_snippets(
     return analyzed_snippets
 
 
-async def perfrom_analysis(
+async def perform_analysis(
     log_text: str,
     async_request_limiter: AsyncLimiter,
     extractors: List[Extractor],
@@ -227,7 +227,7 @@ async def perfrom_analysis(
     return Response(explanation=response, response_certainty=certainty)
 
 
-async def perform_analyis_stream(
+async def perform_analysis_stream(
     log_text: str,
     async_request_limiter: AsyncLimiter,
     extractors: List[Extractor],
