@@ -4,7 +4,7 @@ from aiolimiter import AsyncLimiter
 
 from logdetective.extractors import DrainExtractor
 from logdetective.server.models import StagedResponse
-from logdetective.server.server import analyze_koji_task
+from logdetective.server.server import analyze_koji_task, KojiCallbackmanager
 
 from logdetective.server.exceptions import LogsTooLargeError, LogsMissingError
 from logdetective.server.koji import (
@@ -230,6 +230,7 @@ async def test_koji_analyze_koji_task(mocker, mock_chat_completions, method):
             koji_connection=mock_koji_conn,
             async_request_limiter=AsyncLimiter(100),
             extractors=[DrainExtractor()],
+            koji_callback_manager=KojiCallbackmanager()
         )
 
         assert response is not None
