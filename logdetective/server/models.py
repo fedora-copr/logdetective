@@ -1,6 +1,6 @@
 import datetime
 from logging import BASIC_FORMAT
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from pydantic import (
     BaseModel,
     Field,
@@ -166,7 +166,7 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
     # OpenAI client library requires a string to be specified for API token
     # even if it is not checked on the server side
     api_token: str = "None"
-    model: str = ""
+    model: str = "default-model"
     temperature: NonNegativeFloat = DEFAULT_TEMPERATURE
     max_queue_size: int = LLM_DEFAULT_MAX_QUEUE_SIZE
     http_timeout: float = 5.0
@@ -174,26 +174,6 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
     system_role: str = SYSTEM_ROLE_DEFAULT
     llm_api_timeout: float = 15.0
     requests_per_minute: int = LLM_DEFAULT_REQUESTS_PER_MINUTE
-
-    def __init__(self, data: Optional[dict] = None):
-        super().__init__()
-        if data is None:
-            return
-
-        self.max_tokens = data.get("max_tokens", -1)
-        self.log_probs = data.get("log_probs", True)
-        self.url = data.get("url", "")
-        self.http_timeout = data.get("http_timeout", 5.0)
-        self.api_token = data.get("api_token", "None")
-        self.model = data.get("model", "default-model")
-        self.temperature = data.get("temperature", DEFAULT_TEMPERATURE)
-        self.max_queue_size = data.get("max_queue_size", LLM_DEFAULT_MAX_QUEUE_SIZE)
-        self.user_role = data.get("user_role", USER_ROLE_DEFAULT)
-        self.system_role = data.get("system_role", SYSTEM_ROLE_DEFAULT)
-        self.requests_per_minute = data.get(
-            "requests_per_minute", LLM_DEFAULT_REQUESTS_PER_MINUTE
-        )
-        self.llm_api_timeout = data.get("llm_api_timeout", 15.0)
 
 
 class ExtractorConfig(BaseModel):
@@ -204,26 +184,15 @@ class ExtractorConfig(BaseModel):
     max_snippet_len: int = 2000
     csgrep: bool = False
 
-    def __init__(self, data: Optional[dict] = None):
-        super().__init__(data=data)
-
-        if data is None:
-            return
-
-        self.max_clusters = data.get("max_clusters", 8)
-        self.verbose = data.get("verbose", False)
-        self.max_snippet_len = data.get("max_snippet_len", 2000)
-        self.csgrep = data.get("csgrep", False)
-
 
 class GitLabInstanceConfig(BaseModel):  # pylint: disable=too-many-instance-attributes
     """Model for GitLab configuration of logdetective server."""
 
-    name: str = None
-    url: str = None
+    name: str
+    url: str = "https://gitlab.com"
     # Path to API of the gitlab instance, assuming `url` as prefix.
-    api_path: str = None
-    api_token: str = None
+    api_path: str = "/api/v4"
+    api_token: Optional[str] = None
 
     # This is a list to support key rotation.
     # When the key is being changed, we will add the new key as a new entry in
@@ -238,19 +207,13 @@ class GitLabInstanceConfig(BaseModel):  # pylint: disable=too-many-instance-attr
     # Maximum size of artifacts.zip in MiB. (default: 300 MiB)
     max_artifact_size: int = 300 * 1024 * 1024
 
-    def __init__(self, name: str, data: Optional[dict] = None):
-        super().__init__()
-        if data is None:
-            return
-
-        self.name = name
-        self.url = data.get("url", "https://gitlab.com")
-        self.api_path = data.get("api_path", "/api/v4")
-        self.api_token = data.get("api_token", None)
-        self.webhook_secrets = data.get("webhook_secrets", None)
-        self.max_artifact_size = int(data.get("max_artifact_size", 300)) * 1024 * 1024
-
-        self.timeout = data.get("timeout", 5.0)
+    @field_validator("max_artifact_size", mode="before")
+    @classmethod
+    def megabytes_to_bytes(cls, v: Any):
+        """Convert max_artifact_size from megabytes to bytes."""
+        if isinstance(v, int):
+            return v * 1024 * 1024
+        return 300 * 1024 * 1024
 
 
 class GitLabConfig(BaseModel):
@@ -258,38 +221,27 @@ class GitLabConfig(BaseModel):
 
     instances: Dict[str, GitLabInstanceConfig] = {}
 
-    def __init__(self, data: Optional[dict] = None):
-        super().__init__()
-        if data is None:
-            return
+    @model_validator(mode="before")
+    @classmethod
+    def set_gitlab_instance_configs(cls, data: Any):
+        """Initialize configuration for each GitLab instance"""
+        if not isinstance(data, dict):
+            return data
 
+        instances = {}
         for instance_name, instance_data in data.items():
-            instance = GitLabInstanceConfig(instance_name, instance_data)
-            self.instances[instance.url] = instance
+            instance = GitLabInstanceConfig(name=instance_name, **instance_data)
+            instances[instance.url] = instance
+
+        return {"instances": instances}
 
 
 class KojiInstanceConfig(BaseModel):
     """Model for Koji configuration of logdetective server."""
 
     name: str = ""
-    xmlrpc_url: str = ""
+    xmlrpc_url: str = "https://koji.fedoraproject.org/kojihub"
     tokens: List[str] = []
-
-    def __init__(self, name: str, data: Optional[dict] = None):
-        super().__init__()
-
-        self.name = name
-        if data is None:
-            # Set some reasonable defaults
-            self.xmlrpc_url = "https://koji.fedoraproject.org/kojihub"
-            self.tokens = []
-            self.max_artifact_size = 1024 * 1024
-            return
-
-        self.xmlrpc_url = data.get(
-            "xmlrpc_url", "https://koji.fedoraproject.org/kojihub"
-        )
-        self.tokens = data.get("tokens", [])
 
 
 class KojiConfig(BaseModel):
@@ -299,23 +251,26 @@ class KojiConfig(BaseModel):
     analysis_timeout: int = 15
     max_artifact_size: int = 300 * 1024 * 1024
 
-    def __init__(self, data: Optional[dict] = None):
-        super().__init__()
-        if data is None:
-            return
+    @field_validator("max_artifact_size", mode="before")
+    @classmethod
+    def megabytes_to_bytes(cls, v: Any):
+        """Convert max_artifact_size from megabytes to bytes."""
+        if isinstance(v, int):
+            return v * 1024 * 1024
+        return 300 * 1024 * 1024
 
-        # Handle analysis_timeout with default 15
-        self.analysis_timeout = data.get("analysis_timeout", 15)
-
-        # Handle max_artifact_size with default 300
-        self.max_artifact_size = data.get("max_artifact_size", 300) * 1024 * 1024
-
-        # Handle instances dictionary
-        instances_data = data.get("instances", {})
-        for instance_name, instance_data in instances_data.items():
-            self.instances[instance_name] = KojiInstanceConfig(
-                instance_name, instance_data
-            )
+    @model_validator(mode="before")
+    @classmethod
+    def set_koji_instance_configs(cls, data: Any):
+        """Initialize configuration for each Koji instance."""
+        if isinstance(data, dict):
+            instances = {}
+            for instance_name, instance_data in data.get("instances", {}).items():
+                instances[instance_name] = KojiInstanceConfig(
+                    name=instance_name, **instance_data
+                )
+            data["instances"] = instances
+        return data
 
 
 class LogConfig(BaseModel):
@@ -326,17 +281,6 @@ class LogConfig(BaseModel):
     level_file: str | int = "INFO"
     path: str | None = None
     format: str = BASIC_FORMAT
-
-    def __init__(self, data: Optional[dict] = None):
-        super().__init__()
-        if data is None:
-            return
-
-        self.name = data.get("name", "logdetective")
-        self.level_stream = data.get("level_stream", "INFO").upper()
-        self.level_file = data.get("level_file", "INFO").upper()
-        self.path = data.get("path")
-        self.format = data.get("format", BASIC_FORMAT)
 
 
 class GeneralConfig(BaseModel):
@@ -349,50 +293,27 @@ class GeneralConfig(BaseModel):
     collect_emojis_interval: int = 60 * 60  # seconds
     top_k_snippets: int = 0
 
-    def __init__(self, data: Optional[dict] = None):
-        super().__init__()
-        if data is None:
-            return
-
-        self.packages = data.get("packages", [])
-        self.excluded_packages = data.get("excluded_packages", [])
-        self.devmode = data.get("devmode", False)
-        self.sentry_dsn = data.get("sentry_dsn")
-        self.collect_emojis_interval = data.get(
-            "collect_emojis_interval", 60 * 60
-        )  # seconds
-        self.top_k_snippets = data.get("top_k_snippets", 0)
-
 
 class Config(BaseModel):
     """Model for configuration of logdetective server."""
 
-    log: LogConfig = LogConfig()
-    inference: InferenceConfig = InferenceConfig()
-    snippet_inference: InferenceConfig = InferenceConfig()
+    log: LogConfig = Field(default_factory=LogConfig)
+    inference: InferenceConfig = Field(default_factory=InferenceConfig)
+    snippet_inference: InferenceConfig = Field(default_factory=InferenceConfig)
     # TODO(jpodivin): Extend to work with multiple extractor configs
-    extractor: ExtractorConfig = ExtractorConfig()
-    gitlab: GitLabConfig = GitLabConfig()
-    koji: KojiConfig = KojiConfig()
-    general: GeneralConfig = GeneralConfig()
+    extractor: ExtractorConfig = Field(default_factory=ExtractorConfig)
+    gitlab: GitLabConfig = Field(default_factory=GitLabConfig)
+    koji: KojiConfig = Field(default_factory=KojiConfig)
+    general: GeneralConfig = Field(default_factory=GeneralConfig)
 
-    def __init__(self, data: Optional[dict] = None):
-        super().__init__()
-
-        if data is None:
-            return
-
-        self.log = LogConfig(data.get("log"))
-        self.inference = InferenceConfig(data.get("inference"))
-        self.extractor = ExtractorConfig(data.get("extractor"))
-        self.gitlab = GitLabConfig(data.get("gitlab"))
-        self.koji = KojiConfig(data.get("koji"))
-        self.general = GeneralConfig(data.get("general"))
-
-        if snippet_inference := data.get("snippet_inference", None):
-            self.snippet_inference = InferenceConfig(snippet_inference)
-        else:
-            self.snippet_inference = self.inference
+    @model_validator(mode="before")
+    @classmethod
+    def default_snippet_inference(cls, data: Any):
+        """Use base inference configuration, if specific snippet configuration isn't provided."""
+        if isinstance(data, dict):
+            if "snippet_inference" not in data and "inference" in data:
+                data["snippet_inference"] = data["inference"]
+        return data
 
 
 class TimePeriod(BaseModel):

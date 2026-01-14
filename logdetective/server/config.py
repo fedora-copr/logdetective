@@ -15,7 +15,7 @@ def load_server_config(path: str | None) -> Config:
     if path is not None:
         try:
             with open(path, "r") as config_file:
-                return Config(yaml.safe_load(config_file))
+                return Config.model_validate(yaml.safe_load(config_file))
         except FileNotFoundError:
             # This is not an error, we will fall back to default
             print("Unable to find server config file, using default then.")

@@ -24,6 +24,7 @@ from tests.server.test_helpers import (
     mock_job,
     gitlab_cfg,
     create_mock_client_response,
+    mock_config,
 )
 
 from logdetective.extractors import DrainExtractor
@@ -40,37 +41,7 @@ from logdetective.server.database.models import (
     Forge,
     GitlabMergeRequestJobs,
 )
-from logdetective.server import gitlab, llm
 from logdetective.server.exceptions import LogsTooLargeError
-
-
-@pytest_asyncio.fixture
-def mock_config():
-    server_config = Config(
-        data={
-            "gitlab": {
-                "gitlab.com": {
-                    "api_url": "https://gitlab.com",
-                    "api_token": "abc",
-                    "max_artifact_size": 1234567,
-                }
-            },
-            "extractor": {"max_clusters": 1},
-            "inference": {
-                "model": "some.gguf",
-                "max_tokens": -1,
-                "api_token": "def",
-                "temperature": 1,
-                "url": "http://llama-cpp-server:8000",
-            },
-            "general": {
-                "packages": ["a project", "python3-.*"],
-                "excluded_packages": ["python3-excluded", "python3-more-exclusions.*"],
-            },
-        }
-    )
-    flexmock(gitlab).should_receive("SERVER_CONFIG").and_return(server_config)
-    flexmock(llm).should_receive("SERVER_CONFIG").and_return(server_config)
 
 
 def create_zip_content(filepath) -> bytes:
@@ -406,15 +377,13 @@ async def test_is_eligible_package(mock_config):
 @pytest.mark.asyncio
 async def test_regression_unknown_arch_logs(mocker: MockerFixture):
     gl_token = os.environ.get("LD_GITLAB_TOKEN", None)
-
-    gitlab_cfg = GitLabInstanceConfig(
-        name="Live Network Test Instance",
-        data={
-            "api_url": "https://gitlab.com",
-            "api_token": gl_token,
-            "max_artifact_size": 120,
-        },
-    )
+    data = {
+        "name": "Live Network Test Instance",
+        "api_url": "https://gitlab.com",
+        "api_token": gl_token,
+        "max_artifact_size": 120,
+    }
+    gitlab_cfg = GitLabInstanceConfig.model_validate(data)
     gitlab_connection = Gitlab(
         url=gitlab_cfg.url,
         private_token=gitlab_cfg.api_token,

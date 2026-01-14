@@ -33,7 +33,7 @@ def test_TimePeriod_get_period_start_time():
 def test_parse_deployed_config():
     with open("server/config.yml", "r", encoding="utf8") as config_file:
         config_def = yaml.safe_load(config_file)
-        config = Config(data=config_def)
+        config = Config.model_validate(config_def)
         assert config
 
 
@@ -61,7 +61,7 @@ def test_initialization_with_custom_data():
         "max_snippet_len": 500,
         "csgrep": True,
     }
-    config = ExtractorConfig(data=custom_data)
+    config = ExtractorConfig.model_validate(custom_data)
 
     assert config.max_clusters == 15
     assert config.verbose is True
