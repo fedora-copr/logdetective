@@ -2,6 +2,7 @@ import os
 import asyncio
 import datetime
 from enum import Enum
+from collections import defaultdict
 from contextlib import asynccontextmanager
 from typing import Annotated
 from io import BytesIO
@@ -140,6 +141,32 @@ class ConnectionManager:
             await session.close()
 
 
+class KojiCallbackmanager:
+    """Manages callbacks used by Koji, with callbacks referenced by task id.
+
+    Multiple callbacks can be assigned to a single task."""
+
+    _callbacks: defaultdict[int, set[str]]
+
+    def __init__(self) -> None:
+        self._callbacks = defaultdict(set)
+
+    def register_callback(self, task_id: int, callback: str):
+        """Register a callback for a task"""
+        self._callbacks[task_id].add(callback)
+
+    def clear_callbacks(self, task_id: int):
+        """Unregister a callback for a task"""
+        try:
+            del self._callbacks[task_id]
+        except KeyError:
+            pass
+
+    def get_callbacks(self, task_id: int) -> set[str]:
+        """Get the callbacks for a task"""
+        return self._callbacks[task_id]
+
+
 @asynccontextmanager
 async def lifespan(fapp: FastAPI):
     """
@@ -163,6 +190,9 @@ async def lifespan(fapp: FastAPI):
 
     # Set up extractors
     fapp.state.extractors = initialize_extractors(SERVER_CONFIG.extractor)
+
+    # Koji callbacks
+    fapp.state.koji_callback_manager = KojiCallbackmanager()
 
     # Ensure that the database is initialized.
     await logdetective.server.database.base.init()
@@ -376,13 +406,14 @@ async def analyze_rpmbuild_koji(
             koji_instance_config,
             koji_connection,
             request.app.state.llm_request_limiter,
-            request.app.state.extractors
+            request.app.state.extractors,
+            request.app.state.koji_callback_manager
         )
 
         # If a callback URL is provided, we need to add it to the callbacks
         # table so that we can notify it when the analysis is complete.
         if x_koji_callback:
-            koji_instance_config.register_callback(task_id, x_koji_callback)
+            request.app.state.koji_callback_manager.register_callback(task_id, x_koji_callback)
 
         response = BasicResponse(
             status_code=202, content=f"Beginning analysis of task {task_id}"
@@ -403,8 +434,9 @@ async def analyze_koji_task(
     koji_instance_config: KojiInstanceConfig,
     koji_connection: ClientSession,
     async_request_limiter: AsyncLimiter,
-    extractors: list[Extractor]
-):
+    extractors: list[Extractor],
+    koji_callback_manager: KojiCallbackmanager,
+):  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
     """Analyze a koji task and return the response"""
 
     # Get the log text from the koji task
@@ -441,12 +473,12 @@ async def analyze_koji_task(
     await KojiTaskAnalysis.add_response(task_id, metrics_id)
 
     # Notify any callbacks that the analysis is complete.
-    for callback in koji_instance_config.get_callbacks(task_id):
+    for callback in koji_callback_manager.get_callbacks(task_id):
         LOG.info("Notifying callback %s of task %d completion", callback, task_id)
         asyncio.create_task(send_koji_callback(callback, task_id))
 
     # Now that it's sent, we can clear the callbacks for this task.
-    koji_instance_config.clear_callbacks(task_id)
+    koji_callback_manager.clear_callbacks(task_id)
 
     return response
 

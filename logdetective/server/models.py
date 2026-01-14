@@ -1,4 +1,3 @@
-from collections import defaultdict
 import datetime
 from logging import BASIC_FORMAT
 from typing import List, Dict, Optional
@@ -9,7 +8,6 @@ from pydantic import (
     field_validator,
     NonNegativeFloat,
     HttpUrl,
-    PrivateAttr,
 )
 
 
@@ -277,10 +275,6 @@ class KojiInstanceConfig(BaseModel):
     xmlrpc_url: str = ""
     tokens: List[str] = []
 
-    _callbacks: defaultdict[int, set[str]] = PrivateAttr(
-        default_factory=lambda: defaultdict(set)
-    )
-
     def __init__(self, name: str, data: Optional[dict] = None):
         super().__init__()
 
@@ -296,21 +290,6 @@ class KojiInstanceConfig(BaseModel):
             "xmlrpc_url", "https://koji.fedoraproject.org/kojihub"
         )
         self.tokens = data.get("tokens", [])
-
-    def register_callback(self, task_id: int, callback: str):
-        """Register a callback for a task"""
-        self._callbacks[task_id].add(callback)
-
-    def clear_callbacks(self, task_id: int):
-        """Unregister a callback for a task"""
-        try:
-            del self._callbacks[task_id]
-        except KeyError:
-            pass
-
-    def get_callbacks(self, task_id: int) -> set[str]:
-        """Get the callbacks for a task"""
-        return self._callbacks[task_id]
 
 
 class KojiConfig(BaseModel):
