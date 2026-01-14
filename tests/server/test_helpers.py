@@ -7,6 +7,7 @@ import zipfile
 from unittest.mock import AsyncMock
 
 import pytest
+import pytest_asyncio
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from flexmock import flexmock
 from pytest_mock import MockerFixture
@@ -20,7 +21,9 @@ import koji
 from logdetective.server.models import (
     Response,
     Explanation,
+    Config
 )
+from logdetective.server import gitlab, llm
 from logdetective.server.database import base
 from logdetective.server.database.base import init, destroy
 from logdetective.server.database.models import (
@@ -356,7 +359,7 @@ def gitlab_cfg() -> GitLabInstanceConfig:
     """Provides a standard GitLabInstanceConfig for tests."""
     return GitLabInstanceConfig(
         name="mocked_gitlab",
-        data={
+        **{
             "url": "https://gitlab.com",
             "api_path": "/api/v4",
             "api_token": "empty",
@@ -419,3 +422,34 @@ def create_mock_client_response(mocker, content_length=4096):
     # that returns our mock response.
     mock_session.head = AsyncMock(return_value=mock_response)
     return mock_session
+
+
+@pytest_asyncio.fixture
+def mock_config():
+    server_config = Config(
+        **{
+            "gitlab": {
+                "gitlab.com": {
+                    "url": "https://gitlab.com",
+                    "api_token": "abc",
+                    "max_artifact_size": 1234567,
+                }
+            },
+            "extractor": {"max_clusters": 1},
+            "inference": {
+                "model": "some.gguf",
+                "max_tokens": -1,
+                "api_token": "def",
+                "temperature": 1,
+                "url": "http://llama-cpp-server:8000",
+            },
+            "general": {
+                "packages": ["a project", "python3-.*"],
+                "excluded_packages": ["python3-excluded", "python3-more-exclusions.*"],
+            },
+        }
+    )
+    flexmock(gitlab).should_receive("SERVER_CONFIG").and_return(server_config)
+    flexmock(llm).should_receive("SERVER_CONFIG").and_return(server_config)
+
+    return {"server_config": server_config}

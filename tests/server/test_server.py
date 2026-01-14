@@ -6,18 +6,20 @@ import pytest
 
 from aiolimiter import AsyncLimiter
 from fastapi import HTTPException
+import gitlab
 
 from tests.server.test_helpers import (
     mock_chat_completions,
     MOCK_LOG,
+    mock_config
 )
 
 from logdetective.server.config import SERVER_CONFIG
 from logdetective.server.llm import perform_staged_analysis, call_llm, perfrom_analysis
 from logdetective.remote_log import RemoteLog
 from logdetective.server.config import load_server_config
-from logdetective.server.models import InferenceConfig, Explanation
-from logdetective.server.server import initialize_extractors
+from logdetective.server.models import InferenceConfig, Explanation, Config
+from logdetective.server.server import initialize_extractors, KojiCallbackManager, ConnectionManager
 
 MOCK_EXPLANATION = "Mock explanation"
 
@@ -138,3 +140,39 @@ async def test_perform_staged_analysis(
     )
 
     assert result.explanation.text == MOCK_EXPLANATION
+
+
+def test_koji_callback_manager():
+    """Test KojiCallbackManager initialization, callback registration
+    and removal."""
+    manager = KojiCallbackManager()
+    assert len(manager.get_callbacks(1)) == 0
+
+    manager.register_callback(1, "test_callback")
+
+    assert len(manager.get_callbacks(1)) == 1
+
+    manager.clear_callbacks(1)
+
+    assert len(manager.get_callbacks(1)) == 0
+
+
+@pytest.mark.asyncio
+async def test_connection_manager(mock_config):
+    """Test that ConnectionManager can handle initialization and disposal
+    of managed objects, sessions in particular."""
+    connection_manager = ConnectionManager()
+    server_config = mock_config["server_config"]
+    assert isinstance(server_config, Config)
+
+    assert len(server_config.gitlab.instances) == 1
+
+    await connection_manager.initialize(server_config)
+    assert len(connection_manager.gitlab_connections) == 1
+    assert len(connection_manager.gitlab_http_sessions) == 1
+
+    assert isinstance(connection_manager.gitlab_connections["https://gitlab.com"], gitlab.Gitlab)
+    assert not connection_manager.gitlab_http_sessions["https://gitlab.com"].closed
+
+    await connection_manager.close()
+    assert connection_manager.gitlab_http_sessions["https://gitlab.com"].closed

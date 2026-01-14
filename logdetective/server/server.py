@@ -141,7 +141,7 @@ class ConnectionManager:
             await session.close()
 
 
-class KojiCallbackmanager:
+class KojiCallbackManager:
     """Manages callbacks used by Koji, with callbacks referenced by task id.
 
     Multiple callbacks can be assigned to a single task."""
@@ -192,7 +192,7 @@ async def lifespan(fapp: FastAPI):
     fapp.state.extractors = initialize_extractors(SERVER_CONFIG.extractor)
 
     # Koji callbacks
-    fapp.state.koji_callback_manager = KojiCallbackmanager()
+    fapp.state.koji_callback_manager = KojiCallbackManager()
 
     # Ensure that the database is initialized.
     await logdetective.server.database.base.init()
@@ -435,7 +435,7 @@ async def analyze_koji_task(
     koji_connection: ClientSession,
     async_request_limiter: AsyncLimiter,
     extractors: list[Extractor],
-    koji_callback_manager: KojiCallbackmanager,
+    koji_callback_manager: KojiCallbackManager,
 ):  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
     """Analyze a koji task and return the response"""
 
