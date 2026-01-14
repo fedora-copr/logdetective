@@ -34,7 +34,7 @@ issues = "https://github.com/fedora-copr/logdetective/issues"
 python = "^3.11"
 llama-cpp-python = ">0.2.56,!=0.2.86,<1.0.0"
 drain3 = ">=0.9.11,<0.10.0"
-huggingface-hub = ">0.23.2,<0.35.0"
+huggingface-hub = ">=0.23.0,<1.4.0"
 # rawhide has numpy 2, F40 and F41 are still on 1.26
 # we need to support both versions
 numpy = ">=1.26.0"
