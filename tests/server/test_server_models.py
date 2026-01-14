@@ -1,5 +1,6 @@
 import datetime
 import pytest
+from pytest_mock import MockerFixture
 import yaml
 
 from pydantic import ValidationError
@@ -50,10 +51,11 @@ def test_default_initialization_and_configuration():
     assert config.csgrep is False
 
 
-def test_initialization_with_custom_data():
+def test_initialization_with_custom_data(mocker: MockerFixture):
     """Tests that ExtractorConfig correctly uses custom values from a provided
     data dictionary and instantiates all relevant extractors.
     """
+    mocker.patch("logdetective.server.models.check_csgrep", return_value=True)
 
     custom_data = {
         "max_clusters": 15,

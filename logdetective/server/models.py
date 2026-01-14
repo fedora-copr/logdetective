@@ -18,6 +18,7 @@ from logdetective.constants import (
     SYSTEM_ROLE_DEFAULT,
     USER_ROLE_DEFAULT,
 )
+from logdetective.utils import check_csgrep
 
 
 class BuildLog(BaseModel):
@@ -183,6 +184,16 @@ class ExtractorConfig(BaseModel):
     verbose: bool = False
     max_snippet_len: int = 2000
     csgrep: bool = False
+
+    @field_validator("csgrep", mode="before")
+    @classmethod
+    def verify_csgrep(cls, v: bool):
+        """Verify presence of csgrep binary if csgrep extractor is requested."""
+        if v and not check_csgrep():
+            raise ValueError(
+                "Requested csgrep extractor but `csgrep` binary is not in the PATH"
+            )
+        return v
 
 
 class GitLabInstanceConfig(BaseModel):  # pylint: disable=too-many-instance-attributes
