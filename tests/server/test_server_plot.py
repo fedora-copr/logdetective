@@ -7,9 +7,9 @@ import pytest
 
 from tests.server.test_helpers import PopulateDatabase
 
-from logdetective.server import plot, models
+from logdetective.server import models, stats
 from logdetective.server.database.models import AnalyzeRequestMetrics, EndpointType
-from logdetective.server.plot import (
+from logdetective.server.stats import (
     create_time_series_arrays,
     requests_per_time,
     average_time_per_responses,
@@ -18,14 +18,14 @@ from logdetective.server.plot import (
 
 
 def test_week_Definition():
-    details = plot.Definition(models.TimePeriod(weeks=3))
+    details = stats.Definition(models.TimePeriod(weeks=3))
     assert details.time_unit == "week"
     assert details.freq == "W"
     assert details.days_diff == 21
 
 
 def test_day_Definition():
-    details = plot.Definition(models.TimePeriod(days=3))
+    details = stats.Definition(models.TimePeriod(days=3))
     assert details.time_unit == "day"
     assert details.freq == "D"
     assert details.days_diff == 3
@@ -43,7 +43,7 @@ async def test_create_time_series_arrays(endpoint):
         endpoint=endpoint,
     ) as _:
         period = models.TimePeriod(hours=22)
-        plot_details = plot.Definition(period)
+        plot_details = stats.Definition(period)
         end_time = datetime.datetime.now(datetime.timezone.utc)
         start_time = period.get_period_start_time(end_time)
         counts_dict = await AnalyzeRequestMetrics.get_requests_in_period(
