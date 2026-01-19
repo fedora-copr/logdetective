@@ -5,12 +5,8 @@ from enum import Enum
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from typing import Annotated
-from io import BytesIO
 
 from aiolimiter import AsyncLimiter
-import matplotlib
-import matplotlib.figure
-import matplotlib.pyplot
 from koji import ClientSession
 from gitlab import Gitlab
 from fastapi import (
@@ -22,7 +18,7 @@ from fastapi import (
     Path,
     Request,
 )
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.responses import Response as BasicResponse
 import aiohttp
 import sentry_sdk
@@ -730,38 +726,6 @@ async def schedule_emoji_collection_for_mr(
     del emoji_lookup[key]
 
 
-def _svg_figure_response(fig: matplotlib.figure.Figure):
-    """Create a response with the given svg figure."""
-    buf = BytesIO()
-    fig.savefig(buf, format="svg", bbox_inches="tight")
-    matplotlib.pyplot.close(fig)
-
-    buf.seek(0)
-    return StreamingResponse(
-        buf,
-        media_type="image/svg+xml",
-        headers={"Content-Disposition": "inline; filename=plot.svg"},
-    )
-
-
-def _multiple_svg_figures_response(figures: list[matplotlib.figure.Figure]):
-    """Create a response with multiple svg figures."""
-    svg_contents = []
-    for i, fig in enumerate(figures):
-        buf = BytesIO()
-        fig.savefig(buf, format="svg", bbox_inches="tight")
-        matplotlib.pyplot.close(fig)
-        buf.seek(0)
-        svg_contents.append(buf.read().decode("utf-8"))
-
-    html_content = "<html><body>\n"
-    for i, svg in enumerate(svg_contents):
-        html_content += f"<div id='figure-{i}'>\n{svg}\n</div>\n"
-    html_content += "</body></html>"
-
-    return BasicResponse(content=html_content, media_type="text/html")
-
-
 class MetricRoute(str, Enum):
     """Routes for metrics"""
 
@@ -786,54 +750,53 @@ ROUTE_TO_ENDPOINT_TYPES = {
 }
 
 
-@app.get("/metrics/{route}/", response_class=StreamingResponse)
-@app.get("/metrics/{route}/{metric_type}", response_class=StreamingResponse)
+@app.get("/metrics/{route}/", response_class=JSONResponse)
+@app.get("/metrics/{route}/{metric_type}", response_class=JSONResponse)
 async def get_metrics(
     route: MetricRoute,
     metric_type: MetricType = MetricType.ALL,
     period_since_now: TimePeriod = Depends(TimePeriod),
 ):
-    """Get an handler for visualize statistics for the specified endpoint and metric_type."""
+    """Get an handler returning statistics for the specified endpoint and metric_type."""
     endpoint_type = ROUTE_TO_ENDPOINT_TYPES[route]
 
-    async def handler():
-        """Show statistics for the specified endpoint and mteric type."""
-        if metric_type == MetricType.REQUESTS:
-            fig = await stats.requests_per_time(period_since_now, endpoint_type)
-            return _svg_figure_response(fig)
-        if metric_type == MetricType.RESPONSES:
-            fig = await stats.average_time_per_responses(
+    async def handler() -> JSONResponse:
+        """Return statistics for the specified endpoint and metric type."""
+        statistics = {}
+        if metric_type == MetricType.ALL:
+            stats_requests = await stats.requests_per_time(
                 period_since_now, endpoint_type
             )
-            return _svg_figure_response(fig)
+            stats_responses = await stats.average_time_per_responses(
+                period_since_now, endpoint_type
+            )
+            stats_emojis = await stats.emojis_per_time(period_since_now)
+            return JSONResponse(content=[stats_requests, stats_responses, stats_emojis])
+        if metric_type == MetricType.REQUESTS:
+            statistics = await stats.requests_per_time(period_since_now, endpoint_type)
+        if metric_type == MetricType.RESPONSES:
+            statistics = await stats.average_time_per_responses(
+                period_since_now, endpoint_type
+            )
         if metric_type == MetricType.EMOJIS:
-            fig = await stats.emojis_per_time(period_since_now)
-            return _svg_figure_response(fig)
-        # ALL
-        fig_requests = await stats.requests_per_time(
-            period_since_now, endpoint_type
-        )
-        fig_responses = await stats.average_time_per_responses(
-            period_since_now, endpoint_type
-        )
-        fig_emojis = await stats.emojis_per_time(period_since_now)
-        return _multiple_svg_figures_response([fig_requests, fig_responses, fig_emojis])
+            statistics = await stats.emojis_per_time(period_since_now)
+        return JSONResponse(content=statistics)
 
     descriptions = {
         MetricType.REQUESTS: (
-            "Show statistics for the requests received in the given period of time "
+            "Get statistics for the requests received in the given period of time "
             f"for the /{endpoint_type.value} API endpoint."
         ),
         MetricType.RESPONSES: (
-            "Show statistics for responses given in the specified period of time "
+            "Get statistics for responses given in the specified period of time "
             f"for the /{endpoint_type.value} API endpoint."
         ),
         MetricType.EMOJIS: (
-            "Show statistics for emoji feedback in the specified period of time "
+            "Get statistics for emoji feedback in the specified period of time "
             f"for the /{endpoint_type.value} API endpoint."
         ),
         MetricType.ALL: (
-            "Show statistics for requests and responses in the given period of time "
+            "Get statistics for requests and responses in the given period of time "
             f"for the /{endpoint_type.value} API endpoint."
         ),
     }

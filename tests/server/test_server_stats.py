@@ -1,7 +1,5 @@
 import datetime
-import tempfile
-
-from matplotlib.figure import Figure
+from typing import Callable
 
 import pytest
 
@@ -18,17 +16,18 @@ from logdetective.server.stats import (
 
 
 def test_week_Definition():
-    details = stats.Definition(models.TimePeriod(weeks=3))
-    assert details.time_unit == "week"
-    assert details.freq == "W"
-    assert details.days_diff == 21
+    time_def = stats.TimeDefinition(models.TimePeriod(weeks=3))
+    assert time_def.days_diff == 21
 
 
 def test_day_Definition():
-    details = stats.Definition(models.TimePeriod(days=3))
-    assert details.time_unit == "day"
-    assert details.freq == "D"
-    assert details.days_diff == 3
+    time_def = stats.TimeDefinition(models.TimePeriod(days=3))
+    assert time_def.days_diff == 3
+
+
+def test_hour_Definition():
+    time_def = stats.TimeDefinition(models.TimePeriod(hours=3))
+    assert time_def.days_diff == 0
 
 
 @pytest.mark.parametrize(
@@ -43,15 +42,15 @@ async def test_create_time_series_arrays(endpoint):
         endpoint=endpoint,
     ) as _:
         period = models.TimePeriod(hours=22)
-        plot_details = stats.Definition(period)
+        time_def = stats.TimeDefinition(period)
         end_time = datetime.datetime.now(datetime.timezone.utc)
         start_time = period.get_period_start_time(end_time)
         counts_dict = await AnalyzeRequestMetrics.get_requests_in_period(
-            start_time, end_time, plot_details.time_format, endpoint
+            start_time, end_time, time_def.time_format, endpoint
         )
         timestamps, counts = create_time_series_arrays(
             counts_dict,
-            plot_details,
+            time_def,
             start_time,
             end_time,
         )
@@ -77,35 +76,30 @@ async def test_get_period_start_time(end_time):
         assert start_time <= datetime.datetime.now(datetime.timezone.utc) - period.get_time_period()
 
 
-def _save_fig(fig: Figure):
-    with tempfile.NamedTemporaryFile(suffix=".svg", delete=False) as tmp_file:
-        temp_filename = tmp_file.name
-    fig.savefig(temp_filename, bbox_inches="tight")  # for inspecting it later
-
-
-async def _test_plot(
+async def _test_stats(
     duration: datetime.timedelta,
     period: models.TimePeriod,
-    plot: callable,
-    endpoint: EndpointType = None,
-) -> None:
-    if plot is emojis_per_time:
+    stats_function: Callable,
+    endpoint: EndpointType,
+) -> dict:
+    if stats_function is emojis_per_time:
         async with PopulateDatabase.populate_db_with_emojis(
             duration=duration,
         ) as _:
-            fig = await plot(period)
+            stats = await stats_function(period)
     else:
         async with PopulateDatabase.populate_db(
             duration=duration,
             endpoint=endpoint,
         ) as _:
-            fig = await plot(period, endpoint)
-    assert isinstance(fig, Figure)
-    _save_fig(fig)
+            stats = await stats_function(period, endpoint)
+    assert isinstance(stats, dict)
+
+    return stats
 
 
 @pytest.mark.parametrize(
-    "endpoint,plot",
+    "endpoint,stats_function",
     [
         pytest.param(
             EndpointType.ANALYZE,
@@ -135,14 +129,14 @@ async def _test_plot(
     ],
 )
 @pytest.mark.asyncio
-async def test_hourly_plots(endpoint, plot):
+async def test_hourly_stats(endpoint: EndpointType, stats_function: Callable):
     duration = datetime.timedelta(hours=14)
     period = models.TimePeriod(hours=22)
-    await _test_plot(duration, period, plot, endpoint)
+    await _test_stats(duration, period, stats_function, endpoint)
 
 
 @pytest.mark.parametrize(
-    "endpoint,plot",
+    "endpoint,stats_function",
     [
         pytest.param(
             EndpointType.ANALYZE,
@@ -172,14 +166,14 @@ async def test_hourly_plots(endpoint, plot):
     ],
 )
 @pytest.mark.asyncio
-async def test_daily_plots(endpoint, plot):
+async def test_daily_stats(endpoint: EndpointType, stats_function: Callable):
     duration = datetime.timedelta(days=9)
     period = models.TimePeriod(days=15)
-    await _test_plot(duration, period, plot, endpoint)
+    await _test_stats(duration, period, stats_function, endpoint)
 
 
 @pytest.mark.parametrize(
-    "endpoint,plot",
+    "endpoint,stats_function",
     [
         pytest.param(
             EndpointType.ANALYZE,
@@ -209,7 +203,7 @@ async def test_daily_plots(endpoint, plot):
     ],
 )
 @pytest.mark.asyncio
-async def test_weekly_plots(endpoint, plot):
+async def test_weekly_stats(endpoint: EndpointType, stats_function: Callable):
     duration = datetime.timedelta(weeks=3)
     period = models.TimePeriod(weeks=5)
-    await _test_plot(duration, period, plot, endpoint)
+    await _test_stats(duration, period, stats_function, endpoint)
