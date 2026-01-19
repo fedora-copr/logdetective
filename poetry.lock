@@ -161,7 +161,7 @@ description = "asyncio rate limiter, a leaky bucket implementation"
 optional = false
 python-versions = "<4.0,>=3.8"
 groups = ["main"]
-markers = "extra == \"server\""
+markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "aiolimiter-1.2.1-py3-none-any.whl", hash = "sha256:d3f249e9059a20badcb56b61601a83556133655c11d1eb3dd3e04ff069e5f3c7"},
     {file = "aiolimiter-1.2.1.tar.gz", hash = "sha256:e02a37ea1a855d9e832252a105420ad4d15011505512a1a1d814647451b5cca9"},
@@ -802,9 +802,10 @@ files = [
 name = "distlib"
 version = "0.4.0"
 description = "Distribution utilities"
-optional = false
+optional = true
 python-versions = "*"
 groups = ["main"]
+markers = "extra == \"testing\""
 files = [
     {file = "distlib-0.4.0-py2.py3-none-any.whl", hash = "sha256:9659f7d87e46584a30b5780e43ac7a2143098441670ff0a49d5f9034c54a6c16"},
     {file = "distlib-0.4.0.tar.gz", hash = "sha256:feec40075be03a04501a973d81f633735b4b69f98b05450592310c0f401a4e0d"},
@@ -2339,9 +2340,10 @@ xmp = ["defusedxml"]
 name = "platformdirs"
 version = "4.5.0"
 description = "A small Python package for determining appropriate platform-specific dirs, e.g. a `user data dir`."
-optional = false
+optional = true
 python-versions = ">=3.10"
 groups = ["main"]
+markers = "extra == \"testing\""
 files = [
     {file = "platformdirs-4.5.0-py3-none-any.whl", hash = "sha256:e578a81bb873cbb89a41fcc904c7ef523cc18284b7e3b3ccf06aca1403b7ebd3"},
     {file = "platformdirs-4.5.0.tar.gz", hash = "sha256:70ddccdd7c99fc5942e9fc25636a8b34d04c24b335100223152c2803e4063312"},
@@ -3311,9 +3313,10 @@ zstd = ["backports-zstd (>=1.0.0) ; python_version < \"3.14\""]
 name = "virtualenv"
 version = "20.36.1"
 description = "Virtual Python Environment builder"
-optional = false
+optional = true
 python-versions = ">=3.8"
 groups = ["main"]
+markers = "extra == \"testing\""
 files = [
     {file = "virtualenv-20.36.1-py3-none-any.whl", hash = "sha256:575a8d6b124ef88f6f51d56d656132389f961062a9177016a50e4f507bbcc19f"},
     {file = "virtualenv-20.36.1.tar.gz", hash = "sha256:8befb5c81842c641f8ee658481e42641c68b5eab3521d8e092d18320902466ba"},
@@ -3475,10 +3478,10 @@ propcache = ">=0.2.1"
 
 [extras]
 server = ["aiolimiter", "alembic", "asyncpg", "backoff", "fastapi", "koji", "matplotlib", "openai", "sentry-sdk", "sqlalchemy"]
-server-testing = ["alembic", "asyncpg", "backoff", "fastapi", "koji", "matplotlib", "openai", "pytest-mock", "responses", "sentry-sdk", "sqlalchemy"]
+server-testing = ["aiolimiter", "alembic", "asyncpg", "backoff", "fastapi", "koji", "matplotlib", "openai", "pytest-mock", "responses", "sentry-sdk", "sqlalchemy"]
 testing = ["aioresponses", "asciidoc", "flexmock", "pytest", "pytest-asyncio", "pytest-cov"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "86d616cd52ad92a19f5c7ac7d5ca15117691028ab72c3adea27b4b8dc3360105"
+content-hash = "ea240f258bc0997872263bfe44404a3a6acd5242102bc6cd7521f7f2ce4ed1b9"
