@@ -15,7 +15,6 @@ RUN dnf install -y \
     python3-diskcache \
     python3-sqlalchemy+asyncio \
     python3-alembic \
-    python3-matplotlib \
     python3-aiohttp \
     python3-backoff \
     python3-sentry-sdk+fastapi \
