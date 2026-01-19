@@ -23,5 +23,3 @@ services:
 volumes:
   database_data:
     driver: local
-  matplotlib-config:
-    driver: local
