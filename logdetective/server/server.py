@@ -770,13 +770,13 @@ class MetricRoute(str, Enum):
     ANALYZE_GITLAB_JOB = "analyze-gitlab"
 
 
-class Plot(str, Enum):
-    """Type of served plots"""
+class MetricType(str, Enum):
+    """Type of metric retrieved"""
 
     REQUESTS = "requests"
     RESPONSES = "responses"
     EMOJIS = "emojis"
-    BOTH = ""
+    ALL = ""
 
 
 ROUTE_TO_ENDPOINT_TYPES = {
@@ -787,29 +787,29 @@ ROUTE_TO_ENDPOINT_TYPES = {
 
 
 @app.get("/metrics/{route}/", response_class=StreamingResponse)
-@app.get("/metrics/{route}/{plot}", response_class=StreamingResponse)
+@app.get("/metrics/{route}/{metric_type}", response_class=StreamingResponse)
 async def get_metrics(
     route: MetricRoute,
-    plot: Plot = Plot.BOTH,
+    metric_type: MetricType = MetricType.ALL,
     period_since_now: TimePeriod = Depends(TimePeriod),
 ):
-    """Get an handler for visualize statistics for the specified endpoint and plot."""
+    """Get an handler for visualize statistics for the specified endpoint and metric_type."""
     endpoint_type = ROUTE_TO_ENDPOINT_TYPES[route]
 
     async def handler():
-        """Show statistics for the specified endpoint and plot."""
-        if plot == Plot.REQUESTS:
+        """Show statistics for the specified endpoint and mteric type."""
+        if metric_type == MetricType.REQUESTS:
             fig = await plot_engine.requests_per_time(period_since_now, endpoint_type)
             return _svg_figure_response(fig)
-        if plot == Plot.RESPONSES:
+        if metric_type == MetricType.RESPONSES:
             fig = await plot_engine.average_time_per_responses(
                 period_since_now, endpoint_type
             )
             return _svg_figure_response(fig)
-        if plot == Plot.EMOJIS:
+        if metric_type == MetricType.EMOJIS:
             fig = await plot_engine.emojis_per_time(period_since_now)
             return _svg_figure_response(fig)
-        # BOTH
+        # ALL
         fig_requests = await plot_engine.requests_per_time(
             period_since_now, endpoint_type
         )
@@ -820,24 +820,24 @@ async def get_metrics(
         return _multiple_svg_figures_response([fig_requests, fig_responses, fig_emojis])
 
     descriptions = {
-        Plot.REQUESTS: (
+        MetricType.REQUESTS: (
             "Show statistics for the requests received in the given period of time "
             f"for the /{endpoint_type.value} API endpoint."
         ),
-        Plot.RESPONSES: (
+        MetricType.RESPONSES: (
             "Show statistics for responses given in the specified period of time "
             f"for the /{endpoint_type.value} API endpoint."
         ),
-        Plot.EMOJIS: (
+        MetricType.EMOJIS: (
             "Show statistics for emoji feedback in the specified period of time "
             f"for the /{endpoint_type.value} API endpoint."
         ),
-        Plot.BOTH: (
+        MetricType.ALL: (
             "Show statistics for requests and responses in the given period of time "
             f"for the /{endpoint_type.value} API endpoint."
         ),
     }
-    handler.__doc__ = descriptions[plot]
+    handler.__doc__ = descriptions[metric_type]
 
     return await handler()
 
