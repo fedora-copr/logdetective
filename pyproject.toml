@@ -81,6 +81,7 @@ server-testing = [
     "alembic",
     "matplotlib",
     "backoff",
+    "aiolimiter",
     "sentry-sdk",
     "openai",
     "koji",
