@@ -33,7 +33,6 @@ services:
       - .:/src/:z
       - ./server/config.yml:/config.yml:z
       - ./files/run_server.sh:/run_server.sh:z
-      - matplotlib-config:${MPLCONFIGDIR}
     ports:
       - "${LOGDETECTIVE_SERVER_PORT:-8080}:${LOGDETECTIVE_SERVER_PORT:-8080}"
     env_file: .env
@@ -62,6 +61,4 @@ services:
 
 volumes:
   database_data:
-    driver: local
-  matplotlib-config:
     driver: local
