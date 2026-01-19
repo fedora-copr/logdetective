@@ -63,7 +63,7 @@ from logdetective.server.models import (
     TimePeriod,
     ExtractorConfig,
 )
-from logdetective.server import plot as plot_engine
+from logdetective.server import stats as plot_engine
 from logdetective.server.database.models import (
     EndpointType,
     Forge,
