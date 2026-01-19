@@ -63,7 +63,7 @@ from logdetective.server.models import (
     TimePeriod,
     ExtractorConfig,
 )
-from logdetective.server import stats as plot_engine
+from logdetective.server import stats
 from logdetective.server.database.models import (
     EndpointType,
     Forge,
@@ -799,24 +799,24 @@ async def get_metrics(
     async def handler():
         """Show statistics for the specified endpoint and mteric type."""
         if metric_type == MetricType.REQUESTS:
-            fig = await plot_engine.requests_per_time(period_since_now, endpoint_type)
+            fig = await stats.requests_per_time(period_since_now, endpoint_type)
             return _svg_figure_response(fig)
         if metric_type == MetricType.RESPONSES:
-            fig = await plot_engine.average_time_per_responses(
+            fig = await stats.average_time_per_responses(
                 period_since_now, endpoint_type
             )
             return _svg_figure_response(fig)
         if metric_type == MetricType.EMOJIS:
-            fig = await plot_engine.emojis_per_time(period_since_now)
+            fig = await stats.emojis_per_time(period_since_now)
             return _svg_figure_response(fig)
         # ALL
-        fig_requests = await plot_engine.requests_per_time(
+        fig_requests = await stats.requests_per_time(
             period_since_now, endpoint_type
         )
-        fig_responses = await plot_engine.average_time_per_responses(
+        fig_responses = await stats.average_time_per_responses(
             period_since_now, endpoint_type
         )
-        fig_emojis = await plot_engine.emojis_per_time(period_since_now)
+        fig_emojis = await stats.emojis_per_time(period_since_now)
         return _multiple_svg_figures_response([fig_requests, fig_responses, fig_emojis])
 
     descriptions = {
