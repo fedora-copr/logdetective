@@ -314,10 +314,13 @@ class AnalyzeRequestMetrics(Base):
                         "time_range"
                     ),
                     (
-                        func.avg(
-                            func.extract(  # pylint: disable=not-callable
-                                "epoch", cls.response_sent_at - cls.request_received_at
-                            )
+                        func.coalesce(
+                            func.avg(
+                                func.extract(  # pylint: disable=not-callable
+                                    "epoch", cls.response_sent_at - cls.request_received_at
+                                )
+                            ),
+                            0
                         )
                     ).label("average_response_seconds"),
                 )
