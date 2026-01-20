@@ -125,7 +125,7 @@ async def requests_per_time(
     return {"timestamp": timestamps, "count": counts}
 
 
-async def average_time_per_responses(  # pylint: disable=too-many-locals
+async def average_time_per_responses(
     period_of_time: TimePeriod,
     endpoint: EndpointType = EndpointType.ANALYZE,
     end_time: Optional[datetime.datetime] = None,
