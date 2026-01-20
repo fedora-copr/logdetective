@@ -747,7 +747,7 @@ class MetricType(str, Enum):
     REQUESTS = "requests"
     RESPONSES = "responses"
     EMOJIS = "emojis"
-    ALL = ""
+    ALL = "all"
 
 
 ROUTE_TO_ENDPOINT_TYPES = {
