@@ -46,7 +46,14 @@ from logdetective.server.llm import (
     perform_analysis_stream,
 )
 from logdetective.server.gitlab import process_gitlab_job_event
-from logdetective.server.metric import track_request, add_new_metrics, update_metrics
+from logdetective.server.metric import (
+    track_request,
+    add_new_metrics,
+    update_metrics,
+    requests_per_time,
+    average_time_per_responses,
+    emojis_per_time
+)
 from logdetective.server.models import (
     BuildLog,
     Config,
@@ -60,7 +67,6 @@ from logdetective.server.models import (
     ExtractorConfig,
     MetricResponse,
 )
-from logdetective.server import stats
 from logdetective.server.database.models import (
     EndpointType,
     Forge,
@@ -765,22 +771,22 @@ async def get_metrics(
         """Return statistics for the specified endpoint and metric type."""
         statistics = []
         if metric_type == MetricType.ALL:
-            statistics.append(await stats.requests_per_time(
+            statistics.append(await requests_per_time(
                 period_since_now, endpoint_type
             ))
-            statistics.append(await stats.average_time_per_responses(
+            statistics.append(await average_time_per_responses(
                 period_since_now, endpoint_type
             ))
-            statistics.extend(await stats.emojis_per_time(period_since_now))
+            statistics.extend(await emojis_per_time(period_since_now))
             return MetricResponse(time_series=statistics)
         if metric_type == MetricType.REQUESTS:
-            statistics.append(await stats.requests_per_time(period_since_now, endpoint_type))
+            statistics.append(await requests_per_time(period_since_now, endpoint_type))
         elif metric_type == MetricType.RESPONSES:
-            statistics.append(await stats.average_time_per_responses(
+            statistics.append(await average_time_per_responses(
                 period_since_now, endpoint_type
             ))
         elif metric_type == MetricType.EMOJIS:
-            statistics = await stats.emojis_per_time(period_since_now)
+            statistics = await emojis_per_time(period_since_now)
         return MetricResponse(time_series=statistics)
 
     descriptions = {
