@@ -212,7 +212,7 @@ def create_time_series_arrays(
         if timestamp in timestamp_to_index:
             values[timestamp_to_index[timestamp]] = count
 
-    return timestamps.tolist(), values.tolist()
+    return timestamps.tolist(), numpy.nan_to_num(values).tolist()
 
 
 async def requests_per_time(
