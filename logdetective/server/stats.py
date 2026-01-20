@@ -1,3 +1,4 @@
+from collections import defaultdict
 import datetime
 from typing import Optional, Union, Dict
 
@@ -11,6 +12,7 @@ from logdetective.server.database.models import (
 )
 
 
+# TODO: Refactor aggregation to use database operations, instead of timestamp formatting
 class TimeDefinition:
     """Define time format details, given a time period."""
 
@@ -170,26 +172,20 @@ async def _collect_emoji_data(
 ) -> Dict[str, Dict[datetime.datetime, int]]:
     """Collect and organize emoji feedback data
 
-    Counts all emojis given to logdetective comments created since start_time.
-    Collect counts in time accordingly to the time definition.
+    For each reaction type, a dictionary is created with time stamps
+    as keys, and aggregate counts as values.
     """
     reactions = await Reactions.get_since(start_time)
-    reactions_values_dict: Dict[str, Dict] = {}
-    for comment_created_at, reaction in reactions:
-        comment_created_at_formatted = comment_created_at.strptime(
-            comment_created_at.strftime(time_def.time_format), time_def.time_format
-        )
-        if reaction.reaction_type in reactions_values_dict:
-            reaction_values_dict = reactions_values_dict[reaction.reaction_type]
-            if comment_created_at_formatted in reaction_values_dict:
-                reaction_values_dict[comment_created_at_formatted] += reaction.count
-            else:
-                reaction_values_dict[comment_created_at_formatted] = reaction.count
-        else:
-            reaction_values_dict = {comment_created_at_formatted: reaction.count}
-            reactions_values_dict.update({reaction.reaction_type: reaction_values_dict})
+    reaction_values: defaultdict[str, Dict] = defaultdict(lambda: defaultdict(int))
 
-    return reactions_values_dict
+    for comment_timestamp, reaction in reactions:
+        formatted_timestamp = comment_timestamp.strptime(
+            comment_timestamp.strftime(time_def.time_format), time_def.time_format
+        )
+
+        reaction_values[reaction.reaction_type][formatted_timestamp] += reaction.count
+
+    return reaction_values
 
 
 async def emojis_per_time(
