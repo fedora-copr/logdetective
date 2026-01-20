@@ -4,7 +4,7 @@ from typing import Optional, Union, Dict
 
 import numpy
 
-from logdetective.server.models import TimePeriod
+from logdetective.server.models import TimePeriod, MetricTimeSeries
 from logdetective.server.database.models import (
     AnalyzeRequestMetrics,
     EndpointType,
@@ -97,7 +97,7 @@ async def requests_per_time(
     period_of_time: TimePeriod,
     endpoint: EndpointType = EndpointType.ANALYZE,
     end_time: Optional[datetime.datetime] = None,
-) -> dict[str, list]:
+) -> MetricTimeSeries:
     """
     Get request counts over a specified time period.
 
@@ -124,14 +124,14 @@ async def requests_per_time(
         requests_counts, time_def, start_time, end_time
     )
 
-    return {"timestamp": timestamps, "count": counts}
+    return MetricTimeSeries(metric="requests", timestamps=timestamps, values=counts)
 
 
 async def average_time_per_responses(
     period_of_time: TimePeriod,
     endpoint: EndpointType = EndpointType.ANALYZE,
     end_time: Optional[datetime.datetime] = None,
-) -> Dict[str, list]:
+) -> MetricTimeSeries:
     """
     Get average response time and length over a specified time period.
 
@@ -164,12 +164,12 @@ async def average_time_per_responses(
         float,
     )
 
-    return {"timestamp": timestamps, "avg_time": average_time}
+    return MetricTimeSeries(metric="avg_response_time", timestamps=timestamps, values=average_time)
 
 
 async def _collect_emoji_data(
     start_time: datetime.datetime, time_def: TimeDefinition
-) -> Dict[str, Dict[datetime.datetime, int]]:
+) -> Dict[str, Dict[str, list]]:
     """Collect and organize emoji feedback data
 
     For each reaction type, a dictionary is created with time stamps
@@ -185,13 +185,21 @@ async def _collect_emoji_data(
 
         reaction_values[reaction.reaction_type][formatted_timestamp] += reaction.count
 
-    return reaction_values
+    reaction_time_series = {
+        reaction_type: {
+            "timestamps": reaction_data.keys(),
+            "values": reaction_data.values(),
+        }
+        for reaction_type, reaction_data in reaction_values.items()
+    }
+
+    return reaction_time_series
 
 
 async def emojis_per_time(
     period_of_time: TimePeriod,
     end_time: Optional[datetime.datetime] = None,
-) -> Dict[str, Dict[datetime.datetime, int]]:
+) -> list[MetricTimeSeries]:
     """
     Retrieve data of emoji feedback over time.
 
@@ -205,11 +213,18 @@ async def emojis_per_time(
                   UTC time
 
     Returns:
-        A dictionary containing retrieved statistics
+        A list of `MetricTimeSeries` objects
     """
     time_def = TimeDefinition(period_of_time)
     end_time = end_time or datetime.datetime.now(datetime.timezone.utc)
     start_time = period_of_time.get_period_start_time(end_time)
     reactions_values_dict = await _collect_emoji_data(start_time, time_def)
 
-    return reactions_values_dict
+    reaction_values: list[MetricTimeSeries] = []
+    for reaction, time_series in reactions_values_dict.items():
+        reaction_values.append(
+            MetricTimeSeries(
+                metric=f"emoji_{reaction}",
+                timestamps=time_series["timestamps"],
+                values=time_series["values"]))
+    return reaction_values

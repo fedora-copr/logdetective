@@ -81,19 +81,22 @@ async def _test_stats(
     period: models.TimePeriod,
     stats_function: Callable,
     endpoint: EndpointType,
-) -> dict:
+) -> list[models.MetricTimeSeries]:
     if stats_function is emojis_per_time:
         async with PopulateDatabase.populate_db_with_emojis(
             duration=duration,
         ) as _:
             stats = await stats_function(period)
+
     else:
         async with PopulateDatabase.populate_db(
             duration=duration,
             endpoint=endpoint,
         ) as _:
-            stats = await stats_function(period, endpoint)
-    assert isinstance(stats, dict)
+            stats = [await stats_function(period, endpoint)]
+    assert isinstance(stats, list)
+    for e in stats:
+        assert isinstance(e, models.MetricTimeSeries)
 
     return stats
 
