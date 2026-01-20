@@ -22,7 +22,7 @@ sqlalchemy_echo = getenv("SQLALCHEMY_ECHO", "False").lower() in (
     "y",
     "1",
 )
-engine = create_async_engine(get_pg_url(), echo=sqlalchemy_echo)
+engine = create_async_engine(get_pg_url(), echo=sqlalchemy_echo, pool_pre_ping=True)
 SessionFactory = async_sessionmaker(autoflush=True, bind=engine)  # pylint: disable=invalid-name
 
 

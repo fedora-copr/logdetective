@@ -76,7 +76,7 @@ class DatabaseFactory:  # pylint: disable=too-few-public-methods
     def __init__(self):
         """Connect to a postgres container for testing purposes."""
         self.engine = create_async_engine(
-            self.get_pg_test_url(), connect_args={"command_timeout": 10}
+            self.get_pg_test_url(), connect_args={"command_timeout": 10}, pool_pre_ping=True
         )
         self.SessionFactory = async_sessionmaker(autoflush=True, bind=self.engine)
         flexmock(base, engine=self.engine, SessionFactory=self.SessionFactory)
