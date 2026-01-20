@@ -18,7 +18,7 @@ from fastapi import (
     Path,
     Request,
 )
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse
 from fastapi.responses import Response as BasicResponse
 import aiohttp
 import sentry_sdk
@@ -58,6 +58,7 @@ from logdetective.server.models import (
     StagedResponse,
     TimePeriod,
     ExtractorConfig,
+    MetricResponse,
 )
 from logdetective.server import stats
 from logdetective.server.database.models import (
@@ -750,8 +751,8 @@ ROUTE_TO_ENDPOINT_TYPES = {
 }
 
 
-@app.get("/metrics/{route}/", response_class=JSONResponse)
-@app.get("/metrics/{route}/{metric_type}", response_class=JSONResponse)
+@app.get("/metrics/{route}/", response_model=MetricResponse)
+@app.get("/metrics/{route}/{metric_type}", response_model=MetricResponse)
 async def get_metrics(
     route: MetricRoute,
     metric_type: MetricType = MetricType.ALL,
@@ -760,27 +761,27 @@ async def get_metrics(
     """Get an handler returning statistics for the specified endpoint and metric_type."""
     endpoint_type = ROUTE_TO_ENDPOINT_TYPES[route]
 
-    async def handler() -> JSONResponse:
+    async def handler() -> MetricResponse:
         """Return statistics for the specified endpoint and metric type."""
-        statistics = {}
+        statistics = []
         if metric_type == MetricType.ALL:
-            stats_requests = await stats.requests_per_time(
+            statistics.append(await stats.requests_per_time(
                 period_since_now, endpoint_type
-            )
-            stats_responses = await stats.average_time_per_responses(
+            ))
+            statistics.append(await stats.average_time_per_responses(
                 period_since_now, endpoint_type
-            )
-            stats_emojis = await stats.emojis_per_time(period_since_now)
-            return JSONResponse(content=[stats_requests, stats_responses, stats_emojis])
+            ))
+            statistics.extend(await stats.emojis_per_time(period_since_now))
+            return MetricResponse(time_series=statistics)
         if metric_type == MetricType.REQUESTS:
-            statistics = await stats.requests_per_time(period_since_now, endpoint_type)
-        if metric_type == MetricType.RESPONSES:
-            statistics = await stats.average_time_per_responses(
+            statistics.append(await stats.requests_per_time(period_since_now, endpoint_type))
+        elif metric_type == MetricType.RESPONSES:
+            statistics.append(await stats.average_time_per_responses(
                 period_since_now, endpoint_type
-            )
-        if metric_type == MetricType.EMOJIS:
+            ))
+        elif metric_type == MetricType.EMOJIS:
             statistics = await stats.emojis_per_time(period_since_now)
-        return JSONResponse(content=statistics)
+        return MetricResponse(time_series=statistics)
 
     descriptions = {
         MetricType.REQUESTS: (

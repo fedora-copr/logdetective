@@ -401,3 +401,15 @@ class TimePeriod(BaseModel):
         if time.tzinfo is None:
             time = time.replace(tzinfo=datetime.timezone.utc)
         return time - self.get_time_period()
+
+
+class MetricTimeSeries(BaseModel):
+    """Recorded values of given metric"""
+    metric: str
+    timestamps: List[datetime.datetime]
+    values: List[float]
+
+
+class MetricResponse(BaseModel):
+    """Requested metrics"""
+    time_series: List[MetricTimeSeries]
