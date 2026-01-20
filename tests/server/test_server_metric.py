@@ -110,11 +110,8 @@ async def test_create_time_series_arrays(endpoint):
         )
         timestamps, counts = create_time_series_arrays(
             counts_dict,
-            time_def,
-            start_time,
-            end_time,
         )
-        assert len(timestamps) == len(counts) == 22 + 1
+        assert len(timestamps) == len(counts)
         assert (
             sum(counts) < 22 * 4
         )  # since we have added requests just for the last 15 hours

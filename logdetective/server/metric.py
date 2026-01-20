@@ -164,55 +164,29 @@ class TimeDefinition:
 
 def create_time_series_arrays(
     values_dict: dict[datetime.datetime, int],
-    time_def: TimeDefinition,
-    start_time: datetime.datetime,
-    end_time: datetime.datetime,
-    value_type: Optional[Union[type[int], type[float]]] = int,
 ) -> tuple[list, list]:
     """Create time series arrays from a dictionary of values.
 
-    This function generates two aligned numpy arrays:
+    This function generates two aligned lists:
     1. An array of timestamps from start_time to end_time
     2. A corresponding array of values for each timestamp
 
-    The timestamps are truncated to the precision specified by time_format.
-    If a timestamp in values_dict matches a generated timestamp, its values is used;
-    otherwise, the value defaults to zero.
-
     Args:
         values_dict: Dictionary mapping timestamps to their respective values
-        start_time: The starting timestamp of the time series
-        end_time: The ending timestamp of the time series
-        time_delta: The time interval between consecutive timestamps
-        time_format: String format for datetime truncation (e.g., '%Y-%m-%d %H:%M')
-
     Returns:
         A tuple containing:
             - list: Array of timestamps
             - list: Array of corresponding values
     """
-    num_intervals = int((end_time - start_time) / time_def.time_delta) + 1
 
-    timestamps = numpy.array(
-        [
-            datetime.datetime.strptime(
-                (start_time + i * time_def.time_delta).strftime(
-                    format=time_def.time_format
-                ),
-                time_def.time_format,
-            )
-            for i in range(num_intervals)
-        ]
-    )
-    values = numpy.zeros(num_intervals, dtype=value_type)
-
-    timestamp_to_index = {timestamp: i for i, timestamp in enumerate(timestamps)}
+    timestamps = []
+    values = []
 
     for timestamp, count in values_dict.items():
-        if timestamp in timestamp_to_index:
-            values[timestamp_to_index[timestamp]] = count
+        timestamps.append(timestamp)
+        values.append(count)
 
-    return timestamps.tolist(), numpy.nan_to_num(values).tolist()
+    return timestamps, numpy.nan_to_num(values).tolist()
 
 
 async def requests_per_time(
@@ -242,9 +216,7 @@ async def requests_per_time(
     requests_counts = await AnalyzeRequestMetrics.get_requests_in_period(
         start_time, end_time, time_def.time_format, endpoint
     )
-    timestamps, counts = create_time_series_arrays(
-        requests_counts, time_def, start_time, end_time
-    )
+    timestamps, counts = create_time_series_arrays(requests_counts)
 
     return MetricTimeSeries(metric="requests", timestamps=timestamps, values=counts)
 
@@ -280,10 +252,6 @@ async def average_time_per_responses(
     )
     timestamps, average_time = create_time_series_arrays(
         responses_average_time,
-        time_def,
-        start_time,
-        end_time,
-        float,
     )
 
     return MetricTimeSeries(metric="avg_response_time", timestamps=timestamps, values=average_time)
