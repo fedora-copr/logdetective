@@ -41,31 +41,15 @@ def setup_args():
     )
     parser.add_argument(
         "-F",
-        "--filename_suffix",
+        "--filename-suffix",
         help="Suffix of the model file name to be retrieved from Hugging Face.\
                             Makes sense only if the model is specified with Hugging Face name.",
         default="Q4_K.gguf",
     )
     parser.add_argument("-n", "--no-stream", action="store_true")
     parser.add_argument(
-        "-S",
-        "--summarizer",
-        type=str,
-        default="drain",
-        help="DISABLED: LLM summarization option was removed. \
-                Argument is kept for backward compatibility only.",
-    )
-    parser.add_argument(
-        "-N",
-        "--n_lines",
-        type=int,
-        default=None,
-        help="DISABLED: LLM summarization option was removed. \
-                Argument is kept for backward compatibility only.",
-    )
-    parser.add_argument(
         "-C",
-        "--n_clusters",
+        "--n-clusters",
         type=int,
         default=8,
         help="Number of clusters for Drain to organize log chunks into.\
@@ -86,7 +70,7 @@ def setup_args():
         help="Temperature for inference.",
     )
     parser.add_argument(
-        "--skip_snippets",
+        "--skip-snippets",
         type=str,
         default=f"{os.path.dirname(__file__)}/skip_snippets.yml",
         help="Path to patterns for skipping snippets.",
@@ -104,10 +88,6 @@ async def run():  # pylint: disable=too-many-statements,too-many-locals,too-many
     if args.verbose and args.quiet:
         sys.stderr.write("Error: --quiet and --verbose is mutually exclusive.\n")
         sys.exit(2)
-
-    # Emit warning about use of discontinued args
-    if args.n_lines or args.summarizer != "drain":
-        LOG.warning("LLM based summarization was removed. Drain will be used instead.")
 
     # Logging facility setup
     log_level = logging.INFO

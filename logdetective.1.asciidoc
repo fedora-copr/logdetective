@@ -28,14 +28,14 @@ logdetective - Analyze and summarize log files using LLM and Drain templates
 *-M* *MODEL*, *--model* *MODEL*::
   The path to the language model for analysis (if stored locally). You can also specify the model by name based on the repo on Hugging face (see Examples). Repo id must be in the form `'namespace/repo_name'`. As we are using `LLama.cpp` we want this to be in the gguf format. If the model is already on your machine it will skip the download. (optional, default: "fedora-copr/Mistral-7B-Instruct-v0.3-GGUF")
 
-*-F* *FILENAME_SUFFIX*, *--filename_suffix* *FILENAME_SUFFIX*::
+*-F* *FILENAME_SUFFIX*, *--filename-suffix* *FILENAME_SUFFIX*::
   Define the suffix of the model file name to retrieve from Hugging Face. This option only applies when the model is specified by its Hugging face repo name, and not its path. (default `Q4_K.gguf`)
 
 *-n*, *--no-stream*::
   Disable streaming output of analysis results.
 
-*-C* *N_CLUSTERS*, *--n_clusters* *N_CLUSTERS*::
-  Number of clusters to use with the Drain summarizer. Ignored if `LLM` summarizer is selected. (optional, default 8)
+*-C* *N_CLUSTERS*, *--n-clusters* *N_CLUSTERS*::
+  Number of clusters to use with the Drain summarizer. (optional, default 8)
 
 *-v*, *--verbose*::
   Enable verbose output during processing (use `-vv` or `-vvv` for higher levels of verbosity).
@@ -54,7 +54,7 @@ logdetective - Analyze and summarize log files using LLM and Drain templates
 *--csgrep*::
   Use `csgrep` to process the log before analysis. When working with logs containing messages from GCC, it can be beneficial to employ additional extractor based on `csgrep` tool, to ensure that the messages are kept intact. Since `csgrep` is not available as a Python package, it must be installed separately, with a package manager or from https://github.com/csutils/csdiff.
 
-*--skip_snippets* *SNIPPETS_FILE*::
+*--skip-snippets* *SNIPPETS_FILE*::
   Path to patterns for skipping snippets. User can specify regular expressions matching log chunks (which may not contribute to the analysis of the problem), along with simple description. Patterns to be skipped must be defined in a `yaml` file as a dictionary, where key is a description and value is a regex.
   +
   Examples:
@@ -79,9 +79,9 @@ Analyze a local log file using a LLM found locally:
 
   $ logdetective -M /path/to/llm /var/log/syslog
 
-With specific model from HuggingFace (`namespace/repo_name`, note that `--filename_suffix` is also needed):
+With specific model from HuggingFace (`namespace/repo_name`, note that `--filename-suffix` is also needed):
 
-  $ logdetective https://example.com/logs.txt --model QuantFactory/Meta-Llama-3-8B-Instruct-GGUF --filename_suffix Q5_K_S.gguf
+  $ logdetective https://example.com/logs.txt --model QuantFactory/Meta-Llama-3-8B-Instruct-GGUF --filename-suffix Q5_K_S.gguf
 
 Cluster logs from a URL (using Drain):
 
