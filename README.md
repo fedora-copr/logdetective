@@ -45,8 +45,9 @@ To analyze a log file, run the script with the following command line arguments:
 - `--model` (optional, default: "Mistral-7B-Instruct-v0.3-GGUF"): The path or Hugging space name of the language model for analysis. For models from Hugging Face, write them as `namespace/repo_name`. As we are using LLama.cpp we want this to be in the `gguf` format. If the model is already on your machine it will skip the download.
 - `--filename-suffix` (optional, default "Q4_K.gguf"): You can specify which suffix of the file to use. This option is applied when specifying model using the Hugging Face repository.
 - `--n-clusters` (optional, default 8): Number of clusters for Drain to organize log chunks into. This only makes sense when you are summarizing with Drain.
-- `--skip-snippets` Path to patterns for skipping snippets (in YAML).
-- `--prompts PROMPTS` Path to prompt configuration file.
+- `--prompts PROMPTS` (Deprecated, replaced by `--prompts-config`) Path to prompt configuration file.
+- `--prompts-config PROMPTS` Path to prompt configuration file.
+- `--prompt-templates` Path to prompt template dir. Prompts must be valid Jinja templates, and system prompts must include field `system_time`.
 - `--temperature` Temperature for inference.
 - `--skip-snippets` Path to patterns for skipping snippets.
 - `--csgrep` Use csgrep to process the log.
@@ -66,9 +67,15 @@ Examples of using different models. Note the use of `--filename-suffix` (or `-F`
 
 Example of altered prompts:
 
-     cp ~/.local/lib/python3.13/site-packages/logdetective/prompts.yml ~/my-prompts.yml
-     vi ~/my-prompts.yml # edit the prompts there to better fit your needs
-     logdetective https://kojipkgs.fedoraproject.org//work/tasks/3367/131313367/build.log --prompts ~/my-prompts.yml
+    cp -r ~/.local/lib/python3.13/site-packages/logdetective/prompts ~/my-prompts
+    vi ~/my-prompts/system_prompt.j2 # edit the system prompt there to better fit your needs
+    logdetective https://kojipkgs.fedoraproject.org//work/tasks/3367/131313367/build.log --prompt-templates ~/my-prompts
+
+Example of altered prompts (Deprecated):
+
+    cp ~/.local/lib/python3.13/site-packages/logdetective/prompts.yml ~/my-prompts.yml
+    vi ~/my-prompts.yml # edit the prompts there to better fit your needs
+    logdetective https://kojipkgs.fedoraproject.org//work/tasks/3367/131313367/build.log --prompts ~/my-prompts.yml
 
 
 Note that streaming with some models (notably Meta-Llama-3) is broken and can be worked around by `no-stream` option:
@@ -447,17 +454,38 @@ http GET "localhost:8080/metrics/analyze/requests?weeks=5" > /tmp/plot_weeks.svg
 System Prompts
 --------------
 
-Prompt templates used by Log Detective are stored in the `prompts.yml` file.
+Prompts are defined as Jinja templates and placed in location specified by `--prompt-templates` option of the CLI utility, or `LOGDETECTIVE_PROMPT_TEMPLATES` environment variable of the container service. With further, optional, configuration in the `prompts.yml` configuration file.
+
+All system prompt templates must include place for `system_time` variable.
+
+If `references` list is defined in `prompts.yml`, templates must also include a handling for a list of references.
+
+Example:
+
+```jinja
+{% if references %}
+## References:
+
+    {% for reference in references %}
+    * {{ reference.name }} : {{ reference.link }}
+    {% endfor %}
+{% endif %}
+
+```
+
+*Deprecated:*
+
+*Prompt templates used by Log Detective are stored in the `prompts.yml` file.
 It is possible to modify the file in place, or provide your own.
 In CLI you can override prompt templates location using `--prompts` option,
 while in the container service deployment the `LOGDETECTIVE_PROMPTS` environment variable
-is used instead.
+is used instead.*
 
-Prompts need to have a form compatible with python [format string syntax](https://docs.python.org/3/library/string.html#format-string-syntax)
-with spaces, or replacement fields marked with curly braces, `{}` left for insertion of snippets.
+*Prompts need to have a form compatible with python [format string syntax](https://docs.python.org/3/library/string.html#format-string-syntax)
+with spaces, or replacement fields marked with curly braces, `{}` left for insertion of snippets.*
 
-Number of replacement fields in new prompts, must be the same as in originals.
-Although their position may be different.
+*Number of replacement fields in new prompts, must be the same as in originals.
+Although their position may be different.*
 
 
 Skip Snippets

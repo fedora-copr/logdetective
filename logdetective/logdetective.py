@@ -59,9 +59,17 @@ def setup_args():
     parser.add_argument("-q", "--quiet", action="store_true")
     parser.add_argument(
         "--prompts",
+        "--prompts-config",
         type=str,
         default=f"{os.path.dirname(__file__)}/prompts.yml",
         help="Path to prompt configuration file.",
+    )
+    parser.add_argument(
+        "--prompt-templates",
+        type=str,
+        default=f"{os.path.dirname(__file__)}/prompts",
+        help="Path to prompt template dir. Prompts must be valid Jinja templates, \
+              and system prompts must include field `system_time`.",
     )
     parser.add_argument(
         "--temperature",
@@ -97,7 +105,7 @@ async def run():  # pylint: disable=too-many-statements,too-many-locals,too-many
         log_level = 0
 
     # Get prompts configuration
-    prompts_configuration = load_prompts(args.prompts)
+    prompts_configuration = load_prompts(args.prompts, args.prompt_templates)
 
     logging.basicConfig(stream=sys.stdout)
     LOG.setLevel(log_level)

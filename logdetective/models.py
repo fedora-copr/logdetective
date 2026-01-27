@@ -21,26 +21,7 @@ class PromptConfig(BaseModel):
     snippet_system_prompt: str = DEFAULT_SYSTEM_PROMPT
     staged_system_prompt: str = DEFAULT_SYSTEM_PROMPT
 
-    def __init__(self, data: Optional[dict] = None):
-        super().__init__()
-        if data is None:
-            return
-        self.prompt_template = data.get("prompt_template", PROMPT_TEMPLATE)
-        self.snippet_prompt_template = data.get(
-            "snippet_prompt_template", SNIPPET_PROMPT_TEMPLATE
-        )
-        self.prompt_template_staged = data.get(
-            "prompt_template_staged", PROMPT_TEMPLATE_STAGED
-        )
-        self.default_system_prompt = data.get(
-            "default_system_prompt", DEFAULT_SYSTEM_PROMPT
-        )
-        self.snippet_system_prompt = data.get(
-            "snippet_system_prompt", DEFAULT_SYSTEM_PROMPT
-        )
-        self.staged_system_prompt = data.get(
-            "staged_system_prompt", DEFAULT_SYSTEM_PROMPT
-        )
+    references: Optional[list[dict[str, str]]] = None
 
 
 class SkipSnippets(BaseModel):
