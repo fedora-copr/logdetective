@@ -88,3 +88,10 @@ staged_system_prompt: |
   You never speculate about package being built or fabricate information.
   If you do not know the answer, you acknowledge the fact and end your response.
   Your responses must be as short as possible.
+
+# Optional references, to be used when constructing prompt from Jinja template
+# references:
+#   - name: Fedora Packaging Guidelines
+#     link: https://docs.fedoraproject.org/en-US/packaging-guidelines/
+#   - name: Mock user documentation
+#     link: https://rpm-software-management.github.io/mock/

@@ -44,6 +44,7 @@ logdetective - Analyze and summarize log files using LLM and Drain templates
   Suppress non-essential output.
 
 *--prompts* *PROMPTS_FILE*::
+  (Deprecated replaced by *--prompts-config* and *--prompt-templates*)
   Path to prompt configuration file where you can customize (override default) prompts sent to the LLM. See https://github.com/fedora-copr/logdetective/blob/main/logdetective/prompts.yml for reference.
   +
   Prompts need to have a form compatible with Python format string syntax (see https://docs.python.org/3/library/string.html#format-string-syntax) with spaces, or replacement fields marked with curly braces, `{}` left for insertion of snippets. Number of replacement fields in new prompts must be the same as in original, although their position may be different.
@@ -64,6 +65,10 @@ logdetective - Analyze and summarize log files using LLM and Drain templates
     starts_with_numeric: "^[0-9].*"
 
     child_exit_code_zero: "Child return code was: 0"
+
+*--prompts-config* *PROMPTS*:: Path to prompt configuration file where you can customize (override default) prompts sent to the LLM and set optional configuration. See https://github.com/fedora-copr/logdetective/blob/main/logdetective/prompts.yml for reference.
+
+*--prompt-templates* *TEMPLATE_DIR*:: Path to prompt template dir. Prompts must be valid Jinja templates, and system prompts must include field *system_time*.
 
 == EXAMPLES
 
