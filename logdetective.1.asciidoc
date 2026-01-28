@@ -26,7 +26,7 @@ logdetective - Analyze and summarize log files using LLM and Drain templates
   Show usage description and exit.
 
 *-M* *MODEL*, *--model* *MODEL*::
-  The path to the language model for analysis (if stored locally). You can also specify the model by name based on the repo on Hugging face (see Examples). Repo id must be in the form `'namespace/repo_name'`. As we are using `LLama.cpp` we want this to be in the gguf format. If the model is already on your machine it will skip the download. (optional, default: "fedora-copr/Mistral-7B-Instruct-v0.3-GGUF")
+  The path to the language model for analysis (if stored locally). You can also specify the model by name based on the repo on Hugging face (see Examples). Repo id must be in the form `'namespace/repo_name'`. As we are using `LLama.cpp` we want this to be in the gguf format. If the model is already on your machine it will skip the download. (optional, default: "fedora-copr/granite-3.2-8b-instruct-GGUF")
 
 *-F* *FILENAME_SUFFIX*, *--filename-suffix* *FILENAME_SUFFIX*::
   Define the suffix of the model file name to retrieve from Hugging Face. This option only applies when the model is specified by its Hugging face repo name, and not its path. (default `Q4_K.gguf`)

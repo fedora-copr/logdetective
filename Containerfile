@@ -1,5 +1,5 @@
 FROM fedora:42
-# Fedora's llama-cpp-python is segfaulting on the mistral model we use :/
+# Fedora's llama-cpp-python is segfaulting on the model we use :/
 RUN dnf install -y \
     fastapi-cli \
     python3-fastapi \
@@ -30,7 +30,7 @@ RUN pip3 install aiolimiter llama_cpp_python==0.2.85 sse-starlette starlette-con
 # models inside the container
 # RUN pip3 install huggingface_hub[cli] \
 #     && mkdir /models \
-#     && huggingface-cli download TheBloke/Mistral-7B-Instruct-v0.2-GGUF mistral-7b-instruct-v0.2.Q4_K_M.gguf --local-dir /models --local-dir-use-symlinks False
+#     && huggingface-cli download ibm-granite/granite-4.0-h-tiny-GGUF granite-4.0-h-tiny-Q8_0.gguf --local-dir /models --local-dir-use-symlinks False
 
 COPY ./logdetective/ /src/logdetective/
 COPY ./alembic.ini /src/alembic.ini
