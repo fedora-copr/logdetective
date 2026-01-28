@@ -4,7 +4,7 @@ in prompts.yaml instead.
 """
 
 # pylint: disable=line-too-long
-DEFAULT_ADVISOR = "fedora-copr/Mistral-7B-Instruct-v0.3-GGUF"
+DEFAULT_ADVISOR = "fedora-copr/granite-3.2-8b-instruct-GGUF"
 
 PROMPT_TEMPLATE = """
 Given following log snippets, and nothing else, explain what failure, if any, occured during build of this package.

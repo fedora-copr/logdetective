@@ -42,7 +42,7 @@ Usage
 
 To analyze a log file, run the script with the following command line arguments:
 - `file` (required): The path or URL of the log file to be analyzed.
-- `--model` (optional, default: "Mistral-7B-Instruct-v0.3-GGUF"): The path or Hugging space name of the language model for analysis. For models from Hugging Face, write them as `namespace/repo_name`. As we are using LLama.cpp we want this to be in the `gguf` format. If the model is already on your machine it will skip the download.
+- `--model` (optional, default: "granite-3.2-8b-instruct-GGUF"): The path or Hugging space name of the language model for analysis. For models from Hugging Face, write them as `namespace/repo_name`. As we are using LLama.cpp we want this to be in the `gguf` format. If the model is already on your machine it will skip the download.
 - `--filename-suffix` (optional, default "Q4_K.gguf"): You can specify which suffix of the file to use. This option is applied when specifying model using the Hugging Face repository.
 - `--n-clusters` (optional, default 8): Number of clusters for Drain to organize log chunks into. This only makes sense when you are summarizing with Drain.
 - `--prompts PROMPTS` (Deprecated, replaced by `--prompts-config`) Path to prompt configuration file.
@@ -159,7 +159,8 @@ message is reported indicating that the 'check' phase of the rpm build process
 failed with a bad exit status.
 ```
 
-It looks like a wall of text. Similar to any log. The main difference is that here we have the most significant lines of a logfile wrapped in `[ ] : ` and followed by textual explanation of the log text done by mistral 7b.
+It looks like a wall of text. Similar to any log.
+The main difference is that here we have the most significant lines of a logfile wrapped in `[ ] : ` and followed by textual explanation of the log text done by local LLM.
 
 
 Contributing
@@ -327,14 +328,14 @@ Before doing `podman-compose up`, make sure to set `MODELS_PATH` environment var
 ```
 $ export MODELS_PATH=/path/to/models/
 $ ll $MODELS_PATH
--rw-r--r--. 1 tt tt 3.9G apr 10 17:18  mistral-7b-instruct-v0.2.Q4_K_S.gguf
+-rw-r--r--. 1 tt tt 3.9G apr 10 17:18  granite-4.0-h-tiny-Q8_0.gguf
 ```
 
 If the variable is not set, `./models` is mounted inside by default.
 
 Model can be downloaded from [our Hugging Space](https://huggingface.co/fedora-copr) by:
 ```
-$ curl -L -o models/mistral-7b-instruct-v0.3.Q4_K.gguf https://huggingface.co/fedora-copr/Mistral-7B-Instruct-v0.3-GGUF/resolve/main/ggml-model-Q4_K.gguf
+$ curl -L -o models/granite-3.2-8b-instruct-v0.3.Q4_K.gguf https://huggingface.co/fedora-copr/granite-3.2-8b-instruct-GGUF/resolve/main/ggml-model-Q4_K.gguf
 ```
 
 Filtering snippet analysis by relevance
