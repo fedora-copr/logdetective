@@ -6,7 +6,6 @@ inference:
   max_tokens: 10000 # maximum number of tokens must be a positive integer
   log_probs: true
   url: http://llama-cpp-server:8000
-  # url: https://mistral-7b-instruct-v0-3--apicast-production.apps.int.stc.ai.prod.us-east-1.aws.paas.redhat.com/
   api_token: "XXX" # Must not be empty, even if the server doesn't require authentication
   requests_per_minute: 6
   http_timeout: 5.0
