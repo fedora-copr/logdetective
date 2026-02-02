@@ -73,13 +73,11 @@ async def collect_emojis_in_comments(  # pylint: disable=too-many-locals
             merge_request_iid = mr_job_db.mr_iid
             project_id = mr_job_db.project_id
             if (project_id, merge_request_iid) not in merge_requests:
-                merge_request = await asyncio.to_thread(
+                merge_requests[(project_id, merge_request_iid)] = await asyncio.to_thread(
                     project.mergerequests.get, merge_request_iid
                 )
 
-                merge_requests[(project_id, merge_request_iid)] = merge_request
-            else:
-                merge_request = merge_requests[(project_id, merge_request_iid)]
+            merge_request = merge_requests[(project_id, merge_request_iid)]
 
             discussion = await asyncio.to_thread(
                 merge_request.discussions.get, comment.comment_id
