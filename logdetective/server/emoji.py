@@ -71,14 +71,15 @@ async def collect_emojis_in_comments(  # pylint: disable=too-many-locals
             else:
                 project = projects[mr_job_db.id]
             merge_request_iid = mr_job_db.mr_iid
-            if merge_request_iid not in merge_requests:
+            project_id = mr_job_db.project_id
+            if (project_id, merge_request_iid) not in merge_requests:
                 merge_request = await asyncio.to_thread(
                     project.mergerequests.get, merge_request_iid
                 )
 
-                merge_requests[merge_request_iid] = merge_request
+                merge_requests[(project_id, merge_request_iid)] = merge_request
             else:
-                merge_request = merge_requests[merge_request_iid]
+                merge_request = merge_requests[(project_id, merge_request_iid)]
 
             discussion = await asyncio.to_thread(
                 merge_request.discussions.get, comment.comment_id
@@ -87,9 +88,10 @@ async def collect_emojis_in_comments(  # pylint: disable=too-many-locals
             # Get the ID of the first note
             if "notes" not in discussion.attributes or len(discussion.attributes["notes"]) == 0:
                 LOG.warning(
-                    "No notes were found in comment %s in merge request %d",
+                    "No notes were found in comment %s in merge request %d of project %d",
                     comment.comment_id,
                     merge_request_iid,
+                    project_id,
                 )
                 continue
 
