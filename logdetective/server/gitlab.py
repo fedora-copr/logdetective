@@ -288,11 +288,13 @@ async def check_artifacts_file_size(
     job: gitlab.v4.objects.ProjectJob,
     http_session: aiohttp.ClientSession,
 ):
-    """Method to determine if the artifacts are too large to process"""
-    # First, make sure that the artifacts are of a reasonable size. The
-    # zipped artifact collection will be stored in memory below. The
-    # python-gitlab library doesn't expose a way to check this value directly,
-    # so we need to interact with directly with the headers.
+    """Method to determine if the artifacts are too large to process
+
+    First, make sure that the artifacts are of a reasonable size. The
+    zipped artifact collection will be stored in memory below. The
+    python-gitlab library doesn't expose a way to check this value directly,
+    so we need to interact with directly with the headers.
+    """
     artifacts_path = (
         f"{gitlab_cfg.api_path}/projects/{job.project_id}/jobs/{job.id}/artifacts"
     )
