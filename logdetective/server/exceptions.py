@@ -35,3 +35,7 @@ class LogsTooLargeError(LogDetectiveKojiException):
 
 class LogDetectiveMetricsError(LogDetectiveException):
     """Exception was encountered while recording metrics"""
+
+
+class LogDetectiveArtifactsMissingError(LogDetectiveConnectionError):
+    """Request for build artifacts has returned 404 response"""

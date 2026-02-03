@@ -5,7 +5,6 @@ from pathlib import Path, PurePath
 from tempfile import TemporaryFile
 
 from aiolimiter import AsyncLimiter
-from fastapi import HTTPException
 
 import gitlab
 import gitlab.v4
@@ -19,6 +18,7 @@ from logdetective.server.config import SERVER_CONFIG, LOG
 from logdetective.server.exceptions import (
     LogsTooLargeError,
     LogDetectiveConnectionError,
+    LogDetectiveArtifactsMissingError,
 )
 from logdetective.server.llm import perform_staged_analysis
 from logdetective.server.metric import add_new_metrics, update_metrics
@@ -103,9 +103,13 @@ async def process_gitlab_job_event(
         log_url, preprocessed_log = await retrieve_and_preprocess_koji_logs(
             gitlab_cfg, job, http_session
         )
-    except (LogsTooLargeError, LogDetectiveConnectionError) as ex:
+    except (
+        LogsTooLargeError,
+        LogDetectiveConnectionError,
+        LogDetectiveArtifactsMissingError,
+    ) as ex:
         LOG.error("Could not retrieve logs due to %s", ex)
-        raise
+        return
 
     # Submit log to Log Detective and await the results.
     log_text = preprocessed_log.read().decode(encoding="utf-8")
@@ -306,9 +310,13 @@ async def check_artifacts_file_size(
             raise_for_status=True,
         )
     except aiohttp.ClientResponseError as ex:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unable to check artifact URL: [{ex.status}] {ex.message}",
+        if ex.code == 404:
+            raise LogDetectiveArtifactsMissingError(
+                f"Requested artifacts from job {job.id} in project "
+                f"{job.project_id} are not available."
+            ) from ex
+        raise LogDetectiveConnectionError(
+            f"Connection error checking artifacts from job {job.id} in project {job.project_id}"
         ) from ex
     content_length = int(head_response.headers.get("content-length"))
     LOG.debug(
