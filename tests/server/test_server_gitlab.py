@@ -41,7 +41,7 @@ from logdetective.server.database.models import (
     Forge,
     GitlabMergeRequestJobs,
 )
-from logdetective.server.exceptions import LogsTooLargeError
+from logdetective.server.exceptions import LogsTooLargeError, LogDetectiveArtifactsMissingError
 
 
 def create_zip_content(filepath) -> bytes:
@@ -520,7 +520,9 @@ async def test_check_artifacts_file_size_handles_http_error(
         message="Not Found",
     )
 
-    with pytest.raises(HTTPException, match="Unable to check artifact URL"):
+    with pytest.raises(LogDetectiveArtifactsMissingError,
+                       match=f"Requested artifacts from job {mock_job.id} in project "
+                       f"{mock_job.project_id} are not available"):
         await check_artifacts_file_size(
             gitlab_cfg=gitlab_cfg, job=mock_job, http_session=mock_session
         )
