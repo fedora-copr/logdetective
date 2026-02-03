@@ -51,6 +51,9 @@ services:
 
   packit-interface:
     image: quay.io/logdetective/packit:latest
+    volumes:
+      - ${FM_CERT_PATH:-./fedora_messaging_certs/logdetective-packit-cert.pem}:/etc/fedora-messaging/fedora-cert.pem:ro,Z
+      - ${FM_KEY_PATH:-./fedora_messaging_certs/logdetective-packit-key.pem}:/etc/fedora-messaging/fedora-key.pem:ro,Z
     depends_on:
       - server
     # Port 8090 is the default for logdetective-packit container
