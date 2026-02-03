@@ -3,10 +3,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Certificates
 /server/fullchain.pem
 /server/chain.pem
 /server/privkey.pem
 /server/cert.pem
+fedora_messaging_certs/*.pem
 
 # C extensions
 *.so
