@@ -15,6 +15,10 @@ services:
     extends:
       file: docker-compose.yaml
       service: postgres
+  packit-interface:
+    extends:
+      file: docker-compose.yaml
+      service: packit-interface
 
 volumes:
   database_data:
