@@ -6,8 +6,6 @@ services:
     # these lines are needed for CUDA acceleration
     devices:
       - nvidia.com/gpu=all
-    environment:
-      LLAMA_ARG_N_PARALLEL: 16
   server:
     extends:
       file: docker-compose.yaml
