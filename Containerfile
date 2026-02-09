@@ -9,7 +9,6 @@ RUN dnf install -y \
     python3-starlette+full \
     gcc \
     gcc-c++ \
-    python3-scikit-build \
     git-core python3-gunicorn \
     python3-gitlab \
     python3-diskcache \
