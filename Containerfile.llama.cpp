@@ -9,7 +9,7 @@ RUN dnf install -y python3-requests python3-pip gcc gcc-c++ python3-scikit-build
     && echo "gpgkey=https://developer.download.nvidia.com/compute/cuda/repos/fedora42/x86_64/D42D0685.pub" >> /etc/yum.repos.d/cuda.repo \
     && dnf install -y cuda-compiler-13-0 cuda-toolkit-13-0 nvidia-driver-cuda nvidia-driver-cuda-libs nvidia-driver cmake \
     && dnf clean all
-ENV LLAMACPP_VER="0d5375d54b258ec63edd1fb5d58c37d58ce8be8b"
+ENV LLAMACPP_VER="1e8924fd65ad349d1d838412a2172292618f3bbf"
 ENV PATH=${PATH}:/usr/local/cuda-13.0/bin/
 
 # Clone, checkout, build and move llama.cpp server to path
