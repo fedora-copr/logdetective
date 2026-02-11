@@ -204,7 +204,7 @@ async def run():  # pylint: disable=too-many-statements,too-many-locals,too-many
             print(delta, end="", flush=True)
     certainty = compute_certainty(probs)
 
-    print(f"\nResponse certainty: {certainty:.2f}%\n")
+    LOG.debug("Response certainty: %.2f %%" % certainty)
 
 
 def main():
