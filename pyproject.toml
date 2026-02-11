@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "logdetective"
-version = "3.2.0"
+version = "3.3.0"
 description = "Analyze logs with a template miner and an LLM to discover errors and suggest solutions."
 authors = ["Jiri Podivin <jpodivin@gmail.com>"]
 license = "Apache-2.0"
