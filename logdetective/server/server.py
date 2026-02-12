@@ -603,7 +603,8 @@ async def receive_gitlab_job_event_webhook(
         forge,
         job_hook,
         request.app.state.llm_request_limiter,
-        request.app.state.extractors
+        request.app.state.extractors,
+        SERVER_CONFIG.general.report_certainty,
     )
 
     # No return value or body is required for a webhook.

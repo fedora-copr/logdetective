@@ -49,6 +49,7 @@ async def process_gitlab_job_event(
     job_hook: JobHook,
     async_request_limiter: AsyncLimiter,
     extractors: list[Extractor],
+    report_certainty: bool = False,
 ):  # pylint: disable=too-many-locals disable=too-many-arguments disable=too-many-positional-arguments
     """Handle a received job_event webhook from GitLab"""
     LOG.debug("Received webhook message from %s:\n%s", forge.value, job_hook)
@@ -141,6 +142,7 @@ async def process_gitlab_job_event(
         log_url,
         staged_response,
         metrics_id,
+        report_certainty=report_certainty,
     )
 
     return staged_response
@@ -336,6 +338,7 @@ async def comment_on_mr(  # pylint: disable=too-many-arguments disable=too-many-
     log_url: str,
     response: StagedResponse,
     metrics_id: int,
+    report_certainty: bool = False,
 ):
     """Add the Log Detective response as a comment to the merge request"""
     LOG.debug(
@@ -350,7 +353,9 @@ async def comment_on_mr(  # pylint: disable=too-many-arguments disable=too-many-
     await suppress_latest_comment(forge, project, merge_request_iid)
 
     # Get the formatted short comment.
-    short_comment = await generate_mr_comment(job, log_url, response, full=False)
+    short_comment = await generate_mr_comment(
+        job, log_url, response, full=False, report_certainty=report_certainty
+    )
 
     # Look up the merge request
     merge_request = await asyncio.to_thread(
@@ -370,7 +375,9 @@ async def comment_on_mr(  # pylint: disable=too-many-arguments disable=too-many-
     # We do this in a second step so we don't bombard the user's email
     # notifications with a massive message. Gitlab doesn't send email for
     # comment edits.
-    full_comment = await generate_mr_comment(job, log_url, response, full=True)
+    full_comment = await generate_mr_comment(
+        job, log_url, response, full=True, report_certainty=report_certainty
+    )
     note.body = full_comment
 
     # Pause for five seconds before sending the snippet data, otherwise
@@ -438,6 +445,7 @@ async def generate_mr_comment(
     log_url: str,
     response: StagedResponse,
     full: bool = True,
+    report_certainty: bool = False,
 ) -> str:
     """Use a template to generate a comment string to submit to Gitlab"""
 
@@ -469,6 +477,7 @@ async def generate_mr_comment(
         snippets=response.snippets,
         log_url=log_url,
         artifacts_url=artifacts_url,
+        report_certainty=report_certainty,
     )
 
     return content
