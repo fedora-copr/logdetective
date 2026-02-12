@@ -63,3 +63,5 @@ general:
   # Values equal, or higher, than number of snippets produced,
   # will effectivelly result in no filtering at all.
   # top_k_snippets: 0
+  # Certainty ratings are disabled by default.
+  # report_certainty: false
