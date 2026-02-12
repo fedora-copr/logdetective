@@ -303,6 +303,7 @@ class GeneralConfig(BaseModel):
     sentry_dsn: HttpUrl | None = None
     collect_emojis_interval: int = 60 * 60  # seconds
     top_k_snippets: int = 0
+    report_certainty: bool = False
 
 
 class Config(BaseModel):
