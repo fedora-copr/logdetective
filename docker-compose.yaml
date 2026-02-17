@@ -1,6 +1,6 @@
 services:
   llama-cpp:
-    image: quay.io/logdetective/inference:latest
+    image: quay.io/logdetective/inference:3.0.0
     build:
       context: .
       dockerfile: ./Containerfile.llama.cpp
