@@ -267,9 +267,28 @@ async def populate_db_with_analyze_request_every_15_minutes_for_3_weeks():
 @pytest.fixture()
 def mock_chat_completions(monkeypatch, request):
     """Returns mock ChatCompletion response asynchronously."""
-    mock_message = request.param
+    param = request.param
+    if isinstance(param, dict):
+        mock_message = param.get("content", "")
+        use_logprobs = param.get("use_logprobs", False)
+    else:
+        mock_message = param
+        use_logprobs = False
 
     async def mock_create(*args, **kwargs):
+        logprobs = None
+        if use_logprobs:
+            logprobs = {
+                "content": [
+                    {
+                        "token": token,
+                        "logprob": -0.5,
+                        "bytes": list(token.encode("utf-8")),
+                        "top_logprobs": []
+                    }
+                    for token in mock_message.split()
+                ]
+            }
         completion = ChatCompletion(
             id="mock_completion",
             created=0,
@@ -282,6 +301,7 @@ def mock_chat_completions(monkeypatch, request):
                         content=mock_message,
                         role="assistant",
                     ),
+                    logprobs=logprobs,
                 )
             ],
             model="mock_completion_model",
@@ -290,6 +310,8 @@ def mock_chat_completions(monkeypatch, request):
         return completion
 
     monkeypatch.setattr(AsyncCompletions, "create", mock_create)
+
+    return {"mock_message": mock_message, "use_logprobs": use_logprobs}
 
 
 @pytest.fixture

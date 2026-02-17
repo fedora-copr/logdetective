@@ -284,7 +284,8 @@ async def analyze_log(
     return await perform_analysis(
         log_text,
         async_request_limiter=request.app.state.llm_request_limiter,
-        extractors=request.app.state.extractors
+        extractors=request.app.state.extractors,
+        report_certainty=SERVER_CONFIG.general.report_certainty,
     )
 
 
@@ -308,6 +309,7 @@ async def analyze_log_staged(
         log_text,
         async_request_limiter=request.app.state.llm_request_limiter,
         extractors=request.app.state.extractors,
+        report_certainty=SERVER_CONFIG.general.report_certainty,
     )
 
 
