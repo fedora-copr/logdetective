@@ -26,4 +26,4 @@ else
 fi
 
 echo "Starting application server..."
-exec gunicorn -c "$conf" logdetective.server.server:app
+exec python -m gunicorn -c "$conf" logdetective.server.server:app
