@@ -113,33 +113,57 @@ async def test_perform_staged_analysis_with_errors():
             )
 
 
-@pytest.mark.parametrize("mock_chat_completions", [MOCK_EXPLANATION], indirect=True)
+@pytest.mark.parametrize("report_certainty", [False, True])
+@pytest.mark.parametrize(
+    "mock_chat_completions",
+    [
+        {"content": MOCK_EXPLANATION, "use_logprobs": True},
+        {"content": MOCK_EXPLANATION, "use_logprobs": False},
+    ], indirect=True)
 @pytest.mark.asyncio
 async def test_perform_analysis(
-    mock_chat_completions,
+    mock_chat_completions, report_certainty
 ):
     async_limiter = AsyncLimiter(100)
     extractors = initialize_extractors(SERVER_CONFIG.extractor)
     result = await perform_analysis(
-        MOCK_LOG, async_request_limiter=async_limiter, extractors=extractors
+        MOCK_LOG,
+        async_request_limiter=async_limiter,
+        extractors=extractors,
+        report_certainty=report_certainty
     )
 
     assert result.explanation.text == MOCK_EXPLANATION
 
+    if report_certainty and mock_chat_completions["use_logprobs"]:
+        assert result.response_certainty is not None
 
-@pytest.mark.parametrize("mock_chat_completions", [MOCK_EXPLANATION], indirect=True)
+
+@pytest.mark.parametrize("report_certainty", [False, True])
+@pytest.mark.parametrize(
+    "mock_chat_completions",
+    [
+        {"content": MOCK_EXPLANATION, "use_logprobs": True},
+        {"content": MOCK_EXPLANATION, "use_logprobs": False},
+    ], indirect=True)
 @pytest.mark.asyncio
 async def test_perform_staged_analysis(
-    mock_chat_completions,
+    mock_chat_completions, report_certainty,
 ):
     async_limiter = AsyncLimiter(100)
     extractors = initialize_extractors(SERVER_CONFIG.extractor)
 
     result = await perform_staged_analysis(
-        MOCK_LOG, async_request_limiter=async_limiter, extractors=extractors
+        MOCK_LOG,
+        async_request_limiter=async_limiter,
+        extractors=extractors,
+        report_certainty=report_certainty
     )
 
     assert result.explanation.text == MOCK_EXPLANATION
+
+    if report_certainty and mock_chat_completions["use_logprobs"]:
+        assert result.response_certainty is not None
 
 
 def test_koji_callback_manager():

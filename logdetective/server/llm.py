@@ -194,6 +194,7 @@ async def perform_analysis(
     log_text: str,
     async_request_limiter: AsyncLimiter,
     extractors: List[Extractor],
+    report_certainty: bool = False,
 ) -> Response:
     """Sumbit log file snippets in aggregate to LLM and retrieve results"""
     log_summary = mine_logs(log_text, extractors)
@@ -212,9 +213,9 @@ async def perform_analysis(
         async_request_limiter=async_request_limiter,
         inference_cfg=SERVER_CONFIG.inference,
     )
-    certainty = 0
+    certainty = None
 
-    if response.logprobs is not None:
+    if report_certainty and response.logprobs is not None:
         try:
             certainty = compute_certainty(response.logprobs)
         except ValueError as ex:
@@ -261,6 +262,7 @@ async def perform_staged_analysis(
     log_text: str,
     async_request_limiter: AsyncLimiter,
     extractors: List[Extractor],
+    report_certainty: bool = False,
 ) -> StagedResponse:
     """Submit the log file snippets to the LLM and retrieve their results"""
     log_summary = mine_logs(log_text, extractors)
@@ -315,9 +317,9 @@ async def perform_staged_analysis(
         inference_cfg=SERVER_CONFIG.inference,
     )
 
-    certainty = 0
+    certainty = None
 
-    if final_analysis.logprobs:
+    if report_certainty and final_analysis.logprobs:
         try:
             certainty = compute_certainty(final_analysis.logprobs)
         except ValueError as ex:
