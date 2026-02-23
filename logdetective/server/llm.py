@@ -1,7 +1,7 @@
 import os
 import asyncio
 import random
-import time
+import datetime
 from typing import List, Tuple, Dict
 
 import backoff
@@ -46,6 +46,7 @@ from logdetective.server.utils import (
 LLM_CPP_SERVER_TIMEOUT = os.environ.get("LLAMA_CPP_SERVER_TIMEOUT", 600)
 
 
+# pylint: disable=too-many-positional-arguments, too-many-arguments
 @backoff.on_exception(
     lambda: backoff.constant([10, 30, 120]),
     aiohttp.ClientResponseError,
@@ -61,12 +62,15 @@ async def call_llm(
     async_request_limiter: AsyncLimiter,
     stream: bool = False,
     structured_output: dict | None = None,
+    index: int | None = None,
 ) -> Explanation:
     """Submit prompt to LLM.
     inference_cfg: The configuration section from the config.json representing
     the relevant inference server for this request.
     """
-    LOG.info("Analyzing the text")
+    subject = "the text" if index is None else f"snippet no. {index}"
+    lengths = {m["role"]: len(m["content"]) for m in messages}
+    LOG.info("Analyzing %s, Message size in chars: %s", subject, str(lengths))
 
     LOG.info("Submitting to /v1/chat/completions endpoint")
 
@@ -170,8 +174,9 @@ async def analyze_snippets(
             async_request_limiter=async_request_limiter,
             inference_cfg=SERVER_CONFIG.snippet_inference,
             structured_output=structured_output,
+            index=index
         )
-        for s in log_summary
+        for index, s in enumerate(log_summary)
     ]
     gathered_responses = await asyncio.gather(*awaitables)
     analyzed_snippets = []
@@ -196,6 +201,8 @@ async def perform_analysis(
     extractors: List[Extractor],
 ) -> Response:
     """Sumbit log file snippets in aggregate to LLM and retrieve results"""
+    start_time = datetime.datetime.now()
+    LOG.info("Starting analysis, Log length (in chars): %d", len(log_text))
     log_summary = mine_logs(log_text, extractors)
     log_summary = format_snippets(log_summary)
 
@@ -207,11 +214,14 @@ async def perform_analysis(
         SERVER_CONFIG.inference.system_role,
         SERVER_CONFIG.inference.user_role,
     )
+    llm_start_time = datetime.datetime.now()
     response = await call_llm(
         messages,
         async_request_limiter=async_request_limiter,
         inference_cfg=SERVER_CONFIG.inference,
     )
+    llm_timedelta = datetime.datetime.now() - llm_start_time
+    LOG.info("Obtained LLM response, LLM call duration: %s", f"{llm_timedelta!s}")
     certainty = 0
 
     if response.logprobs is not None:
@@ -224,6 +234,10 @@ async def perform_analysis(
                 detail=f"Couldn't compute certainty with data:\n{response.logprobs}",
             ) from ex
 
+    LOG.info(
+        "Ending analysis, Analysis duration: %s",
+        f"{(datetime.datetime.now() - start_time)!s}"
+    )
     return Response(explanation=response, response_certainty=certainty)
 
 
@@ -233,6 +247,9 @@ async def perform_analysis_stream(
     extractors: List[Extractor],
 ) -> AsyncStream:
     """Submit log file snippets in aggregate and return a stream of tokens"""
+    start_time = datetime.datetime.now()
+    LOG.info("Starting stream analysis, Log length (in chars): %d", len(log_text))
+
     log_summary = mine_logs(log_text, extractors)
     log_summary = format_snippets(log_summary)
 
@@ -245,26 +262,33 @@ async def perform_analysis_stream(
         SERVER_CONFIG.inference.user_role,
     )
 
+    llm_start_time = datetime.datetime.now()
     stream = call_llm_stream(
         messages,
         async_request_limiter=async_request_limiter,
         inference_cfg=SERVER_CONFIG.inference,
     )
-
+    llm_duration = datetime.datetime.now() - llm_start_time
+    LOG.info("Obtained LLM response, LLM stream call duration: %s", f"{llm_duration!s}")
     # we need to figure out a better response here, this is how it looks rn:
     # b'data: {"choices":[{"finish_reason":"stop","index":0,"delta":{}}],
     #   "created":1744818071,"id":"chatcmpl-c9geTxNcQO7M9wR...
+    full_duration = datetime.datetime.now() - start_time
+    LOG.info("Ending stream analysis, Analysis duration: %s", f"{full_duration!s}")
     return stream
 
 
+# pylint: disable=too-many-locals
 async def perform_staged_analysis(
     log_text: str,
     async_request_limiter: AsyncLimiter,
     extractors: List[Extractor],
 ) -> StagedResponse:
     """Submit the log file snippets to the LLM and retrieve their results"""
+    start_time = datetime.datetime.now()
+    LOG.info("Starting staged analysis, Log length (in chars): %d", len(log_text))
     log_summary = mine_logs(log_text, extractors)
-    start = time.time()
+    snippets_start_time = datetime.datetime.now()
     if SERVER_CONFIG.general.top_k_snippets:
         rated_snippets = await analyze_snippets(
             log_summary=log_summary,
@@ -296,8 +320,8 @@ async def perform_staged_analysis(
             AnalyzedSnippet(line_number=e[0][0], text=e[0][1], explanation=e[1])
             for e in zip(log_summary, processed_snippets)
         ]
-    delta = time.time() - start
-    LOG.info("Snippet analysis performed in %f s", delta)
+    snippet_analysis_duration = datetime.datetime.now() - snippets_start_time
+    LOG.info("Snippet analysis duration: %s", f"{snippet_analysis_duration!s}")
     log_summary = format_analyzed_snippets(processed_snippets)
     final_prompt = construct_final_prompt(
         log_summary, PROMPT_CONFIG.prompt_template_staged
@@ -309,12 +333,15 @@ async def perform_staged_analysis(
         SERVER_CONFIG.inference.system_role,
         SERVER_CONFIG.inference.user_role,
     )
+    llm_start_time = datetime.datetime.now()
+    LOG.info("Final LLM call on filtered snippets")
     final_analysis = await call_llm(
         messages,
         async_request_limiter=async_request_limiter,
         inference_cfg=SERVER_CONFIG.inference,
     )
-
+    llm_duration = datetime.datetime.now() - llm_start_time
+    LOG.info("Obtained LLM response, Final LLM call duration: %s", f"{llm_duration!s}")
     certainty = 0
 
     if final_analysis.logprobs:
@@ -327,7 +354,8 @@ async def perform_staged_analysis(
                 detail=f"Couldn't compute certainty with data:\n"
                 f"{final_analysis.logprobs}",
             ) from ex
-
+    analysis_duration = datetime.datetime.now() - start_time
+    LOG.info("Ending staged analysis, Analysis duration: %s", f"{analysis_duration!s}")
     return StagedResponse(
         explanation=final_analysis,
         snippets=processed_snippets,
