@@ -255,7 +255,8 @@ def prompt_to_messages(
                 "content": user_message,
             },
         ]
-
+    for m in messages:
+        LOG.debug("'%s' prompt content: \n %s", m["role"], m["content"])
     return messages
 
 
@@ -264,7 +265,7 @@ def filter_snippet_patterns(snippet: str, skip_snippets: SkipSnippets) -> bool:
     filter it out or not."""
     for key, pattern in skip_snippets.snippet_patterns.items():
         if pattern.match(snippet):
-            LOG.debug("Snippet `%s` has matched agains skip pattern %s", snippet, key)
+            LOG.debug("Snippet `%s` has matched against skip pattern %s", snippet, key)
             return True
 
     return False
@@ -319,6 +320,6 @@ def mine_logs(log: str, extractors: list) -> List[Tuple[int, str]]:
 
     ratio = len("\n".join([text for _, text in log_summary])) / len(log)
     LOG.debug("Log summary: \n %s", log_summary)
-    LOG.info("Snippets: %s Compression ratio: %s", len(log_summary), ratio)
+    LOG.info("Snippets: %s, Compression ratio: %4f", len(log_summary), ratio)
 
     return log_summary
