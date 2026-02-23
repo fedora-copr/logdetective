@@ -1,5 +1,4 @@
 import datetime
-from logging import BASIC_FORMAT
 from typing import List, Dict, Optional, Any
 from pydantic import (
     BaseModel,
@@ -291,7 +290,8 @@ class LogConfig(BaseModel):
     level_stream: str | int = "INFO"
     level_file: str | int = "INFO"
     path: str | None = None
-    format: str = BASIC_FORMAT
+    format: str = "%(levelname)s:%(name)s:%(asctime)s:%(message)s"
+    datefmt: str = "%Y-%m-%d %H:%M:%S"
 
 
 class GeneralConfig(BaseModel):
