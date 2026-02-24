@@ -502,6 +502,8 @@ async def queue_print(msg: str, request: Request):
 
     LOG.info("Printed %s and returned it", result)
 
+    return result
+
 
 async def async_log(msg: str, request: Request):
     """Debug function to test the LLM request queue"""
