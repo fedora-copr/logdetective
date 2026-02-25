@@ -132,7 +132,7 @@ class Response(BaseModel):
     """
 
     explanation: Explanation
-    response_certainty: float
+    response_certainty: Optional[float] = None
 
 
 class StagedResponse(Response):
