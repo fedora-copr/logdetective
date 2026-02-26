@@ -24,6 +24,7 @@ import aiohttp
 import sentry_sdk
 
 from logdetective.extractors import DrainExtractor, CSGrepExtractor, Extractor
+from logdetective.utils import sanitize_log
 from logdetective.server.exceptions import KojiInvalidTaskID
 
 from logdetective.server.database.models.koji import KojiTaskAnalysis
@@ -280,6 +281,7 @@ async def analyze_log(
     """
     remote_log = RemoteLog(build_log.url, http_session)
     log_text = await remote_log.process_url()
+    log_text = sanitize_log(log_text)
 
     return await perform_analysis(
         log_text,
@@ -303,6 +305,7 @@ async def analyze_log_staged(
     """
     remote_log = RemoteLog(build_log.url, http_session)
     log_text = await remote_log.process_url()
+    log_text = sanitize_log(log_text)
 
     return await perform_staged_analysis(
         log_text,
@@ -446,6 +449,7 @@ async def analyze_koji_task(
     log_file_name, log_text = await get_failed_log_from_koji_task(
         koji_connection, task_id, max_size=SERVER_CONFIG.koji.max_artifact_size
     )
+    log_text = sanitize_log(log_text)
 
     # We need to handle the metric tracking manually here, because we need
     # to retrieve the metric ID to associate it with the koji task analysis.
@@ -533,6 +537,7 @@ async def analyze_log_stream(
     """
     remote_log = RemoteLog(build_log.url, http_session)
     log_text = await remote_log.process_url()
+    log_text = sanitize_log(log_text)
     try:
         stream = perform_analysis_stream(
             log_text,
