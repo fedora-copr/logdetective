@@ -338,6 +338,10 @@ Model can be downloaded from [our Hugging Space](https://huggingface.co/fedora-c
 $ curl -L -o models/granite-3.2-8b-instruct-v0.3.Q4_K.gguf https://huggingface.co/fedora-copr/granite-3.2-8b-instruct-GGUF/resolve/main/ggml-model-Q4_K.gguf
 ```
 
+Note that before any log or its snippets are sent to LLM for analysis, they are redacted.
+Log Detective removes certain personal information, such as emails and GPG fingerprints from logs, before calling LLM.
+LLM should be aware of this fact and factor it into its responses.
+
 Filtering snippet analysis by relevance
 ---------------------------------------
 
