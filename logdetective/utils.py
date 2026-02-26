@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import subprocess as sp
 from typing import Iterator, List, Dict, Tuple, Generator, Optional
 from urllib.parse import urlparse
@@ -20,6 +21,38 @@ from logdetective.prompts import PromptManager
 from logdetective.remote_log import RemoteLog
 
 LOG = logging.getLogger("logdetective")
+
+SANITIZE_PATTERNS: List[Tuple[re.Pattern[str], str]] = [
+    (  # Emails
+        # we don't want to match invalid subdomains, starting/ending with - or .
+        # such as @-domain.com or @domain-.com or @.domain.com or @domain..com
+        re.compile(
+            (
+                r"\b[\w.%+-]+@"  # username
+                r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?"  # first (lowest) subdomain
+                r"(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*"  # following subdomains
+                r"\.[a-z]{2,}\b"  # top-level domain
+            ),
+            re.IGNORECASE
+        ),
+        "copr-team@redhat.com",
+    ),
+    (  # GPG fingerprints
+        re.compile(
+            r"\bfingerprint:((\s*[0-9A-F]{32,})|((\s*[0-9A-F]{4}){8,}))\b",
+            re.IGNORECASE
+        ),
+        f"Fingerprint:{' FFFF' * 10}",
+    ),
+    (  # RSA keys, sometimes they are as short as 16 hexa characters
+        re.compile(r"\bRSA\s+key\s+[0-9A-F]{16,}\b", re.IGNORECASE),
+        f"RSA key {'FFFF' * 10}"
+    ),
+    (  # Pubkeys, sometimes pubkey-deadbeef-01234567, or pubkey-40hexacharacters-other8
+        re.compile(r"\bpubkey-[0-9a-f]{8}[0-9a-f-]+\b", re.IGNORECASE),
+        f"pubkey-{'ffff' * 10}",
+    )
+]
 
 
 def new_message(text: str) -> bool:
@@ -126,6 +159,16 @@ def compute_certainty(probs: List[Dict]) -> float:
     if np.isnan(certainty):
         raise ValueError("NaN certainty of answer")
     return certainty
+
+
+def sanitize_log(log: str) -> str:
+    """Redact personal identifiers from the log content before it is sent to the LLM for analysis.
+
+    Redaction is done by replacing emails, and various public keys/signatures.
+    """
+    for pattern, replacement in SANITIZE_PATTERNS:
+        log = re.sub(pattern, replacement, log)
+    return log
 
 
 def process_log(
