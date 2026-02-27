@@ -14,6 +14,7 @@ import aiohttp
 import backoff
 
 from logdetective.extractors import Extractor
+from logdetective.utils import sanitize_log
 from logdetective.server.config import SERVER_CONFIG, LOG
 from logdetective.server.exceptions import (
     LogsTooLargeError,
@@ -114,6 +115,7 @@ async def process_gitlab_job_event(
 
     # Submit log to Log Detective and await the results.
     log_text = preprocessed_log.read().decode(encoding="utf-8")
+    log_text = sanitize_log(log_text)
     metrics_id = await add_new_metrics(
         api_name=EndpointType.ANALYZE_GITLAB_JOB,
         url=log_url,
