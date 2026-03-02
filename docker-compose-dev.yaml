@@ -1,11 +1,15 @@
 services:
-  llama-cpp:
+  proxy:
     extends:
       file: docker-compose.yaml
-      service: llama-cpp
+      service: proxy
+  inference-0:
+    extends:
+      file: docker-compose.yaml
+      service: inference-0
     # these lines are needed for CUDA acceleration
-    devices:
-      - nvidia.com/gpu=all
+    # devices:
+    #   - nvidia.com/gpu=all
   server:
     extends:
       file: docker-compose.yaml

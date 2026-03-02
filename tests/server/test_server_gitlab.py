@@ -156,7 +156,7 @@ async def mock_job_hook():
         "ETag": "abc123",
     }
 
-    mocked_llama_response = """
+    mocked_llm_response = """
 {
   "choices": [
     {
@@ -219,8 +219,8 @@ async def mock_job_hook():
                 headers=mocked_headers,
             )
             async_rsps.post(
-                url="http://llama-cpp-server:8000/v1/chat/completions",
-                body=mocked_llama_response,
+                url="http://inference-server:8000/v1/chat/completions",
+                body=mocked_llm_response,
             )
             sync_rsps.add(
                 method=responses.GET,

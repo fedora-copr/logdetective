@@ -1,11 +1,79 @@
 services:
-  llama-cpp:
+  proxy:
     extends:
       file: docker-compose.yaml
-      service: llama-cpp
-    # these lines are needed for CUDA acceleration
-    devices:
-      - nvidia.com/gpu=all
+      service: proxy
+    volumes:
+      - ./server/nginx_prod.conf.template:/etc/nginx/templates/nginx.conf.template:ro,z
+    depends_on:
+      - inference-0
+      - inference-1
+      - inference-2
+      - inference-3
+
+  # 4 GPU vLLM inference using 8-bit quant of granite-3.1
+  # requires the exact number of CUDA devices and accesss to Hugging Face
+  # for pulling the model.
+
+  # GPU 0 Instance
+  inference-0: &inference-base
+    image: vllm/vllm-openai:v0.16.0
+    command: >
+      --model RedHatAI/granite-3.1-8b-instruct-quantized.w8a8
+      --gpu-memory-utilization 0.9
+      --max-model-len 65536
+      --kv-cache-dtype fp8
+      --max-num-seqs 64
+      --port ${INFERENCE_SERVER_PORT:-8100}
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['0']
+              capabilities: [gpu]
+
+  # GPU 1 Instance
+  inference-1:
+    <<: *inference-base
+    environment:
+      - CUDA_VISIBLE_DEVICES=1
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['1']
+              capabilities: [gpu]
+
+  # GPU 2 Instance
+  inference-2:
+    <<: *inference-base
+    environment:
+      - CUDA_VISIBLE_DEVICES=2
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['2']
+              capabilities: [gpu]
+
+  # GPU 3 Instance
+  inference-3:
+    <<: *inference-base
+    environment:
+      - CUDA_VISIBLE_DEVICES=3
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['3']
+              capabilities: [gpu]
+
   server:
     extends:
       file: docker-compose.yaml
@@ -13,6 +81,8 @@ services:
     environment:
       ENV: production
       LOGDETECTIVE_SERVER_PORT: 443
+    ports:
+      - "443:443"
   postgres:
     extends:
       file: docker-compose.yaml
