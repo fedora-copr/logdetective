@@ -43,7 +43,7 @@ from logdetective.server.utils import (
     construct_final_prompt,
 )
 
-LLM_CPP_SERVER_TIMEOUT = os.environ.get("LLAMA_CPP_SERVER_TIMEOUT", 600)
+LLM_CPP_SERVER_TIMEOUT = os.environ.get("LLM_SERVER_TIMEOUT", 600)
 
 
 # pylint: disable=too-many-positional-arguments, too-many-arguments

@@ -441,7 +441,7 @@ def mock_config():
                 "max_tokens": -1,
                 "api_token": "def",
                 "temperature": 1,
-                "url": "http://llama-cpp-server:8000",
+                "url": "http://inference-server:8000",
             },
             "general": {
                 "packages": ["a project", "python3-.*"],

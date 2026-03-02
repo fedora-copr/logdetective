@@ -1,0 +1,16 @@
+server_tokens off;
+upstream inference_backend {
+    least_conn;
+    server inference-0:${INFERENCE_SERVER_PORT};
+    server inference-1:${INFERENCE_SERVER_PORT};
+    server inference-2:${INFERENCE_SERVER_PORT};
+    server inference-3:${INFERENCE_SERVER_PORT};
+}
+server {
+    listen ${INFERENCE_PROXY_PORT};
+    location / {
+        proxy_pass http://inference_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}

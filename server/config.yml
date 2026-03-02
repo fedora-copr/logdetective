@@ -5,7 +5,7 @@ log:
 inference:
   max_tokens: 10000 # maximum number of tokens must be a positive integer
   log_probs: true
-  url: http://llama-cpp-server:8000
+  url: http://inference-server:8000
   api_token: "XXX" # Must not be empty, even if the server doesn't require authentication
   requests_per_minute: 6
   http_timeout: 5.0
@@ -19,7 +19,7 @@ inference:
 # snippet_inference:
 #   max_tokens: -1
 #   log_probs: true
-#   url: http://llama-cpp-server:8000
+#   url: http://inference-server:8000
 #   api_token: ""
 #   requests_per_minute: 6
 extractor:
