@@ -1,4 +1,3 @@
-import os
 import asyncio
 import random
 import datetime
@@ -42,8 +41,6 @@ from logdetective.server.utils import (
     filter_snippets,
     construct_final_prompt,
 )
-
-LLM_CPP_SERVER_TIMEOUT = os.environ.get("LLM_SERVER_TIMEOUT", 600)
 
 
 # pylint: disable=too-many-positional-arguments, too-many-arguments
