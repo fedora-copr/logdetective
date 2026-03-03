@@ -28,10 +28,10 @@ SANITIZE_PATTERNS: List[Tuple[re.Pattern[str], str]] = [
         # such as @-domain.com or @domain-.com or @.domain.com or @domain..com
         re.compile(
             (
-                r"\b[\w.%+-]+@"  # username
-                r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?"  # first (lowest) subdomain
-                r"(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*"  # following subdomains
-                r"\.[a-z]{2,}\b"  # top-level domain
+                r"\b[\w.%+-]+"  # username
+                r"(?:@|\(at\)|\[at\])"  # "at" symbol
+                r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.){1,10}"  # subdomains
+                r"[a-z]{2,4}\b"  # top level domain
             ),
             re.IGNORECASE
         ),
@@ -39,17 +39,17 @@ SANITIZE_PATTERNS: List[Tuple[re.Pattern[str], str]] = [
     ),
     (  # GPG fingerprints
         re.compile(
-            r"\bfingerprint:((\s*[0-9A-F]{32,})|((\s*[0-9A-F]{4}){8,}))\b",
+            r"\bFingerprint:\s*([0-9A-F]{32,64}|(?:\s*[0-9A-F]{4}){8,16})\b",
             re.IGNORECASE
         ),
         f"Fingerprint:{' FFFF' * 10}",
     ),
     (  # RSA keys, sometimes they are as short as 16 hexa characters
-        re.compile(r"\bRSA\s+key\s+[0-9A-F]{16,}\b", re.IGNORECASE),
+        re.compile(r"\bRSA\s+key\s+[0-9A-F]{16,512}\b", re.IGNORECASE),
         f"RSA key {'FFFF' * 10}"
     ),
     (  # Pubkeys, sometimes pubkey-deadbeef-01234567, or pubkey-40hexacharacters-other8
-        re.compile(r"\bpubkey-[0-9a-f]{8}[0-9a-f-]+\b", re.IGNORECASE),
+        re.compile(r"\bpubkey-[0-9A-F]{8}[0-9A-F-]{8,128}\b", re.IGNORECASE),
         f"pubkey-{'ffff' * 10}",
     )
 ]

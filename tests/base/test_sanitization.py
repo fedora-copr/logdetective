@@ -4,7 +4,7 @@ from logdetective.utils import sanitize_log
 def test_sanitize_identifiers():
     """Test that every type of personal identifier gets sanitized."""
     test_lines = [
-        "email to sanitize: example-mail@arbitrary.domain",
+        "email to sanitize: example-mail@arbitrary.domain.com",
         "pubkey-abcdef0123456789abcdef0123456789aaaaaaaa",
         "gpg-pubkey-deadbeef-01234567",
         "RSA key 0000ABCD1234FFFF0123456701234567",
@@ -17,7 +17,7 @@ def test_sanitize_identifiers():
     redacted_lines = sanitize_log("\n".join(test_lines)).split("\n")
 
     assert "copr-team@redhat.com" in redacted_lines[0]
-    assert "example-mail@arbitrary.domain" not in redacted_lines[0]
+    assert "example-mail@arbitrary.domain.com" not in redacted_lines[0]
 
     assert f"pubkey-{'f' * 40}" in redacted_lines[1]
     assert "abcdef0123456789abcdef0123456789aaaaaaaa" not in redacted_lines[1]
@@ -128,6 +128,9 @@ def test_do_not_sanitize_emails():
         "-e 's,@PACKAGE_URL\\@,http://avahi.org/",
         "static const G@Type@Value values[] = {",
         "this script was ran as admin@InternalService or user@192.168.1.1",
+        "this looks like an email, but is not: systemd-mkswap@dev-sdy3.service",
+        "same here serial-getty@ttyS0.service",
+        "this is some journal entry, not a mail: system@0005ebbfd4385848-2e5dff5354ab9bcf.journal",
     ]
 
     redacted_lines = sanitize_log("\n".join(test_lines)).split("\n")
@@ -150,3 +153,8 @@ def test_do_not_sanitize_emails():
     assert all(i in redacted_lines[11] for i in ["@PACKAGE_URL", "http://avahi.org/"])
     assert all(i in redacted_lines[12] for i in ["G@Type@Value"])
     assert all(i in redacted_lines[13] for i in ["admin@InternalService", "user@192.168.1.1"])
+    assert all(i in redacted_lines[14] for i in ["systemd-mkswap@dev-sdy3.service"])
+    assert all(i in redacted_lines[15] for i in ["serial-getty@ttyS0.service"])
+    assert all(i in redacted_lines[16] for i in [
+        "system@0005ebbfd4385848-2e5dff5354ab9bcf.journal"
+    ])
