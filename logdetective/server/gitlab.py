@@ -401,7 +401,7 @@ async def comment_on_mr(  # pylint: disable=too-many-arguments disable=too-many-
 
 
 async def suppress_latest_comment(
-    gitlab_instance: str,
+    gitlab_instance: Forge,
     project: gitlab.v4.objects.Project,
     merge_request_iid: int,
 ) -> None:
