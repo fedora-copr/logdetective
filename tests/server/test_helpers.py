@@ -410,11 +410,13 @@ def create_mock_koji_session(
     return mock_session
 
 
-def create_mock_client_response(mocker, content_length=4096):
+def create_mock_client_response(mocker, content_length: int | None = None):
     """Creates a mock aiohttp.ClientSession that can be awaited."""
     # This is the mock response object that head() will eventually return.
     mock_response = mocker.Mock()
-    mock_response.headers = {"content-length": str(content_length)}
+    mock_response.headers = {}
+    if content_length:
+        mock_response.headers["content-length"] = str(content_length)
 
     # This is the mock for the session object itself.
     mock_session = mocker.MagicMock()
