@@ -505,13 +505,27 @@ async def test_check_artifacts_file_size_too_large(
 
 
 @pytest.mark.asyncio
+async def test_check_artifacts_file_no_content_length(
+    mocker: MockerFixture, gitlab_cfg, mock_job
+):
+    """Test check_artifacts_file_size evaluates to `False`
+    if no content-length header is provided."""
+    mock_session_large = create_mock_client_response(mocker)
+
+    result_large = await check_artifacts_file_size(
+        gitlab_cfg=gitlab_cfg, job=mock_job, http_session=mock_session_large
+    )
+    assert result_large is False
+
+
+@pytest.mark.asyncio
 async def test_check_artifacts_file_size_handles_http_error(
     mocker: MockerFixture, gitlab_cfg, mock_job
 ):
     """Test that check_artifacts_file_size raises an HTTPException if the HEAD
     request fails.
     """
-    mock_session = create_mock_client_response(mocker)
+    mock_session = create_mock_client_response(mocker, 4096)
     # Configure the mock to raise a ClientResponseError, which is what aiohttp does on 4xx/5xx
     mock_session.head.side_effect = aiohttp.ClientResponseError(
         request_info=mocker.Mock(),

@@ -298,10 +298,12 @@ async def check_artifacts_file_size(
 ):
     """Method to determine if the artifacts are too large to process
 
-    First, make sure that the artifacts are of a reasonable size. The
-    zipped artifact collection will be stored in memory below. The
-    python-gitlab library doesn't expose a way to check this value directly,
+    First, make sure that the artifacts are of a reasonable size.
+    The zipped artifact collection will be stored in memory below.
+    The python-gitlab library doesn't expose a way to check this value directly,
     so we need to interact with directly with the headers.
+
+    If the `content-length` is not set or is invalid, treat artifacts as too large.
     """
     artifacts_path = (
         f"{gitlab_cfg.api_path}/projects/{job.project_id}/jobs/{job.id}/artifacts"
@@ -322,7 +324,23 @@ async def check_artifacts_file_size(
         raise LogDetectiveConnectionError(
             f"Connection error checking artifacts from job {job.id} in project {job.project_id}"
         ) from ex
-    content_length = int(head_response.headers.get("content-length"))
+    raw_content_length = head_response.headers.get("content-length")
+    if not raw_content_length:
+        transfer_encoding = head_response.headers.get("Transfer-Encoding", "")
+        LOG.warning(
+            "No `content-length` for %s, Transfer-Encoding: %s. "
+            "Treating artifacts as over the maximum size.",
+            artifacts_path,
+            transfer_encoding,
+        )
+        content_length = gitlab_cfg.max_artifact_size + 1
+    else:
+        try:
+            content_length = int(raw_content_length)
+        except ValueError:
+            LOG.error("Invalid Content-Length header: %s", raw_content_length)
+            return False
+
     LOG.debug(
         "URL: %s, content-length: %d, max length: %d",
         artifacts_path,
