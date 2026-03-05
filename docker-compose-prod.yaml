@@ -6,10 +6,15 @@ services:
     volumes:
       - ./server/nginx_prod.conf.template:/etc/nginx/templates/nginx.conf.template:ro,z
     depends_on:
-      - inference-0
-      - inference-1
-      - inference-2
-      - inference-3
+      inference-0:
+        condition: service_healthy
+      inference-1:
+        condition: service_healthy
+      inference-2:
+        condition: service_healthy
+      inference-3:
+        condition: service_healthy
+
 
   # 4 GPU vLLM inference using 8-bit quant of granite-3.1
   # requires the exact number of CUDA devices and accesss to Hugging Face
@@ -32,6 +37,12 @@ services:
             - driver: nvidia
               device_ids: ['0']
               capabilities: [gpu]
+    healthcheck: # Loading weights takes a lot of time
+      test: ["CMD-SHELL", "curl -f http://localhost:${INFERENCE_SERVER_PORT:-8100}/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
 
   # GPU 1 Instance
   inference-1:
