@@ -19,7 +19,7 @@ services:
   inference-0: &inference-base
     image: vllm/vllm-openai:v0.16.0
     command: >
-      RedHatAI/granite-3.1-8b-instruct-quantized.w8a8
+      fedora-copr/granite-4.0-h-tiny-quantized.w8a8
       --gpu-memory-utilization 0.9
       --max-model-len 65536
       --kv-cache-dtype fp8
