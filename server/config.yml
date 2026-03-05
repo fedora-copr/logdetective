@@ -11,6 +11,7 @@ inference:
   http_timeout: 5.0
   http_connect_timeout: 3.07
   llm_api_timeout: 15.0 # Timeout for the LLM API client, how long should it wait for inference server response
+  model: "RedHatAI/granite-3.1-8b-instruct-quantized.w8a8"
   # Roles are used to format prompts into chat messages
   # If the roles are same, the system prompt and user message are concatenated
   # user_role: user
