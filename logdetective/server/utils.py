@@ -7,7 +7,12 @@ from fastapi import HTTPException
 from logdetective.constants import SNIPPET_DELIMITER
 from logdetective.server.config import LOG
 from logdetective.server.exceptions import LogDetectiveConnectionError
-from logdetective.server.models import AnalyzedSnippet, RatedSnippetAnalysis
+from logdetective.remote_log import RemoteLog
+from logdetective.server.models import (
+    AnalyzedSnippet,
+    RatedSnippetAnalysis,
+    BuildLogRequest,
+)
 
 
 def format_analyzed_snippets(snippets: list[AnalyzedSnippet]) -> str:
@@ -96,6 +101,30 @@ def filter_snippets(
     processed_snippets = sorted(processed_snippets, key=select_line_number)
 
     return processed_snippets
+
+
+async def get_log_from_payload(
+    payload: BuildLogRequest,
+    http_session: aiohttp.ClientSession,
+) -> str:
+    """Retrieve log content based on the type of request: URL or raw string."""
+    log_text = ""
+    if payload.url:
+        LOG.info("Handling log as URL")
+        remote_log = RemoteLog(payload.url, http_session)
+        log_text = await remote_log.process_url()
+    elif payload.files:
+        # pydantic field validators make sure at least one element is present,
+        # and logs are not over the maximum log size
+        LOG.info("Handling log as raw string")
+        log_text = payload.files[0].content
+        LOG.info(
+            "Only accessing the first provided log file. "
+            "Multi-file analysis is planned and will be added soon."
+        )
+
+    LOG.info("Log size from the obtained payload (in chars): %d", len(log_text))
+    return log_text
 
 
 def construct_final_prompt(formatted_snippets: str, prompt_template: str) -> str:

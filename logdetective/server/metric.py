@@ -10,8 +10,13 @@ from starlette.responses import StreamingResponse
 
 from logdetective.remote_log import RemoteLog
 from logdetective.server.config import LOG
-from logdetective.server.compressors import LLMResponseCompressor, RemoteLogCompressor
+from logdetective.server.compressors import (
+    TextCompressor,
+    RemoteLogCompressor,
+    LLMResponseCompressor,
+)
 from logdetective.server.models import (
+    BuildLogRequest,
     TimePeriod,
     MetricTimeSeries,
     StagedResponse,
@@ -22,7 +27,7 @@ from logdetective.server.database.models import EndpointType, AnalyzeRequestMetr
 from logdetective.server.exceptions import LogDetectiveMetricsError
 
 
-async def add_new_metrics(
+async def add_new_metrics_url(
     api_name: EndpointType,
     url: Optional[str] = None,
     http_session: Optional[aiohttp.ClientSession] = None,
@@ -43,12 +48,29 @@ async def add_new_metrics(
         remote_log = RemoteLog(url, http_session)
         compressed_log_content = await RemoteLogCompressor(remote_log).zip_content()
 
+    # gitlab and koji always fall through here
     return await AnalyzeRequestMetrics.create(
         endpoint=EndpointType(api_name),
         compressed_log=compressed_log_content,
         request_received_at=received_at
         if received_at
         else datetime.datetime.now(datetime.timezone.utc),
+    )
+
+
+async def add_new_metrics_raw(
+    api_name: EndpointType,
+    content: dict[str, str],
+) -> int:
+    """Add a new database entry for a received request.
+
+    This is a simplified case of add_new_metrics_url(),
+    when the analyze endpoint already contains raw log data.
+    """
+    return await AnalyzeRequestMetrics.create(
+        endpoint=EndpointType(api_name),
+        compressed_log=TextCompressor().zip(content),
+        request_received_at=datetime.datetime.now(datetime.timezone.utc),
     )
 
 
@@ -107,7 +129,7 @@ def track_request(name=None):
 
     >>> @app.post("/analyze", response_model=Response)
     >>> @track_request()
-    >>> async def analyze_log(build_log)
+    >>> async def analyze_log(payload)
     >>>     pass
 
     Warning: the decorators' order is important!
@@ -118,13 +140,26 @@ def track_request(name=None):
     def decorator(f):
         @wraps(f)
         async def async_decorated_function(*args, **kwargs):
-            log_url = kwargs["build_log"].url
-            metrics_id = await add_new_metrics(
-                api_name=EndpointType(name if name else f.__name__),
-                url=log_url, http_session=kwargs["http_session"]
-            )
+            payload: BuildLogRequest = kwargs.get("payload")
+            metrics_id = None
+
+            if payload.url:
+                metrics_id = await add_new_metrics_url(
+                    api_name=EndpointType(name if name else f.__name__),
+                    url=payload.url,
+                    http_session=kwargs.get("http_session"),
+                )
+            elif payload.files:
+                metrics_id = await add_new_metrics_raw(
+                    api_name=EndpointType(name if name else f.__name__),
+                    content={p.name: p.content for p in payload.files},
+                )
+
             response = await f(*args, **kwargs)
-            await update_metrics(metrics_id, response)
+            if metrics_id is not None:
+                payload_type = "url" if payload.url else "raw"
+                LOG.info("decorator response (analyze[%s]) = %s", payload_type, response)
+                await update_metrics(metrics_id, response)
             return response
 
         if inspect.iscoroutinefunction(f):
