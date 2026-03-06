@@ -15,7 +15,7 @@ services:
       - inference-0
   # Base and developer deployments are using llama.cpp for improved portability
   inference-0:
-    image: quay.io/logdetective/inference:3.0.0
+    image: quay.io/logdetective/inference:latest
     build:
       context: .
       dockerfile: ./Containerfile.llama.cpp
