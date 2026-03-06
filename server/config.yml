@@ -5,16 +5,17 @@ log:
 inference:
   max_tokens: 10000 # maximum number of tokens must be a positive integer
   log_probs: true
-  url: http://inference-server:8000
+  url: http://inference-server:8000/v1
   api_token: "XXX" # Must not be empty, even if the server doesn't require authentication
-  requests_per_minute: 6
+  requests_per_minute: 6000
   http_timeout: 5.0
   http_connect_timeout: 3.07
   llm_api_timeout: 15.0 # Timeout for the LLM API client, how long should it wait for inference server response
+  model: "fedora-copr/granite-4.0-h-tiny-quantized.w8a8"
   # Roles are used to format prompts into chat messages
   # If the roles are same, the system prompt and user message are concatenated
-  # user_role: user
-  # system_role: developer
+  user_role: user
+  system_role: system
 # Separate LLM endpoint for snippet analysis, optional
 # snippet_inference:
 #   max_tokens: -1
