@@ -3049,11 +3049,11 @@ multidict = ">=4.0"
 propcache = ">=0.2.1"
 
 [extras]
-server = ["aiolimiter", "alembic", "asyncpg", "backoff", "fastapi", "koji", "openai", "python-gitlab", "sentry-sdk", "sqlalchemy"]
-server-testing = ["aiolimiter", "alembic", "asyncpg", "backoff", "fastapi", "koji", "openai", "pytest-mock", "python-gitlab", "responses", "sentry-sdk", "sqlalchemy"]
+server = ["aiolimiter", "alembic", "asyncpg", "backoff", "fastapi", "httpx", "koji", "openai", "python-gitlab", "sentry-sdk", "sqlalchemy"]
+server-testing = ["aiolimiter", "alembic", "asyncpg", "backoff", "fastapi", "httpx", "koji", "openai", "pytest-mock", "python-gitlab", "responses", "sentry-sdk", "sqlalchemy"]
 testing = ["aioresponses", "asciidoc", "flexmock", "pytest", "pytest-asyncio", "pytest-cov"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "34500f1fc13f89022afceb6b3b68c99dbc169b9e4a7b2a2a444d69aa647fe5d1"
+content-hash = "e3f33cf8e0f49f3afc01eef3b2f2c9efac080816b6bbb113fc6351515302c3e9"
