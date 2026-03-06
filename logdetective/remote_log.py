@@ -4,6 +4,8 @@ from urllib.parse import urlparse
 import aiohttp
 from aiohttp.web import HTTPBadRequest
 
+from logdetective.constants import MAXIMUM_LOG_LENGTH
+
 LOG = logging.getLogger("logdetective")
 
 
@@ -48,16 +50,24 @@ class RemoteLog:
         return True
 
     async def get_url_content(self) -> str:
-        """validate log url and return log text."""
-        if self.validate_url():
-            LOG.debug("process url %s", self.url)
-            try:
-                response = await self._http_session.get(self.url, raise_for_status=True)
-            except (aiohttp.ClientResponseError, aiohttp.ClientConnectorError) as ex:
-                raise RuntimeError(f"We couldn't obtain the logs: {ex}") from ex
-            return await response.text()
-        LOG.error("Invalid URL received ")
-        raise RuntimeError(f"Invalid log URL: {self.url}")
+        """Validate log url and return log text."""
+        if not self.validate_url():
+            LOG.error("Invalid URL received ")
+            raise RuntimeError(f"Invalid log URL: {self.url}")
+        LOG.debug("process url %s", self.url)
+        try:
+            response = await self._http_session.get(self.url, raise_for_status=True)
+        except (aiohttp.ClientResponseError, aiohttp.ClientConnectorError) as ex:
+            raise RuntimeError(f"We couldn't obtain the logs: {ex}") from ex
+
+        size = response.headers.get("Content-Length")
+        if size:
+            if int(size) > MAXIMUM_LOG_LENGTH:  # default: 300 MiB
+                raise RuntimeError(
+                    f"File too large: {size} bytes (Limit: {MAXIMUM_LOG_LENGTH})"
+                )
+
+        return await response.text()
 
     async def process_url(self) -> str:
         """Validate log URL and return log text."""
