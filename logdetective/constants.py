@@ -82,3 +82,8 @@ LLM_MAX_KEEP_ALIVE_CONNECTIONS = 20
 # Roles for chat API
 SYSTEM_ROLE_DEFAULT = "developer"
 USER_ROLE_DEFAULT = "user"
+
+# Other constants
+
+# Maximum log size is 300 MiB
+MAXIMUM_LOG_LENGTH = 300 * 1024 * 1024

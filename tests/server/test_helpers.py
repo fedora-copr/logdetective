@@ -21,7 +21,7 @@ import koji
 from logdetective.server.models import (
     Response,
     Explanation,
-    Config
+    Config,
 )
 from logdetective.server import gitlab, llm
 from logdetective.server.database import base
@@ -293,8 +293,8 @@ def mock_chat_completions(monkeypatch, request):
 
 
 @pytest.fixture
-def build_log():
-    return {"build_log": flexmock(url="https://example.com/logs/123")}
+def build_log_url():
+    return {"payload": flexmock(url="https://example.com/logs/123")}
 
 
 @pytest.fixture

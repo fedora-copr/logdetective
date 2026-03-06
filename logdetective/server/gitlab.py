@@ -22,7 +22,7 @@ from logdetective.server.exceptions import (
     LogDetectiveArtifactsMissingError,
 )
 from logdetective.server.llm import perform_staged_analysis
-from logdetective.server.metric import add_new_metrics, update_metrics
+from logdetective.server.metric import add_new_metrics_url, update_metrics
 from logdetective.server.models import (
     GitLabInstanceConfig,
     JobHook,
@@ -116,7 +116,7 @@ async def process_gitlab_job_event(
     # Submit log to Log Detective and await the results.
     log_text = preprocessed_log.read().decode(encoding="utf-8")
     log_text = sanitize_log(log_text)
-    metrics_id = await add_new_metrics(
+    metrics_id = await add_new_metrics_url(
         api_name=EndpointType.ANALYZE_GITLAB_JOB,
         url=log_url,
         http_session=http_session,
