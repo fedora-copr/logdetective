@@ -19,6 +19,7 @@ from openai.resources.chat.completions import AsyncCompletions
 import koji
 
 from logdetective.server.models import (
+    BuildLogFile,
     Response,
     Explanation,
     Config,
@@ -44,6 +45,8 @@ Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliqu
 Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
 Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
 """
+
+MOCK_EXPLANATION = "Mock explanation"
 
 ARCHES = [
     "x86_64",
@@ -293,8 +296,38 @@ def mock_chat_completions(monkeypatch, request):
 
 
 @pytest.fixture
+def build_log_request(request):
+    return request.getfixturevalue(request.param)
+
+
+@pytest.fixture
 def build_log_url():
-    return {"payload": flexmock(url="https://example.com/logs/123")}
+    return {"payload": flexmock(url="https://example.com/logs/123", files=None)}
+
+
+@pytest.fixture
+def build_log_two_files():
+    return {
+        "payload": flexmock(
+            url=None,
+            files=[
+                BuildLogFile(name="builder-live.log", content=MOCK_LOG),
+                BuildLogFile(name="backend.log", content=MOCK_LOG)
+            ]
+        )
+    }
+
+
+@pytest.fixture
+def build_log_one_file():
+    return {
+        "payload": flexmock(
+            url=None,
+            files=[
+                BuildLogFile(name="build.log", content=MOCK_LOG)
+            ]
+        )
+    }
 
 
 @pytest.fixture
