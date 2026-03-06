@@ -1,4 +1,5 @@
 from pathlib import Path
+import asyncio
 
 import aiohttp
 import aioresponses
@@ -7,21 +8,31 @@ import pytest
 from aiolimiter import AsyncLimiter
 from fastapi import HTTPException
 import gitlab
+from flexmock import flexmock
 
 from tests.server.test_helpers import (
     mock_chat_completions,
     MOCK_LOG,
-    mock_config
+    MOCK_EXPLANATION,
+    mock_config,
 )
 
 from logdetective.server.config import SERVER_CONFIG
 from logdetective.server.llm import perform_staged_analysis, call_llm, perform_analysis
 from logdetective.remote_log import RemoteLog
 from logdetective.server.config import load_server_config
-from logdetective.server.models import InferenceConfig, Explanation, Config
 from logdetective.server.server import initialize_extractors, KojiCallbackManager, ConnectionManager
-
-MOCK_EXPLANATION = "Mock explanation"
+from logdetective.server.models import (
+    Response,
+    StagedResponse,
+    BuildLogRequest,
+    BuildLogFile,
+    InferenceConfig,
+    Explanation,
+    Config,
+)
+from logdetective.server.utils import get_log_from_payload
+from logdetective.utils import sanitize_log
 
 
 @pytest.mark.asyncio
@@ -176,3 +187,100 @@ async def test_connection_manager(mock_config):
 
     await connection_manager.close()
     assert connection_manager.gitlab_http_sessions["https://gitlab.com"].closed
+
+
+@pytest.mark.parametrize(
+    "mock_chat_completions, analysis_func, expected_type",
+    [
+        (MOCK_EXPLANATION, perform_analysis, Response),
+        (MOCK_EXPLANATION, perform_staged_analysis, StagedResponse),
+    ],
+    indirect=["mock_chat_completions"]
+)
+@pytest.mark.asyncio
+async def test_analyze_with_files_payload(mock_chat_completions, analysis_func, expected_type):
+    payload = BuildLogRequest(
+        files=[
+            BuildLogFile(name="build.log", content=MOCK_LOG)
+        ]
+    )
+
+    async with aiohttp.ClientSession() as session:
+        log_text = await get_log_from_payload(payload, session)
+
+    log_text = sanitize_log(log_text)
+
+    async_limiter = AsyncLimiter(100)
+    extractors = initialize_extractors(SERVER_CONFIG.extractor)
+    result = await analysis_func(
+        log_text,
+        async_request_limiter=async_limiter,
+        extractors=extractors
+    )
+
+    assert isinstance(result, expected_type)
+    assert result.explanation.text == MOCK_EXPLANATION
+
+
+@pytest.mark.asyncio
+async def test_get_log_from_payload_with_files():
+    payload = BuildLogRequest(
+        files=[
+            BuildLogFile(name="test.log", content=MOCK_LOG),
+            BuildLogFile(name="ignored.log", content="This should be ignored")
+        ]
+    )
+
+    async with aiohttp.ClientSession() as session:
+        log_text = await get_log_from_payload(payload, session)
+
+    assert log_text == MOCK_LOG
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "dirty_log, redacted_value",
+    [
+        ("RSA key 00112233AABBCCDD", "00112233AABBCCDD"),
+        ("pubkey-deadbeef-cafe0123", "deadbeef-cafe0123"),
+        ("Commited 2020 example@mail.com", "example@mail.com"),
+    ],
+    indirect=False
+)
+async def test_get_log_from_payload_files_sanitization(dirty_log, redacted_value):
+    payload = BuildLogRequest(
+        files=[BuildLogFile(name="test.log", content=dirty_log)]
+    )
+
+    async with aiohttp.ClientSession() as session:
+        log_text = await get_log_from_payload(payload, session)
+
+    assert log_text == dirty_log
+
+    sanitized = sanitize_log(log_text)
+
+    assert sanitized != dirty_log
+    assert redacted_value not in sanitized
+    assert any(i in sanitized for i in ["FFFF", "ffff", "copr-team"])
+
+
+@pytest.mark.asyncio
+async def test_get_log_from_payload_url_sanitization():
+    dirty_log = "This email should be sanitized: contact@someone.com"
+    payload = BuildLogRequest(url="http://path.to/file.log")
+    awaited_dirty_log = asyncio.Future()
+    awaited_dirty_log.set_result(dirty_log)
+    mock_remote_log = flexmock(RemoteLog)
+
+    async with aiohttp.ClientSession() as session:
+        mock_remote_log.should_receive("__init__").with_args("http://path.to/file.log", session)
+        mock_remote_log.should_receive("process_url").and_return(awaited_dirty_log)
+        log_text = await get_log_from_payload(payload, session)
+
+    assert log_text == dirty_log
+
+    sanitized = sanitize_log(log_text)
+
+    assert sanitized != dirty_log
+    assert "contact@someone.com" not in sanitized
+    assert "copr-team@redhat.com" in sanitized
