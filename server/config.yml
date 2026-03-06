@@ -16,6 +16,9 @@ inference:
   # If the roles are same, the system prompt and user message are concatenated
   user_role: user
   system_role: system
+  # Limits on connections for AsyncOpenAI client
+  max_concurrent_requests: 100
+  max_keep_alive_connections: 20
 # Separate LLM endpoint for snippet analysis, optional
 # snippet_inference:
 #   max_tokens: -1

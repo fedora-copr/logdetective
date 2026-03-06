@@ -16,6 +16,8 @@ from logdetective.constants import (
     LLM_DEFAULT_REQUESTS_PER_MINUTE,
     SYSTEM_ROLE_DEFAULT,
     USER_ROLE_DEFAULT,
+    LLM_MAX_CONCURRENT_REQUESTS,
+    LLM_MAX_KEEP_ALIVE_CONNECTIONS,
 )
 from logdetective.utils import check_csgrep
 
@@ -174,6 +176,8 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
     system_role: str = SYSTEM_ROLE_DEFAULT
     llm_api_timeout: float = 15.0
     requests_per_minute: int = LLM_DEFAULT_REQUESTS_PER_MINUTE
+    max_concurrent_requests: int = LLM_MAX_CONCURRENT_REQUESTS
+    max_keep_alive_connections: int = LLM_MAX_KEEP_ALIVE_CONNECTIONS
 
 
 class ExtractorConfig(BaseModel):
