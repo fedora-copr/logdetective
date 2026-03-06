@@ -7,7 +7,7 @@ inference:
   log_probs: true
   url: http://inference-server:8000/v1
   api_token: "XXX" # Must not be empty, even if the server doesn't require authentication
-  requests_per_minute: 6
+  requests_per_minute: 6000
   http_timeout: 5.0
   http_connect_timeout: 3.07
   llm_api_timeout: 15.0 # Timeout for the LLM API client, how long should it wait for inference server response
