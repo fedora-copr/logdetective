@@ -1,6 +1,7 @@
 import os
 import logging
 import yaml
+import httpx
 from openai import AsyncOpenAI
 
 from logdetective.utils import load_prompts, load_skip_snippet_patterns
@@ -54,9 +55,14 @@ def get_log(config: Config):
 
 def get_openai_api_client(inference_config: InferenceConfig):
     """Set up AsyncOpenAI client with default configuration."""
+    limits = httpx.Limits(
+        max_connections=inference_config.max_concurrent_requests,
+        max_keepalive_connections=inference_config.max_keep_alive_connections,
+    )
     return AsyncOpenAI(
         api_key=inference_config.api_token, base_url=inference_config.url,
-        timeout=inference_config.llm_api_timeout
+        timeout=inference_config.llm_api_timeout,
+        http_client=httpx.AsyncClient(limits=limits)  # Defaults are too restrictive
     )
 
 
