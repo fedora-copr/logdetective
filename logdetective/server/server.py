@@ -40,7 +40,6 @@ from logdetective.server.config import SERVER_CONFIG, LOG
 from logdetective.server.koji import (
     get_failed_log_from_task as get_failed_log_from_koji_task,
 )
-from logdetective.remote_log import RemoteLog
 from logdetective.server.llm import (
     perform_staged_analysis,
     perform_analysis,
@@ -49,14 +48,14 @@ from logdetective.server.llm import (
 from logdetective.server.gitlab import process_gitlab_job_event
 from logdetective.server.metric import (
     track_request,
-    add_new_metrics,
+    add_new_metrics_url,
     update_metrics,
     requests_per_time,
     average_time_per_responses,
     emojis_per_time
 )
 from logdetective.server.models import (
-    BuildLog,
+    BuildLogRequest,
     Config,
     EmojiHook,
     JobHook,
@@ -77,7 +76,10 @@ from logdetective.server.emoji import (
     collect_emojis_for_mr,
 )
 from logdetective.server.compressors import RemoteLogCompressor
-from logdetective.server.utils import get_version
+from logdetective.server.utils import (
+    get_version,
+    get_log_from_payload
+)
 
 
 LOG_SOURCE_REQUEST_TIMEOUT = os.environ.get("LOG_SOURCE_REQUEST_TIMEOUT", 60)
@@ -269,18 +271,18 @@ app = FastAPI(
 @app.post("/analyze", response_model=Response)
 @track_request()
 async def analyze_log(
-    build_log: BuildLog,
+    payload: BuildLogRequest,
     request: Request,
     http_session: aiohttp.ClientSession = Depends(get_http_session),
 ):
     """Provide endpoint for log file submission and analysis.
-    Request must be in form {"url":"<YOUR_URL_HERE>"}.
+    Request must be in form {"url":"<YOUR_URL_HERE>"}, or
+    {"files": [{"name": "logname.log", "content": "Log content here"}, ...]}.
     URL must be valid for the request to be passed to the LLM server.
     Meaning that it must contain appropriate scheme, path and netloc,
     while lacking  result, params or query fields.
     """
-    remote_log = RemoteLog(build_log.url, http_session)
-    log_text = await remote_log.process_url()
+    log_text = await get_log_from_payload(payload, http_session)
     log_text = sanitize_log(log_text)
 
     return await perform_analysis(
@@ -293,18 +295,18 @@ async def analyze_log(
 @app.post("/analyze/staged", response_model=StagedResponse)
 @track_request()
 async def analyze_log_staged(
-    build_log: BuildLog,
+    payload: BuildLogRequest,
     request: Request,
     http_session: aiohttp.ClientSession = Depends(get_http_session),
 ):
     """Provide endpoint for log file submission and analysis.
-    Request must be in form {"url":"<YOUR_URL_HERE>"}.
+    Request must be in form {"url":"<YOUR_URL_HERE>"}, or
+    {"files": [{"name": "logname.log", "content": "Log content here"}, ...]}.
     URL must be valid for the request to be passed to the LLM server.
     Meaning that it must contain appropriate scheme, path and netloc,
     while lacking  result, params or query fields.
     """
-    remote_log = RemoteLog(build_log.url, http_session)
-    log_text = await remote_log.process_url()
+    log_text = await get_log_from_payload(payload, http_session)
     log_text = sanitize_log(log_text)
 
     return await perform_staged_analysis(
@@ -454,7 +456,7 @@ async def analyze_koji_task(
     # We need to handle the metric tracking manually here, because we need
     # to retrieve the metric ID to associate it with the koji task analysis.
 
-    metrics_id = await add_new_metrics(
+    metrics_id = await add_new_metrics_url(
         EndpointType.ANALYZE_KOJI_TASK,
         log_text,
         received_at=datetime.datetime.now(datetime.timezone.utc),
@@ -525,18 +527,18 @@ async def get_version_wrapper():
 @app.post("/analyze/stream", response_class=StreamingResponse)
 @track_request()
 async def analyze_log_stream(
-    build_log: BuildLog,
+    payload: BuildLogRequest,
     request: Request,
     http_session: aiohttp.ClientSession = Depends(get_http_session),
 ):
     """Stream response endpoint for Logdetective.
-    Request must be in form {"url":"<YOUR_URL_HERE>"}.
+    Request must be in form {"url":"<YOUR_URL_HERE>"}, or
+    {"files": [{"name": "logname.log", "content": "Log content here"}, ...]}.
     URL must be valid for the request to be passed to the LLM server.
     Meaning that it must contain appropriate scheme, path and netloc,
     while lacking  result, params or query fields.
     """
-    remote_log = RemoteLog(build_log.url, http_session)
-    log_text = await remote_log.process_url()
+    log_text = await get_log_from_payload(payload, http_session)
     log_text = sanitize_log(log_text)
     try:
         stream = perform_analysis_stream(

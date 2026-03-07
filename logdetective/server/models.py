@@ -7,6 +7,7 @@ from pydantic import (
     field_validator,
     NonNegativeFloat,
     HttpUrl,
+    ConfigDict,
 )
 
 
@@ -16,14 +17,52 @@ from logdetective.constants import (
     LLM_DEFAULT_REQUESTS_PER_MINUTE,
     SYSTEM_ROLE_DEFAULT,
     USER_ROLE_DEFAULT,
+    MAXIMUM_LOG_LENGTH,
 )
 from logdetective.utils import check_csgrep
 
 
-class BuildLog(BaseModel):
-    """Model of data submitted to API."""
+class BuildLogFile(BaseModel):
+    """Model of one logfile as raw data"""
 
-    url: str
+    model_config = ConfigDict(hide_input_in_errors=True)
+    name: str = Field(
+        min_length=1,
+        max_length=255,
+        pattern=r"^[a-zA-Z0-9._\-\/ ]+$"
+    )
+    content: str = Field(max_length=MAXIMUM_LOG_LENGTH)
+
+
+class BuildLogRequest(BaseModel):
+    """Model of the request body for /analyze endpoints
+
+    Usually, this requirement is handled with extra discriminator fields
+    (e.g "type": "url" | "files"), in separate model classes and then using discriminative union.
+    That would, however, break backwards compatibility,
+    so we use `extra="forbid"` in model config, which means
+    that either "url" or "files" is in the request and then validate that only one is.
+    """
+    model_config = ConfigDict(hide_input_in_errors=True, extra="forbid")
+    url: Optional[str] = None
+    files: Optional[List[BuildLogFile]] = Field(None, min_length=1)
+
+    @model_validator(mode="before")
+    @classmethod
+    def exactly_one_is_present(cls, data: Any) -> "BuildLogRequest":
+        """Check that 'url' or 'files' are exclusive, but at least one is present"""
+        if isinstance(data, dict):
+            if (data.get("url") is None) == (data.get("files") is None):
+                raise ValueError("Must provide exactly one of 'url' or 'files'")
+        return data
+
+    @model_validator(mode="after")
+    def check_unique_filenames(self) -> "BuildLogRequest":
+        """Check that files do not have duplicate names."""
+        names = [f.name for f in (self.files or [])]  # workaround for linter
+        if len(names) != len(set(names)):
+            raise ValueError("Duplicate filenames detected in 'files' list")
+        return self
 
 
 class JobHook(BaseModel):

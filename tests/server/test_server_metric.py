@@ -18,10 +18,24 @@ from logdetective.server.metric import (
     TimeDefinition
 )
 
-from tests.server.test_helpers import build_log, mock_AnalyzeRequestMetrics, PopulateDatabase
+from tests.server.test_helpers import (
+    build_log_request,
+    build_log_url,
+    build_log_one_file,
+    build_log_two_files,
+    mock_AnalyzeRequestMetrics,
+    PopulateDatabase
+)
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "build_log_request",
+    [
+        "build_log_url", "build_log_one_file", "build_log_two_files"
+    ],
+    indirect=True
+)
 @pytest.mark.parametrize(
     "response",
     [
@@ -31,16 +45,16 @@ from tests.server.test_helpers import build_log, mock_AnalyzeRequestMetrics, Pop
         flexmock(),  # mimic StreamResponse
     ],
 )
-async def test_track_request_async(build_log, mock_AnalyzeRequestMetrics, response):
+async def test_track_request_async(build_log_request, mock_AnalyzeRequestMetrics, response):
     @track_request()
-    async def analyze_log(build_log, http_session):
+    async def analyze_log(payload, http_session):
         return response
 
     mock_response = "123"
     with aioresponses.aioresponses() as mock:
         mock.get("https://example.com/logs/123", status=200, body=mock_response)
-        await analyze_log(**build_log, http_session=aiohttp.ClientSession())
-
+        async with aiohttp.ClientSession() as session:
+            await analyze_log(**build_log_request, http_session=session)
     mock_create = mock_AnalyzeRequestMetrics["mock_create"]
     mock_update = mock_AnalyzeRequestMetrics["mock_update"]
 
