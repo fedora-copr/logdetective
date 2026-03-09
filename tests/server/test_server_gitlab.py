@@ -34,8 +34,7 @@ from logdetective.server.gitlab import (
     check_artifacts_file_size,
 )
 from logdetective.server.server import process_gitlab_job_event
-from logdetective.server.models import JobHook, GitLabInstanceConfig, Config
-from logdetective.server.compressors import RemoteLogCompressor
+from logdetective.server.models import JobHook, GitLabInstanceConfig
 from logdetective.server.database.models import (
     AnalyzeRequestMetrics,
     Forge,
@@ -344,10 +343,6 @@ async def test_process_gitlab_job_event(
             query_results = await db_session.execute(query)
             metric = query_results.scalars().first()
             assert isinstance(metric, AnalyzeRequestMetrics)
-            assert (
-                RemoteLogCompressor.unzip(metric.compressed_log)  # noqa: W504 flake vs ruff
-                == "ERROR: some sort of error"  # noqa: W503 flake vs lint
-            )
 
             assert metric.mr_job.comment
         await http_session.close()

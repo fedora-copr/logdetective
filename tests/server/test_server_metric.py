@@ -63,16 +63,8 @@ async def test_track_request_async(build_log_request, mock_AnalyzeRequestMetrics
     create_kwargs = mock_create.await_args.kwargs
     update_kwargs = mock_update.await_args.kwargs
 
-    # Verify that time stamp is set
-    assert isinstance(create_kwargs["request_received_at"], datetime.datetime)
-
     # Verify that endpoint is set to `EndpointType.ANALYZE`
     assert create_kwargs["endpoint"] == EndpointType.ANALYZE
-
-    # Verify presence, type and contents of compressed log
-    assert "compressed_log" in create_kwargs
-    assert isinstance(create_kwargs["compressed_log"], bytes)
-    assert len(create_kwargs["compressed_log"]) > 0
 
     # value of _id used in calling `update` method must match
     # value returned by `create` method

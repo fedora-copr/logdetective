@@ -48,7 +48,7 @@ from logdetective.server.llm import (
 from logdetective.server.gitlab import process_gitlab_job_event
 from logdetective.server.metric import (
     track_request,
-    add_new_metrics_url,
+    add_new_metrics,
     update_metrics,
     requests_per_time,
     average_time_per_responses,
@@ -75,7 +75,6 @@ from logdetective.server.emoji import (
     collect_emojis,
     collect_emojis_for_mr,
 )
-from logdetective.server.compressors import RemoteLogCompressor
 from logdetective.server.utils import (
     get_version,
     get_log_from_payload,
@@ -465,11 +464,9 @@ async def analyze_koji_task(
     # We need to handle the metric tracking manually here, because we need
     # to retrieve the metric ID to associate it with the koji task analysis.
 
-    metrics_id = await add_new_metrics_url(
+    metrics_id = await add_new_metrics(
         EndpointType.ANALYZE_KOJI_TASK,
-        log_text,
         received_at=datetime.datetime.now(datetime.timezone.utc),
-        compressed_log_content=RemoteLogCompressor.zip_text(log_text),
     )
     # We need to associate the metric ID with the koji task analysis.
     # This will create the new row without a response, which we will use as
