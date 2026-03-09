@@ -35,7 +35,7 @@ from logdetective.server.database.models import (
     Reactions,
     Forge,
 )
-from logdetective.server.compressors import LLMResponseCompressor, RemoteLogCompressor
+from logdetective.server.compressors import LLMResponseCompressor
 from logdetective.server.models import GitLabInstanceConfig
 
 
@@ -115,9 +115,6 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
             while current_time < end_time:
                 id_ = await AnalyzeRequestMetrics.create(
                     endpoint=endpoint_type,
-                    compressed_log=RemoteLogCompressor.zip_text(
-                        "Some log for a failed build"
-                    ),
                     request_received_at=current_time,
                 )
                 response_time = current_time + datetime.timedelta(

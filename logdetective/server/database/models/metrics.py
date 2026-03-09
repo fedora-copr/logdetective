@@ -59,12 +59,6 @@ class AnalyzeRequestMetrics(Base):
         default=datetime.datetime.now(datetime.timezone.utc),
         comment="Timestamp when the request was received",
     )
-    compressed_log: Mapped[bytes] = mapped_column(
-        LargeBinary(length=314572800),  # 300MB limit (300 * 1024 * 1024)
-        nullable=False,
-        index=False,
-        comment="Log processed, saved in a zip format",
-    )
     compressed_response: Mapped[Optional[bytes]] = mapped_column(
         LargeBinary(length=314572800),  # 300MB limit (300 * 1024 * 1024)
         nullable=True,
@@ -106,15 +100,12 @@ class AnalyzeRequestMetrics(Base):
     async def create(
         cls,
         endpoint: EndpointType,
-        compressed_log: bytes,
         request_received_at: Optional[datetime.datetime] = None,
     ) -> int:
-        """Create AnalyzeRequestMetrics new line
-        with data related to a received request"""
+        """Create AnalyzeRequestMetrics record with data about received request"""
         async with transaction(commit=True) as session:
             metrics = AnalyzeRequestMetrics()
             metrics.endpoint = endpoint
-            metrics.compressed_log = compressed_log
             metrics.request_received_at = request_received_at or datetime.datetime.now(
                 datetime.timezone.utc
             )
