@@ -1,4 +1,5 @@
 from unittest import mock
+from contextlib import nullcontext
 
 import aiohttp
 import aioresponses
@@ -76,14 +77,27 @@ def test_load_prompts_correct_path():
 
 
 @pytest.mark.asyncio
-async def test_get_url_content():
+@pytest.mark.parametrize(
+    "content_length, exception",
+    [
+        ("3", None),
+        (str(301 * 1024 * 1024), "over the limit"),
+        ("test", "invalid"),
+    ],
+    indirect=False
+)
+async def test_get_url_content(content_length, exception):
+    mock_head_response = {"Content-Length": content_length}
     mock_response = "123"
     with aioresponses.aioresponses() as mock:
+        mock.head("http://localhost:8999/", status=200, headers=mock_head_response)
         mock.get("http://localhost:8999/", status=200, body=mock_response)
         async with aiohttp.ClientSession() as http:
-            url_output_cr = RemoteLog("http://localhost:8999/", http).get_url_content()
-            url_output = await url_output_cr
-            assert url_output == "123"
+            with pytest.raises(RuntimeError, match=exception) if exception else nullcontext():
+                url_output_cr = RemoteLog("http://localhost:8999/", http).get_url_content()
+                url_output = await url_output_cr
+                if not exception:
+                    assert url_output == "123"
 
 
 @pytest.mark.parametrize("user_role", ["user", "something"])
