@@ -1,3 +1,4 @@
+import os
 import logging
 from urllib.parse import urlparse
 
@@ -5,6 +6,10 @@ import aiohttp
 from aiohttp.web import HTTPBadRequest
 
 from logdetective.constants import MAXIMUM_LOG_LENGTH
+from logdetective.utils import (
+    ContentSizeCheck,
+    check_content_size,
+)
 
 LOG = logging.getLogger("logdetective")
 
@@ -36,7 +41,7 @@ class RemoteLog:
         return await self.get_url_content()
 
     def validate_url(self) -> bool:
-        """Validate incoming URL to be at least somewhat sensible for log files
+        """Validate incoming URL to be at least somewhat sensible for log files.
         Only http and https protocols permitted. No result, params or query fields allowed.
         Either netloc or path must have non-zero length.
         """
@@ -50,22 +55,26 @@ class RemoteLog:
         return True
 
     async def get_url_content(self) -> str:
-        """Validate log url and return log text."""
+        """Validate log url, check the content size from header, and return log text."""
         if not self.validate_url():
             LOG.error("Invalid URL received ")
             raise RuntimeError(f"Invalid log URL: {self.url}")
         LOG.debug("process url %s", self.url)
+        # obtain the head for size-check
         try:
-            response = await self._http_session.get(self.url, raise_for_status=True)
+            head_response = await self._http_session.head(self.url, raise_for_status=True)
         except (aiohttp.ClientResponseError, aiohttp.ClientConnectorError) as ex:
             raise RuntimeError(f"We couldn't obtain the logs: {ex}") from ex
-
-        size = response.headers.get("Content-Length")
-        if size:
-            if int(size) > MAXIMUM_LOG_LENGTH:  # default: 300 MiB
-                raise RuntimeError(
-                    f"File too large: {size} bytes (Limit: {MAXIMUM_LOG_LENGTH})"
-                )
+        size_check: ContentSizeCheck = check_content_size(
+            head_response.headers,
+            MAXIMUM_LOG_LENGTH
+        )
+        if not size_check.result:
+            raise RuntimeError(
+                f"Content-Length: `{size_check.size_in_bytes}` is invalid or over the limit"
+            )
+        # if size-check passes, we obtain the whole content
+        response = await self._http_session.get(self.url, raise_for_status=True)
 
         return await response.text()
 
@@ -75,3 +84,24 @@ class RemoteLog:
             return await self.get_url_content()
         except RuntimeError as ex:
             raise HTTPBadRequest(reason=f"We couldn't obtain the logs: {ex}") from ex
+
+
+async def retrieve_log_content(http: aiohttp.ClientSession, log_path: str) -> str:
+    """Get content of the file on the log_path path.
+    Path is assumed to be valid URL if it has a scheme.
+    Otherwise it attempts to pull it from local filesystem."""
+    parsed_url = urlparse(log_path)
+    log = ""
+
+    if not parsed_url.scheme:
+        if not os.path.exists(log_path):
+            raise ValueError(f"Local log {log_path} doesn't exist!")
+
+        with open(log_path, "rt") as f:
+            log = f.read()
+
+    else:
+        remote_log = RemoteLog(log_path, http)
+        log = await remote_log.get_url_content()
+
+    return log

@@ -10,7 +10,6 @@ from logdetective.constants import DEFAULT_ADVISOR, DEFAULT_TEMPERATURE
 from logdetective.utils import (
     process_log,
     initialize_model,
-    retrieve_log_content,
     format_snippets,
     compute_certainty,
     load_prompts,
@@ -19,6 +18,7 @@ from logdetective.utils import (
     mine_logs,
     sanitize_log,
 )
+from logdetective.remote_log import retrieve_log_content
 from logdetective.extractors import DrainExtractor, CSGrepExtractor
 
 LOG = logging.getLogger("logdetective")
