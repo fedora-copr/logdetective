@@ -2,10 +2,16 @@ import logging
 import os
 import re
 import subprocess as sp
-from typing import Iterator, List, Dict, Tuple, Generator, Optional
-from urllib.parse import urlparse
+from typing import (
+    Iterator,
+    List,
+    Dict,
+    Tuple,
+    Generator,
+    Optional,
+    NamedTuple,
+)
 
-import aiohttp
 from jinja2 import exceptions
 import numpy as np
 import yaml
@@ -18,7 +24,6 @@ from llama_cpp import (
 from logdetective.constants import SNIPPET_DELIMITER
 from logdetective.models import PromptConfig, SkipSnippets
 from logdetective.prompts import PromptManager
-from logdetective.remote_log import RemoteLog
 
 LOG = logging.getLogger("logdetective")
 
@@ -206,27 +211,6 @@ def process_log(
     return response
 
 
-async def retrieve_log_content(http: aiohttp.ClientSession, log_path: str) -> str:
-    """Get content of the file on the log_path path.
-    Path is assumed to be valid URL if it has a scheme.
-    Otherwise it attempts to pull it from local filesystem."""
-    parsed_url = urlparse(log_path)
-    log = ""
-
-    if not parsed_url.scheme:
-        if not os.path.exists(log_path):
-            raise ValueError(f"Local log {log_path} doesn't exist!")
-
-        with open(log_path, "rt") as f:
-            log = f.read()
-
-    else:
-        remote_log = RemoteLog(log_path, http)
-        log = await remote_log.get_url_content()
-
-    return log
-
-
 def format_snippets(snippets: list[str] | list[Tuple[int, str]]) -> str:
     """Format snippets, giving them separator, id and finally
     concatenating them. If snippets have line number attached,
@@ -346,6 +330,67 @@ def check_csgrep() -> bool:
     LOG.error("Issue was encountered while calling `csgrep`: `%s`", result.stderr)
 
     return False
+
+
+class ContentSizeCheck(NamedTuple):
+    """
+    Aggregate requests content-size info for checks.
+
+    Args:
+        result: the check is successful (content-size info is present within limits)
+        value_present: content-length info is present (value_present=False => result=False)
+        size_in_bytes: None if content-length missing or invalid
+    """
+    result: bool
+    value_present: bool
+    size_in_bytes: int | None
+
+
+def check_content_size(
+    headers: dict[str, str],
+    size_limit: int
+) -> ContentSizeCheck:
+    """
+    Validate that a request's content size doesn't exceed a maximum based on headers.
+
+    Args:
+        headers: Dictionary of HTTP headers
+
+    Returns:
+        ContentSizeCheck, If its `.result=False` => request should be rejected.
+    """
+    header_name = "Content-Length"
+    content_length: str | int | None = (
+        headers.get(header_name) or headers.get(header_name.lower())
+    )
+
+    if content_length is None:
+        transfer_header = "Transfer-Encoding"
+        transfer_encoding = (
+            headers.get(transfer_header) or headers.get(transfer_header.lower(), "None")
+        )
+        LOG.warning(
+            (
+                "No `Content-Length`. Transfer-Encoding: %s "
+                "Treating artifacts as over the maximum size."
+            ),
+            transfer_encoding
+        )
+        return ContentSizeCheck(result=False, value_present=False, size_in_bytes=None)
+
+    try:
+        size = int(content_length)
+    except (ValueError, TypeError):
+        LOG.error("Invalid Content-Length header value: %s", content_length)
+        return ContentSizeCheck(result=False, value_present=True, size_in_bytes=None)
+
+    is_valid = size <= size_limit
+    if not is_valid:
+        LOG.warning(
+            "Content-Length: %d B (%.2f MiB) exceeds max %d B (%.2f MiB)",
+            size, size / (1024 * 1024), size_limit, size_limit / (1024 * 1024),
+        )
+    return ContentSizeCheck(result=is_valid, value_present=True, size_in_bytes=size)
 
 
 def mine_logs(log: str, extractors: list) -> List[Tuple[int, str]]:
