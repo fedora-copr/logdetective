@@ -351,6 +351,7 @@ class GeneralConfig(BaseModel):
     report_certainty: bool = False
     # max_artifact_size in config.yml is in MiBs, here (GeneralConfig class) is in bytes
     max_artifact_size: int = mib_to_bytes(DEFAULT_MAXIMUM_LOG_MIB)
+    block_localhost_urls: bool = True
 
     @field_validator("max_artifact_size", mode="before")
     @classmethod
@@ -459,6 +460,7 @@ class TimePeriod(BaseModel):
 
 class MetricTimeSeries(BaseModel):
     """Recorded values of given metric"""
+
     metric: str
     timestamps: List[datetime.datetime]
     values: List[float]
@@ -466,4 +468,5 @@ class MetricTimeSeries(BaseModel):
 
 class MetricResponse(BaseModel):
     """Requested metrics"""
+
     time_series: List[MetricTimeSeries]

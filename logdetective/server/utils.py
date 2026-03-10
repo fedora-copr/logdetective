@@ -1,7 +1,10 @@
+import ipaddress
+import socket
 from typing import List
 from importlib.metadata import version
 
 import aiohttp
+from aiohttp.abc import ResolveResult
 from fastapi import Request, HTTPException
 
 from logdetective.constants import SNIPPET_DELIMITER
@@ -177,3 +180,30 @@ def validate_request_size(request: Request) -> None:
                 f"({SERVER_CONFIG.general.max_artifact_size / (1024 * 1024):.2f} MiB)"
             )
         )
+
+
+class SSRFProtectedResolver(aiohttp.ThreadedResolver):
+    """Resolver raising exception if URL evaluates to local address."""
+
+    async def resolve(
+        self, host: str, port: int = 0, family: socket.AddressFamily = socket.AF_INET
+    ) -> List[ResolveResult]:
+        """Resolve IP for given hostname, raise exception if the IP is local."""
+        ips = await super().resolve(host, port, family)
+
+        for resolved_ip in ips:
+            try:
+                ip_address = ipaddress.ip_address(resolved_ip["host"])
+            except ValueError as ex:
+                raise socket.gaierror(socket.EAI_FAIL) from ex
+            if (
+                ip_address.is_private
+            ):
+                msg = (
+                    f"Request to host: {host} port: {port} socket: "
+                    f"{family} resolved to internal IP: {ip_address}."
+                )
+                LOG.error(msg=msg)
+                raise socket.gaierror(socket.EAI_FAIL, msg)
+
+        return ips

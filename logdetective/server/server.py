@@ -52,7 +52,7 @@ from logdetective.server.metric import (
     update_metrics,
     requests_per_time,
     average_time_per_responses,
-    emojis_per_time
+    emojis_per_time,
 )
 from logdetective.server.models import (
     BuildLogRequest,
@@ -79,6 +79,7 @@ from logdetective.server.utils import (
     get_version,
     get_log_from_payload,
     validate_request_size,
+    SSRFProtectedResolver,
 )
 
 
@@ -143,7 +144,6 @@ class ConnectionManager:
     async def close(self):
         """Close all managed http sessions"""
         for session in self.gitlab_http_sessions.values():
-
             await session.close()
 
 
@@ -178,10 +178,18 @@ async def lifespan(fapp: FastAPI):
     """
     Establish one HTTP session
     """
+    connector = None
+    # Custom resolver covering Server-Side Request Forgery
+    if SERVER_CONFIG.general.block_localhost_urls:
+        connector = aiohttp.TCPConnector(
+            resolver=SSRFProtectedResolver(),
+        )
+
     fapp.http = aiohttp.ClientSession(
+        connector=connector,
         timeout=aiohttp.ClientTimeout(
             total=int(LOG_SOURCE_REQUEST_TIMEOUT), connect=3.07
-        )
+        ),
     )
 
     # General limiter for async requests
@@ -292,7 +300,7 @@ async def analyze_log(
     return await perform_analysis(
         log_text,
         async_request_limiter=request.app.state.llm_request_limiter,
-        extractors=request.app.state.extractors
+        extractors=request.app.state.extractors,
     )
 
 
@@ -423,13 +431,15 @@ async def analyze_rpmbuild_koji(
             koji_connection,
             request.app.state.llm_request_limiter,
             request.app.state.extractors,
-            request.app.state.koji_callback_manager
+            request.app.state.koji_callback_manager,
         )
 
         # If a callback URL is provided, we need to add it to the callbacks
         # table so that we can notify it when the analysis is complete.
         if x_koji_callback:
-            request.app.state.koji_callback_manager.register_callback(task_id, x_koji_callback)
+            request.app.state.koji_callback_manager.register_callback(
+                task_id, x_koji_callback
+            )
 
         response = BasicResponse(
             status_code=202, content=f"Beginning analysis of task {task_id}"
@@ -477,9 +487,7 @@ async def analyze_koji_task(
         log_file_name=log_file_name,
     )
     response = await perform_staged_analysis(
-        log_text,
-        async_request_limiter=async_request_limiter,
-        extractors=extractors
+        log_text, async_request_limiter=async_request_limiter, extractors=extractors
     )
 
     # Now that we have the response, we can update the metrics and mark the
@@ -791,20 +799,18 @@ async def get_metrics(
         """Return statistics for the specified endpoint and metric type."""
         statistics = []
         if metric_type == MetricType.ALL:
-            statistics.append(await requests_per_time(
-                period_since_now, endpoint_type
-            ))
-            statistics.append(await average_time_per_responses(
-                period_since_now, endpoint_type
-            ))
+            statistics.append(await requests_per_time(period_since_now, endpoint_type))
+            statistics.append(
+                await average_time_per_responses(period_since_now, endpoint_type)
+            )
             statistics.extend(await emojis_per_time(period_since_now))
             return MetricResponse(time_series=statistics)
         if metric_type == MetricType.REQUESTS:
             statistics.append(await requests_per_time(period_since_now, endpoint_type))
         elif metric_type == MetricType.RESPONSES:
-            statistics.append(await average_time_per_responses(
-                period_since_now, endpoint_type
-            ))
+            statistics.append(
+                await average_time_per_responses(period_since_now, endpoint_type)
+            )
         elif metric_type == MetricType.EMOJIS:
             statistics = await emojis_per_time(period_since_now)
         return MetricResponse(time_series=statistics)
