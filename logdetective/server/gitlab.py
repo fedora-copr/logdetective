@@ -14,7 +14,11 @@ import aiohttp
 import backoff
 
 from logdetective.extractors import Extractor
-from logdetective.utils import sanitize_log
+from logdetective.utils import (
+    sanitize_log,
+    ContentSizeCheck,
+    check_content_size,
+)
 from logdetective.server.config import SERVER_CONFIG, LOG
 from logdetective.server.exceptions import (
     LogsTooLargeError,
@@ -304,6 +308,12 @@ async def check_artifacts_file_size(
     so we need to interact with directly with the headers.
 
     If the `content-length` is not set or is invalid, treat artifacts as too large.
+
+    Raises:
+        LogDetectiveArtifactsMissingError in case error status code 404
+        LogDetectiveConnectionError in case of other error status codes
+    Return:
+        True if artifact is not over the max limit.
     """
     artifacts_path = (
         f"{gitlab_cfg.api_path}/projects/{job.project_id}/jobs/{job.id}/artifacts"
@@ -324,30 +334,18 @@ async def check_artifacts_file_size(
         raise LogDetectiveConnectionError(
             f"Connection error checking artifacts from job {job.id} in project {job.project_id}"
         ) from ex
-    raw_content_length = head_response.headers.get("content-length")
-    if not raw_content_length:
-        transfer_encoding = head_response.headers.get("Transfer-Encoding", "")
-        LOG.warning(
-            "No `content-length` for %s, Transfer-Encoding: %s. "
-            "Treating artifacts as over the maximum size.",
-            artifacts_path,
-            transfer_encoding,
-        )
-        content_length = gitlab_cfg.max_artifact_size + 1
-    else:
-        try:
-            content_length = int(raw_content_length)
-        except ValueError:
-            LOG.error("Invalid Content-Length header: %s", raw_content_length)
-            return False
-
+    LOG.debug("Checking content-length for %s", artifacts_path)
+    size_check: ContentSizeCheck = check_content_size(
+        head_response.headers,
+        gitlab_cfg.max_artifact_size
+    )
     LOG.debug(
-        "URL: %s, content-length: %d, max length: %d",
+        "URL: %s, content-length: %s, max length: %d",
         artifacts_path,
-        content_length,
+        str(size_check.size_in_bytes),
         gitlab_cfg.max_artifact_size,
     )
-    return content_length <= gitlab_cfg.max_artifact_size
+    return size_check.result
 
 
 async def comment_on_mr(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
