@@ -78,7 +78,8 @@ from logdetective.server.emoji import (
 from logdetective.server.compressors import RemoteLogCompressor
 from logdetective.server.utils import (
     get_version,
-    get_log_from_payload
+    get_log_from_payload,
+    validate_request_size,
 )
 
 
@@ -268,7 +269,11 @@ app = FastAPI(
 )
 
 
-@app.post("/analyze", response_model=Response)
+@app.post(
+    "/analyze",
+    response_model=Response,
+    dependencies=[Depends(validate_request_size)]
+)
 @track_request()
 async def analyze_log(
     payload: BuildLogRequest,
@@ -292,7 +297,11 @@ async def analyze_log(
     )
 
 
-@app.post("/analyze/staged", response_model=StagedResponse)
+@app.post(
+    "/analyze/staged",
+    response_model=StagedResponse,
+    dependencies=[Depends(validate_request_size)]
+)
 @track_request()
 async def analyze_log_staged(
     payload: BuildLogRequest,
@@ -524,7 +533,11 @@ async def get_version_wrapper():
     return BasicResponse(content=get_version())
 
 
-@app.post("/analyze/stream", response_class=StreamingResponse)
+@app.post(
+    "/analyze/stream",
+    response_class=StreamingResponse,
+    dependencies=[Depends(validate_request_size)]
+)
 @track_request()
 async def analyze_log_stream(
     payload: BuildLogRequest,

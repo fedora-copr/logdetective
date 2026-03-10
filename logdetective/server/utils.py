@@ -2,9 +2,13 @@ from typing import List
 from importlib.metadata import version
 
 import aiohttp
-from fastapi import HTTPException
+from fastapi import Request, HTTPException
 
-from logdetective.constants import SNIPPET_DELIMITER
+from logdetective.constants import SNIPPET_DELIMITER, MAXIMUM_LOG_LENGTH
+from logdetective.utils import (
+    ContentSizeCheck,
+    check_content_size,
+)
 from logdetective.server.config import LOG
 from logdetective.server.exceptions import LogDetectiveConnectionError
 from logdetective.remote_log import RemoteLog
@@ -137,3 +141,31 @@ def construct_final_prompt(formatted_snippets: str, prompt_template: str) -> str
 def get_version() -> str:
     """Obtain the version number using importlib"""
     return version('logdetective')
+
+
+def validate_request_size(request: Request) -> None:
+    """
+    FastAPI Depend function checking request's Content-Length before loading body into memory.
+
+    Note:
+        In the case of URL requests, we limit the URL's content to 300 MiB.
+        With the direct files raw log content, we limit the whole request size to 300Mib,
+        so this fails if all provided logs are under the limit, but exceed it together.
+
+    Raises:
+        HTTPException(411): If Content-Length header is missing or invalid
+        HTTPException(413): If Content-Length exceeds maximum allowed size
+    """
+    size_check: ContentSizeCheck = check_content_size(dict(request.headers), MAXIMUM_LOG_LENGTH)
+    if not (size_check.value_present and size_check.size_in_bytes is not None):
+        raise HTTPException(status_code=411, detail="Content-Length is missing or invalid.")
+    if not size_check.result:
+        size = size_check.size_in_bytes
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                f"Content-Length is too large: "
+                f"{size} B ({size / (1024 * 1024):.2f} MiB) > "
+                f"{MAXIMUM_LOG_LENGTH} B ({MAXIMUM_LOG_LENGTH / (1024 * 1024):.2f} MiB)"
+            )
+        )
