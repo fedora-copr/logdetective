@@ -9,14 +9,14 @@ from logdetective.server.compressors import RemoteLogCompressor
 @pytest.mark.asyncio
 async def test_server_remote_log():
     http_session = aiohttp.ClientSession()
-
+    url = "https://example.com/logs/123"
     mock_response = "Warning: Permanently added"
+    mock_header = {"Content-Length": str(len(mock_response))}
     with aioresponses.aioresponses() as mock:
-        mock.get(
-            "https://example.com/logs/123", status=200, body=mock_response, repeat=True
-        )
+        mock.head(url, status=200, headers=mock_header, repeat=True)
+        mock.get(url, status=200, body=mock_response, repeat=True)
 
-        remote_log = RemoteLog("https://example.com/logs/123", http_session)
+        remote_log = RemoteLog(url, http_session)
         compressor = RemoteLogCompressor(remote_log)
         content = await remote_log.content
         assert content
