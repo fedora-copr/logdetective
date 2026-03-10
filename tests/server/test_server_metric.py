@@ -50,8 +50,10 @@ async def test_track_request_async(build_log_request, mock_AnalyzeRequestMetrics
     async def analyze_log(payload, http_session):
         return response
 
+    mock_header = {"Content-Length": "3"}
     mock_response = "123"
     with aioresponses.aioresponses() as mock:
+        mock.head("https://example.com/logs/123", status=200, headers=mock_header)
         mock.get("https://example.com/logs/123", status=200, body=mock_response)
         async with aiohttp.ClientSession() as session:
             await analyze_log(**build_log_request, http_session=session)

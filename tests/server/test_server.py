@@ -46,11 +46,14 @@ async def test_loading_config():
 
 @pytest.mark.asyncio
 async def test_process_url():
+    url = "http://localhost:8999/"
+    mock_header = {"Content-Length": "3"}
     mock_response = "123"
     with aioresponses.aioresponses() as mock:
-        mock.get("http://localhost:8999/", status=200, body=mock_response)
+        mock.head(url, status=200, headers=mock_header)
+        mock.get(url, status=200, body=mock_response)
         async with aiohttp.ClientSession() as http:
-            remote_log = RemoteLog("http://localhost:8999/", http)
+            remote_log = RemoteLog(url, http)
             url_output_cr = remote_log.process_url()
             url_output = await url_output_cr
             assert url_output == "123"
