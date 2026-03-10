@@ -57,6 +57,7 @@ extractor:
 #       tokens:
 #         - example_token
 general:
+  max_artifact_size: 300  # in MiB
   devmode: False
   packages:
     - .*
