@@ -19,9 +19,9 @@ from logdetective.constants import (
     USER_ROLE_DEFAULT,
     LLM_MAX_CONCURRENT_REQUESTS,
     LLM_MAX_KEEP_ALIVE_CONNECTIONS,
-    MAXIMUM_LOG_LENGTH,
+    DEFAULT_MAXIMUM_LOG_MIB
 )
-from logdetective.utils import check_csgrep
+from logdetective.utils import check_csgrep, mib_to_bytes
 
 
 class BuildLogFile(BaseModel):
@@ -33,7 +33,10 @@ class BuildLogFile(BaseModel):
         max_length=255,
         pattern=r"^[a-zA-Z0-9._\-\/ ]+$"
     )
-    content: str = Field(max_length=MAXIMUM_LOG_LENGTH)
+    content: str = Field(
+        description="Log file content as a string. By default, request size "
+        "is limited to 300 MiB. This can affect what kind of logs can be submitted."
+    )
 
 
 class BuildLogRequest(BaseModel):
@@ -257,16 +260,15 @@ class GitLabInstanceConfig(BaseModel):  # pylint: disable=too-many-instance-attr
 
     timeout: float = 5.0
 
-    # Maximum size of artifacts.zip in MiB. (default: 300 MiB)
-    max_artifact_size: int = 300 * 1024 * 1024
+    # Maximum size of artifacts.zip (default: 300 MiB)
+    # In config, the unit is in MiB, but this max_artifact_size attribute will be in bytes
+    max_artifact_size: int = mib_to_bytes(DEFAULT_MAXIMUM_LOG_MIB)
 
     @field_validator("max_artifact_size", mode="before")
     @classmethod
     def megabytes_to_bytes(cls, v: Any):
         """Convert max_artifact_size from megabytes to bytes."""
-        if isinstance(v, int):
-            return v * 1024 * 1024
-        return 300 * 1024 * 1024
+        return mib_to_bytes(v if isinstance(v, int) else DEFAULT_MAXIMUM_LOG_MIB)
 
 
 class GitLabConfig(BaseModel):
@@ -302,15 +304,15 @@ class KojiConfig(BaseModel):
 
     instances: Dict[str, KojiInstanceConfig] = {}
     analysis_timeout: int = 15
-    max_artifact_size: int = 300 * 1024 * 1024
+
+    # in yaml config, this is given in MiB, but we use bytes in code (same as gitlab)
+    max_artifact_size: int = mib_to_bytes(DEFAULT_MAXIMUM_LOG_MIB)
 
     @field_validator("max_artifact_size", mode="before")
     @classmethod
     def megabytes_to_bytes(cls, v: Any):
         """Convert max_artifact_size from megabytes to bytes."""
-        if isinstance(v, int):
-            return v * 1024 * 1024
-        return 300 * 1024 * 1024
+        return mib_to_bytes(v if isinstance(v, int) else DEFAULT_MAXIMUM_LOG_MIB)
 
     @model_validator(mode="before")
     @classmethod
@@ -347,6 +349,14 @@ class GeneralConfig(BaseModel):
     collect_emojis_interval: int = 60 * 60  # seconds
     top_k_snippets: int = 0
     report_certainty: bool = False
+    # max_artifact_size in config.yml is in MiBs, here (GeneralConfig class) is in bytes
+    max_artifact_size: int = mib_to_bytes(DEFAULT_MAXIMUM_LOG_MIB)
+
+    @field_validator("max_artifact_size", mode="before")
+    @classmethod
+    def megabytes_to_bytes(cls, v: Any):
+        """Convert max_artifact_size from megabytes to bytes."""
+        return mib_to_bytes(v if isinstance(v, int) else DEFAULT_MAXIMUM_LOG_MIB)
 
 
 class Config(BaseModel):

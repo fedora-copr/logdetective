@@ -60,6 +60,11 @@ SANITIZE_PATTERNS: List[Tuple[re.Pattern[str], str]] = [
 ]
 
 
+# pylint: disable=missing-function-docstring
+def mib_to_bytes(mib: int) -> int:
+    return mib * 1024 * 1024
+
+
 def new_message(text: str) -> bool:
     """Set of heuristics for determining whether or not
     does the current chunk of log text continue on next line.

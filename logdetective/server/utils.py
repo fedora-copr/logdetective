@@ -4,12 +4,12 @@ from importlib.metadata import version
 import aiohttp
 from fastapi import Request, HTTPException
 
-from logdetective.constants import SNIPPET_DELIMITER, MAXIMUM_LOG_LENGTH
+from logdetective.constants import SNIPPET_DELIMITER
 from logdetective.utils import (
     ContentSizeCheck,
     check_content_size,
 )
-from logdetective.server.config import LOG
+from logdetective.server.config import LOG, SERVER_CONFIG
 from logdetective.server.exceptions import LogDetectiveConnectionError
 from logdetective.remote_log import RemoteLog
 from logdetective.server.models import (
@@ -115,7 +115,11 @@ async def get_log_from_payload(
     log_text = ""
     if payload.url:
         LOG.info("Handling log as URL")
-        remote_log = RemoteLog(payload.url, http_session)
+        remote_log = RemoteLog(
+            payload.url,
+            http_session,
+            limit_bytes=SERVER_CONFIG.general.max_artifact_size
+        )
         log_text = await remote_log.process_url()
     elif payload.files:
         # pydantic field validators make sure at least one element is present,
@@ -156,16 +160,20 @@ def validate_request_size(request: Request) -> None:
         HTTPException(411): If Content-Length header is missing or invalid
         HTTPException(413): If Content-Length exceeds maximum allowed size
     """
-    size_check: ContentSizeCheck = check_content_size(dict(request.headers), MAXIMUM_LOG_LENGTH)
+    size_check: ContentSizeCheck = check_content_size(
+        request.headers,
+        SERVER_CONFIG.general.max_artifact_size
+    )
     if not (size_check.value_present and size_check.size_in_bytes is not None):
         raise HTTPException(status_code=411, detail="Content-Length is missing or invalid.")
     if not size_check.result:
-        size = size_check.size_in_bytes
         raise HTTPException(
             status_code=413,
             detail=(
                 f"Content-Length is too large: "
-                f"{size} B ({size / (1024 * 1024):.2f} MiB) > "
-                f"{MAXIMUM_LOG_LENGTH} B ({MAXIMUM_LOG_LENGTH / (1024 * 1024):.2f} MiB)"
+                f"{size_check.size_in_bytes} B "
+                f"({size_check.size_in_bytes / (1024 * 1024):.2f} MiB) > "
+                f"{SERVER_CONFIG.general.max_artifact_size} B "
+                f"({SERVER_CONFIG.general.max_artifact_size / (1024 * 1024):.2f} MiB)"
             )
         )

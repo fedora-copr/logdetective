@@ -276,7 +276,9 @@ async def test_get_log_from_payload_url_sanitization():
     mock_remote_log = flexmock(RemoteLog)
 
     async with aiohttp.ClientSession() as session:
-        mock_remote_log.should_receive("__init__").with_args("http://path.to/file.log", session)
+        mock_remote_log.should_receive("__init__").with_args(
+            "http://path.to/file.log", session, limit_bytes=SERVER_CONFIG.general.max_artifact_size
+        )
         mock_remote_log.should_receive("process_url").and_return(awaited_dirty_log)
         log_text = await get_log_from_payload(payload, session)
 

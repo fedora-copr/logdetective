@@ -6,7 +6,11 @@ import os
 
 import aiohttp
 
-from logdetective.constants import DEFAULT_ADVISOR, DEFAULT_TEMPERATURE
+from logdetective.constants import (
+    DEFAULT_ADVISOR,
+    DEFAULT_TEMPERATURE,
+    DEFAULT_MAXIMUM_LOG_MIB,
+)
 from logdetective.utils import (
     process_log,
     initialize_model,
@@ -17,6 +21,7 @@ from logdetective.utils import (
     check_csgrep,
     mine_logs,
     sanitize_log,
+    mib_to_bytes,
 )
 from logdetective.remote_log import retrieve_log_content
 from logdetective.extractors import DrainExtractor, CSGrepExtractor
@@ -87,6 +92,12 @@ def setup_args():
     parser.add_argument(
         "--csgrep", action="store_true", help="Use csgrep to process the log."
     )
+    parser.add_argument(
+        "--mib_limit",
+        type=int,
+        default=DEFAULT_MAXIMUM_LOG_MIB,
+        help="Maximum log size in MiB (default: %(default)s)",
+    )
     return parser.parse_args()
 
 
@@ -151,7 +162,7 @@ async def run():  # pylint: disable=too-many-statements,too-many-locals,too-many
 
     async with aiohttp.ClientSession() as http:
         try:
-            log = await retrieve_log_content(http, args.file)
+            log = await retrieve_log_content(http, args.file, mib_to_bytes(args.mib_limit))
         except ValueError as e:
             # file does not exist
             LOG.error(e)

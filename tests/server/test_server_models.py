@@ -11,7 +11,8 @@ from logdetective.server.models import (
     BuildLogFile,
     BuildLogRequest,
 )
-from logdetective.constants import MAXIMUM_LOG_LENGTH
+from logdetective.constants import DEFAULT_MAXIMUM_LOG_MIB
+from logdetective.utils import mib_to_bytes
 
 
 def test_TimePeriod():
@@ -86,6 +87,9 @@ class TestBuildLogRequestValidation:
 
     NOTE: In the future, we will add also various URL validators.
     Tests for these cases can be included here.
+
+    NOTE: We do not test for long content size in BuildLogFile, since this is
+    treated on the request level by pre-fetching Content-Length header.
     """
     # pylint: disable=missing-function-docstring
 
@@ -121,11 +125,6 @@ class TestBuildLogRequestValidation:
     def test_file_missing_content(self):
         with pytest.raises(ValidationError):
             BuildLogFile(name="test.log")
-
-    def test_file_content_too_long(self):
-        with pytest.raises(ValidationError, match="String should have at most"):
-            # NOTE: not really sure if there is a better way of testing this...
-            BuildLogFile(name="test.log", content="x" * (MAXIMUM_LOG_LENGTH + 1))
 
     def test_empty_files_list(self):
         """Empty files list should be caught (CRITICAL BUG TEST)"""

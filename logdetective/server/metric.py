@@ -9,7 +9,7 @@ import numpy
 from starlette.responses import StreamingResponse
 
 from logdetective.remote_log import RemoteLog
-from logdetective.server.config import LOG
+from logdetective.server.config import LOG, SERVER_CONFIG
 from logdetective.server.compressors import (
     TextCompressor,
     RemoteLogCompressor,
@@ -45,7 +45,11 @@ async def add_new_metrics_url(
             raise LogDetectiveMetricsError(
                 f"""Remote log can not be retrieved without URL and http session.
                 URL: {url}, http session:{http_session}""")
-        remote_log = RemoteLog(url, http_session)
+        remote_log = RemoteLog(
+            url,
+            http_session,
+            limit_bytes=SERVER_CONFIG.general.max_artifact_size
+        )
         compressed_log_content = await RemoteLogCompressor(remote_log).zip_content()
 
     # gitlab and koji always fall through here

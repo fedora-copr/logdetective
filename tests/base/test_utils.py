@@ -1,5 +1,4 @@
 from unittest import mock
-from contextlib import nullcontext
 
 import aiohttp
 import aioresponses
@@ -14,8 +13,9 @@ from logdetective.utils import (
     filter_snippet_patterns,
     load_skip_snippet_patterns,
     get_chunks,
+    mib_to_bytes,
 )
-
+from logdetective.constants import DEFAULT_MAXIMUM_LOG_MIB
 from logdetective.remote_log import RemoteLog
 from logdetective.models import PromptConfig, SkipSnippets
 from logdetective import constants
@@ -78,26 +78,30 @@ def test_load_prompts_correct_path():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "content_length, exception",
+    "content_length, does_raise, exception_match",
     [
-        ("3", None),
-        (str(301 * 1024 * 1024), "over the limit"),
-        ("test", "invalid"),
+        ("3", False, None),
+        (str(mib_to_bytes(DEFAULT_MAXIMUM_LOG_MIB) + 1), True, "over the limit"),
+        ("test", True, "invalid"),
     ],
     indirect=False
 )
-async def test_get_url_content(content_length, exception):
+async def test_get_url_content(content_length, does_raise, exception_match):
+    url = "http://localhost:8999/"
     mock_head_response = {"Content-Length": content_length}
     mock_response = "123"
     with aioresponses.aioresponses() as mock:
-        mock.head("http://localhost:8999/", status=200, headers=mock_head_response)
-        mock.get("http://localhost:8999/", status=200, body=mock_response)
+        mock.head(url, status=200, headers=mock_head_response)
+        mock.get(url, status=200, body=mock_response)
         async with aiohttp.ClientSession() as http:
-            with pytest.raises(RuntimeError, match=exception) if exception else nullcontext():
-                url_output_cr = RemoteLog("http://localhost:8999/", http).get_url_content()
+            if does_raise:
+                with pytest.raises(RuntimeError, match=exception_match):
+                    url_output_cr = RemoteLog(url, http).get_url_content()
+                    url_output = await url_output_cr
+            else:
+                url_output_cr = RemoteLog(url, http).get_url_content()
                 url_output = await url_output_cr
-                if not exception:
-                    assert url_output == "123"
+                assert url_output == "123"
 
 
 @pytest.mark.parametrize("user_role", ["user", "something"])

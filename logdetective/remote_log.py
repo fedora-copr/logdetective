@@ -5,10 +5,11 @@ from urllib.parse import urlparse
 import aiohttp
 from aiohttp.web import HTTPBadRequest
 
-from logdetective.constants import MAXIMUM_LOG_LENGTH
+from logdetective.constants import DEFAULT_MAXIMUM_LOG_MIB
 from logdetective.utils import (
     ContentSizeCheck,
     check_content_size,
+    mib_to_bytes,
 )
 
 LOG = logging.getLogger("logdetective")
@@ -19,16 +20,23 @@ class RemoteLog:
     Handles retrieval of remote log files.
     """
 
-    def __init__(self, url: str, http_session: aiohttp.ClientSession):
+    def __init__(
+        self,
+        url: str,
+        http_session: aiohttp.ClientSession,
+        limit_bytes: int = mib_to_bytes(DEFAULT_MAXIMUM_LOG_MIB)
+    ):
         """
         Initialize with a remote log URL and HTTP session.
 
         Args:
             url: A remote URL pointing to a log file
             http_session: The HTTP session used to retrieve the remote file
+            limit_bytes: For checking the log size on the accessed URL
         """
         self._url = url
         self._http_session = http_session
+        self._limit_bytes = limit_bytes
 
     @property
     def url(self) -> str:
@@ -67,7 +75,7 @@ class RemoteLog:
             raise RuntimeError(f"We couldn't obtain the logs: {ex}") from ex
         size_check: ContentSizeCheck = check_content_size(
             head_response.headers,
-            MAXIMUM_LOG_LENGTH
+            self._limit_bytes
         )
         if not size_check.result:
             raise RuntimeError(
@@ -86,7 +94,7 @@ class RemoteLog:
             raise HTTPBadRequest(reason=f"We couldn't obtain the logs: {ex}") from ex
 
 
-async def retrieve_log_content(http: aiohttp.ClientSession, log_path: str) -> str:
+async def retrieve_log_content(http: aiohttp.ClientSession, log_path: str, size_limit: int) -> str:
     """Get content of the file on the log_path path.
     Path is assumed to be valid URL if it has a scheme.
     Otherwise it attempts to pull it from local filesystem."""
@@ -101,7 +109,8 @@ async def retrieve_log_content(http: aiohttp.ClientSession, log_path: str) -> st
             log = f.read()
 
     else:
-        remote_log = RemoteLog(log_path, http)
+        remote_log = RemoteLog(log_path, http, limit_bytes=size_limit)
+        # limited to DEFAULT_MAXIMUM_LOG_LENGTH (300 MiB)
         log = await remote_log.get_url_content()
 
     return log
