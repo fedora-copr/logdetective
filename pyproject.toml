@@ -120,6 +120,7 @@ disable = [
     "too-few-public-methods",
     "unspecified-encoding",
 ]
+extension-pkg-allow-list = ["socket"]
 
 [tool.pytest.ini_options]
 testpaths = [
