@@ -122,6 +122,15 @@ disable = [
 ]
 extension-pkg-allow-list = ["socket"]
 
+[tool.pylint.typecheck]
+# TODO: Pylint fails in CI on loading `AddressFamily` enum from socket,
+# other approaches have failed to resolve the issue.
+# Remove when the https://github.com/pylint-dev/pylint/issues/9850 is fixed.
+# Tell pylint to ignore 'no-member' errors for these specific attributes
+# because it cannot reliably find them in the C-extension statically.
+generated-members = ["socket.AddressFamily", "AddressFamily"]
+
+
 [tool.pytest.ini_options]
 testpaths = [
     "tests",
