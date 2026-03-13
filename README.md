@@ -1,5 +1,4 @@
-Log Detective
-=============
+# Log Detective
 
 [![PyPI - Version](https://img.shields.io/pypi/v/logdetective?color=blue)][PyPI Releases]
 
@@ -11,12 +10,16 @@ The service that explains logs is available here: https://logdetective.com/expla
 
 Note: if you are looking for code of website logdetective.com it is in [github.com/fedora-copr/logdetective-website](https://github.com/fedora-copr/logdetective-website).
 
-Installation
-------------
+
+# Command Line Tool
+
+## Installation
 
 **Fedora 41+**
 
-    dnf install logdetective
+```sh
+dnf install logdetective
+```
 
 **From Pypi repository**
 
@@ -24,66 +27,83 @@ The logdetective project is published on the [Pypi repository](https://pypi.org/
 
 First, ensure that the necessary dependencies for the `llama-cpp-python` project are installed. For Fedora, install `gcc-c++`:
 
-    # for Fedora it will be:
-    dnf install gcc-c++
+```sh
+dnf install gcc-c++
+```
 
 Then, install the `logdetective` project using pip:
 
-    pip install logdetective
+```sh
+pip install logdetective
+```
 
 **Local repository install**
 
 Clone this repository and install with pip:
 
-    pip install .
+```sh
+pip install .
+```
 
-Usage
------
+## Usage
 
-To analyze a log file, run the script with the following command line arguments:
-- `file` (required): The path or URL of the log file to be analyzed.
-- `--model` (optional, default: "granite-3.2-8b-instruct-GGUF"): The path or Hugging space name of the language model for analysis. For models from Hugging Face, write them as `namespace/repo_name`. As we are using LLama.cpp we want this to be in the `gguf` format. If the model is already on your machine it will skip the download.
-- `--filename-suffix` (optional, default "Q4_K.gguf"): You can specify which suffix of the file to use. This option is applied when specifying model using the Hugging Face repository.
-- `--n-clusters` (optional, default 8): Number of clusters for Drain to organize log chunks into. This only makes sense when you are summarizing with Drain.
-- `--prompts PROMPTS` (Deprecated, replaced by `--prompts-config`) Path to prompt configuration file.
-- `--prompts-config PROMPTS` Path to prompt configuration file.
-- `--prompt-templates` Path to prompt template dir. Prompts must be valid Jinja templates, and system prompts must include field `system_time`.
-- `--temperature` Temperature for inference.
-- `--skip-snippets` Path to patterns for skipping snippets.
-- `--csgrep` Use csgrep to process the log.
+To analyze a log file, run the script with the following command with:
 
-Example usage:
+**Required arguments:**
+- `file`: The path or URL of the log file to be analyzed.
 
-    logdetective https://example.com/logs.txt
+**Optional arguments:**
+- `-M, --model MODEL_NAME` (default: "fedora-copr/granite-3.2-8b-instruct-GGUF"): The path or Hugging space name of the language model for analysis. For models from Hugging Face, write them as `namespace/repo_name`. As we are using LLama.cpp we want this to be in the `gguf` format. If the model is already on your machine it will skip the download.
+- `-F | --filename-suffix SUFFIX` (default `Q4_K.gguf`): You can specify which suffix of the model file to use. This option is applied when specifying model (from the different quantizations) using the Hugging Face repository.
+- `-C | --n-clusters N` (default 8): Number of clusters for Drain to organize log chunks into. This only makes sense when you are summarizing with Drain.
+- `-n, --no-stream`: Print the full response at once, instead of token-by-token.
+- `-v, --verbose`: Increase output verbosity. Can be used multiple times (-v, -vv, -vvv) for different debug levels.
+- `-q, --quiet`: Suppress all output except the explanation.
+- `--prompts PROMPTS` (DEPRECATED, replaced by `--prompts-config`) Path to prompt configuration file.
+- `--prompts-config PROMPTS` (default `logdetective/prompts.yml`): Path to prompt configuration file.
+- `--prompt-templates TEMPLATE_DIR` (default `logdetective/prompts`): Path to prompt template directory. Prompts must be valid Jinja templates, and system prompts must include field `system_time`.
+- `--temperature NUM` (default `0.8`): Temperature for inference. Higher temperatures lead to more creative, random responses.
+- `--skip-snippets SNIPPETS` (default `logdetective/skip_snippets.yml`): Path to patterns for skipping snippets.
+- `--csgrep`: Use `csgrep` to process the log. Requires `csgrep` to be installed separately.
+- `--mib_limit NUMBER` Limits the size (in MiB) of request (if submitting raw files) or file (if submitting via URL) for analyze endpoints (default 300). Logs or requests exceeding this will be rejected.
 
-Or if the log file is stored locally:
+**Examples:**
 
-    logdetective ./data/logs.txt
+Analyzing a log via URL or stored locally:
+
+```sh
+logdetective https://example.com/logs.txt
+logdetective ./data/logs.txt
+```
 
 Examples of using different models. Note the use of `--filename-suffix` (or `-F`) option, useful for models that were quantized:
 
-    logdetective https://example.com/logs.txt --model QuantFactory/Meta-Llama-3-8B-Instruct-GGUF --filename-suffix Q5_K_S.gguf
-    logdetective https://kojipkgs.fedoraproject.org//work/tasks/3367/131313367/build.log --model 'fedora-copr/granite-3.2-8b-instruct-GGUF' -F Q4_K_M.gguf
-
+```sh
+logdetective https://example.com/logs.txt --model QuantFactory/Meta-Llama-3-8B-Instruct-GGUF --filename-suffix Q5_K_S.gguf
+logdetective https://kojipkgs.fedoraproject.org//work/tasks/3367/131313367/build.log --model 'fedora-copr/granite-3.2-8b-instruct-GGUF' -F Q4_K_M.gguf
+```
 Example of altered prompts:
 
-    cp -r ~/.local/lib/python3.13/site-packages/logdetective/prompts ~/my-prompts
-    vi ~/my-prompts/system_prompt.j2 # edit the system prompt there to better fit your needs
-    logdetective https://kojipkgs.fedoraproject.org//work/tasks/3367/131313367/build.log --prompt-templates ~/my-prompts
+```sh
+cp -r ~/.local/lib/python3.13/site-packages/logdetective/prompts ~/my-prompts
+vi ~/my-prompts/system_prompt.j2 # edit the system prompt there to better fit your needs
+logdetective https://kojipkgs.fedoraproject.org//work/tasks/3367/131313367/build.log --prompt-templates ~/my-prompts
+```
 
 Example of altered prompts (Deprecated):
-
-    cp ~/.local/lib/python3.13/site-packages/logdetective/prompts.yml ~/my-prompts.yml
-    vi ~/my-prompts.yml # edit the prompts there to better fit your needs
-    logdetective https://kojipkgs.fedoraproject.org//work/tasks/3367/131313367/build.log --prompts ~/my-prompts.yml
-
+```sh
+cp ~/.local/lib/python3.13/site-packages/logdetective/prompts.yml ~/my-prompts.yml
+vi ~/my-prompts.yml # edit the prompts there to better fit your needs
+logdetective https://kojipkgs.fedoraproject.org//work/tasks/3367/131313367/build.log --prompts ~/my-prompts.yml
+```
 
 Note that streaming with some models (notably Meta-Llama-3) is broken and can be worked around by `no-stream` option:
 
-    logdetective https://example.com/logs.txt --model QuantFactory/Meta-Llama-3-8B-Instruct-GGUF --filename-suffix Q5_K_M.gguf --no-stream
+```sh
+logdetective https://example.com/logs.txt --model QuantFactory/Meta-Llama-3-8B-Instruct-GGUF --filename-suffix Q5_K_M.gguf --no-stream
+```
 
-Choice of LLM
--------------
+## Choice of LLM
 
 While Log Detective is compatible with a wide range of LLMs, it does require an instruction tuned model to function properly.
 
@@ -97,8 +117,7 @@ Configuration fields `system_role` and `user_role` can be used to set role names
 > In cases when no system role is available, it is possible to set both fields to the same value. This will concatenate system and standard prompt.
 > This may have negative impact coherence of response.
 
-Real Example
-------------
+## Real Example
 
 Let's have a look at a real world example. Log Detective can work with any logs though we optimize it for RPM build logs.
 
@@ -163,8 +182,7 @@ It looks like a wall of text. Similar to any log.
 The main difference is that here we have the most significant lines of a logfile wrapped in `[ ] : ` and followed by textual explanation of the log text done by local LLM.
 
 
-Contributing
-============
+# Contributing
 
 Contributions are welcome! Please submit a pull request if you have any improvements or new features to add. Make sure your changes pass all existing tests before submitting.
 For bigger code changes, please consult us first by creating an issue.
@@ -175,48 +193,39 @@ Log Detective performs several inference queries while evaluating a log file. Pr
 
 To develop Log Detective, you should fork this repository, clone your fork, and install dependencies using pip:
 
-    git clone https://github.com/yourusername/logdetective.git
-    cd logdetective
-    pip install .
+```sh
+git clone https://github.com/yourusername/logdetective.git
+cd logdetective
+pip install .
+```
 
 Make changes to the code as needed and run pre-commit.
 
-Tests
------
+# Tests
 
 Tests for code used by server must placed in the `./tests/server/` path, while tests for general
 code must be in the `./tests/base/` path.
 
 The [tox](https://github.com/tox-dev/tox) is used to manage tests. Please install `tox` package into your distribution and run:
-
-    tox
-
+```sh
+tox
+```
 This will create a virtual environment with dependencies and run all the tests. For more information follow the tox help.
 
-To run only a specific test execute this:
-
-    tox run -e style # to run flake8
-
-or
-
-    tox run -e lint # to run pylint
-
-Tox environments for base and server tests are separate, each installs different dependencies.
-
-Running base tests:
-
-    tox run -e pytest_base
-
-Running server tests:
-
-    tox run -e pytest_server
+Tox environments for base and server tests are separate, each installs different dependencies. You can also run a specific test, execute tox like this:
+```sh
+tox run -e style # to run flake8, or
+tox run -e lint # to run pylint
+tox run -e pytest_base # running base tests:
+tox run -e pytest_server # running server tests
+```
 
 To run server test suite you will need postgresql client utilities.
+```sh
+dnf install postgresql
+```
 
-    dnf install postgresql
-
-Visual Studio Code testing with podman/docker-compose
------------------------------------------------------
+## Visual Studio Code testing with podman/docker-compose
 
 - In `Containerfile`, add `debugpy` as a dependency
 
@@ -227,7 +236,7 @@ Visual Studio Code testing with podman/docker-compose
 
 - Rebuild server image with new dependencies
 
-```
+```sh
 make rebuild-server
 ```
 
@@ -274,14 +283,13 @@ make rebuild-server
 
 - Run the server
 
-```
+```sh
 podman-compose up server
 ```
 
 - Run Visual Stdio Code debug configuration named *Python Debug: Remote Attach*
 
-Visual Studio Code CLI debugging
---------------------------------
+## Visual Studio Code CLI debugging
 
 When debugging the CLI application, the `./scripts/debug_runner.py` script can be used
 as a stand in for stump script created during package installation.
@@ -290,7 +298,7 @@ Using `launch.json`, or similar alternative, arguments can be specified for test
 
 Example:
 
-```
+```json
 {
     "version": "0.2.0",
     "configurations": [
@@ -306,44 +314,84 @@ Example:
 }
 ```
 
-Server
-======
+# Server
 
-FastApi based server is implemented in `logdetective/server.py`. In order to run it in a development mode,
-simply start llama-cpp-python server with your chosen model as described in llama-cpp-python [docs](https://llama-cpp-python.readthedocs.io/en/latest/server/#running-the-server).
+For locally setting up the FastAPI server, you would need a postgresql and some inference server. We base our service around llama.cpp image we build ourselves: https://quay.io/repository/logdetective/inference.
+However, even for development, we **strongly encourage you to use containers**, see [Containerfile](./Containerfile) and [Containerfile.llama.cpp](./Containerfile.llama.cpp).
+We also have [composefile](./docker-compose.yaml) to run the containerized servers.
+Note that the inference provider can then be replaced with any OpenAI API compatible server.
+Check the [dev](./docker-compose-dev.yaml) and [prod](./docker-compose-prod.yaml) files for specific configuration details.
 
-Afterwards, start the logdetective server with `fastapi dev logdetective/server.py --port 8080`.
-Requests can then be made with post requests, for example:
+The simplest setup:
+1. Make sure your `MODELS_PATH` environment variable points to a directory with your local LLM files.
+You can either edit the value in [.env](.env), create a symlink `ln -s /directory/with/your/llms ./models`, or:
+    ```sh
+    $ export MODELS_PATH=/path/to/models/
+    $ ll $MODELS_PATH
+    -rw-r--r--. 1 tt tt 3.9G apr 10 17:18  granite-4.0-h-tiny-Q8_0.gguf
+    ```
+2. `podman-compose up` (or  `podman-compose up -d` to detach from your current terminal)
+3. In case sending requests yields timeout errors on your local deployment (you can check what happens in containers with `podman logs`), try increasing the `llm_api_timeout` value in [server/config.yml](server/config.yml). If you get `nginx` timeouts, try setting/increasing timeouts in [server/nginx_dev.conf.template](server/nginx_dev.conf.template):
+    ```diff
+        server {
+        listen ${INFERENCE_PROXY_PORT};
+    +   proxy_connect_timeout 300s;
+    +   proxy_send_timeout 300s;
+    +   proxy_read_timeout 300s;
+        location / {
+            proxy_pass http://inference_backend;
+            proxy_set_header Host $host;
+        }
+    ```
 
-    curl --header "Content-Type: application/json" --request POST --data '{"url":"<YOUR_URL_HERE>"}' http://localhost:8080/analyze
+You can then use POST requests (via browser, `curl` or `http` provided by the `httpie` package).
+
+Here we analyze one log file submitted via URL:
+```sh
+curl --header "Content-Type: application/json" --request POST \
+     --data '{"url": "https://address.of.your.log/some-path-example.log"}' \
+     http://localhost:8080/analyze
+
+http POST :8080/analyze url=https://address.of.your.log/some-path-example.log
+```
+We can also submit multiple files using `files`. This applies to all `analyze*` endpoints.
+At the moment, only the first file will be analyzed, multiple log analysis is planned soon.
+Using `curl` is trickier if you want to embed contents of the local files
+(can be achieved with `jq`).
+
+```sh
+jq -n --arg name "build.log" --rawfile content "path/to/your/build.log" \
+'{files: [{name: $name, content: $content}]}' | \
+curl --header "Content-Type: application/json" \
+     --request POST \
+     --data @- \
+     http://localhost:8080/analyze
+```
+```sh
+http :8080/analyze \
+    files[0][name]='build.log' files[0][content]='@path/to/your/build.log' \
+    files[1][name]='another.log' files[1][content]='@path/to/another.log'
+```
 
 For more accurate responses, you can use `/analyze/staged` endpoint. This will submit snippets to model for individual analysis first.
-Afterwards the model outputs are used to construct final prompt. This will take substantially longer, compared to plain `/analyze`
+Afterwards the model outputs are used to construct final prompt. This will take substantially longer, compared to plain `/analyze`.
 
-    curl --header "Content-Type: application/json" --request POST --data '{"url":"<YOUR_URL_HERE>"}' http://localhost:8080/analyze/staged
-
-We also have a Containerfile and composefile to run the logdetective server and llama server in containers.
-
-Before doing `podman-compose up`, make sure to set `MODELS_PATH` environment variable and point to a directory with your local model files:
-```
-$ export MODELS_PATH=/path/to/models/
-$ ll $MODELS_PATH
--rw-r--r--. 1 tt tt 3.9G apr 10 17:18  granite-4.0-h-tiny-Q8_0.gguf
+```sh
+curl --header "Content-Type: application/json" --request POST --data '{"url": "https://address.of.your.log/some-path-example.log"}' http://localhost:8080/analyze/staged
 ```
 
 If the variable is not set, `./models` is mounted inside by default.
 
 Model can be downloaded from [our Hugging Space](https://huggingface.co/fedora-copr) by:
-```
-$ curl -L -o models/granite-3.2-8b-instruct-v0.3.Q4_K.gguf https://huggingface.co/fedora-copr/granite-3.2-8b-instruct-GGUF/resolve/main/ggml-model-Q4_K.gguf
+```sh
+curl -L -o models/granite-3.2-8b-instruct-v0.3.Q4_K.gguf https://huggingface.co/fedora-copr/granite-3.2-8b-instruct-GGUF/resolve/main/ggml-model-Q4_K.gguf
 ```
 
 Note that before any log or its snippets are sent to LLM for analysis, they are redacted.
 Log Detective removes certain personal information, such as emails and GPG fingerprints from logs, before calling LLM.
 LLM should be aware of this fact and factor it into its responses.
 
-Filtering snippet analysis by relevance
----------------------------------------
+## Filtering snippet analysis by relevance
 
 When using `/analyze/staged` API, it is possible to enable filtering analyzed snippets by their estimated relavance, submitting only those with highest meansure of relevance for final analysis.
 
@@ -353,7 +401,7 @@ Filtering is disabled by default and must be enabled by setting value of `top_k_
 
 Example:
 
-```
+```yaml
 general:
   devmode: False
   packages:
@@ -366,30 +414,28 @@ general:
 If all snippets are rated the same, the filtering is skipped and warning raised in logs.
 Values higher than total number of snippets, as set by `max_clusters` in the `extrator` section of config, also result in filtering being skipped.
 
-Generate a new database revision with alembic
----------------------------------------------
+## Generate a new database revision with alembic
 
-Modify the database models (`logdetective/server/database/model.py).
+Modify the database models (`logdetective/server/database/models/`).
 
 Generate a new database revision with the command:
 
 **Warning**: this command will start up a new server
 and shut it down when the operation completes.
 
-```
+```sh
 CHANGE="A change comment" make alembic-generate-revision
 ```
 
-Our production instance
------------------------
+## Our production instance
 
 Our FastAPI server and model inference server run through `podman-compose` on an
-Amazon AWS intance. The VM is provisioned by an
+Amazon AWS instance. The VM is provisioned by an
 [ansible playbook](https://pagure.io/fedora-infra/ansible/blob/main/f/roles/logdetective/tasks/main.yml).
 
 You can control the server through:
 
-```
+```sh
 cd /root/logdetective
 podman-compose -f docker-compose-prod.yaml ...
 ```
@@ -397,67 +443,51 @@ podman-compose -f docker-compose-prod.yaml ...
 The `/root` directory contains valuable data. If moving to a new instance,
 please backup the whole directory and transfer it to the new instance.
 
-Fore some reason, we need to manually run this command after every reboot:
+In order to run containers with Nvidia GPU support, you need to have generate a CDI specification, which can be done through:
 
-```
+```sh
 nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
 ```
 
 HTTPS certificate generated through:
 
-```
+```sh
 certbot certonly --standalone -d logdetective01.fedorainfracloud.org
 ```
 
-Certificates need to be be placed into location specified by the`LOGDETECTIVE_CERTDIR`
+Certificates need to be be placed into location specified by the `LOGDETECTIVE_CERTDIR`
 env var and the service should be restarted.
 
-Querying statistics
--------------------
+## Querying statistics
 
-You can retrieve statistics about server requests and responses over a specified time period
-using either a browser, the `curl` or the `http` command (provided by the `httpie` package).
+You can query requests, responses and emojis statistics via `metrics` endpoints.
+They return JSON data with `time_series` array containing metric objects with `metric`, `timestamps`, and `values` fields.
+Metrics are `GET` methods and have the form `/metrics/ENDPOINT_TYPE/QUERY_TYPE?parameter=value`:
 
-When no time period is specified, the query defaults to the last 2 days:
+1. `ENDPOINT_TYPE`: `analyze`, `analyze-staged`, or `analyze-gitlab`.
 
-You can view requests, responses and emojis statistics
- - for the `/analyze` endpoint at http://localhost:8080/metrics/analyze
- - for the `/analyze-staged` endpoint at http://localhost:8080/metrics/analyze-staged.
- - for the requests coming from gitlab: http://localhost:8080/metrics/analyze-gitlab.
+2. `QUERY_TYPE`:
+- `requests` will return how many requests did the server receive at given endpoint.
+- `responses` will return average response times during the time period.
+- `emojis` will return ALL emoji reactions. This data is collected only for `analyze-gitlab` events, so the `ENDPOINT_TYPE` in the URL is ignored when querying for emojis.
+- `all` will retrieve all of the above. If `QUERY_TYPE` is left empty, it defaults to `all`.
 
-You can retrieve single svg images at the following endpoints:
- - http://localhost:8080/metrics/analyze/requests
- - http://localhost:8080/metrics/analyze/responses
- - http://localhost:8080/metrics/analyze-staged/requests
- - http://localhost:8080/metrics/analyze-staged/responses
- - http://localhost:8080/metrics/analyze-gitlab/requests
- - http://localhost:8080/metrics/analyze-gitlab/responses
- - http://localhost:8080/metrics/analyze-gitlab/emojis
+3. `parameter=value` will specify the latest period for which metrics are returned. If unspecified, the query defaults to the last 2 days.
+- `parameter` is either `hours`, `days`, `weeks`.
+- `value` is a positive integer.
+- `parameter` type also controls the granularity of the response: `?days=2` will produce time series with max 2 entries, `?hours=48` will produce a time series with max 48 entries.
+
 
 Examples:
-
-```
-http GET "localhost:8080/metrics/analyze/requests" > /tmp/plot.svg
-curl "localhost:8080/metrics/analyze/staged/requests" > /tmp/plot.svg
-```
-
-You can specify the time period in hours, days, or weeks.
-The time period:
- - cannot be less than one hour
- - cannot be negative
- - ends at the current time (when the query is made)
- - starts at the specified time interval before the current time.
-
-Examples:
-
-```
-http GET "localhost:8080/metrics/analyze/requests?hours=5" > /tmp/plot_hours.svg
-http GET "localhost:8080/metrics/analyze/requests?days=5" > /tmp/plot_days.svg
-http GET "localhost:8080/metrics/analyze/requests?weeks=5" > /tmp/plot_weeks.svg
+```sh
+http GET :8080/metrics/analyze/requests
+http GET :8080/metrics/analyze-staged/responses
+curl "http://localhost:8080/metrics/analyze-staged/responses"
+curl "http://localhost:8080/metrics/analyze-gitlab/emojis?days=5"
+curl "http://localhost:8080/metrics/analyze-staged/responses?hours=24"
 ```
 
-System Prompts
---------------
+## System Prompts
 
 Prompts are defined as Jinja templates and placed in location specified by `--prompt-templates` option of the CLI utility, or `LOGDETECTIVE_PROMPT_TEMPLATES` environment variable of the container service. With further, optional, configuration in the `prompts.yml` configuration file.
 
@@ -493,8 +523,7 @@ with spaces, or replacement fields marked with curly braces, `{}` left for inser
 Although their position may be different.*
 
 
-Skip Snippets
--------------
+## Skip Snippets
 
 Certain log chunks may not contribute to the analysis of the problem under any circumstances.
 User can specify regular expressions, matching such log chunks, along with simple description,
@@ -503,7 +532,7 @@ using Skip Snippets feature.
 Patterns to be skipped must be defined yaml file as a dictionary, where key is a description
 and value is a regular expression. For example:
 
-```
+```yaml
 child_exit_code_zero: "Child return code was: 0"
 ```
 
@@ -514,8 +543,7 @@ Example of a valid pattern definition file: `logdetective/skip_patterns.yml`,
 can be used as a starting point and is used as a default if no other definition is provided.
 
 
-Extracting snippets with csgrep
--------------------------------
+## Extracting snippets with csgrep
 
 When working with logs containing messages from GCC, it can be beneficial to employ
 additional extractor based on `csgrep` tool, to ensure that the messages are kept intact.
@@ -524,14 +552,14 @@ with a package manager or from [source](https://github.com/csutils/csdiff).
 
 The binary is available as part of `csdiff` package on Fedora.
 
-```
+```sh
 dnf install csdiff
 ```
 
 When working with CLI Log Detective, the csgrep extractor can be activated using option `--csgrep`.
 While in server mode, the `csgrep` field in `extractor` config needs to be set to `true`.
 
-```
+```yaml
 csgrep: true
 ```
 
@@ -540,8 +568,6 @@ but `csgrep` is not present in the $PATH.
 
 The container images are built with `csdiff` installed.
 
+## License
 
-License
--------
-
-This project is licensed under the Apache-2.0 License - see the LICENSE file for details.
+This project is licensed under the `Apache-2.0 License`. See the [LICENSE](./LICENSE) file for details.

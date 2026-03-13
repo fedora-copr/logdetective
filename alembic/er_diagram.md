@@ -6,7 +6,6 @@ erDiagram
     }
 
     analyze_request_metrics {
-        bytea compressed_log
         bytea compressed_response
         endpointtype endpoint
         integer id PK
