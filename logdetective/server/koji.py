@@ -1,6 +1,6 @@
 import asyncio
 import re
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 import backoff
 import koji
@@ -10,6 +10,7 @@ from logdetective.server.exceptions import (
     LogsMissingError,
     LogsTooLargeError,
     UnknownTaskType,
+    InvalidKojiTaskResultResponse,
 )
 from logdetective.server.utils import connection_error_giveup
 
@@ -107,7 +108,7 @@ async def get_failed_subtask_info(
 
 async def get_failed_log_from_task(
     koji_session: koji.ClientSession, task_id: int, max_size: int
-) -> Optional[tuple[str, str]]:
+) -> tuple[str, str]:
     """
     Get the failed log from a task.
 
@@ -124,6 +125,12 @@ async def get_failed_log_from_task(
         koji_session.getTaskResult, taskinfo["id"], raise_fault=False
     )
 
+    # When looking for a built, the `getTaskResult` returns a dictionary
+    # https://koji.fedoraproject.org/koji/api
+    if not isinstance(result, dict):
+        raise InvalidKojiTaskResultResponse(
+            f"Koji getTaskResult returned {type(result)} when dict was expected.")
+
     # Examine the result message for the appropriate log file.
     match = FAILURE_LOG_REGEX.search(result["faultString"])
     if match:
@@ -132,7 +139,7 @@ async def get_failed_log_from_task(
         # The best thing we can do at this point is return the
         # task_failed.log, since it will probably contain the most
         # relevant information
-        return result["faultString"]
+        return "task_failed.log", result["faultString"]
 
     # Check that the size of the log file is not enormous
     task_output = await call_koji(
