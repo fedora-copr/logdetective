@@ -39,3 +39,7 @@ class LogDetectiveMetricsError(LogDetectiveException):
 
 class LogDetectiveArtifactsMissingError(LogDetectiveConnectionError):
     """Request for build artifacts has returned 404 response"""
+
+
+class InvalidKojiTaskResultResponse(LogDetectiveKojiException):
+    """Call to `getTaskResult` has returned an unexpected data structure"""
