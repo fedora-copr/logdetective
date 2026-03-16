@@ -39,7 +39,7 @@ issues = "https://github.com/fedora-copr/logdetective/issues"
 [tool.poetry.dependencies]
 python = "^3.11"
 llama-cpp-python = ">0.2.56,!=0.2.86,<1.0.0"
-drain3 = ">=0.9.11,<0.10.0"
+drain3 = {git = "https://github.com/logpai/Drain3.git", rev = "0fb6d6e1828838fa05c8f6fa5cda878e02ea79c7"}
 huggingface-hub = ">=1.0.0,<2.0.0"
 # rawhide has numpy 2, F40 and F41 are still on 1.26
 # we need to support both versions
@@ -47,7 +47,8 @@ numpy = ">=1.26.0"
 pydantic = ">=2.8.2,<3.0.0"
 pyyaml = ">=6.0.1,<7.0.0"
 aiohttp = ">=3.7.4,<4.0.0"  # latest version in el8
-
+# Protection against supply chain compromise https://docs.litellm.ai/blog/security-update-march-2026
+litellm = "!=1.82.7,!=1.82.8" 
 python-gitlab = {version = ">=4.4.0", optional = true }
 aiolimiter = {version = ">=1.0.0,<2.0.0", optional = true }
 fastapi = {version = ">=0.111.1,<1.0.0", optional = true }
@@ -67,6 +68,7 @@ pytest-cov = {version = "^7.0.0", extras = ["testing"], optional = true}
 asyncpg = {version = ">=0.30.0,<1.0.0", optional = true}
 asciidoc = {version = "^10.2.1", optional = true, extras = ["testing"]}
 httpx = {version = ">=0.28.1,<1.0.0", optional = true}
+beeai-framework = ">=0.1.78"
 
 [tool.poetry.extras]
 server = [
