@@ -6,9 +6,9 @@ import aioresponses
 import pytest
 
 from aiolimiter import AsyncLimiter
-from fastapi import HTTPException
 import gitlab
 from flexmock import flexmock
+from logdetective.server.config import SERVER_CONFIG
 
 from tests.server.test_helpers import (
     mock_chat_completions,
@@ -17,21 +17,19 @@ from tests.server.test_helpers import (
     mock_config,
 )
 
-from logdetective.server.config import SERVER_CONFIG
-from logdetective.server.llm import perform_staged_analysis, call_llm, perform_analysis
+from logdetective.server.config import SERVER_CONFIG, GENERIC_LOG_NAME
+from logdetective.server.llm import call_llm
 from logdetective.remote_log import RemoteLog
 from logdetective.server.config import load_server_config
-from logdetective.server.server import initialize_extractors, KojiCallbackManager, ConnectionManager
+from logdetective.server.server import KojiCallbackManager, ConnectionManager
 from logdetective.server.models import (
-    Response,
-    StagedResponse,
     BuildLogRequest,
     BuildLogFile,
     InferenceConfig,
     Explanation,
     Config,
 )
-from logdetective.server.utils import get_log_from_payload
+from logdetective.server.utils import get_artifacts_from_payload
 from logdetective.utils import sanitize_log
 
 
@@ -92,70 +90,6 @@ async def test_submit_text_chat_completions(mock_chat_completions):
     assert response.text == "This is a mock message"
 
 
-@pytest.mark.skip(
-    reason=(
-        "This is a really long unit test,"
-        "unskip it when you want to test "
-        "the retries mechanism for the submit_text method"
-    )
-)
-@pytest.mark.asyncio
-async def test_perform_staged_analysis_with_errors():
-    SERVER_CONFIG.inference.url = "http://localhost:8080"
-    with aioresponses.aioresponses() as mock:
-        mock.post(
-            "http://localhost:8080/v1/chat/completions",
-            status=504,
-            body="Gateway Time-out",
-        )
-        mock.post(
-            "http://localhost:8080/v1/chat/completions",
-            status=504,
-            body="Gateway Time-out",
-        )
-        mock.post(
-            "http://localhost:8080/v1/chat/completions", status=400, body="Bad Response"
-        )
-        mock.post(
-            "http://localhost:8080/v1/chat/completions", status=400, body="Bad Response"
-        )
-        async_limiter = AsyncLimiter(SERVER_CONFIG.inference.requests_per_minute)
-        extractors = initialize_extractors(SERVER_CONFIG.extractor)
-        with pytest.raises(HTTPException):
-            await perform_staged_analysis(
-                "abc", async_request_limiter=async_limiter, extractors=extractors
-            )
-
-
-@pytest.mark.parametrize("mock_chat_completions", [MOCK_EXPLANATION], indirect=True)
-@pytest.mark.asyncio
-async def test_perform_analysis(
-    mock_chat_completions,
-):
-    async_limiter = AsyncLimiter(100)
-    extractors = initialize_extractors(SERVER_CONFIG.extractor)
-    result = await perform_analysis(
-        MOCK_LOG, async_request_limiter=async_limiter, extractors=extractors
-    )
-
-    assert result.explanation.text == MOCK_EXPLANATION
-
-
-@pytest.mark.parametrize("mock_chat_completions", [MOCK_EXPLANATION], indirect=True)
-@pytest.mark.asyncio
-async def test_perform_staged_analysis(
-    mock_chat_completions,
-):
-    async_limiter = AsyncLimiter(100)
-    extractors = initialize_extractors(SERVER_CONFIG.extractor)
-
-    result = await perform_staged_analysis(
-        MOCK_LOG, async_request_limiter=async_limiter, extractors=extractors
-    )
-
-    assert result.explanation.text == MOCK_EXPLANATION
-
-
 def test_koji_callback_manager():
     """Test KojiCallbackManager initialization, callback registration
     and removal."""
@@ -192,52 +126,24 @@ async def test_connection_manager(mock_config):
     assert connection_manager.gitlab_http_sessions["https://gitlab.com"].closed
 
 
-@pytest.mark.parametrize(
-    "mock_chat_completions, analysis_func, expected_type",
-    [
-        (MOCK_EXPLANATION, perform_analysis, Response),
-        (MOCK_EXPLANATION, perform_staged_analysis, StagedResponse),
-    ],
-    indirect=["mock_chat_completions"]
-)
-@pytest.mark.asyncio
-async def test_analyze_with_files_payload(mock_chat_completions, analysis_func, expected_type):
-    payload = BuildLogRequest(
-        files=[
-            BuildLogFile(name="build.log", content=MOCK_LOG)
-        ]
-    )
-
-    async with aiohttp.ClientSession() as session:
-        log_text = await get_log_from_payload(payload, session)
-
-    log_text = sanitize_log(log_text)
-
-    async_limiter = AsyncLimiter(100)
-    extractors = initialize_extractors(SERVER_CONFIG.extractor)
-    result = await analysis_func(
-        log_text,
-        async_request_limiter=async_limiter,
-        extractors=extractors
-    )
-
-    assert isinstance(result, expected_type)
-    assert result.explanation.text == MOCK_EXPLANATION
-
-
 @pytest.mark.asyncio
 async def test_get_log_from_payload_with_files():
     payload = BuildLogRequest(
         files=[
             BuildLogFile(name="test.log", content=MOCK_LOG),
-            BuildLogFile(name="ignored.log", content="This should be ignored")
+            BuildLogFile(name="ignored.log", content=MOCK_LOG)
         ]
     )
 
     async with aiohttp.ClientSession() as session:
-        log_text = await get_log_from_payload(payload, session)
+        artifacts = await get_artifacts_from_payload(payload, session)
 
-    assert log_text == MOCK_LOG
+    assert "test.log" in artifacts
+    assert "ignored.log" in artifacts
+    assert len(artifacts) == 2
+
+    for log_text in artifacts.values():
+        assert log_text == MOCK_LOG
 
 
 @pytest.mark.asyncio
@@ -255,16 +161,20 @@ async def test_get_log_from_payload_files_sanitization(dirty_log, redacted_value
         files=[BuildLogFile(name="test.log", content=dirty_log)]
     )
 
+    assert payload.files is not None
     async with aiohttp.ClientSession() as session:
-        log_text = await get_log_from_payload(payload, session)
+        artifacts = await get_artifacts_from_payload(payload, session)
 
-    assert log_text == dirty_log
+    assert len(artifacts) == 1
+    assert "test.log" in artifacts
+    assert artifacts[payload.files[0].name] == dirty_log
 
-    sanitized = sanitize_log(log_text)
+    for text in artifacts.values():
+        sanitized = sanitize_log(text)
 
-    assert sanitized != dirty_log
-    assert redacted_value not in sanitized
-    assert any(i in sanitized for i in ["FFFF", "ffff", "copr-team"])
+        assert sanitized != dirty_log
+        assert redacted_value not in sanitized
+        assert any(i in sanitized for i in ["FFFF", "ffff", "copr-team"])
 
 
 @pytest.mark.asyncio
@@ -280,11 +190,13 @@ async def test_get_log_from_payload_url_sanitization():
             "http://path.to/file.log", session, limit_bytes=SERVER_CONFIG.general.max_artifact_size
         )
         mock_remote_log.should_receive("process_url").and_return(awaited_dirty_log)
-        log_text = await get_log_from_payload(payload, session)
+        artifacts = await get_artifacts_from_payload(payload, session)
 
-    assert log_text == dirty_log
+    assert len(artifacts) == 1
+    assert GENERIC_LOG_NAME in artifacts
+    assert artifacts[GENERIC_LOG_NAME] == dirty_log
 
-    sanitized = sanitize_log(log_text)
+    sanitized = sanitize_log(artifacts[GENERIC_LOG_NAME])
 
     assert sanitized != dirty_log
     assert "contact@someone.com" not in sanitized

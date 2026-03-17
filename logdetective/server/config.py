@@ -3,6 +3,7 @@ import logging
 import yaml
 import httpx
 from openai import AsyncOpenAI
+from beeai_framework.adapters.openai import OpenAIChatModel
 
 from logdetective.utils import load_prompts, load_skip_snippet_patterns
 from logdetective.server.models import Config, InferenceConfig
@@ -53,6 +54,15 @@ def get_log(config: Config):
     return log
 
 
+def get_openai_chat_model(inference_config: InferenceConfig) -> OpenAIChatModel:
+    """Set up OpenAI chat model for Log Detective agent"""
+    return OpenAIChatModel(
+        model_id=inference_config.model,
+        api_key=inference_config.api_token,
+        base_url=inference_config.url,
+    )
+
+
 def get_openai_api_client(inference_config: InferenceConfig):
     """Set up AsyncOpenAI client with default configuration."""
     limits = httpx.Limits(
@@ -83,3 +93,5 @@ SKIP_SNIPPETS_CONFIG = load_skip_snippet_patterns(SERVER_SKIP_PATTERNS_PATH)
 LOG = get_log(SERVER_CONFIG)
 
 CLIENT = get_openai_api_client(SERVER_CONFIG.inference)
+
+GENERIC_LOG_NAME = "generic_build_artifact.log"

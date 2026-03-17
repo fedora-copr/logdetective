@@ -130,6 +130,7 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
                         Response(
                             explanation=Explanation(text="a small error", logprobs=[]),
                             response_certainty=0.1,
+                            snippets=None
                         )
                     ).zip_response(),
                 )

@@ -1,11 +1,10 @@
 import inspect
 from collections import defaultdict
 import datetime
-from typing import Optional, Union, Dict
+from typing import Optional, Dict
 from functools import wraps
 
 import numpy
-from starlette.responses import StreamingResponse
 
 from logdetective.server.config import LOG
 from logdetective.server.compressors import (
@@ -15,7 +14,6 @@ from logdetective.server.models import (
     BuildLogRequest,
     TimePeriod,
     MetricTimeSeries,
-    StagedResponse,
     Response,
     Explanation,
 )
@@ -41,7 +39,7 @@ async def add_new_metrics(
 
 async def update_metrics(
     metrics_id: int,
-    response: Union[Response, StagedResponse, StreamingResponse],
+    response: Response,
     sent_at: Optional[datetime.datetime] = None,
 ) -> None:
     """Update a database metric entry for a received request,
