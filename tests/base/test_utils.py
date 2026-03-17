@@ -17,6 +17,12 @@ from logdetective.utils import (
 )
 from logdetective.constants import DEFAULT_MAXIMUM_LOG_MIB
 from logdetective.remote_log import RemoteLog
+from logdetective.exceptions import (
+    RemoteLogAccessError,
+    RemoteLogHeaderError,
+    RemoteLogRequestError,
+    RemoteLogTooLargeError,
+)
 from logdetective.models import PromptConfig, SkipSnippets
 from logdetective import constants
 
@@ -78,30 +84,61 @@ def test_load_prompts_correct_path():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "content_length, does_raise, exception_match",
+    "url, mock_header, exc_type, exc_match",
     [
-        ("3", False, None),
-        (str(mib_to_bytes(DEFAULT_MAXIMUM_LOG_MIB) + 1), True, "over the limit"),
-        ("test", True, "invalid"),
+        ("http://example.com/build.log", {"Content-Length": "3"}, None, None),
+        (
+            "http://example.com/build.log",
+            {"Content-Length": "test"},
+            RemoteLogHeaderError,
+            "Content-Length is invalid",
+        ),
+        (
+            "http://example.com/build.log",
+            {"Content-Length": f"{mib_to_bytes(DEFAULT_MAXIMUM_LOG_MIB) + 1}"},
+            RemoteLogTooLargeError,
+            "Content-Length is over the limit",
+        ),
+        ("not-a-valid-url", {}, RemoteLogRequestError, "Invalid log URL"),
+        ("http://example.com/build.log", {}, RemoteLogHeaderError, "Content-Length is missing")
     ],
-    indirect=False
+    indirect=False,
 )
-async def test_get_url_content(content_length, does_raise, exception_match):
-    url = "http://localhost:8999/"
-    mock_head_response = {"Content-Length": content_length}
+async def test_get_url_content(url, mock_header, exc_type, exc_match):
+    """Test various URL requests and correct Exceptions during RemoteLog access."""
     mock_response = "123"
     with aioresponses.aioresponses() as mock:
-        mock.head(url, status=200, headers=mock_head_response)
+        mock.head(url, status=200, headers=mock_header)
         mock.get(url, status=200, body=mock_response)
         async with aiohttp.ClientSession() as http:
-            if does_raise:
-                with pytest.raises(RuntimeError, match=exception_match):
-                    url_output_cr = RemoteLog(url, http).get_url_content()
-                    url_output = await url_output_cr
+            if exc_type:
+                with pytest.raises(exc_type, match=exc_match):
+                    remote_log = RemoteLog(url, http)
+                    await remote_log.get_url_content()
             else:
-                url_output_cr = RemoteLog(url, http).get_url_content()
-                url_output = await url_output_cr
+                remote_log = RemoteLog(url, http)
+                url_output = await remote_log.get_url_content()
                 assert url_output == "123"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "head_status, get_status",
+    [(404, 200), (500, 200), (503, 200), (200, 404), (200, 500), (200, 503)],
+    indirect=False,
+)
+async def test_get_url_content_connection_fails(head_status, get_status):
+    """Test HEAD/GET failures during RemoteLog access. All should raise RemoteLogAccessError."""
+    url = "http://example.com/build.log"
+    mock_head_response = {"Content-Length": "11"} if head_status <= 399 else None
+    mock_get_response = "Lorem Ipsum"
+    with aioresponses.aioresponses() as mock:
+        mock.head(url, status=head_status, headers=mock_head_response)
+        mock.get(url, status=get_status, body=mock_get_response)
+        async with aiohttp.ClientSession() as http:
+            remote_log = RemoteLog(url, http)
+            with pytest.raises(RemoteLogAccessError):
+                await remote_log.get_url_content()
 
 
 @pytest.mark.parametrize("user_role", ["user", "something"])
