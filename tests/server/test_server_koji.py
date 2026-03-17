@@ -1,11 +1,11 @@
 import koji
 import pytest
-from aiolimiter import AsyncLimiter
+from unittest.mock import AsyncMock, MagicMock
+from beeai_framework.adapters.openai import OpenAIChatModel
 
 from logdetective.utils import mib_to_bytes
 
-from logdetective.extractors import DrainExtractor
-from logdetective.server.models import StagedResponse
+from logdetective.server.models import Response, Explanation
 from logdetective.server.server import analyze_koji_task, KojiCallbackManager
 
 from logdetective.server.exceptions import LogsTooLargeError, LogsMissingError
@@ -15,7 +15,6 @@ from logdetective.server.koji import (
 )
 from tests.server.test_helpers import (
     DatabaseFactory,
-    mock_chat_completions,
     create_mock_koji_session,
     ARCHES,
     SIMPLE_METHODS,
@@ -210,12 +209,27 @@ async def test_koji_get_failed_log_from_task_log_missing(mocker, method):
     mock_session.downloadTaskOutput.assert_not_called()
 
 
-@pytest.mark.parametrize("method", SIMPLE_METHODS)
+@pytest.fixture
+def mock_analysis(mocker, request):
+    """Fixture to mock analyze_artifacts directly at the server level."""
+    message = getattr(request, "param", "This is a mock message")
+    mock_response = Response(
+        explanation=Explanation(text=message),
+        response_certainty=0.0,
+        snippets=None
+    )
+    return mocker.patch(
+        "logdetective.server.server.analyze_artifacts",
+        AsyncMock(return_value=mock_response)
+    )
+
+
 @pytest.mark.parametrize(
-    "mock_chat_completions", ["Task analysis completed."], indirect=True
+    "mock_analysis", ["This is a mock message"], indirect=True
 )
+@pytest.mark.parametrize("method", SIMPLE_METHODS)
 @pytest.mark.asyncio
-async def test_koji_analyze_koji_task(mocker, mock_chat_completions, method):
+async def test_koji_analyze_koji_task(mocker, method, mock_analysis):
     async with DatabaseFactory().make_new_db() as _:
         # Mock the KojiInstanceConfig
         mock_koji_instance_config = mocker.Mock()
@@ -226,17 +240,18 @@ async def test_koji_analyze_koji_task(mocker, mock_chat_completions, method):
         mock_koji_instance_config.xmlrpc_url = "https://koji.fedoraproject.org/kojihub"
         mock_koji_instance_config.get_callbacks.return_value = set()
 
+        mock_chat_model = MagicMock(spec=OpenAIChatModel)
+
         response = await analyze_koji_task(
             task_id=EXAMPLE_TASK_ID,
             koji_instance_config=mock_koji_instance_config,
             koji_connection=mock_koji_conn,
-            async_request_limiter=AsyncLimiter(100),
-            extractors=[DrainExtractor()],
-            koji_callback_manager=KojiCallbackManager()
+            koji_callback_manager=KojiCallbackManager(),
+            openai_chat_model=mock_chat_model,
         )
 
         assert response is not None
 
         # Verify the response content
-        assert isinstance(response, StagedResponse)
-        assert response.explanation.text == "Task analysis completed."
+        assert isinstance(response, Response)
+        assert response.explanation.text == "This is a mock message"
