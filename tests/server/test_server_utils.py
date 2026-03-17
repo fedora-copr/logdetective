@@ -23,6 +23,7 @@ snippets_same_relevance = [
             text=f"Comment for snippet on line {e[0]}",
             relevance=55,
         ),
+        source_file="random.log"
     )
     for e in test_snippets[1]
 ]
@@ -35,6 +36,7 @@ snippets_varied_relevance = [
             text=f"Comment for snippet on line {e[0]}",
             relevance=i**2,
         ),
+        source_file="random.log"
     )
     for i, e in enumerate(test_snippets[1])
 ]
@@ -46,6 +48,7 @@ snippets_no_relevance = [
         explanation=SnippetAnalysis(
             text=f"Comment for snippet on line {e[0]}",
         ),
+        source_file="random.log"
     )
     for e in test_snippets[1]
 ]

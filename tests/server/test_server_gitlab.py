@@ -11,14 +11,10 @@ from packaging.version import Version
 from pytest_mock import MockerFixture
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
-from aiolimiter import AsyncLimiter
-from fastapi import HTTPException
-
-from flexmock import flexmock
+from unittest.mock import MagicMock, AsyncMock
 
 from tests.server.test_helpers import (
     DatabaseFactory,
-    mock_chat_completions,
     create_zip_archive,
     mock_artifact_download,
     mock_job,
@@ -26,15 +22,15 @@ from tests.server.test_helpers import (
     create_mock_client_response,
     mock_config,
 )
+from beeai_framework.adapters.openai import OpenAIChatModel
 
-from logdetective.extractors import DrainExtractor
 from logdetective.server.gitlab import (
     is_eligible_package,
     retrieve_and_preprocess_koji_logs,
     check_artifacts_file_size,
 )
 from logdetective.server.server import process_gitlab_job_event
-from logdetective.server.models import JobHook, GitLabInstanceConfig
+from logdetective.server.models import JobHook, GitLabInstanceConfig, Response, Explanation
 from logdetective.server.database.models import (
     AnalyzeRequestMetrics,
     Forge,
@@ -295,8 +291,23 @@ async def mock_job_hook():
             yield sync_rsps, async_rsps, job_hook
 
 
+@pytest.fixture
+def mock_analysis(mocker, request):
+    """Fixture to mock analyze_artifacts directly at the server level."""
+    message = getattr(request, "param", "This is a mock message")
+    mock_response = Response(
+        explanation=Explanation(text=message),
+        response_certainty=0.0,
+        snippets=None
+    )
+    return mocker.patch(
+        "logdetective.server.gitlab.analyze_artifacts",
+        AsyncMock(return_value=mock_response)
+    )
+
+
 @pytest.mark.parametrize(
-    "mock_chat_completions", ["This is a mock message"], indirect=True
+    "mock_analysis", ["This is a mock message"], indirect=True
 )
 @pytest.mark.skipif(
     Version(aioresponses.__version__) < Version("0.7.8"),
@@ -307,28 +318,30 @@ async def test_process_gitlab_job_event(
     mocker,
     mock_config,
     mock_job_hook,
-    mock_chat_completions,
+    mock_analysis,
     gitlab_cfg,
 ):
     async with DatabaseFactory().make_new_db() as session_factory:
         _, _, job_hook = mock_job_hook
 
         http_session = aiohttp.ClientSession()
-        async_request_limiter = AsyncLimiter(100)
         gitlab_connection = Gitlab(
             url="https://gitlab.com/",
         )
         mock_http_session = create_mock_client_response(
             mocker, content_length=gitlab_cfg.max_artifact_size
         )
+
+        # We need a chat model for the process_gitlab_job_event
+        mock_chat_model = MagicMock(spec=OpenAIChatModel)
+
         await process_gitlab_job_event(
             gitlab_cfg=gitlab_cfg,
             gitlab_connection=gitlab_connection,
             http_session=mock_http_session,
             forge=Forge.gitlab_com,
             job_hook=job_hook,
-            async_request_limiter=async_request_limiter,
-            extractors=[DrainExtractor()],
+            chat_model=mock_chat_model,
         )
         async with session_factory() as db_session:
             query = (
@@ -343,7 +356,7 @@ async def test_process_gitlab_job_event(
             query_results = await db_session.execute(query)
             metric = query_results.scalars().first()
             assert isinstance(metric, AnalyzeRequestMetrics)
-
+            assert metric.mr_job is not None
             assert metric.mr_job.comment
         await http_session.close()
 

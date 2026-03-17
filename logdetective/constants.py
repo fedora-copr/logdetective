@@ -69,6 +69,10 @@ If you do not know the answer, you acknowledge the fact and end your response.
 Your responses must be as short as possible.
 """
 
+AGENT_START_PROMPT = """
+Determine root cause of build failure and recommend a solution using provided tools and following build artifacts: {artifacts}.
+Your answer must be as detailed as possible."""
+
 SNIPPET_DELIMITER = "================"
 
 DEFAULT_TEMPERATURE = 0.8

@@ -12,7 +12,7 @@ from logdetective.utils import (
     ContentSizeCheck,
     check_content_size,
 )
-from logdetective.server.config import LOG, SERVER_CONFIG
+from logdetective.server.config import LOG, SERVER_CONFIG, GENERIC_LOG_NAME
 from logdetective.server.exceptions import LogDetectiveConnectionError
 from logdetective.remote_log import RemoteLog
 from logdetective.exceptions import RemoteLogError
@@ -111,12 +111,12 @@ def filter_snippets(
     return processed_snippets
 
 
-async def get_log_from_payload(
+async def get_artifacts_from_payload(
     payload: BuildLogRequest,
     http_session: aiohttp.ClientSession,
-) -> str:
-    """Retrieve log content based on the type of request: URL or raw string."""
-    log_text = ""
+) -> dict[str, str]:
+    """Retrieve artifact content based on the type of request: URL or raw string."""
+    build_artifacts: dict[str, str] = {}
     if payload.url:
         LOG.debug("Handling log as URL")
         remote_log = RemoteLog(
@@ -128,18 +128,16 @@ async def get_log_from_payload(
             log_text = await remote_log.get_url_content()
         except RemoteLogError as ex:
             raise HTTPException(status_code=ex.status_code, detail=f"{ex}") from ex
+        build_artifacts = {GENERIC_LOG_NAME: log_text}
     elif payload.files:
         # pydantic field validators make sure at least one element is present,
         # and logs are not over the maximum log size
-        LOG.debug("Handling log as raw string")
-        log_text = payload.files[0].content
-        LOG.info(
-            "Only accessing the first provided log file. "
-            "Multi-file analysis is planned and will be added soon."
-        )
+        LOG.info("Handling log as raw string")
+        build_artifacts = {file.name: file.content for file in payload.files}
 
-    LOG.debug("Log size from the obtained payload (in chars): %d", len(log_text))
-    return log_text
+    total_payload_len = sum(len(content) for _, content in build_artifacts.items())
+    LOG.info("Total artifact size from the obtained payload (in chars): %d", total_payload_len)
+    return build_artifacts
 
 
 def construct_final_prompt(formatted_snippets: str, prompt_template: str) -> str:
