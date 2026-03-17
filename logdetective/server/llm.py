@@ -102,7 +102,10 @@ async def call_llm(
 
     if not response.choices[0].message.content:
         LOG.error("No response content recieved from %s", inference_cfg.url)
-        raise RuntimeError()
+        raise HTTPException(
+            status_code=502,  # Bad Gateway
+            detail=f"No response content recieved from {inference_cfg.url}"
+        )
 
     message_content = response.choices[0].message.content
 
