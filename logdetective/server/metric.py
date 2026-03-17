@@ -12,7 +12,6 @@ from logdetective.server.compressors import (
     LLMResponseCompressor,
 )
 from logdetective.server.models import (
-    BuildLogRequest,
     TimePeriod,
     MetricTimeSeries,
     StagedResponse,
@@ -105,7 +104,6 @@ def track_request(name=None):
     def decorator(f):
         @wraps(f)
         async def async_decorated_function(*args, **kwargs):
-            payload: BuildLogRequest = kwargs.get("payload")
             metrics_id = None
 
             metrics_id = await add_new_metrics(
@@ -114,8 +112,6 @@ def track_request(name=None):
 
             response = await f(*args, **kwargs)
             if metrics_id is not None:
-                payload_type = "url" if payload.url else "raw"
-                LOG.info("decorator response (analyze[%s]) = %s", payload_type, response)
                 await update_metrics(metrics_id, response)
             return response
 
