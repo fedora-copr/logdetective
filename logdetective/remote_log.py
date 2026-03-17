@@ -3,9 +3,14 @@ import logging
 from urllib.parse import urlparse
 
 import aiohttp
-from aiohttp.web import HTTPBadRequest
 
 from logdetective.constants import DEFAULT_MAXIMUM_LOG_MIB
+from logdetective.exceptions import (
+    RemoteLogRequestError,
+    RemoteLogHeaderError,
+    RemoteLogAccessError,
+    RemoteLogTooLargeError,
+)
 from logdetective.utils import (
     ContentSizeCheck,
     check_content_size,
@@ -66,32 +71,33 @@ class RemoteLog:
         """Validate log url, check the content size from header, and return log text."""
         if not self.validate_url():
             LOG.error("Invalid URL received ")
-            raise RuntimeError(f"Invalid log URL: {self.url}")
+            raise RemoteLogRequestError(f"Invalid log URL: {self.url}")
         LOG.debug("process url %s", self.url)
         # obtain the head for size-check
         try:
             head_response = await self._http_session.head(self.url, raise_for_status=True)
         except (aiohttp.ClientResponseError, aiohttp.ClientConnectorError) as ex:
-            raise RuntimeError(f"We couldn't obtain the logs: {ex}") from ex
+            raise RemoteLogAccessError(f"We couldn't obtain the headers from {self.url}") from ex
         size_check: ContentSizeCheck = check_content_size(
             head_response.headers,
             self._limit_bytes
         )
         if not size_check.result:
-            raise RuntimeError(
-                f"Content-Length: `{size_check.size_in_bytes}` is invalid or over the limit"
+            if size_check.size_in_bytes is None:
+                if not size_check.value_present:
+                    raise RemoteLogHeaderError("Content-Length is missing")
+                raise RemoteLogHeaderError(
+                    f"Content-Length is invalid: `{size_check.size_in_bytes}`"
+                )
+            raise RemoteLogTooLargeError(
+                f"Content-Length is over the limit: `{size_check.size_in_bytes}`"
             )
         # if size-check passes, we obtain the whole content
-        response = await self._http_session.get(self.url, raise_for_status=True)
-
-        return await response.text()
-
-    async def process_url(self) -> str:
-        """Validate log URL and return log text."""
         try:
-            return await self.get_url_content()
-        except RuntimeError as ex:
-            raise HTTPBadRequest(reason=f"We couldn't obtain the logs: {ex}") from ex
+            response = await self._http_session.get(self.url, raise_for_status=True)
+        except (aiohttp.ClientResponseError, aiohttp.ClientConnectorError) as ex:
+            raise RemoteLogAccessError(f"We couldn't obtain the log from {self.url}") from ex
+        return await response.text()
 
 
 async def retrieve_log_content(http: aiohttp.ClientSession, log_path: str, size_limit: int) -> str:

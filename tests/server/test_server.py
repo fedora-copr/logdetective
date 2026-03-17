@@ -45,7 +45,7 @@ async def test_loading_config():
 
 
 @pytest.mark.asyncio
-async def test_process_url():
+async def test_get_url_content():
     url = "http://localhost:8999/"
     mock_header = {"Content-Length": "3"}
     mock_response = "123"
@@ -54,7 +54,7 @@ async def test_process_url():
         mock.get(url, status=200, body=mock_response)
         async with aiohttp.ClientSession() as http:
             remote_log = RemoteLog(url, http)
-            url_output_cr = remote_log.process_url()
+            url_output_cr = remote_log.get_url_content()
             url_output = await url_output_cr
             assert url_output == "123"
 
@@ -279,7 +279,7 @@ async def test_get_log_from_payload_url_sanitization():
         mock_remote_log.should_receive("__init__").with_args(
             "http://path.to/file.log", session, limit_bytes=SERVER_CONFIG.general.max_artifact_size
         )
-        mock_remote_log.should_receive("process_url").and_return(awaited_dirty_log)
+        mock_remote_log.should_receive("get_url_content").and_return(awaited_dirty_log)
         log_text = await get_log_from_payload(payload, session)
 
     assert log_text == dirty_log

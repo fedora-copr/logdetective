@@ -15,6 +15,7 @@ from logdetective.utils import (
 from logdetective.server.config import LOG, SERVER_CONFIG
 from logdetective.server.exceptions import LogDetectiveConnectionError
 from logdetective.remote_log import RemoteLog
+from logdetective.exceptions import RemoteLogError
 from logdetective.server.models import (
     AnalyzedSnippet,
     RatedSnippetAnalysis,
@@ -117,24 +118,27 @@ async def get_log_from_payload(
     """Retrieve log content based on the type of request: URL or raw string."""
     log_text = ""
     if payload.url:
-        LOG.info("Handling log as URL")
+        LOG.debug("Handling log as URL")
         remote_log = RemoteLog(
             payload.url,
             http_session,
             limit_bytes=SERVER_CONFIG.general.max_artifact_size
         )
-        log_text = await remote_log.process_url()
+        try:
+            log_text = await remote_log.get_url_content()
+        except RemoteLogError as ex:
+            raise HTTPException(status_code=ex.status_code, detail=f"{ex}") from ex
     elif payload.files:
         # pydantic field validators make sure at least one element is present,
         # and logs are not over the maximum log size
-        LOG.info("Handling log as raw string")
+        LOG.debug("Handling log as raw string")
         log_text = payload.files[0].content
         LOG.info(
             "Only accessing the first provided log file. "
             "Multi-file analysis is planned and will be added soon."
         )
 
-    LOG.info("Log size from the obtained payload (in chars): %d", len(log_text))
+    LOG.debug("Log size from the obtained payload (in chars): %d", len(log_text))
     return log_text
 
 
@@ -155,9 +159,10 @@ def validate_request_size(request: Request) -> None:
     FastAPI Depend function checking request's Content-Length before loading body into memory.
 
     Note:
+        This function handles direct file submissions. For URL access, see `RemoteLog` class.
         In the case of URL requests, we limit the URL's content to 300 MiB.
         With the direct files raw log content, we limit the whole request size to 300Mib,
-        so this fails if all provided logs are under the limit, but exceed it together.
+        so this fails even if all provided logs are under the limit, but exceed it together.
 
     Raises:
         HTTPException(411): If Content-Length header is missing or invalid
