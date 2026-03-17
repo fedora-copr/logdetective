@@ -3,6 +3,7 @@ from typing import Optional
 from jinja2 import Environment, FileSystemLoader, Template
 
 from logdetective.models import PromptConfig
+from logdetective.constants import AGENT_START_PROMPT
 
 
 class PromptManager:  # pylint: disable=too-many-instance-attributes
@@ -18,6 +19,8 @@ class PromptManager:  # pylint: disable=too-many-instance-attributes
     default_message_template: Template
     snippet_message_template: Template
     staged_message_template: Template
+
+    agent_start_prompt: str = AGENT_START_PROMPT
 
     _references: Optional[list[dict[str, str]]] = None
 

@@ -3,7 +3,7 @@ import logging
 import subprocess as sp
 from typing import Tuple
 
-import drain3
+from drain3.template_miner import TemplateMiner
 from drain3.template_miner_config import TemplateMinerConfig
 from pydantic import ValidationError
 
@@ -61,7 +61,7 @@ class DrainExtractor(Extractor):
         config.load(f"{os.path.dirname(__file__)}/drain3.ini")
         config.profiling_enabled = verbose
         config.drain_max_clusters = max_clusters
-        self.miner = drain3.TemplateMiner(config=config)
+        self.miner = TemplateMiner(config=config)
 
     def __call__(self, log: str) -> list[Tuple[int, str]]:
         # Create chunks

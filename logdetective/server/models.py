@@ -154,7 +154,20 @@ class Explanation(BaseModel):
         return self.text
 
 
-class AnalyzedSnippet(BaseModel):
+class Snippet(BaseModel):
+    """Model for snippets not yet processed by Log Detective.
+
+    text: original snippet text
+    line_number: location of snippet in original log
+    source_file: name of original log file
+    """
+
+    text: str
+    line_number: int
+    source_file: Optional[str]
+
+
+class AnalyzedSnippet(Snippet):
     """Model for snippets already processed by Log Detective.
 
     explanation: LLM output in form of plain text and logprobs dictionary
@@ -163,8 +176,6 @@ class AnalyzedSnippet(BaseModel):
     """
 
     explanation: SnippetAnalysis | RatedSnippetAnalysis
-    text: str
-    line_number: int
 
 
 class Response(BaseModel):
@@ -176,6 +187,7 @@ class Response(BaseModel):
 
     explanation: Explanation
     response_certainty: float
+    snippets: Optional[List[Snippet]] = None
 
 
 class StagedResponse(Response):

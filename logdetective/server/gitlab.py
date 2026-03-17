@@ -4,16 +4,14 @@ import zipfile
 from pathlib import Path, PurePath
 from tempfile import TemporaryFile
 
-from aiolimiter import AsyncLimiter
-
 import gitlab
 import gitlab.v4
 import gitlab.v4.objects
 import jinja2
 import aiohttp
 import backoff
+from beeai_framework.adapters.openai import OpenAIChatModel
 
-from logdetective.extractors import Extractor
 from logdetective.utils import (
     sanitize_log,
     ContentSizeCheck,
@@ -25,7 +23,7 @@ from logdetective.server.exceptions import (
     LogDetectiveConnectionError,
     LogDetectiveArtifactsMissingError,
 )
-from logdetective.server.llm import perform_staged_analysis
+from logdetective.server.agent.agent import analyze_artifacts
 from logdetective.server.metric import add_new_metrics, update_metrics
 from logdetective.server.models import (
     GitLabInstanceConfig,
@@ -45,16 +43,16 @@ MR_REGEX = re.compile(r"refs/merge-requests/(\d+)/.*$")
 FAILURE_LOG_REGEX = re.compile(r"(\w*\.log)")
 
 
+# pylint: disable=too-many-locals disable=too-many-arguments disable=too-many-positional-arguments
 async def process_gitlab_job_event(
     gitlab_cfg: GitLabInstanceConfig,
     gitlab_connection: gitlab.Gitlab,
     http_session: aiohttp.ClientSession,
     forge: Forge,
     job_hook: JobHook,
-    async_request_limiter: AsyncLimiter,
-    extractors: list[Extractor],
+    chat_model: OpenAIChatModel,
     report_certainty: bool = False,
-):  # pylint: disable=too-many-locals disable=too-many-arguments disable=too-many-positional-arguments
+) -> StagedResponse | None:
     """Handle a received job_event webhook from GitLab"""
     LOG.debug("Received webhook message from %s:\n%s", forge.value, job_hook)
 
@@ -122,12 +120,11 @@ async def process_gitlab_job_event(
     metrics_id = await add_new_metrics(
         api_name=EndpointType.ANALYZE_GITLAB_JOB,
     )
-    staged_response = await perform_staged_analysis(
-        log_text=log_text,
-        async_request_limiter=async_request_limiter,
-        extractors=extractors,
-    )
-    await update_metrics(metrics_id, staged_response)
+    response = await analyze_artifacts(artifacts={log_url: log_text}, chat_model=chat_model)
+
+    # TODO: Workaround for old Response object
+    response = StagedResponse(explanation=response.explanation, response_certainty=0.0, snippets=[])
+    await update_metrics(metrics_id, response)
     preprocessed_log.close()
 
     # check if this project is on the opt-in list for posting comments.
@@ -142,12 +139,12 @@ async def process_gitlab_job_event(
         merge_request_iid,
         job,
         log_url,
-        staged_response,
+        response,
         metrics_id,
         report_certainty=report_certainty,
     )
 
-    return staged_response
+    return response
 
 
 def is_eligible_package(project_name: str):
