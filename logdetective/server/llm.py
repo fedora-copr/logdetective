@@ -9,7 +9,12 @@ from pydantic import ValidationError
 
 import aiohttp
 from aiolimiter import AsyncLimiter
-from openai import AsyncStream
+from openai import (
+    AsyncStream,
+    APIStatusError,
+    APITimeoutError,
+    APIConnectionError,
+)
 from openai.types.chat import ChatCompletionChunk
 
 from logdetective.extractors import Extractor
@@ -90,15 +95,25 @@ async def call_llm(
         }
         kwargs["response_format"] = response_format
 
-    async with async_request_limiter:
-        response = await CLIENT.chat.completions.create(
-            messages=messages,
-            max_tokens=inference_cfg.max_tokens,
-            stream=stream,
-            model=inference_cfg.model,
-            temperature=inference_cfg.temperature,
-            **kwargs,
-        )
+    try:
+        async with async_request_limiter:
+            response = await CLIENT.chat.completions.create(
+                messages=messages,
+                max_tokens=inference_cfg.max_tokens,
+                stream=stream,
+                model=inference_cfg.model,
+                temperature=inference_cfg.temperature,
+                **kwargs,
+            )
+    except APITimeoutError as ex:
+        raise HTTPException(status_code=504, detail="Inference server timed out") from ex
+    except APIConnectionError as ex:
+        raise HTTPException(status_code=502, detail="Inference server connection error") from ex
+    except APIStatusError as ex:
+        raise HTTPException(
+            status_code=ex.status_code,
+            detail=f"Inference server returned an error: {ex.message}"
+        ) from ex
 
     if not response.choices[0].message.content:
         LOG.error("No response content recieved from %s", inference_cfg.url)
