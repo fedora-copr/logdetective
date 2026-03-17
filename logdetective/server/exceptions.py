@@ -43,3 +43,7 @@ class LogDetectiveArtifactsMissingError(LogDetectiveConnectionError):
 
 class InvalidKojiTaskResultResponse(LogDetectiveKojiException):
     """Call to `getTaskResult` has returned an unexpected data structure"""
+
+
+class LogDetectiveAgentResponseFailure(Exception):
+    """Log Detective agent did not return a valid response."""

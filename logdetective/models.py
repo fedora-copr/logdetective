@@ -7,6 +7,7 @@ from logdetective.constants import (
     PROMPT_TEMPLATE_STAGED,
     SNIPPET_PROMPT_TEMPLATE,
     DEFAULT_SYSTEM_PROMPT,
+    AGENT_START_PROMPT
 )
 
 
@@ -14,6 +15,7 @@ class PromptConfig(BaseModel):
     """Configuration for basic log detective prompts."""
 
     prompt_template: str = PROMPT_TEMPLATE
+    agent_start_prompt: str = AGENT_START_PROMPT
     snippet_prompt_template: str = SNIPPET_PROMPT_TEMPLATE
     prompt_template_staged: str = PROMPT_TEMPLATE_STAGED
 

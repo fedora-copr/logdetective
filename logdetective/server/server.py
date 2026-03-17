@@ -18,10 +18,10 @@ from fastapi import (
     Path,
     Request,
 )
-from fastapi.responses import StreamingResponse
 from fastapi.responses import Response as BasicResponse
 import aiohttp
 import sentry_sdk
+from beeai_framework.adapters.openai import OpenAIChatModel
 
 from logdetective.extractors import DrainExtractor, CSGrepExtractor, Extractor
 from logdetective.utils import sanitize_log
@@ -34,16 +34,12 @@ from logdetective.server.database.models.exceptions import (
     KojiTaskNotFoundError,
 )
 
+from logdetective.server.agent.agent import analyze_artifacts
 import logdetective.server.database.base
 
-from logdetective.server.config import SERVER_CONFIG, LOG
+from logdetective.server.config import SERVER_CONFIG, LOG, get_openai_chat_model
 from logdetective.server.koji import (
     get_failed_log_from_task as get_failed_log_from_koji_task,
-)
-from logdetective.server.llm import (
-    perform_staged_analysis,
-    perform_analysis,
-    perform_analysis_stream,
 )
 from logdetective.server.gitlab import process_gitlab_job_event
 from logdetective.server.metric import (
@@ -62,7 +58,6 @@ from logdetective.server.models import (
     KojiInstanceConfig,
     KojiStagedResponse,
     Response,
-    StagedResponse,
     TimePeriod,
     ExtractorConfig,
     MetricResponse,
@@ -77,7 +72,7 @@ from logdetective.server.emoji import (
 )
 from logdetective.server.utils import (
     get_version,
-    get_log_from_payload,
+    get_artifacts_from_payload,
     validate_request_size,
     SSRFProtectedResolver,
 )
@@ -91,22 +86,19 @@ if sentry_dsn := SERVER_CONFIG.general.sentry_dsn:
     sentry_sdk.init(dsn=str(sentry_dsn), traces_sample_rate=1.0)
 
 
-def initialize_extractors(extractor_config: ExtractorConfig) -> list[Extractor]:
+def initialize_extractors(extractor_config: ExtractorConfig) -> dict[str, Extractor]:
     """Set up extractors based on provided ExtractorConfig."""
-    extractors: list[Extractor] = [
-        DrainExtractor(
-            verbose=extractor_config.verbose,
-            max_snippet_len=extractor_config.max_snippet_len,
-            max_clusters=extractor_config.max_clusters,
-        )
-    ]
+    extractors = {}
+    extractors["drain"] = DrainExtractor(
+        verbose=extractor_config.verbose,
+        max_snippet_len=extractor_config.max_snippet_len,
+        max_clusters=extractor_config.max_clusters,
+    )
 
     if extractor_config.csgrep:
-        extractors.append(
-            CSGrepExtractor(
-                verbose=extractor_config.verbose,
-                max_snippet_len=extractor_config.max_snippet_len,
-            )
+        extractors["csgrep"] = CSGrepExtractor(
+            verbose=extractor_config.verbose,
+            max_snippet_len=extractor_config.max_snippet_len,
         )
 
     return extractors
@@ -208,6 +200,9 @@ async def lifespan(fapp: FastAPI):
     # Koji callbacks
     fapp.state.koji_callback_manager = KojiCallbackManager()
 
+    # OpenAI chat model for agent
+    fapp.state.openai_chat_model = get_openai_chat_model(inference_config=SERVER_CONFIG.inference)
+
     # Ensure that the database is initialized.
     await logdetective.server.database.base.init()
 
@@ -296,41 +291,11 @@ async def analyze_log(
     Meaning that it must contain appropriate scheme, path and netloc,
     while lacking  result, params or query fields.
     """
-    log_text = await get_log_from_payload(payload, http_session)
-    log_text = sanitize_log(log_text)
+    artifacts = await get_artifacts_from_payload(payload, http_session)
 
-    return await perform_analysis(
-        log_text,
-        async_request_limiter=request.app.state.llm_request_limiter,
-        extractors=request.app.state.extractors,
-    )
-
-
-@app.post(
-    "/analyze/staged",
-    response_model=StagedResponse,
-    dependencies=[Depends(validate_request_size)]
-)
-@track_request()
-async def analyze_log_staged(
-    payload: BuildLogRequest,
-    request: Request,
-    http_session: aiohttp.ClientSession = Depends(get_http_session),
-):
-    """Provide endpoint for log file submission and analysis.
-    Request must be in form {"url":"<YOUR_URL_HERE>"}, or
-    {"files": [{"name": "logname.log", "content": "Log content here"}, ...]}.
-    URL must be valid for the request to be passed to the LLM server.
-    Meaning that it must contain appropriate scheme, path and netloc,
-    while lacking  result, params or query fields.
-    """
-    log_text = await get_log_from_payload(payload, http_session)
-    log_text = sanitize_log(log_text)
-
-    return await perform_staged_analysis(
-        log_text,
-        async_request_limiter=request.app.state.llm_request_limiter,
-        extractors=request.app.state.extractors,
+    return await analyze_artifacts(
+        artifacts=artifacts,
+        chat_model=request.app.state.openai_chat_model
     )
 
 
@@ -431,9 +396,8 @@ async def analyze_rpmbuild_koji(
             task_id,
             koji_instance_config,
             koji_connection,
-            request.app.state.llm_request_limiter,
-            request.app.state.extractors,
             request.app.state.koji_callback_manager,
+            request.app.state.openai_chat_model
         )
 
         # If a callback URL is provided, we need to add it to the callbacks
@@ -461,9 +425,8 @@ async def analyze_koji_task(
     task_id: int,
     koji_instance_config: KojiInstanceConfig,
     koji_connection: ClientSession,
-    async_request_limiter: AsyncLimiter,
-    extractors: list[Extractor],
     koji_callback_manager: KojiCallbackManager,
+    openai_chat_model: OpenAIChatModel,
 ):  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
     """Analyze a koji task and return the response"""
 
@@ -488,9 +451,7 @@ async def analyze_koji_task(
         task_id=task_id,
         log_file_name=log_file_name,
     )
-    response = await perform_staged_analysis(
-        log_text, async_request_limiter=async_request_limiter, extractors=extractors
-    )
+    response = await analyze_artifacts({log_file_name: log_text}, chat_model=openai_chat_model)
 
     # Now that we have the response, we can update the metrics and mark the
     # koji task analysis as completed.
@@ -538,42 +499,6 @@ async def async_log(msg: str, request: Request):
 async def get_version_wrapper():
     """Get the version of logdetective"""
     return BasicResponse(content=get_version())
-
-
-@app.post(
-    "/analyze/stream",
-    response_class=StreamingResponse,
-    dependencies=[Depends(validate_request_size)]
-)
-@track_request()
-async def analyze_log_stream(
-    payload: BuildLogRequest,
-    request: Request,
-    http_session: aiohttp.ClientSession = Depends(get_http_session),
-):
-    """Stream response endpoint for Logdetective.
-    Request must be in form {"url":"<YOUR_URL_HERE>"}, or
-    {"files": [{"name": "logname.log", "content": "Log content here"}, ...]}.
-    URL must be valid for the request to be passed to the LLM server.
-    Meaning that it must contain appropriate scheme, path and netloc,
-    while lacking  result, params or query fields.
-    """
-    log_text = await get_log_from_payload(payload, http_session)
-    log_text = sanitize_log(log_text)
-    try:
-        stream = perform_analysis_stream(
-            log_text,
-            async_request_limiter=request.app.state.llm_request_limiter,
-            extractors=request.app.state.extractors,
-        )
-    except aiohttp.ClientResponseError as ex:
-        raise HTTPException(
-            status_code=400,
-            detail="HTTP Error while getting response from inference server "
-            f"[{ex.status}] {ex.message}",
-        ) from ex
-
-    return StreamingResponse(stream)
 
 
 def is_valid_webhook_secret(forge, x_gitlab_token):
@@ -631,8 +556,7 @@ async def receive_gitlab_job_event_webhook(
         gitlab_http_session,
         forge,
         job_hook,
-        request.app.state.llm_request_limiter,
-        request.app.state.extractors,
+        request.app.state.openai_chat_model,
         SERVER_CONFIG.general.report_certainty,
     )
 
