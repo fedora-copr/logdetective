@@ -188,19 +188,7 @@ class Response(BaseModel):
     snippets: Optional[List[Snippet]] = None
 
 
-class StagedResponse(Response):
-    """Model of data returned by Log Detective API when called when staged response
-    is requested. Contains list of reponses to prompts for individual snippets.
-
-    explanation: Explanation
-    response_certainty: float
-    snippets: list of AnalyzedSnippet objects
-    """
-
-    snippets: List[AnalyzedSnippet]
-
-
-class KojiStagedResponse(BaseModel):
+class KojiResponse(BaseModel):
     """Model of data returned by Log Detective API when called when a Koji build
     analysis is requested. Contains list of reponses to prompts for individual
     snippets.
@@ -208,7 +196,7 @@ class KojiStagedResponse(BaseModel):
 
     task_id: int
     log_file_name: str
-    response: StagedResponse
+    response: Response
 
 
 class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attributes

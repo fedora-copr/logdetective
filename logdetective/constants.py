@@ -39,24 +39,6 @@ Analysis:
 
 """
 
-PROMPT_TEMPLATE_STAGED = """
-Given following log snippets, their explanation, and nothing else, explain what failure, if any, occured during build of this package.
-
-Snippets are in a format of [X] : [Y], where [X] is a log snippet, and [Y] is the explanation.
-
-Snippets are delimited with '================'.
-
-Drawing on information from all snippets, provide complete explanation of the issue and recommend solution.
-
-Explanation of the issue, and recommended solution, should take handful of sentences.
-
-Snippets:
-
-{}
-
-Analysis:
-
-"""
 
 DEFAULT_SYSTEM_PROMPT = """
 You are a highly capable large language model based expert system specialized in

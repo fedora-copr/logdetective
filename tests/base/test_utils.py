@@ -58,7 +58,6 @@ def test_load_prompts_wrong_path():
 
     assert prompts_config.prompt_template == constants.PROMPT_TEMPLATE
     assert prompts_config.snippet_prompt_template == constants.SNIPPET_PROMPT_TEMPLATE
-    assert prompts_config.prompt_template_staged == constants.PROMPT_TEMPLATE_STAGED
 
 
 def test_load_prompts_correct_path():
@@ -73,7 +72,6 @@ def test_load_prompts_correct_path():
 
     assert prompts_config.prompt_template == "This is basic template."
     assert prompts_config.snippet_prompt_template == "This is template for snippets."
-    assert prompts_config.prompt_template_staged == constants.PROMPT_TEMPLATE_STAGED
 
 
 @pytest.mark.asyncio

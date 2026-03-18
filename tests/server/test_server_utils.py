@@ -3,7 +3,6 @@ import pytest
 from fastapi.responses import Response as BasicResponse
 
 from logdetective.server.utils import (
-    format_analyzed_snippets,
     filter_snippets,
     get_version,
 )
@@ -61,12 +60,6 @@ test_analyzed_snippets_relevance = [
 test_analyzed_snippets = [
     snippets_no_relevance,
 ] + test_analyzed_snippets_relevance
-
-
-@pytest.mark.parametrize("snippets", test_analyzed_snippets)
-def test_format_analyzed_snippets(snippets):
-    """Test snippet formatting for snippets with LLM generated explanations"""
-    format_analyzed_snippets(snippets)
 
 
 def test_filter_snippets_varied_relevance():

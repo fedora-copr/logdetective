@@ -55,7 +55,7 @@ from logdetective.server.models import (
     EmojiHook,
     JobHook,
     KojiInstanceConfig,
-    KojiStagedResponse,
+    KojiResponse,
     Response,
     TimePeriod,
     ExtractorConfig,
@@ -293,7 +293,7 @@ async def analyze_log(
 
 @app.get(
     "/analyze/rpmbuild/koji/{koji_instance}/{task_id}",
-    response_model=KojiStagedResponse,
+    response_model=KojiResponse,
 )
 async def get_koji_task_analysis(
     koji_instance: Annotated[str, Path(title="The Koji instance to use")],
@@ -343,7 +343,7 @@ async def get_koji_task_analysis(
 
 @app.post(
     "/analyze/rpmbuild/koji/{koji_instance}/{task_id}",
-    response_model=KojiStagedResponse,
+    response_model=KojiResponse,
 )
 async def analyze_rpmbuild_koji(
     koji_instance: Annotated[str, Path(title="The Koji instance to use")],
@@ -664,7 +664,6 @@ class MetricRoute(str, Enum):
     """Routes for metrics"""
 
     ANALYZE = "analyze"
-    ANALYZE_STAGED = "analyze-staged"
     ANALYZE_GITLAB_JOB = "analyze-gitlab"
 
 
@@ -679,7 +678,6 @@ class MetricType(str, Enum):
 
 ROUTE_TO_ENDPOINT_TYPES = {
     MetricRoute.ANALYZE: EndpointType.ANALYZE,
-    MetricRoute.ANALYZE_STAGED: EndpointType.ANALYZE_STAGED,
     MetricRoute.ANALYZE_GITLAB_JOB: EndpointType.ANALYZE_GITLAB_JOB,
 }
 
