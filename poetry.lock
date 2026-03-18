@@ -3876,11 +3876,11 @@ test = ["big-O", "jaraco.functools", "jaraco.itertools", "jaraco.test", "more_it
 type = ["pytest-mypy"]
 
 [extras]
-server = ["alembic", "asyncpg", "backoff", "fastapi", "httpx", "koji", "openai", "python-gitlab", "sentry-sdk", "sqlalchemy"]
-server-testing = ["alembic", "asyncpg", "backoff", "fastapi", "httpx", "koji", "openai", "pytest-mock", "python-gitlab", "responses", "sentry-sdk", "sqlalchemy"]
+server = ["alembic", "asyncpg", "backoff", "fastapi", "httpx", "koji", "python-gitlab", "sentry-sdk", "sqlalchemy"]
+server-testing = ["alembic", "asyncpg", "backoff", "fastapi", "httpx", "koji", "pytest-mock", "python-gitlab", "responses", "sentry-sdk", "sqlalchemy"]
 testing = ["aioresponses", "asciidoc", "flexmock", "pytest", "pytest-asyncio", "pytest-cov"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "b1ca94971503fbb6f930a1404b0c790a3de00f40799baae70b4dafa991bc2d88"
+content-hash = "02455899baee810a54282a64eec22d57d80cc5a327765acce2c68d175c12636c"
