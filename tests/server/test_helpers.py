@@ -24,7 +24,7 @@ from logdetective.server.models import (
     Explanation,
     Config,
 )
-from logdetective.server import gitlab, llm
+from logdetective.server import gitlab
 from logdetective.server.database import base
 from logdetective.server.database.base import init, destroy
 from logdetective.server.database.models import (
@@ -472,6 +472,5 @@ def mock_config():
         }
     )
     flexmock(gitlab).should_receive("SERVER_CONFIG").and_return(server_config)
-    flexmock(llm).should_receive("SERVER_CONFIG").and_return(server_config)
 
     return {"server_config": server_config}
