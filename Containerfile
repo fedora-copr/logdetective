@@ -21,9 +21,10 @@ RUN dnf install -y \
     csdiff \
     python3-asyncpg \
     && dnf clean all
-# the newest 0.2.86 fails to build, it seems vendored llama-cpp is missing in the archive
-RUN pip3 install llama_cpp_python==0.2.85 sse-starlette starlette-context openai==1.82.1 \
-    && mkdir /src
+
+RUN mkdir /src
+
+RUN pip3 install sse-starlette starlette-context
 
 # uncomment below if you need to download the model, otherwise just bindmount your local
 # models inside the container
