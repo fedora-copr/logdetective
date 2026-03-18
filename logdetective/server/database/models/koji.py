@@ -17,7 +17,7 @@ from logdetective.server.database.models.exceptions import (
     KojiTaskAnalysisTimeoutError,
     AnalyzeRequestMetricsNotFroundError,
 )
-from logdetective.server.models import KojiStagedResponse
+from logdetective.server.models import KojiResponse
 
 
 class KojiTaskAnalysis(Base):
@@ -106,7 +106,7 @@ class KojiTaskAnalysis(Base):
 
     @classmethod
     @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
-    async def get_response_by_task_id(cls, task_id: int) -> KojiStagedResponse:
+    async def get_response_by_task_id(cls, task_id: int) -> KojiResponse:
         """Get a koji task analysis by task id"""
         query = select(cls).filter(cls.task_id == task_id)
         async with transaction(commit=False) as session:
@@ -136,7 +136,7 @@ class KojiTaskAnalysis(Base):
             response = LLMResponseCompressor.unzip(
                 koji_task_analysis.response.compressed_response
             )
-            return KojiStagedResponse(
+            return KojiResponse(
                 task_id=task_id,
                 log_file_name=koji_task_analysis.log_file_name,
                 response=response,

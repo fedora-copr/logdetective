@@ -13,12 +13,10 @@ class PromptManager:  # pylint: disable=too-many-instance-attributes
     # Templates for system prompts
     _default_system_prompt_template: Template
     _snippet_system_prompt_template: Template
-    _staged_system_prompt_template: Template
 
     # Templates for messages
     default_message_template: Template
     snippet_message_template: Template
-    staged_message_template: Template
 
     agent_start_prompt: str = AGENT_START_PROMPT
 
@@ -35,18 +33,12 @@ class PromptManager:  # pylint: disable=too-many-instance-attributes
         self._snippet_system_prompt_template = self._tmp_env.get_template(
             "snippet_system_prompt.j2"
         )
-        self._staged_system_prompt_template = self._tmp_env.get_template(
-            "staged_system_prompt.j2"
-        )
 
         self.default_message_template = self._tmp_env.get_template(
             "message_template.j2"
         )
         self.snippet_message_template = self._tmp_env.get_template(
             "snippet_message_template.j2"
-        )
-        self.staged_message_template = self._tmp_env.get_template(
-            "staged_message_template.j2"
         )
 
         if prompts_configuration:
@@ -68,13 +60,6 @@ class PromptManager:  # pylint: disable=too-many-instance-attributes
         )
 
     @property
-    def staged_system_prompt(self) -> str:
-        """Render system prompt from a template"""
-        return self._staged_system_prompt_template.render(
-            system_time=datetime.now(timezone.utc), references=self._references
-        )
-
-    @property
     def prompt_template(self) -> str:
         """Render message prompt from the template"""
         return self.default_message_template.render()
@@ -83,8 +68,3 @@ class PromptManager:  # pylint: disable=too-many-instance-attributes
     def snippet_prompt_template(self) -> str:
         """Render message prompt from the template"""
         return self.snippet_message_template.render()
-
-    @property
-    def prompt_template_staged(self) -> str:
-        """Render message prompt from the template"""
-        return self.staged_message_template.render()

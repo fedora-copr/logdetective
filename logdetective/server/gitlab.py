@@ -28,7 +28,7 @@ from logdetective.server.metric import add_new_metrics, update_metrics
 from logdetective.server.models import (
     GitLabInstanceConfig,
     JobHook,
-    StagedResponse,
+    Response,
 )
 from logdetective.server.database.models import (
     AnalyzeRequestMetrics,
@@ -52,7 +52,7 @@ async def process_gitlab_job_event(
     job_hook: JobHook,
     chat_model: OpenAIChatModel,
     report_certainty: bool = False,
-) -> StagedResponse | None:
+) -> Response | None:
     """Handle a received job_event webhook from GitLab"""
     LOG.debug("Received webhook message from %s:\n%s", forge.value, job_hook)
 
@@ -122,8 +122,6 @@ async def process_gitlab_job_event(
     )
     response = await analyze_artifacts(artifacts={log_url: log_text}, chat_model=chat_model)
 
-    # TODO: Workaround for old Response object
-    response = StagedResponse(explanation=response.explanation, response_certainty=0.0, snippets=[])
     await update_metrics(metrics_id, response)
     preprocessed_log.close()
 
@@ -347,7 +345,7 @@ async def comment_on_mr(  # pylint: disable=too-many-arguments disable=too-many-
     merge_request_iid: int,
     job: gitlab.v4.objects.ProjectJob,
     log_url: str,
-    response: StagedResponse,
+    response: Response,
     metrics_id: int,
     report_certainty: bool = False,
 ):
@@ -454,7 +452,7 @@ async def suppress_latest_comment(
 async def generate_mr_comment(
     job: gitlab.v4.objects.ProjectJob,
     log_url: str,
-    response: StagedResponse,
+    response: Response,
     full: bool = True,
     report_certainty: bool = False,
 ) -> str:

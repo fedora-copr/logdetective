@@ -4,7 +4,6 @@ from pydantic import BaseModel, model_validator
 
 from logdetective.constants import (
     PROMPT_TEMPLATE,
-    PROMPT_TEMPLATE_STAGED,
     SNIPPET_PROMPT_TEMPLATE,
     DEFAULT_SYSTEM_PROMPT,
     AGENT_START_PROMPT
@@ -17,11 +16,9 @@ class PromptConfig(BaseModel):
     prompt_template: str = PROMPT_TEMPLATE
     agent_start_prompt: str = AGENT_START_PROMPT
     snippet_prompt_template: str = SNIPPET_PROMPT_TEMPLATE
-    prompt_template_staged: str = PROMPT_TEMPLATE_STAGED
 
     default_system_prompt: str = DEFAULT_SYSTEM_PROMPT
     snippet_system_prompt: str = DEFAULT_SYSTEM_PROMPT
-    staged_system_prompt: str = DEFAULT_SYSTEM_PROMPT
 
     references: Optional[list[dict[str, str]]] = None
 

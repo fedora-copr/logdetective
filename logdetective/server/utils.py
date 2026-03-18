@@ -7,7 +7,6 @@ import aiohttp
 from aiohttp.abc import ResolveResult
 from fastapi import Request, HTTPException
 
-from logdetective.constants import SNIPPET_DELIMITER
 from logdetective.utils import (
     ContentSizeCheck,
     check_content_size,
@@ -20,14 +19,6 @@ from logdetective.server.models import (
     RatedSnippetAnalysis,
     BuildLogRequest,
 )
-
-
-def format_analyzed_snippets(snippets: list[AnalyzedSnippet]) -> str:
-    """Format snippets for submission into staged prompt."""
-    summary = f"\n{SNIPPET_DELIMITER}\n".join(
-        [f"[{e.text}] at line [{e.line_number}]: [{e.explanation}]" for e in snippets]
-    )
-    return summary
 
 
 def connection_error_giveup(details: dict) -> None:
