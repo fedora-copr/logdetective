@@ -50,7 +50,6 @@ aiohttp = ">=3.7.4,<4.0.0"  # latest version in el8
 # Protection against supply chain compromise https://docs.litellm.ai/blog/security-update-march-2026
 litellm = "!=1.82.7,!=1.82.8" 
 python-gitlab = {version = ">=4.4.0", optional = true }
-aiolimiter = {version = ">=1.0.0,<2.0.0", optional = true }
 fastapi = {version = ">=0.111.1,<1.0.0", optional = true }
 sqlalchemy = {version = ">=2.0.36,<3.0.0", optional = true }
 alembic = {version = ">=1.13.3,<2.0.0", optional = true }
@@ -76,7 +75,6 @@ server = [
     "sqlalchemy",
     "alembic",
     "backoff",
-    "aiolimiter",
     "sentry-sdk",
     "openai",
     "koji",
@@ -89,7 +87,6 @@ server-testing = [
     "sqlalchemy",
     "alembic",
     "backoff",
-    "aiolimiter",
     "sentry-sdk",
     "openai",
     "koji",
