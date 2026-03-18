@@ -373,21 +373,11 @@ class Config(BaseModel):
 
     log: LogConfig = Field(default_factory=LogConfig)
     inference: InferenceConfig = Field(default_factory=InferenceConfig)
-    snippet_inference: InferenceConfig = Field(default_factory=InferenceConfig)
     # TODO(jpodivin): Extend to work with multiple extractor configs
     extractor: ExtractorConfig = Field(default_factory=ExtractorConfig)
     gitlab: GitLabConfig = Field(default_factory=GitLabConfig)
     koji: KojiConfig = Field(default_factory=KojiConfig)
     general: GeneralConfig = Field(default_factory=GeneralConfig)
-
-    @model_validator(mode="before")
-    @classmethod
-    def default_snippet_inference(cls, data: Any):
-        """Use base inference configuration, if specific snippet configuration isn't provided."""
-        if isinstance(data, dict):
-            if "snippet_inference" not in data and "inference" in data:
-                data["snippet_inference"] = data["inference"]
-        return data
 
 
 class TimePeriod(BaseModel):
