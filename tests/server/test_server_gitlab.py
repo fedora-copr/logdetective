@@ -1,5 +1,6 @@
 import os
 import io
+from unittest.mock import MagicMock, AsyncMock
 import zipfile
 import pytest
 import pytest_asyncio
@@ -11,17 +12,6 @@ from packaging.version import Version
 from pytest_mock import MockerFixture
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
-from unittest.mock import MagicMock, AsyncMock
-
-from tests.server.test_helpers import (
-    DatabaseFactory,
-    create_zip_archive,
-    mock_artifact_download,
-    mock_job,
-    gitlab_cfg,
-    create_mock_client_response,
-    mock_config,
-)
 from beeai_framework.adapters.openai import OpenAIChatModel
 
 from logdetective.server.gitlab import (
@@ -37,6 +27,16 @@ from logdetective.server.database.models import (
     GitlabMergeRequestJobs,
 )
 from logdetective.server.exceptions import LogsTooLargeError, LogDetectiveArtifactsMissingError
+
+from tests.server.test_helpers import (
+    DatabaseFactory,
+    create_zip_archive,
+    mock_artifact_download,
+    mock_job,
+    gitlab_cfg,
+    create_mock_client_response,
+    mock_config,
+)
 
 
 def create_zip_content(filepath) -> bytes:
@@ -298,7 +298,7 @@ def mock_analysis(mocker, request):
     mock_response = Response(
         explanation=Explanation(text=message),
         response_certainty=0.0,
-        snippets=None
+        snippets=[]
     )
     return mocker.patch(
         "logdetective.server.gitlab.analyze_artifacts",

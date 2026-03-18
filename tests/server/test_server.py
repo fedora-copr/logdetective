@@ -7,12 +7,6 @@ import pytest
 
 import gitlab
 from flexmock import flexmock
-from logdetective.server.config import SERVER_CONFIG
-
-from tests.server.test_helpers import (
-    MOCK_LOG,
-    mock_config,
-)
 
 from logdetective.server.config import SERVER_CONFIG, GENERIC_LOG_NAME
 from logdetective.remote_log import RemoteLog
@@ -25,6 +19,11 @@ from logdetective.server.models import (
 )
 from logdetective.server.utils import get_artifacts_from_payload
 from logdetective.utils import sanitize_log
+
+from tests.server.test_helpers import (
+    MOCK_LOG,
+    mock_config,
+)
 
 
 @pytest.mark.asyncio

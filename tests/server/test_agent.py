@@ -1,5 +1,5 @@
-import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
+import pytest
 from beeai_framework.tools.think import ThinkTool
 from beeai_framework.adapters.openai import OpenAIChatModel
 
