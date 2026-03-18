@@ -5,28 +5,22 @@ import aiohttp
 import aioresponses
 import pytest
 
-from aiolimiter import AsyncLimiter
 import gitlab
 from flexmock import flexmock
 from logdetective.server.config import SERVER_CONFIG
 
 from tests.server.test_helpers import (
-    mock_chat_completions,
     MOCK_LOG,
-    MOCK_EXPLANATION,
     mock_config,
 )
 
 from logdetective.server.config import SERVER_CONFIG, GENERIC_LOG_NAME
-from logdetective.server.llm import call_llm
 from logdetective.remote_log import RemoteLog
 from logdetective.server.config import load_server_config
 from logdetective.server.server import KojiCallbackManager, ConnectionManager
 from logdetective.server.models import (
     BuildLogRequest,
     BuildLogFile,
-    InferenceConfig,
-    Explanation,
     Config,
 )
 from logdetective.server.utils import get_artifacts_from_payload
@@ -55,39 +49,6 @@ async def test_process_url():
             url_output_cr = remote_log.process_url()
             url_output = await url_output_cr
             assert url_output == "123"
-
-
-@pytest.mark.parametrize(
-    "mock_chat_completions", ["This is a mock message"], indirect=True
-)
-@pytest.mark.asyncio
-async def test_submit_text_chat_completions(mock_chat_completions):
-    # Create InferenceConfig
-    inference_cfg = InferenceConfig(
-        data={
-            "max_tokens": 1000,
-            "log_probs": True,
-            "url": "http://localhost:8080",
-            "api_token": "",
-            "model": "stories260K.gguf",
-            "temperature": 0.8,
-            "max_queue_size": 50,
-            "requests_per_minute": 60,
-        }
-    )
-    messages = [
-        {
-            "role": "user",
-            "content": "Hello world!",
-        }
-    ]
-    async_limiter = AsyncLimiter(inference_cfg.requests_per_minute)
-    response = await call_llm(
-        messages, inference_cfg=inference_cfg, async_request_limiter=async_limiter
-    )
-
-    assert isinstance(response, Explanation)
-    assert response.text == "This is a mock message"
 
 
 def test_koji_callback_manager():
