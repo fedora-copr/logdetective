@@ -81,7 +81,7 @@ def test_initialization_with_custom_data(mocker: MockerFixture):
 class TestBuildLogRequestValidation:
     """Check proper validation of requests submitted to LLM analysis.
 
-    This includes /analyze, /analyze/staged, /analyze/stream endpoints.
+    This includes /analyze, /analyze/stream endpoints.
     Since we currently support log submission via URL and via file list with logs
     passed as raw strings, we also check various field and model validators.
 

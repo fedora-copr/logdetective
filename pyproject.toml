@@ -11,10 +11,8 @@ include = [
     "logdetective/prompts.yml",
     "logdetective.1.asciidoc",
     "logdetective/prompts/system_prompt.j2",
-    "logdetective/prompts/staged_system_prompt.j2",
     "logdetective/prompts/snippet_system_prompt.j2",
     "logdetective/prompts/message_template.j2",
-    "logdetective/prompts/staged_message_template.j2",
     "logdetective/prompts/snippet_system_prompt.j2",
 ]
 packages = [

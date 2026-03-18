@@ -51,7 +51,7 @@ async def test_create_and_update_AnalyzeRequestMetrics():
 
 @pytest.mark.parametrize(
     "endpoint",
-    [EndpointType.ANALYZE, EndpointType.ANALYZE_STAGED],
+    [EndpointType.ANALYZE],
 )
 @pytest.mark.asyncio
 async def test_AnalyzeRequestMetrics_ger_request_in_period(endpoint):
@@ -71,7 +71,7 @@ async def test_AnalyzeRequestMetrics_ger_request_in_period(endpoint):
 
 @pytest.mark.parametrize(
     "endpoint",
-    [EndpointType.ANALYZE, EndpointType.ANALYZE_STAGED],
+    [EndpointType.ANALYZE],
 )
 @pytest.mark.asyncio
 async def test_AnalyzeRequestMetrics_ger_responses_average_time(endpoint):
@@ -97,7 +97,7 @@ async def test_AnalyzeRequestMetrics_ger_responses_average_time(endpoint):
 
 @pytest.mark.parametrize(
     "endpoint",
-    [EndpointType.ANALYZE, EndpointType.ANALYZE_STAGED],
+    [EndpointType.ANALYZE],
 )
 @pytest.mark.asyncio
 async def test_AnalyzeRequestMetrics_ger_responses_average_length(endpoint):
