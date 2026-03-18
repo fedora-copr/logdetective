@@ -6,7 +6,6 @@ from collections import defaultdict
 from contextlib import asynccontextmanager
 from typing import Annotated
 
-from aiolimiter import AsyncLimiter
 from koji import ClientSession
 from gitlab import Gitlab
 from fastapi import (
@@ -182,11 +181,6 @@ async def lifespan(fapp: FastAPI):
         timeout=aiohttp.ClientTimeout(
             total=int(LOG_SOURCE_REQUEST_TIMEOUT), connect=3.07
         ),
-    )
-
-    # General limiter for async requests
-    fapp.state.llm_request_limiter = AsyncLimiter(
-        max_rate=SERVER_CONFIG.inference.requests_per_minute
     )
 
     # Manager for connections and sessions
@@ -474,25 +468,6 @@ async def send_koji_callback(callback: str, task_id: int):
     async with aiohttp.ClientSession() as session:
         async with session.post(callback, json={"task_id": task_id}):
             pass
-
-
-@app.get("/queue/print")
-async def queue_print(msg: str, request: Request):
-    """Debug endpoint to test the LLM request queue"""
-    LOG.info("Will print %s", msg)
-
-    result = await async_log(msg, request)
-
-    LOG.info("Printed %s and returned it", result)
-
-    return result
-
-
-async def async_log(msg: str, request: Request):
-    """Debug function to test the LLM request queue"""
-    async with request.app.state.llm_request_limiter:
-        LOG.critical(msg)
-    return msg
 
 
 @app.get("/version", response_class=BasicResponse)
