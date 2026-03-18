@@ -1,13 +1,11 @@
+from unittest.mock import AsyncMock, MagicMock
 import koji
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 from beeai_framework.adapters.openai import OpenAIChatModel
 
 from logdetective.utils import mib_to_bytes
-
 from logdetective.server.models import Response, Explanation
 from logdetective.server.server import analyze_koji_task, KojiCallbackManager
-
 from logdetective.server.exceptions import LogsTooLargeError, LogsMissingError
 from logdetective.server.koji import (
     get_failed_subtask_info,

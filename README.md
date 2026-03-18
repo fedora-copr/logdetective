@@ -373,13 +373,6 @@ http :8080/analyze \
     files[1][name]='another.log' files[1][content]='@path/to/another.log'
 ```
 
-For more accurate responses, you can use `/analyze/staged` endpoint. This will submit snippets to model for individual analysis first.
-Afterwards the model outputs are used to construct final prompt. This will take substantially longer, compared to plain `/analyze`.
-
-```sh
-curl --header "Content-Type: application/json" --request POST --data '{"url": "https://address.of.your.log/some-path-example.log"}' http://localhost:8080/analyze/staged
-```
-
 If the variable is not set, `./models` is mounted inside by default.
 
 Model can be downloaded from [our Hugging Space](https://huggingface.co/fedora-copr) by:
@@ -392,8 +385,6 @@ Log Detective removes certain personal information, such as emails and GPG finge
 LLM should be aware of this fact and factor it into its responses.
 
 ## Filtering snippet analysis by relevance
-
-When using `/analyze/staged` API, it is possible to enable filtering analyzed snippets by their estimated relavance, submitting only those with highest meansure of relevance for final analysis.
 
 **Note**: This feautre requires LLM provider with support for JSON structured output. Smaller models, even though techically capable of providing structured output, may not be able to appropriatelly estimate snippet relevance.
 
@@ -464,7 +455,7 @@ You can query requests, responses and emojis statistics via `metrics` endpoints.
 They return JSON data with `time_series` array containing metric objects with `metric`, `timestamps`, and `values` fields.
 Metrics are `GET` methods and have the form `/metrics/ENDPOINT_TYPE/QUERY_TYPE?parameter=value`:
 
-1. `ENDPOINT_TYPE`: `analyze`, `analyze-staged`, or `analyze-gitlab`.
+1. `ENDPOINT_TYPE`: `analyze`, or `analyze-gitlab`.
 
 2. `QUERY_TYPE`:
 - `requests` will return how many requests did the server receive at given endpoint.
@@ -481,10 +472,7 @@ Metrics are `GET` methods and have the form `/metrics/ENDPOINT_TYPE/QUERY_TYPE?p
 Examples:
 ```sh
 http GET :8080/metrics/analyze/requests
-http GET :8080/metrics/analyze-staged/responses
-curl "http://localhost:8080/metrics/analyze-staged/responses"
 curl "http://localhost:8080/metrics/analyze-gitlab/emojis?days=5"
-curl "http://localhost:8080/metrics/analyze-staged/responses?hours=24"
 ```
 
 ## System Prompts

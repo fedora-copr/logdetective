@@ -1,9 +1,8 @@
 import io
 import zipfile
 
-from typing import Union, Dict
+from typing import Dict
 from logdetective.server.models import (
-    StagedResponse,
     Response,
     AnalyzedSnippet,
     Explanation,
@@ -65,12 +64,12 @@ class LLMResponseCompressor:
     SNIPPET_FILE_NAME = "snippet_{number}.txt"
     COMPRESSOR = TextCompressor()
 
-    def __init__(self, response: Union[StagedResponse, Response]):
+    def __init__(self, response: Response):
         """
         Initialize with an LLM response.
 
         Args:
-            response: Either a StagedResponse or Response object
+            response: Response object
         """
         self._response = response
 
@@ -85,7 +84,7 @@ class LLMResponseCompressor:
             self.EXPLANATION_FILE_NAME: self._response.explanation.model_dump_json()
         }
 
-        if isinstance(self._response, StagedResponse):
+        if self._response.snippets:
             for i, snippet in enumerate(self._response.snippets):
                 items[self.SNIPPET_FILE_NAME.format(number=i)] = (
                     snippet.model_dump_json()
@@ -96,7 +95,7 @@ class LLMResponseCompressor:
     @classmethod
     def unzip(
         cls, zip_data: bytes
-    ) -> Union[StagedResponse, Response]:
+    ) -> Response:
         """
         Uncompress the zipped content of the LLM response.
 
@@ -104,7 +103,7 @@ class LLMResponseCompressor:
             zip_data: Compressed data as bytes
 
         Returns:
-            Union[StagedResponse, Response]: The decompressed (partial) response object,
+            Union[Response]: The decompressed (partial) response object,
             missing response_certainty.
         """
         items = cls.COMPRESSOR.unzip(zip_data)
@@ -127,11 +126,6 @@ class LLMResponseCompressor:
                 )
             )
 
-        if snippets:
-            response = StagedResponse(
-                explanation=explanation, snippets=snippets, response_certainty=0
-            )
-        else:
-            response = Response(explanation=explanation, response_certainty=0)
+        response = Response(explanation=explanation, snippets=snippets, response_certainty=0)
 
         return response

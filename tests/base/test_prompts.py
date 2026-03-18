@@ -15,12 +15,10 @@ def test_prompt_manager():
     )
 
     assert isinstance(manager.default_system_prompt, str)
-    assert isinstance(manager.staged_system_prompt, str)
     assert isinstance(manager.snippet_system_prompt, str)
 
     assert isinstance(manager.prompt_template, str)
     assert isinstance(manager.snippet_prompt_template, str)
-    assert isinstance(manager.prompt_template_staged, str)
 
 
 def test_prompt_manager_with_config():
@@ -33,12 +31,10 @@ def test_prompt_manager_with_config():
     )
 
     assert isinstance(manager.default_system_prompt, str)
-    assert isinstance(manager.staged_system_prompt, str)
     assert isinstance(manager.snippet_system_prompt, str)
 
     assert isinstance(manager.prompt_template, str)
     assert isinstance(manager.snippet_prompt_template, str)
-    assert isinstance(manager.prompt_template_staged, str)
 
     assert manager._references == config.references
 

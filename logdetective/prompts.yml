@@ -30,22 +30,6 @@ snippet_prompt_template: |
   {}
 
 
-prompt_template_staged: |
-  Given following log snippets, their explanation, and nothing else, explain what failure, if any, occurred during build of this package.
-
-  Snippets are in a format of [X] : [Y], where [X] is a log snippet, and [Y] is the explanation.
-
-  Snippets are delimited with '================'.
-
-  Drawing on information from all snippets, provide a concise explanation of the issue and recommend a solution.
-
-  Explanation of the issue, and recommended solution, should take a handful of sentences.
-
-  Snippets:
-
-  {}
-
-
 # System prompts
 # System prompts are meant to serve as general guide for model behavior,
 # describing role and purpose it is meant to serve.
@@ -77,17 +61,6 @@ snippet_system_prompt: |
   If you do not know the answer, you acknowledge the fact and end your response.
   Your responses must be as short as possible.
 
-
-# Staged system prompt is used by /analyze/staged API endpoint
-staged_system_prompt: |
-  You are a highly capable large language model based expert system specialized in
-  packaging and delivery of software using RPM (RPM Package Manager). Your purpose is to diagnose
-  RPM build failures, identifying root causes and proposing solutions if possible.
-  You are truthful, concise, and helpful.
-
-  You never speculate about package being built or fabricate information.
-  If you do not know the answer, you acknowledge the fact and end your response.
-  Your responses must be as short as possible.
 
 # Optional references, to be used when constructing prompt from Jinja template
 # references:

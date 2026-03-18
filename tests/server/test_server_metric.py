@@ -101,7 +101,7 @@ def test_hour_Definition():
 
 @pytest.mark.parametrize(
     "endpoint",
-    [EndpointType.ANALYZE, EndpointType.ANALYZE_STAGED],
+    [EndpointType.ANALYZE],
 )
 @pytest.mark.asyncio
 async def test_create_time_series_arrays(endpoint):
@@ -151,19 +151,9 @@ async def test_get_period_start_time(end_time):
             id="Requests per time for ANALYZE endpoint",
         ),
         pytest.param(
-            EndpointType.ANALYZE_STAGED,
-            requests_per_time,
-            id="Requests per time for ANALYZE_STAGED endpoint",
-        ),
-        pytest.param(
             EndpointType.ANALYZE,
             average_time_per_responses,
             id="Average response times for ANALYZE endpoint",
-        ),
-        pytest.param(
-            EndpointType.ANALYZE_STAGED,
-            average_time_per_responses,
-            id="Average response times for ANALYZE_STAGED endpoint",
         ),
     ],
 )
