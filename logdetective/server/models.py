@@ -129,18 +129,6 @@ class SnippetAnalysis(BaseModel):
     text: str = Field(description="Analysis of log snippet contents.")
 
 
-class RatedSnippetAnalysis(SnippetAnalysis):
-    """Model for rated snippet analysis. This model is used to generate
-    json schema for inference with structured output."""
-
-    relevance: int = Field(
-        ge=0,
-        le=100,
-        description="Estimate of likelyhood that snippet contains an error, "
-        "with 0 standing for completely unlikely, 100 for absolutely certain.",
-    )
-
-
 class Explanation(BaseModel):
     """Model of snippet or general log explanation from Log Detective"""
 
@@ -172,7 +160,7 @@ class AnalyzedSnippet(Snippet):
     line_number: location of snippet in original log
     """
 
-    explanation: SnippetAnalysis | RatedSnippetAnalysis
+    explanation: SnippetAnalysis
 
 
 class Response(BaseModel):
