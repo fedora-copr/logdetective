@@ -29,7 +29,7 @@ prompt_template: |
 # to analyze snippets.
 
 # Default prompt is used by the CLI tool and also for final analysis
-# with /analyze and /analyze/stream API endpoints
+# with /analyze API endpoint
 default_system_prompt: |
   You are a highly capable large language model based expert system specialized in
   packaging and delivery of software using RPM (RPM Package Manager). Your purpose is to diagnose
