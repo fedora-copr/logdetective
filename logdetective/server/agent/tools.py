@@ -84,9 +84,10 @@ class ExtractorTool(Tool[ExtractorToolInput]):
 
 class DrainExtractorTool(ExtractorTool):
     name: str = "drain_extractor"
-    description_template: str = """
-    Extracts {max_clusters} snippets from a log file, using clustering Drain algorithm.
-    Maximum length of extracted snippet is {max_snippet_len}."""
+    description_template: str = (
+        "Extracts {max_clusters} snippets from a log file, using clustering Drain algorithm."
+        "Maximum length of extracted snippet is {max_snippet_len}."
+    )
     extractor: DrainExtractor
 
     def __init__(
@@ -115,10 +116,11 @@ class DrainExtractorTool(ExtractorTool):
 
 class CSGrepExtractorTool(ExtractorTool):
     name: str = "csgrep_extractor"
-    description_template: str = """
-    Extracts {max_clusters} snippets from a log file containing GCC traces, using csgrep tool.
-    Do not use on artifacts that don't contain traces from compiler.
-    Maximum length of extracted snippet is {max_snippet_len}."""
+    description_template: str = (
+        "Extracts {max_clusters} snippets from a log file containing GCC traces, using csgrep tool."
+        "Do not use on artifacts that don't contain traces from compiler."
+        "Maximum length of extracted snippet is {max_snippet_len}."
+    )
 
     extractor: CSGrepExtractor
 
