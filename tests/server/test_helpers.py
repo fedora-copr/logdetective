@@ -128,7 +128,7 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
                     response_certainty=70,
                     compressed_response=LLMResponseCompressor(
                         Response(
-                            explanation=Explanation(text="a small error", logprobs=[]),
+                            explanation=Explanation(text="a small error"),
                             response_certainty=0.1,
                             snippets=None
                         )

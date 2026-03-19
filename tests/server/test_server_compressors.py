@@ -9,8 +9,7 @@ from logdetective.server.compressors import LLMResponseCompressor
 
 @pytest.mark.asyncio
 async def test_server_response_compressor():
-    LOGPROBS = [{"logprob": 66.6}, {"logprob": 99.9}, {"logprob": 1.0}]
-    RESPONSE_EXPLANATION = Explanation(text="A response explanation", logprobs=LOGPROBS)
+    RESPONSE_EXPLANATION = Explanation(text="A response explanation")
 
     response = Response(explanation=RESPONSE_EXPLANATION, response_certainty=99, snippets=None)
     response_compressor = LLMResponseCompressor(response=response)
