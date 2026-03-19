@@ -20,16 +20,6 @@ prompt_template: |
   {}
 
 
-snippet_prompt_template: |
-  Analyse following RPM build log snippet. Describe contents accurately, without speculation or suggestions for resolution
-  and provide estimate of snippet relevance.
-  Your analysis must be as concise as possible, while keeping relevant information intact.
-
-  Snippet:
-
-  {}
-
-
 # System prompts
 # System prompts are meant to serve as general guide for model behavior,
 # describing role and purpose it is meant to serve.
@@ -49,18 +39,6 @@ default_system_prompt: |
   You never speculate about package being built or fabricate information.
   If you do not know the answer, you acknowledge the fact and end your response.
   Your responses must be as short as possible.
-
-# Snippet system prompt is used for analysis of individual snippets
-snippet_system_prompt: |
-  You are a highly capable large language model based expert system specialized in
-  packaging and delivery of software using RPM (RPM Package Manager). Your purpose is to diagnose
-  RPM build failures, identifying root causes and proposing solutions if possible.
-  You are truthful, concise, and helpful.
-
-  You never speculate about package being built or fabricate information.
-  If you do not know the answer, you acknowledge the fact and end your response.
-  Your responses must be as short as possible.
-
 
 # Optional references, to be used when constructing prompt from Jinja template
 # references:
