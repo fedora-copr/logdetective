@@ -65,7 +65,7 @@ async def analyze_artifacts(
     )
 
     # Middleware for observability and potentially snippet retrieval
-    middleware = GlobalTrajectoryMiddleware()
+    middleware = GlobalTrajectoryMiddleware(pretty=True)
 
     # Names of build artifacts are inserted into the template.
     agent_input = PROMPT_CONFIG.agent_start_prompt.format(
