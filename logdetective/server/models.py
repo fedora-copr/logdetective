@@ -145,7 +145,6 @@ class Explanation(BaseModel):
     """Model of snippet or general log explanation from Log Detective"""
 
     text: str
-    logprobs: Optional[List[Dict]] = None
 
     def __str__(self):
         """Return text of the Explanation"""
@@ -168,7 +167,7 @@ class Snippet(BaseModel):
 class AnalyzedSnippet(Snippet):
     """Model for snippets already processed by Log Detective.
 
-    explanation: LLM output in form of plain text and logprobs dictionary
+    explanation: LLM output in form of plain text dictionary
     text: original snippet text
     line_number: location of snippet in original log
     """
