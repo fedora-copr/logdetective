@@ -26,20 +26,6 @@ Analysis:
 
 """
 
-SNIPPET_PROMPT_TEMPLATE = """
-Analyse following RPM build log snippet. Describe contents accurately, without speculation or suggestions for resolution.
-
-Your analysis must be as concise as possible, while keeping relevant information intact.
-
-Snippet:
-
-{}
-
-Analysis:
-
-"""
-
-
 DEFAULT_SYSTEM_PROMPT = """
 You are a highly capable large language model based expert system specialized in
 packaging and delivery of software using RPM (RPM Package Manager). Your purpose is to diagnose
