@@ -20,7 +20,7 @@ services:
       context: .
       dockerfile: ./Containerfile.llama.cpp
     # make sure to match this hostname with inference->url in server/config.yml
-    command: "llama-server --host 0.0.0.0 --port ${INFERENCE_SERVER_PORT:-8100}"
+    command: "llama-server --host 0.0.0.0 --port ${INFERENCE_SERVER_PORT:-8100} --jinja --chat-template-file ${MODELS_PATH-./models}/chat_template.jinja"
     stdin_open: true
     tty: true
     env_file: .env
