@@ -40,7 +40,7 @@ from tests.server.test_helpers import (
     "response",
     [
         flexmock(
-            response_certainty=37.7, explanation=Explanation(text="abc", logprobs=[])
+            response_certainty=37.7, explanation=Explanation(text="abc")
         ),
         flexmock(),  # mimic StreamResponse
     ],
