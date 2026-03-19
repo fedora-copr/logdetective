@@ -27,7 +27,6 @@ test_snippets = [
 test_prompts = """
 prompt_template: This is basic template.
 
-snippet_prompt_template: This is template for snippets.
 """
 
 # For testing snippet filtering
