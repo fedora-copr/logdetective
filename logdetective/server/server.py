@@ -22,7 +22,6 @@ import aiohttp
 import sentry_sdk
 from beeai_framework.adapters.openai import OpenAIChatModel
 
-from logdetective.extractors import DrainExtractor, CSGrepExtractor, Extractor
 from logdetective.utils import sanitize_log
 from logdetective.server.exceptions import KojiInvalidTaskID
 
@@ -58,7 +57,6 @@ from logdetective.server.models import (
     KojiResponse,
     Response,
     TimePeriod,
-    ExtractorConfig,
     MetricResponse,
 )
 from logdetective.server.database.models import (
@@ -83,24 +81,6 @@ API_TOKEN = os.environ.get("LOGDETECTIVE_TOKEN", None)
 
 if sentry_dsn := SERVER_CONFIG.general.sentry_dsn:
     sentry_sdk.init(dsn=str(sentry_dsn), traces_sample_rate=1.0)
-
-
-def initialize_extractors(extractor_config: ExtractorConfig) -> dict[str, Extractor]:
-    """Set up extractors based on provided ExtractorConfig."""
-    extractors = {}
-    extractors["drain"] = DrainExtractor(
-        verbose=extractor_config.verbose,
-        max_snippet_len=extractor_config.max_snippet_len,
-        max_clusters=extractor_config.max_clusters,
-    )
-
-    if extractor_config.csgrep:
-        extractors["csgrep"] = CSGrepExtractor(
-            verbose=extractor_config.verbose,
-            max_snippet_len=extractor_config.max_snippet_len,
-        )
-
-    return extractors
 
 
 class ConnectionManager:
@@ -187,9 +167,6 @@ async def lifespan(fapp: FastAPI):
     fapp.state.connection_manager = ConnectionManager()
 
     await fapp.state.connection_manager.initialize(service_config=SERVER_CONFIG)
-
-    # Set up extractors
-    fapp.state.extractors = initialize_extractors(SERVER_CONFIG.extractor)
 
     # Koji callbacks
     fapp.state.koji_callback_manager = KojiCallbackManager()
