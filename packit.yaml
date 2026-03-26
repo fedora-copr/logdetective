@@ -1,4 +1,5 @@
 ---
+packit_instances: ["prod", "stg"]
 downstream_package_name: python-logdetective
 upstream_package_name: logdetective
 specfile_path: python-logdetective.spec
@@ -43,6 +44,7 @@ jobs:
       - fedora-44
   # downstream automation:
   - job: koji_build
+    packit_instances: ["prod"]
     trigger: commit
     allowed_committers: ['packit', 'msuchy']
     dist_git_branches:
@@ -50,6 +52,7 @@ jobs:
       - fedora-44
 
   - job: bodhi_update
+    packit_instances: ["prod"]
     trigger: commit
     dist_git_branches:
       - fedora-rawhide
