@@ -228,7 +228,7 @@ async def average_time_per_responses(
                   UTC time
 
     Returns:
-        A dictionary of timestamps and average response times
+        MetricTimeSeries with values as average response times within the time period buckets.
     """
     end_time = end_time or datetime.datetime.now(datetime.timezone.utc)
     start_time = period_of_time.get_period_start_time(end_time)

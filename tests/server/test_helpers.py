@@ -1,6 +1,6 @@
 import datetime
 import io
-import random
+from itertools import cycle, count
 from contextlib import asynccontextmanager
 from typing import Optional, AsyncGenerator
 import zipfile
@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from flexmock import flexmock
 from pytest_mock import MockerFixture
 
@@ -67,6 +67,16 @@ SUBTASK_ARCHES = [
 EXAMPLE_TASK_ID = 133858346
 
 
+# Purpose of these tests is not testing the compression which takes substantial time.
+# So we use a reference to a precomputed call to populate the DB.
+_PRECOMPUTED_COMPRESSED_RESPONSE = LLMResponseCompressor(
+    Response(
+        explanation=Explanation(text="a small error", logprobs=[]),
+        response_certainty=0.1,
+    )
+).zip_response()
+
+
 class DatabaseFactory:  # pylint: disable=too-few-public-methods
     @staticmethod
     def get_pg_test_url() -> str:
@@ -105,109 +115,30 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
         end_time: Optional[datetime.datetime] = None,
         endpoint_type: Optional[EndpointType] = EndpointType.ANALYZE,
     ) -> AsyncGenerator:
-        async with self.db_factory.make_new_db() as session_factory:  # pylint: disable=contextmanager-generator-missing-cleanup
+        # pylint: disable=contextmanager-generator-missing-cleanup
+        async with self.db_factory.make_new_db() as session_factory:
             end_time = end_time or datetime.datetime.now(datetime.timezone.utc)
             start_time = end_time - duration
 
+            response_times = cycle([1, 2, 3, 4])
+            response_lengths = cycle([1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 500])
             current_time = start_time
-            increasing_response_time = 1
-            increasing_response_length = 500
             while current_time < end_time:
                 id_ = await AnalyzeRequestMetrics.create(
                     endpoint=endpoint_type,
                     request_received_at=current_time,
                 )
                 response_time = current_time + datetime.timedelta(
-                    seconds=increasing_response_time
+                    seconds=next(response_times)
                 )
-                increasing_response_length += 500
                 await AnalyzeRequestMetrics.update(
                     id_=id_,
                     response_sent_at=response_time,
-                    response_length=increasing_response_length,
+                    response_length=next(response_lengths),
                     response_certainty=70,
-                    compressed_response=LLMResponseCompressor(
-                        Response(
-                            explanation=Explanation(text="a small error", logprobs=[]),
-                            response_certainty=0.1,
-                        )
-                    ).zip_response(),
+                    compressed_response=_PRECOMPUTED_COMPRESSED_RESPONSE
                 )
                 current_time += interval
-                increasing_response_time += 1
-                increasing_response_time = increasing_response_time % 4
-                increasing_response_length = increasing_response_length % 5000
-
-            yield session_factory
-
-    @asynccontextmanager
-    async def populate_db_with_emojis_at_regular_intervals(  # pylint: disable=too-many-positional-arguments
-        self,
-        interval: datetime.timedelta = datetime.timedelta(minutes=15),
-        duration: datetime.timedelta = datetime.timedelta(hours=23),
-        end_time: Optional[datetime.datetime] = None,
-    ) -> AsyncGenerator:
-        async with self.db_factory.make_new_db() as session_factory:  # pylint: disable=contextmanager-generator-missing-cleanup
-            end_time = end_time or datetime.datetime.now(datetime.timezone.utc)
-            start_time = end_time - duration
-
-            current_time = start_time
-            project_id = 333
-            job_id = 22
-            mr_iid = 1
-            comment_id = "a"
-            while current_time < end_time:
-                await GitlabMergeRequestJobs.create(
-                    forge=Forge.gitlab_com,
-                    project_id=project_id,
-                    mr_iid=mr_iid,
-                    job_id=job_id,
-                )
-                id_ = await Comments.create(
-                    forge=Forge.gitlab_com,
-                    project_id=project_id,
-                    mr_iid=mr_iid,
-                    job_id=job_id,
-                    comment_id=comment_id,
-                )
-                async with session_factory() as db_session:
-                    comment = await Comments.get_by_id(id_)
-                    comment.created_at = current_time
-                    db_session.add(comment)
-                    await db_session.flush()
-                    await db_session.commit()
-
-                await Reactions.create_or_update(
-                    forge=Forge.gitlab_com,
-                    project_id=project_id,
-                    mr_iid=mr_iid,
-                    job_id=job_id,
-                    comment_id=comment_id,
-                    reaction_type=random.choice(
-                        ["thumbsup", "thumbsdown", "hearth", "confused", "laughing"]
-                    ),
-                    count=random.randint(1, 10),
-                )
-                await Reactions.create_or_update(
-                    forge=Forge.gitlab_com,
-                    project_id=project_id,
-                    mr_iid=mr_iid,
-                    job_id=job_id,
-                    comment_id=comment_id,
-                    reaction_type=random.choice(
-                        ["thumbsup", "thumbsdown", "hearth", "confused", "laughing"]
-                    ),
-                    count=random.randint(1, 10),
-                )
-
-                current_time += interval
-                project_id += 100
-                job_id += 10
-                mr_iid += 1
-                if len(comment_id) < 49:
-                    comment_id += comment_id[0]
-                else:
-                    comment_id = chr(ord(comment_id[0]) + 1)
 
             yield session_factory
 
@@ -226,42 +157,101 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
 
     @classmethod
     @asynccontextmanager
-    async def populate_db_with_emojis(cls, duration=datetime.timedelta):
-        """Populate the db, one comment every 15 minutes."""
-        async with cls().populate_db_with_emojis_at_regular_intervals(
-            duration=duration,
-        ) as session_factory:
+    async def populate_db_with_analysis_records(
+        cls,
+        time_anchor: datetime.datetime,
+        records: list[tuple[datetime.timedelta, float]],
+        endpoint: EndpointType
+    ):
+        """
+        Populate the DB with request metrics based on a list of metadata
+
+        `time_anchor`: timestamp from which the actual mock API call timestamps are calculated.
+        This time is usually aligned to an hour mark or midnight, so that we can have
+        more control over which buckets would the request metrics land in.
+        `records`: relative timedeltas to `time_anchor` and API response durations
+        """
+        response_lengths = cycle([500, 1000, 1500, 2000])
+        response_certainties = cycle([75, 85, 95])
+        # pylint: disable=contextmanager-generator-missing-cleanup
+        async with cls().db_factory.make_new_db() as session_factory:
+            for offset, runtime in records:
+                request_timestamp = time_anchor - offset
+                id_ = await AnalyzeRequestMetrics.create(endpoint, request_timestamp)
+                response_timestamp = request_timestamp + datetime.timedelta(seconds=runtime)
+                await AnalyzeRequestMetrics.update(
+                    id_,
+                    response_timestamp,
+                    next(response_lengths),
+                    next(response_certainties),
+                    _PRECOMPUTED_COMPRESSED_RESPONSE,
+                )
             yield session_factory
 
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
+    @staticmethod
+    async def _cascade_db_populate_for_emojis(
+        session_context: async_sessionmaker[AsyncSession],
+        project_id: int,
+        mr_iid: int,
+        job_id: int,
+        comment_id: int,
+        timestamp: datetime.datetime,
+        emoji_data: dict[str, int],
+    ):
+        """
+        A helper function that, given the necessary mock IDs,
+        inserts all necessary DB entries along with `emoji_data` in the DB.
+        """
+        await GitlabMergeRequestJobs.create(
+            Forge.gitlab_com, project_id, mr_iid, job_id,
+        )
+        id_ = await Comments.create(
+            Forge.gitlab_com, project_id, mr_iid, job_id, comment_id,
+        )
+        async with session_context() as db_session:
+            comment = await Comments.get_by_id(id_)
+            comment.created_at = timestamp
+            db_session.add(comment)
+            await db_session.flush()
+            await db_session.commit()
+        for emoji_type, emoji_count in emoji_data.items():
+            await Reactions.create_or_update(
+                Forge.gitlab_com, project_id, mr_iid, job_id, comment_id, emoji_type, emoji_count,
+            )
 
-@pytest.fixture(scope="function")
-@asynccontextmanager
-async def populate_db_with_analyze_request_every_15_minutes_for_15_hours():
-    duration = datetime.timedelta(hours=15)
-    async with PopulateDatabase().populate_db_at_regular_intervals(
-        duration=duration
-    ) as session_factory:
-        yield session_factory
+    @classmethod
+    @asynccontextmanager
+    async def populate_db_with_emoji_records(
+        cls,
+        time_anchor: datetime.datetime,
+        emoji_records: list[tuple[datetime.timedelta, dict[str, int]]]
+    ):
+        """
+        Populate the database with emojis based on the list of metadata.
 
+        `emoji_records`: one record has a timedelta relative to `time_anchor`, see
+        `populate_db_with_analysis_records()` and emoji -> emoji count map.
+        """
+        projects = count(start=3, step=3)
+        jobs = count(start=2, step=2)
+        merge_requests = count(start=1)
+        comments = cycle("abcdefghijklmnopqrstuvwxyz")
 
-@pytest.fixture(scope="function")
-@asynccontextmanager
-async def populate_db_with_analyze_request_every_15_minutes_for_9_days():
-    duration = datetime.timedelta(days=9)
-    async with PopulateDatabase().populate_db_at_regular_intervals(
-        duration=duration
-    ) as session_factory:
-        yield session_factory
-
-
-@pytest.fixture(scope="function")
-@asynccontextmanager
-async def populate_db_with_analyze_request_every_15_minutes_for_3_weeks():
-    duration = datetime.timedelta(weeks=3)
-    async with PopulateDatabase().populate_db_at_regular_intervals(
-        duration=duration
-    ) as session_factory:
-        yield session_factory
+        # pylint: disable=contextmanager-generator-missing-cleanup
+        db = cls()
+        async with db.db_factory.make_new_db() as session_factory:
+            for offset, emoji_data in emoji_records:
+                await db._cascade_db_populate_for_emojis(
+                    session_factory,
+                    next(projects),
+                    next(merge_requests),
+                    next(jobs),
+                    next(comments),
+                    time_anchor - offset,
+                    emoji_data
+                )
+            yield session_factory
 
 
 @pytest.fixture()
