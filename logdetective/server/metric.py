@@ -45,7 +45,7 @@ async def update_metrics(
     filling data for the given response.
 
     This will add to the database entry the time when the response was sent,
-    the length of the created response and the certainty for it.
+    the length of the created response.
     """
     try:
         compressed_response = LLMResponseCompressor(response).zip_response()
@@ -65,14 +65,10 @@ async def update_metrics(
         response.explanation, Explanation
     ):
         response_length = len(response.explanation.text)
-    response_certainty = (
-        response.response_certainty if hasattr(response, "response_certainty") else None
-    )
     await AnalyzeRequestMetrics.update(
         id_=metrics_id,
         response_sent_at=response_sent_at,
         response_length=response_length,
-        response_certainty=response_certainty,
         compressed_response=compressed_response,
     )
 

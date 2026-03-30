@@ -7,7 +7,6 @@ import backoff
 
 from sqlalchemy import (
     Integer,
-    Float,
     DateTime,
     Enum,
     func,
@@ -72,9 +71,6 @@ class AnalyzeRequestMetrics(Base):
     response_length: Mapped[Optional[int]] = mapped_column(
         Integer, nullable=True, comment="Length of the response in chars"
     )
-    response_certainty: Mapped[Optional[float]] = mapped_column(
-        Float, nullable=True, comment="Certainty for generated response"
-    )
 
     merge_request_job_id: Mapped[Optional[int]] = mapped_column(
         Integer,
@@ -119,7 +115,6 @@ class AnalyzeRequestMetrics(Base):
         id_: int,
         response_sent_at: DateTime,
         response_length: int,
-        response_certainty: float,
         compressed_response: bytes,
     ) -> None:
         """Update a row
@@ -132,7 +127,6 @@ class AnalyzeRequestMetrics(Base):
                 raise ValueError("Returned `AnalyzeRequestMetrics` table is empty.")
             metrics.response_sent_at = response_sent_at
             metrics.response_length = response_length
-            metrics.response_certainty = response_certainty
             metrics.compressed_response = compressed_response
             session.add(metrics)
 

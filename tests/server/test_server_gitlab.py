@@ -297,7 +297,6 @@ def mock_analysis(mocker, request):
     message = getattr(request, "param", "This is a mock message")
     mock_response = Response(
         explanation=Explanation(text=message),
-        response_certainty=0.0,
         snippets=[]
     )
     return mocker.patch(

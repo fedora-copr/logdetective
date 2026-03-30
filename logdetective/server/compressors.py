@@ -103,8 +103,7 @@ class LLMResponseCompressor:
             zip_data: Compressed data as bytes
 
         Returns:
-            Union[Response]: The decompressed (partial) response object,
-            missing response_certainty.
+            Union[Response]: The decompressed (partial) response object
         """
         items = cls.COMPRESSOR.unzip(zip_data)
         if cls.EXPLANATION_FILE_NAME not in items:
@@ -126,6 +125,6 @@ class LLMResponseCompressor:
                 )
             )
 
-        response = Response(explanation=explanation, snippets=snippets, response_certainty=0)
+        response = Response(explanation=explanation, snippets=snippets)
 
         return response
