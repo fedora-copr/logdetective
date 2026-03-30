@@ -26,7 +26,6 @@ async def test_create_and_update_AnalyzeRequestMetrics():
             id_=metrics_id,
             response_sent_at=datetime.datetime.now(datetime.timezone.utc),
             response_length=0,
-            response_certainty=37.7,
             compressed_response=bytes([1, 2, 3]),
         )
 
@@ -39,7 +38,6 @@ async def test_create_and_update_AnalyzeRequestMetrics():
 
         assert metrics is not None
         assert metrics.response_length == 0
-        assert metrics.response_certainty == 37.7
 
         # link metrics to a mr job
         await metrics.add_mr_job(Forge.gitlab_com, 123, 456, 789)
