@@ -509,7 +509,6 @@ async def receive_gitlab_job_event_webhook(
         forge,
         job_hook,
         request.app.state.openai_chat_model,
-        SERVER_CONFIG.general.report_certainty,
     )
 
     # No return value or body is required for a webhook.

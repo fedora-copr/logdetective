@@ -85,6 +85,5 @@ async def analyze_artifacts(
     response = Response(
         explanation=Explanation(text=agent_output.state.answer.text),
         snippets=all_snippets,
-        response_certainty=0.0,
     )
     return response

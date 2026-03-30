@@ -68,8 +68,6 @@ general:
   # Values equal, or higher, than number of snippets produced,
   # will effectivelly result in no filtering at all.
   # top_k_snippets: 0
-  # Certainty ratings are disabled by default.
-  # report_certainty: false
   # Log Detective server blocks analysis of local files
   # as a security measure. This block can be disabled.
   # block_localhost_urls: true

@@ -39,7 +39,7 @@ from tests.server.test_helpers import (
     "response",
     [
         flexmock(
-            response_certainty=37.7, explanation=Explanation(text="abc")
+            explanation=Explanation(text="abc")
         ),
         flexmock(),  # mimic StreamResponse
     ],
@@ -73,11 +73,6 @@ async def test_track_request_async(build_log_request, mock_AnalyzeRequestMetrics
 
     # Verify type of time stamp
     assert isinstance(update_kwargs["response_sent_at"], datetime.datetime)
-
-    # Verify value of 'response_certainty'
-    assert update_kwargs["response_certainty"] == getattr(
-        response, "response_certainty", None
-    )
 
     # Verify value of response length
     if explanation := getattr(response, "explanation", None):

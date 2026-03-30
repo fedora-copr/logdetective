@@ -167,11 +167,9 @@ class Response(BaseModel):
     """Model of data returned by Log Detective API
 
     explanation: Explanation
-    response_certainty: float
     """
 
     explanation: Explanation
-    response_certainty: float
     snippets: Optional[List[Snippet]] = None
 
 
@@ -331,7 +329,6 @@ class GeneralConfig(BaseModel):
     sentry_dsn: HttpUrl | None = None
     collect_emojis_interval: int = 60 * 60  # seconds
     top_k_snippets: int = 0
-    report_certainty: bool = False
     # max_artifact_size in config.yml is in MiBs, here (GeneralConfig class) is in bytes
     max_artifact_size: int = mib_to_bytes(DEFAULT_MAXIMUM_LOG_MIB)
     block_localhost_urls: bool = True

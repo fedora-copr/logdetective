@@ -72,7 +72,6 @@ EXAMPLE_TASK_ID = 133858346
 _PRECOMPUTED_COMPRESSED_RESPONSE = LLMResponseCompressor(
     Response(
         explanation=Explanation(text="a small error", logprobs=[]),
-        response_certainty=0.1,
     )
 ).zip_response()
 
@@ -135,7 +134,6 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
                     id_=id_,
                     response_sent_at=response_time,
                     response_length=next(response_lengths),
-                    response_certainty=70,
                     compressed_response=_PRECOMPUTED_COMPRESSED_RESPONSE
                 )
                 current_time += interval
@@ -172,7 +170,6 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
         `records`: relative timedeltas to `time_anchor` and API response durations
         """
         response_lengths = cycle([500, 1000, 1500, 2000])
-        response_certainties = cycle([75, 85, 95])
         # pylint: disable=contextmanager-generator-missing-cleanup
         async with cls().db_factory.make_new_db() as session_factory:
             for offset, runtime in records:
@@ -183,7 +180,6 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
                     id_,
                     response_timestamp,
                     next(response_lengths),
-                    next(response_certainties),
                     _PRECOMPUTED_COMPRESSED_RESPONSE,
                 )
             yield session_factory
