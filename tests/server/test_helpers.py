@@ -125,11 +125,9 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
                     id_=id_,
                     response_sent_at=response_time,
                     response_length=increasing_response_length,
-                    response_certainty=70,
                     compressed_response=LLMResponseCompressor(
                         Response(
                             explanation=Explanation(text="a small error"),
-                            response_certainty=0.1,
                             snippets=None
                         )
                     ).zip_response(),

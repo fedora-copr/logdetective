@@ -82,7 +82,6 @@ async def test_analyze_artifacts_execution_flow():
         response = await analyze_artifacts(mock_artifacts, mock_chat_model)
 
         assert response.explanation.text == expected_answer
-        assert response.response_certainty == 0.0
 
         run_call_args = mock_agent_instance.run.call_args[0][0]
         assert "artifact_1.log" in run_call_args
