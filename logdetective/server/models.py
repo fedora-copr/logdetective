@@ -37,6 +37,15 @@ class BuildLogFile(BaseModel):
     )
 
 
+class BuildMetadata(BaseModel):
+    """Model of addtional information provided about the build."""
+
+    specfile: Optional[str]
+    last_patch: Optional[str]
+    commentary: Optional[str]
+    infra_status: Optional[str]
+
+
 class BuildLogRequest(BaseModel):
     """Model of the request body for /analyze endpoints
 
@@ -49,6 +58,7 @@ class BuildLogRequest(BaseModel):
     model_config = ConfigDict(hide_input_in_errors=True, extra="forbid")
     url: Optional[str] = None
     files: Optional[List[BuildLogFile]] = Field(None, min_length=1)
+    build_metadata: Optional[BuildMetadata] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -139,6 +149,12 @@ class Explanation(BaseModel):
         return self.text
 
 
+class Solution(BaseModel):
+    """Proposed solution to the issue Log Detective found."""
+
+    text: str
+
+
 class Snippet(BaseModel):
     """Model for snippets not yet processed by Log Detective.
 
@@ -150,14 +166,13 @@ class Snippet(BaseModel):
     text: str
     line_number: int
     source_file: Optional[str]
+    snippet_analysis: Optional[SnippetAnalysis]
 
 
 class AnalyzedSnippet(Snippet):
     """Model for snippets already processed by Log Detective.
 
     explanation: LLM output in form of plain text dictionary
-    text: original snippet text
-    line_number: location of snippet in original log
     """
 
     explanation: SnippetAnalysis
@@ -167,10 +182,13 @@ class Response(BaseModel):
     """Model of data returned by Log Detective API
 
     explanation: Explanation
+    snippets: List of extracted snippets
+    solution: Proposed solution to the detected issue
     """
 
     explanation: Explanation
     snippets: Optional[List[Snippet]] = None
+    solution: Optional[Solution] = None
 
 
 class KojiResponse(BaseModel):
