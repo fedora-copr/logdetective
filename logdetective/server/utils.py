@@ -14,10 +14,7 @@ from logdetective.utils import (
 from logdetective.server.config import LOG, SERVER_CONFIG, GENERIC_LOG_NAME
 from logdetective.server.exceptions import LogDetectiveConnectionError
 from logdetective.remote_log import RemoteLog
-from logdetective.server.models import (
-    AnalyzedSnippet,
-    BuildLogRequest,
-)
+from logdetective.server.models import BuildLogRequest
 
 
 def connection_error_giveup(details: dict) -> None:
@@ -44,11 +41,6 @@ def we_give_up(details: dict):
     LOG.error("Last exception: %s", details["exception"])
     LOG.error("Inference error: %s", details["args"])
     raise HTTPException(500, "Request to the inference API failed")
-
-
-def select_line_number(explanation: AnalyzedSnippet) -> int:
-    """Returns line number of original snippet."""
-    return explanation.line_number
 
 
 async def get_artifacts_from_payload(
