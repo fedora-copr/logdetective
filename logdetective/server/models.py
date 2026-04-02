@@ -37,13 +37,13 @@ class ArtifactFile(ArtifactBase):
 
 
 class RemoteArtifactFile(ArtifactBase):
-    """Model of artifact linked with URL. By default, request size is limited to 300 MiB.
+    """Model of artifact linked with URL. By default, request size is limited to 50 MiB.
     This can affect what kind of artifacts can be submitted."""
 
     url: HttpUrl = Field(description="URL of artifact.")
     size_hint: Optional[int] = Field(
         description="Size of the file in MB. Without it, header will be used to infer the size."
-        "By default, request size is limited to 300 MiB.",
+        "By default, request size is limited to 50 MiB.",
         default=None,
     )
 
@@ -70,7 +70,9 @@ class AnalysisRequest(BaseModel):
 
     model_config = ConfigDict(hide_input_in_errors=True, extra="forbid")
     files: Sequence[Union[ArtifactFile, RemoteArtifactFile]] = Field(
-        description="List of artifacts", min_length=1
+        description="List of artifacts",
+        min_length=1,
+        max_length=15,
     )
     build_metadata: Optional[BuildMetadata] = Field(
         description="Optional build metadata.", default=None
@@ -267,7 +269,7 @@ class GitLabInstanceConfig(BaseModel):  # pylint: disable=too-many-instance-attr
 
     timeout: float = 5.0
 
-    # Maximum size of artifacts.zip (default: 300 MiB)
+    # Maximum size of artifacts.zip (default: 50 MiB)
     # In config, the unit is in MiB, but this max_artifact_size attribute will be in bytes
     max_artifact_size: int = mib_to_bytes(DEFAULT_MAXIMUM_ARTIFACT_MIB)
 

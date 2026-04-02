@@ -37,18 +37,18 @@ extractor:
 #     url: https://gitlab.com
 #     api_token: glpat-XXXXXX
 #     webhook_secrets: []
-#     max_artifact_size: 300
+#     max_artifact_size: 50
 #     timeout: 5.0
 #   "GitLab Internal":
 #     url: https://gitlab.example.com
 #     api_token: glpat-XXXXXX
-#     max_artifact_size: 300
+#     max_artifact_size: 50
 #     webhook_secrets:
 #       - example_secret
 #     timeout: 6.0
 # koji:
 #   analysis_timeout: 15
-#   max_artifact_size: 300
+#   max_artifact_size: 50
 
 #   # Koji instances
 #   instances:
@@ -57,7 +57,7 @@ extractor:
 #       tokens:
 #         - example_token
 general:
-  max_artifact_size: 300  # in MiB
+  max_artifact_size: 50  # in MiB
   devmode: False
   packages:
     - .*

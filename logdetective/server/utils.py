@@ -82,8 +82,8 @@ def validate_request_size(request: Request) -> None:
     FastAPI Depend function checking request's Content-Length before loading body into memory.
 
     Note:
-        In the case of URL requests, we limit the URL's content to 300 MiB.
-        With the direct files raw log content, we limit the whole request size to 300Mib,
+        In the case of URL requests, we limit the URL's content to 50 MiB.
+        With the direct files raw log content, we limit the whole request size to 50 Mib,
         so this fails if all provided logs are under the limit, but exceed it together.
 
     Raises:
