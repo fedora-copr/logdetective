@@ -5,6 +5,7 @@ from importlib.metadata import version
 
 import aiohttp
 from aiohttp.abc import ResolveResult
+from aiohttp.web import HTTPBadRequest
 from fastapi import Request, HTTPException
 
 from logdetective.utils import (
@@ -59,7 +60,11 @@ async def get_artifacts_from_payload(
                 http_session,
                 limit_bytes=SERVER_CONFIG.general.max_artifact_size
             )
-            log_text = await remote_log.process_url()
+            try:
+                log_text = await remote_log.process_url()
+            except HTTPBadRequest as ex:
+                raise HTTPException(400, detail=str(ex)) from ex
+
             build_artifacts[artifact.name] = log_text
         elif isinstance(artifact, ArtifactFile):
             LOG.info("Handling artifact %s as raw string", artifact.name)
