@@ -87,7 +87,7 @@ def track_request(name=None):
 
     >>> @app.post("/analyze", response_model=Response)
     >>> @track_request()
-    >>> async def analyze_log(payload)
+    >>> async def analyze(payload)
     >>>     pass
 
     Warning: the decorators' order is important!

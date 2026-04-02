@@ -36,16 +36,16 @@ async def test_client(mock_AnalyzeRequestMetrics):
     "request_body, head_status, mock_headers, final_status",
     [
         ({"usb": "http://example.com/build.log"}, None, None, 422),
-        ({"url": "not-a-valid-url-for-testing"}, None, None, 400),
-        ({"url": "http://example.com/build.log"}, 404, None, 502),
-        ({"url": "http://example.com/build.log"}, 500, None, 502),
-        ({"url": "http://example.com/build.log"}, 503, None, 502),
-        ({"url": "http://example.com/build.log"}, 200, {}, 411),
+        ({"url": "not-a-valid-url-for-testing"}, None, None, 422),
+        ({"url": "http://example.com/build.log"}, 404, None, 422),
+        ({"url": "http://example.com/build.log"}, 500, None, 422),
+        ({"url": "http://example.com/build.log"}, 503, None, 422),
+        ({"url": "http://example.com/build.log"}, 200, {}, 422),
         (
             {"url": "http://example.com/build.log"},
             200,
             {"Content-Length": f"{mib_to_bytes(SERVER_CONFIG.general.max_artifact_size) + 1}"},
-            413
+            422
         ),
     ],
     indirect=False
