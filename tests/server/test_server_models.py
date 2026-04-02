@@ -8,10 +8,10 @@ from logdetective.server.models import (
     TimePeriod,
     Config,
     ExtractorConfig,
-    BuildLogFile,
-    BuildLogRequest,
+    ArtifactFile,
+    AnalysisRequest,
 )
-from logdetective.constants import DEFAULT_MAXIMUM_LOG_MIB
+from logdetective.constants import DEFAULT_MAXIMUM_ARTIFACT_MIB
 from logdetective.utils import mib_to_bytes
 
 
@@ -78,7 +78,7 @@ def test_initialization_with_custom_data(mocker: MockerFixture):
     assert config.csgrep is True
 
 
-class TestBuildLogRequestValidation:
+class TestAnalysisRequestValidation:
     """Check proper validation of requests submitted to LLM analysis.
 
     This includes /analyze endpoint.
@@ -88,62 +88,56 @@ class TestBuildLogRequestValidation:
     NOTE: In the future, we will add also various URL validators.
     Tests for these cases can be included here.
 
-    NOTE: We do not test for long content size in BuildLogFile, since this is
+    NOTE: We do not test for long content size in BuildArtifactFile, since this is
     treated on the request level by pre-fetching Content-Length header.
     """
+
     # pylint: disable=missing-function-docstring
-
-    def test_missing_url_and_files(self):
-        with pytest.raises(ValidationError, match="Must provide exactly one"):
-            BuildLogRequest()
-
-    def test_url_and_files_present(self):
-        with pytest.raises(ValidationError, match="Must provide exactly one"):
-            BuildLogRequest(
-                url="http://example.com/log.txt",
-                files=[BuildLogFile(name="test.log", content="test content")]
-            )
 
     def test_invalid_field_present(self):
         with pytest.raises(ValidationError):
-            BuildLogRequest(
-                url="http://example.com/log.txt",
-                invalid_field="should fail"
+            AnalysisRequest(
+                files=[ArtifactFile(name="test.log", content="test content")],
+                invalid_field="should fail",
             )
         with pytest.raises(ValidationError):
-            BuildLogRequest(
-                files=[
-                    BuildLogFile(name="test.log", content="test content")
-                ],
-                invalid_field="should fail"
+            AnalysisRequest(
+                files=[ArtifactFile(name="test.log", content="test content")],
+                invalid_field="should fail",
             )
 
     def test_file_missing_name(self):
         with pytest.raises(ValidationError):
-            BuildLogFile(content="test content")
+            ArtifactFile(content="test content")
 
     def test_file_missing_content(self):
         with pytest.raises(ValidationError):
-            BuildLogFile(name="test.log")
+            ArtifactFile(name="test.log")
 
     def test_empty_files_list(self):
         """Empty files list should be caught (CRITICAL BUG TEST)"""
-        with pytest.raises(ValidationError, match="List should have at least 1 item"):
-            BuildLogRequest(files=[])
+        with pytest.raises(
+            ValidationError, match="Value should have at least 1 item after validation"
+        ):
+            AnalysisRequest(files=[])
 
     def test_empty_file_name(self):
-        with pytest.raises(ValidationError, match="String should have at least 1 character"):
-            BuildLogFile(name="", content="test content")
+        with pytest.raises(
+            ValidationError, match="String should have at least 1 character"
+        ):
+            ArtifactFile(name="", content="test content")
 
     def test_invalid_file_name(self):
         with pytest.raises(ValidationError, match="String should match pattern"):
-            BuildLogRequest(files=[
-                BuildLogFile(name="bad@log\\name", content="test content")
-            ])
+            AnalysisRequest(
+                files=[ArtifactFile(name="bad@log\\name", content="test content")]
+            )
 
     def test_duplicit_file_name(self):
         with pytest.raises(ValidationError, match="Duplicate filenames detected"):
-            BuildLogRequest(files=[
-                BuildLogFile(name="build.log", content="test content"),
-                BuildLogFile(name="build.log", content="test content"),
-            ])
+            AnalysisRequest(
+                files=[
+                    ArtifactFile(name="build.log", content="test content"),
+                    ArtifactFile(name="build.log", content="test content"),
+                ]
+            )

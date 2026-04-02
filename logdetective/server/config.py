@@ -94,5 +94,3 @@ SKIP_SNIPPETS_CONFIG = load_skip_snippet_patterns(SERVER_SKIP_PATTERNS_PATH)
 LOG = get_log(SERVER_CONFIG)
 
 CLIENT = get_openai_api_client(SERVER_CONFIG.inference)
-
-GENERIC_LOG_NAME = "generic_build_artifact.log"

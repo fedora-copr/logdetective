@@ -15,7 +15,7 @@ from logdetective.utils import (
     get_chunks,
     mib_to_bytes,
 )
-from logdetective.constants import DEFAULT_MAXIMUM_LOG_MIB
+from logdetective.constants import DEFAULT_MAXIMUM_ARTIFACT_MIB
 from logdetective.remote_log import RemoteLog
 from logdetective.exceptions import (
     RemoteLogAccessError,
@@ -91,7 +91,7 @@ def test_load_prompts_correct_path():
         ),
         (
             "http://example.com/build.log",
-            {"Content-Length": f"{mib_to_bytes(DEFAULT_MAXIMUM_LOG_MIB) + 1}"},
+            {"Content-Length": f"{mib_to_bytes(DEFAULT_MAXIMUM_ARTIFACT_MIB) + 1}"},
             RemoteLogTooLargeError,
             "Content-Length is over the limit",
         ),
