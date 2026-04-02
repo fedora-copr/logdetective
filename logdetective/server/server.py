@@ -49,7 +49,7 @@ from logdetective.server.metric import (
     emojis_per_time,
 )
 from logdetective.server.models import (
-    BuildLogRequest,
+    AnalysisRequest,
     Config,
     EmojiHook,
     JobHook,
@@ -250,16 +250,14 @@ app = FastAPI(
     dependencies=[Depends(validate_request_size)]
 )
 @track_request()
-async def analyze_log(
-    payload: BuildLogRequest,
+async def analyze(
+    payload: AnalysisRequest,
     request: Request,
     http_session: aiohttp.ClientSession = Depends(get_http_session),
 ):
-    """Provide endpoint for log file submission and analysis.
-    Request must be in form {"url":"<YOUR_URL_HERE>"}, or
-    {"files": [{"name": "logname.log", "content": "Log content here"}, ...]}.
-    URL must be valid for the request to be passed to the LLM server.
-    Meaning that it must contain appropriate scheme, path and netloc,
+    """
+    Provide endpoint for analysis of artifacts. Artifacts can be submitted directly,
+    or using URL. URL must contain appropriate scheme, path and netloc,
     while lacking  result, params or query fields.
     """
     artifacts = await get_artifacts_from_payload(payload, http_session)

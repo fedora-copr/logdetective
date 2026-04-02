@@ -48,7 +48,7 @@ from tests.server.test_helpers import (
 async def test_track_request_async(build_log_request, mock_AnalyzeRequestMetrics, response):
     """Test the @track_request decorator for a mock analyze log function call."""
     @track_request()
-    async def analyze_log(payload, http_session):
+    async def analyze(payload, http_session):
         return response
 
     mock_header = {"Content-Length": "3"}
@@ -57,7 +57,7 @@ async def test_track_request_async(build_log_request, mock_AnalyzeRequestMetrics
         mock.head("https://example.com/logs/123", status=200, headers=mock_header)
         mock.get("https://example.com/logs/123", status=200, body=mock_response)
         async with aiohttp.ClientSession() as session:
-            await analyze_log(**build_log_request, http_session=session)
+            await analyze(**build_log_request, http_session=session)
     mock_create = mock_AnalyzeRequestMetrics["mock_create"]
     mock_update = mock_AnalyzeRequestMetrics["mock_update"]
 

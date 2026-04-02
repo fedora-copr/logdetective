@@ -11,11 +11,11 @@ from logdetective.utils import (
     ContentSizeCheck,
     check_content_size,
 )
-from logdetective.server.config import LOG, SERVER_CONFIG, GENERIC_LOG_NAME
+from logdetective.server.config import LOG, SERVER_CONFIG
 from logdetective.server.exceptions import LogDetectiveConnectionError
 from logdetective.remote_log import RemoteLog
 from logdetective.exceptions import RemoteLogError
-from logdetective.server.models import BuildLogRequest
+from logdetective.server.models import AnalysisRequest, ArtifactFile, RemoteArtifactFile
 
 
 def connection_error_giveup(details: dict) -> None:
@@ -45,28 +45,31 @@ def we_give_up(details: dict):
 
 
 async def get_artifacts_from_payload(
-    payload: BuildLogRequest,
+    payload: AnalysisRequest,
     http_session: aiohttp.ClientSession,
 ) -> dict[str, str]:
-    """Retrieve artifact content based on the type of request: URL or raw string."""
+    """Retrieve artifact contents based on the type of artifact.
+    Raise ValueError on unsupported element types."""
     build_artifacts: dict[str, str] = {}
-    if payload.url:
-        LOG.debug("Handling log as URL")
-        remote_log = RemoteLog(
-            payload.url,
-            http_session,
-            limit_bytes=SERVER_CONFIG.general.max_artifact_size
-        )
-        try:
-            log_text = await remote_log.get_url_content()
-        except RemoteLogError as ex:
-            raise HTTPException(status_code=ex.status_code, detail=f"{ex}") from ex
-        build_artifacts = {GENERIC_LOG_NAME: log_text}
-    elif payload.files:
-        # pydantic field validators make sure at least one element is present,
-        # and logs are not over the maximum log size
-        LOG.info("Handling log as raw string")
-        build_artifacts = {file.name: file.content for file in payload.files}
+
+    for artifact in payload.files:
+        if isinstance(artifact, RemoteArtifactFile):
+            LOG.info("Downloading artifact %s from %s", artifact.name, artifact.url)
+            remote_log = RemoteLog(
+                str(artifact.url),
+                http_session,
+                limit_bytes=SERVER_CONFIG.general.max_artifact_size
+            )
+            try:
+                log_text = await remote_log.get_url_content()
+            except RemoteLogError as ex:
+                raise HTTPException(status_code=ex.status_code, detail=f"{ex}") from ex
+            build_artifacts[artifact.name] = log_text
+        elif isinstance(artifact, ArtifactFile):
+            LOG.info("Handling artifact %s as raw string", artifact.name)
+            build_artifacts[artifact.name] = artifact.content
+        else:
+            raise ValueError("Invalid element type ", type(artifact))
 
     total_payload_len = sum(len(content) for _, content in build_artifacts.items())
     LOG.info("Total artifact size from the obtained payload (in chars): %d", total_payload_len)

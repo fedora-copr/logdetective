@@ -4,17 +4,19 @@ import asyncio
 import aiohttp
 import aioresponses
 import pytest
+from pydantic import HttpUrl
 
 import gitlab
 from flexmock import flexmock
 
-from logdetective.server.config import SERVER_CONFIG, GENERIC_LOG_NAME
+from logdetective.server.config import SERVER_CONFIG
 from logdetective.remote_log import RemoteLog
 from logdetective.server.config import load_server_config
 from logdetective.server.server import KojiCallbackManager, ConnectionManager
 from logdetective.server.models import (
-    BuildLogRequest,
-    BuildLogFile,
+    AnalysisRequest,
+    ArtifactFile,
+    RemoteArtifactFile,
     Config,
 )
 from logdetective.server.utils import get_artifacts_from_payload
@@ -79,7 +81,9 @@ async def test_connection_manager(mock_config):
     assert len(connection_manager.gitlab_connections) == 1
     assert len(connection_manager.gitlab_http_sessions) == 1
 
-    assert isinstance(connection_manager.gitlab_connections["https://gitlab.com"], gitlab.Gitlab)
+    assert isinstance(
+        connection_manager.gitlab_connections["https://gitlab.com"], gitlab.Gitlab
+    )
     assert not connection_manager.gitlab_http_sessions["https://gitlab.com"].closed
 
     await connection_manager.close()
@@ -88,10 +92,10 @@ async def test_connection_manager(mock_config):
 
 @pytest.mark.asyncio
 async def test_get_log_from_payload_with_files():
-    payload = BuildLogRequest(
+    payload = AnalysisRequest(
         files=[
-            BuildLogFile(name="test.log", content=MOCK_LOG),
-            BuildLogFile(name="ignored.log", content=MOCK_LOG)
+            ArtifactFile(name="test.log", content=MOCK_LOG),
+            ArtifactFile(name="ignored.log", content=MOCK_LOG),
         ]
     )
 
@@ -114,12 +118,10 @@ async def test_get_log_from_payload_with_files():
         ("pubkey-deadbeef-cafe0123", "deadbeef-cafe0123"),
         ("Commited 2020 example@mail.com", "example@mail.com"),
     ],
-    indirect=False
+    indirect=False,
 )
 async def test_get_log_from_payload_files_sanitization(dirty_log, redacted_value):
-    payload = BuildLogRequest(
-        files=[BuildLogFile(name="test.log", content=dirty_log)]
-    )
+    payload = AnalysisRequest(files=[ArtifactFile(name="test.log", content=dirty_log)])
 
     assert payload.files is not None
     async with aiohttp.ClientSession() as session:
@@ -140,23 +142,31 @@ async def test_get_log_from_payload_files_sanitization(dirty_log, redacted_value
 @pytest.mark.asyncio
 async def test_get_log_from_payload_url_sanitization():
     dirty_log = "This email should be sanitized: contact@someone.com"
-    payload = BuildLogRequest(url="http://path.to/file.log")
+    payload = AnalysisRequest(
+        files=[
+            RemoteArtifactFile(
+                name="mock_log.log", url=HttpUrl("http://path.to/file.log")
+            )
+        ]
+    )
     awaited_dirty_log = asyncio.Future()
     awaited_dirty_log.set_result(dirty_log)
     mock_remote_log = flexmock(RemoteLog)
 
     async with aiohttp.ClientSession() as session:
         mock_remote_log.should_receive("__init__").with_args(
-            "http://path.to/file.log", session, limit_bytes=SERVER_CONFIG.general.max_artifact_size
+            "http://path.to/file.log",
+            session,
+            limit_bytes=SERVER_CONFIG.general.max_artifact_size,
         )
         mock_remote_log.should_receive("get_url_content").and_return(awaited_dirty_log)
         artifacts = await get_artifacts_from_payload(payload, session)
 
     assert len(artifacts) == 1
-    assert GENERIC_LOG_NAME in artifacts
-    assert artifacts[GENERIC_LOG_NAME] == dirty_log
+    assert "mock_log.log" in artifacts
+    assert artifacts["mock_log.log"] == dirty_log
 
-    sanitized = sanitize_log(artifacts[GENERIC_LOG_NAME])
+    sanitized = sanitize_log(artifacts["mock_log.log"])
 
     assert sanitized != dirty_log
     assert "contact@someone.com" not in sanitized
