@@ -55,6 +55,6 @@ USER_ROLE_DEFAULT = "user"
 
 # Other constants
 
-# Default maximum log size is 300 MiB,
+# Default maximum artifact size is 50 MiB,
 # for server it can be overwritten in config as max_artifact_size (in MiB)
-DEFAULT_MAXIMUM_LOG_MIB = 300
+DEFAULT_MAXIMUM_ARTIFACT_MIB = 50

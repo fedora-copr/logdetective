@@ -1,5 +1,5 @@
 import datetime
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Union, Sequence
 from pydantic import (
     BaseModel,
     Field,
@@ -17,62 +17,71 @@ from logdetective.constants import (
     USER_ROLE_DEFAULT,
     LLM_MAX_CONCURRENT_REQUESTS,
     LLM_MAX_KEEP_ALIVE_CONNECTIONS,
-    DEFAULT_MAXIMUM_LOG_MIB
+    DEFAULT_MAXIMUM_ARTIFACT_MIB,
 )
 from logdetective.utils import check_csgrep, mib_to_bytes
 
 
-class BuildLogFile(BaseModel):
-    """Model of one logfile as raw data"""
+class ArtifactBase(BaseModel):
+    """Base build artifact model."""
 
     model_config = ConfigDict(hide_input_in_errors=True)
-    name: str = Field(
-        min_length=1,
-        max_length=255,
-        pattern=r"^[a-zA-Z0-9._\-\/ ]+$"
-    )
-    content: str = Field(
-        description="Log file content as a string. By default, request size "
-        "is limited to 300 MiB. This can affect what kind of logs can be submitted."
+
+    name: str = Field(min_length=1, max_length=255, pattern=r"^[a-zA-Z0-9._\-\/ ]+$")
+
+
+class ArtifactFile(ArtifactBase):
+    """Model of one artifact as raw data"""
+
+    content: str = Field(description="Artifact file content as a string")
+
+
+class RemoteArtifactFile(ArtifactBase):
+    """Model of artifact linked with URL. By default, request size is limited to 50 MiB.
+    This can affect what kind of artifacts can be submitted."""
+
+    url: HttpUrl = Field(description="URL of artifact.")
+    size_hint: Optional[int] = Field(
+        description="Size of the file in MB. Without it, header will be used to infer the size."
+        "By default, request size is limited to 50 MiB.",
+        default=None,
     )
 
 
 class BuildMetadata(BaseModel):
     """Model of addtional information provided about the build."""
 
-    specfile: Optional[str]
-    last_patch: Optional[str]
-    commentary: Optional[str]
-    infra_status: Optional[str]
+    specfile: Optional[str] = Field(
+        description="Contents of package spec file as a string."
+    )
+    last_patch: Optional[str] = Field(
+        description="Contents of last patch applied as a string."
+    )
+    commentary: Optional[str] = Field(
+        description="Comment attached to the triggered build, such as PR description."
+    )
+    infra_status: Optional[str] = Field(
+        description="State of build infrastructure as a string."
+    )
 
 
-class BuildLogRequest(BaseModel):
-    """Model of the request body for /analyze endpoints
+class AnalysisRequest(BaseModel):
+    """Model of the request body for /analyze endpoint"""
 
-    Usually, this requirement is handled with extra discriminator fields
-    (e.g "type": "url" | "files"), in separate model classes and then using discriminative union.
-    That would, however, break backwards compatibility,
-    so we use `extra="forbid"` in model config, which means
-    that either "url" or "files" is in the request and then validate that only one is.
-    """
     model_config = ConfigDict(hide_input_in_errors=True, extra="forbid")
-    url: Optional[str] = None
-    files: Optional[List[BuildLogFile]] = Field(None, min_length=1)
-    build_metadata: Optional[BuildMetadata] = None
-
-    @model_validator(mode="before")
-    @classmethod
-    def exactly_one_is_present(cls, data: Any) -> "BuildLogRequest":
-        """Check that 'url' or 'files' are exclusive, but at least one is present"""
-        if isinstance(data, dict):
-            if (data.get("url") is None) == (data.get("files") is None):
-                raise ValueError("Must provide exactly one of 'url' or 'files'")
-        return data
+    files: Sequence[Union[ArtifactFile, RemoteArtifactFile]] = Field(
+        description="List of artifacts",
+        min_length=1,
+        max_length=15,
+    )
+    build_metadata: Optional[BuildMetadata] = Field(
+        description="Optional build metadata.", default=None
+    )
 
     @model_validator(mode="after")
-    def check_unique_filenames(self) -> "BuildLogRequest":
+    def check_unique_filenames(self) -> "AnalysisRequest":
         """Check that files do not have duplicate names."""
-        names = [f.name for f in (self.files or [])]  # workaround for linter
+        names = [f.name for f in (self.files or [])]
         if len(names) != len(set(names)):
             raise ValueError("Duplicate filenames detected in 'files' list")
         return self
@@ -136,11 +145,11 @@ class EmojiHook(BaseModel):
 class SnippetAnalysis(BaseModel):
     """Model of snippet analysis from LLM."""
 
-    text: str = Field(description="Analysis of log snippet contents.")
+    text: str = Field(description="Analysis of artifact snippet contents.")
 
 
 class Explanation(BaseModel):
-    """Model of snippet or general log explanation from Log Detective"""
+    """Model of snippet or general artifact explanation from Log Detective"""
 
     text: str
 
@@ -159,23 +168,22 @@ class Snippet(BaseModel):
     """Model for snippets not yet processed by Log Detective.
 
     text: original snippet text
-    line_number: location of snippet in original log
-    source_file: name of original log file
+    line_number: location of snippet in the original build artifact
+    source_file: name of the original build artifact
     """
 
     text: str
     line_number: int
     source_file: Optional[str]
-    snippet_analysis: Optional[SnippetAnalysis]
 
 
 class AnalyzedSnippet(Snippet):
     """Model for snippets already processed by Log Detective.
 
-    explanation: LLM output in form of plain text dictionary
+    snippet_analysis: LLM output in form of a dictionary
     """
 
-    explanation: SnippetAnalysis
+    snippet_analysis: SnippetAnalysis
 
 
 class Response(BaseModel):
@@ -184,11 +192,13 @@ class Response(BaseModel):
     explanation: Explanation
     snippets: List of extracted snippets
     solution: Proposed solution to the detected issue
+    no_issue_found: Set to true if no issue was detected
     """
 
     explanation: Explanation
-    snippets: Optional[List[Snippet]] = None
+    snippets: Optional[List[Union[AnalyzedSnippet, Snippet]]] = None
     solution: Optional[Solution] = None
+    no_issue_found: bool = False
 
 
 class KojiResponse(BaseModel):
@@ -259,15 +269,15 @@ class GitLabInstanceConfig(BaseModel):  # pylint: disable=too-many-instance-attr
 
     timeout: float = 5.0
 
-    # Maximum size of artifacts.zip (default: 300 MiB)
+    # Maximum size of artifacts.zip (default: 50 MiB)
     # In config, the unit is in MiB, but this max_artifact_size attribute will be in bytes
-    max_artifact_size: int = mib_to_bytes(DEFAULT_MAXIMUM_LOG_MIB)
+    max_artifact_size: int = mib_to_bytes(DEFAULT_MAXIMUM_ARTIFACT_MIB)
 
     @field_validator("max_artifact_size", mode="before")
     @classmethod
     def megabytes_to_bytes(cls, v: Any):
         """Convert max_artifact_size from megabytes to bytes."""
-        return mib_to_bytes(v if isinstance(v, int) else DEFAULT_MAXIMUM_LOG_MIB)
+        return mib_to_bytes(v if isinstance(v, int) else DEFAULT_MAXIMUM_ARTIFACT_MIB)
 
 
 class GitLabConfig(BaseModel):
@@ -305,13 +315,13 @@ class KojiConfig(BaseModel):
     analysis_timeout: int = 15
 
     # in yaml config, this is given in MiB, but we use bytes in code (same as gitlab)
-    max_artifact_size: int = mib_to_bytes(DEFAULT_MAXIMUM_LOG_MIB)
+    max_artifact_size: int = mib_to_bytes(DEFAULT_MAXIMUM_ARTIFACT_MIB)
 
     @field_validator("max_artifact_size", mode="before")
     @classmethod
     def megabytes_to_bytes(cls, v: Any):
         """Convert max_artifact_size from megabytes to bytes."""
-        return mib_to_bytes(v if isinstance(v, int) else DEFAULT_MAXIMUM_LOG_MIB)
+        return mib_to_bytes(v if isinstance(v, int) else DEFAULT_MAXIMUM_ARTIFACT_MIB)
 
     @model_validator(mode="before")
     @classmethod
@@ -348,14 +358,14 @@ class GeneralConfig(BaseModel):
     collect_emojis_interval: int = 60 * 60  # seconds
     top_k_snippets: int = 0
     # max_artifact_size in config.yml is in MiBs, here (GeneralConfig class) is in bytes
-    max_artifact_size: int = mib_to_bytes(DEFAULT_MAXIMUM_LOG_MIB)
+    max_artifact_size: int = mib_to_bytes(DEFAULT_MAXIMUM_ARTIFACT_MIB)
     block_localhost_urls: bool = True
 
     @field_validator("max_artifact_size", mode="before")
     @classmethod
     def megabytes_to_bytes(cls, v: Any):
         """Convert max_artifact_size from megabytes to bytes."""
-        return mib_to_bytes(v if isinstance(v, int) else DEFAULT_MAXIMUM_LOG_MIB)
+        return mib_to_bytes(v if isinstance(v, int) else DEFAULT_MAXIMUM_ARTIFACT_MIB)
 
 
 class Config(BaseModel):

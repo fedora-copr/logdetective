@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 import aiohttp
 from aiohttp.web import HTTPBadRequest
 
-from logdetective.constants import DEFAULT_MAXIMUM_LOG_MIB
+from logdetective.constants import DEFAULT_MAXIMUM_ARTIFACT_MIB
 from logdetective.utils import (
     ContentSizeCheck,
     check_content_size,
@@ -24,7 +24,7 @@ class RemoteLog:
         self,
         url: str,
         http_session: aiohttp.ClientSession,
-        limit_bytes: int = mib_to_bytes(DEFAULT_MAXIMUM_LOG_MIB)
+        limit_bytes: int = mib_to_bytes(DEFAULT_MAXIMUM_ARTIFACT_MIB)
     ):
         """
         Initialize with a remote log URL and HTTP session.
@@ -110,7 +110,7 @@ async def retrieve_log_content(http: aiohttp.ClientSession, log_path: str, size_
 
     else:
         remote_log = RemoteLog(log_path, http, limit_bytes=size_limit)
-        # limited to DEFAULT_MAXIMUM_LOG_LENGTH (300 MiB)
+        # limited to DEFAULT_MAXIMUM_LOG_LENGTH (50 MiB)
         log = await remote_log.get_url_content()
 
     return log

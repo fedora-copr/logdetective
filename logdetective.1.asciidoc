@@ -71,7 +71,7 @@ logdetective - Analyze and summarize log files using LLM and Drain templates
   Use `csgrep` to process the log before analysis. When working with logs containing messages from GCC, it can be beneficial to employ additional extractor based on `csgrep` tool, to ensure that the messages are kept intact. Since `csgrep` is not available as a Python package, it must be installed separately, with a package manager or from https://github.com/csutils/csdiff.
 
 *--mib_limit* *NUMBER*::
-  Limit the size (in MiB) of file (if submitting via URL) for LLM analysis (default 300). Logs exceeding this will be rejected.
+  Limit the size (in MiB) of file (if submitting via URL) for LLM analysis (default 50). Logs exceeding this will be rejected.
 
 == EXAMPLES
 

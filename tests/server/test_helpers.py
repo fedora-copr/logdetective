@@ -19,7 +19,7 @@ from openai.resources.chat.completions import AsyncCompletions
 import koji
 
 from logdetective.server.models import (
-    BuildLogFile,
+    ArtifactFile,
     Response,
     Explanation,
     Config,
@@ -307,8 +307,8 @@ def build_log_two_files():
         "payload": flexmock(
             url=None,
             files=[
-                BuildLogFile(name="builder-live.log", content=MOCK_LOG),
-                BuildLogFile(name="backend.log", content=MOCK_LOG)
+                ArtifactFile(name="builder-live.log", content=MOCK_LOG),
+                ArtifactFile(name="backend.log", content=MOCK_LOG)
             ]
         )
     }
@@ -320,7 +320,7 @@ def build_log_one_file():
         "payload": flexmock(
             url=None,
             files=[
-                BuildLogFile(name="build.log", content=MOCK_LOG)
+                ArtifactFile(name="build.log", content=MOCK_LOG)
             ]
         )
     }
@@ -392,7 +392,7 @@ def gitlab_cfg() -> GitLabInstanceConfig:
             "url": "https://gitlab.com",
             "api_path": "/api/v4",
             "api_token": "empty",
-            "max_artifact_size": 300,
+            "max_artifact_size": 50,
         },
     )
 
