@@ -32,8 +32,7 @@ if TYPE_CHECKING:
 class EndpointType(enum.Enum):
     """Different analyze endpoints"""
 
-    ANALYZE = "analyze_log"
-    ANALYZE_STREAM = "analyze_log_stream"
+    ANALYZE = "analyze"
     ANALYZE_GITLAB_JOB = "analyze_gitlab_job"
     ANALYZE_KOJI_TASK = "analyze_koji_task"
 
