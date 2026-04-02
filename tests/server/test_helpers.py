@@ -379,7 +379,7 @@ def gitlab_cfg() -> GitLabInstanceConfig:
             "url": "https://gitlab.com",
             "api_path": "/api/v4",
             "api_token": "empty",
-            "max_artifact_size": 300,
+            "max_artifact_size": 50,
         },
     )
 

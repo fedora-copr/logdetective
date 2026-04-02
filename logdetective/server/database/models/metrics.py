@@ -57,7 +57,7 @@ class AnalyzeRequestMetrics(Base):
         comment="Timestamp when the request was received",
     )
     compressed_response: Mapped[Optional[bytes]] = mapped_column(
-        LargeBinary(length=314572800),  # 300MB limit (300 * 1024 * 1024)
+        LargeBinary(length=314572800),  # 50MB limit (300 * 1024 * 1024)
         nullable=True,
         index=False,
         comment="Given response (with explanation and snippets) saved in a zip format",

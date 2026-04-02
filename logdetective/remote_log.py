@@ -116,7 +116,7 @@ async def retrieve_log_content(http: aiohttp.ClientSession, log_path: str, size_
 
     else:
         remote_log = RemoteLog(log_path, http, limit_bytes=size_limit)
-        # limited to DEFAULT_MAXIMUM_LOG_LENGTH (300 MiB)
+        # limited to DEFAULT_MAXIMUM_LOG_LENGTH (50 MiB)
         log = await remote_log.get_url_content()
 
     return log
