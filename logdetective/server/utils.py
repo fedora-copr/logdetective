@@ -69,7 +69,7 @@ async def get_artifacts_from_payload(
             LOG.info("Handling artifact %s as raw string", artifact.name)
             build_artifacts[artifact.name] = artifact.content
         else:
-            raise ValueError("Invalid element type ", type(artifact))
+            raise ValueError(f"Invalid element type {type(artifact)}")
 
     total_payload_len = sum(len(content) for _, content in build_artifacts.items())
     LOG.info("Total artifact size from the obtained payload (in chars): %d", total_payload_len)
