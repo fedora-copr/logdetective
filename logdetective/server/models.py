@@ -41,11 +41,6 @@ class RemoteArtifactFile(ArtifactBase):
     This can affect what kind of artifacts can be submitted."""
 
     url: HttpUrl = Field(description="URL of artifact.")
-    size_hint: Optional[int] = Field(
-        description="Size of the file in MB. Without it, header will be used to infer the size."
-        "By default, request size is limited to 50 MiB.",
-        default=None,
-    )
 
 
 class BuildMetadata(BaseModel):
