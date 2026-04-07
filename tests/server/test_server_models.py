@@ -88,7 +88,7 @@ class TestAnalysisRequestValidation:
     NOTE: In the future, we will add also various URL validators.
     Tests for these cases can be included here.
 
-    NOTE: We do not test for long content size in BuildArtifactFile, since this is
+    NOTE: We do not test for long content size in ArtifactFile, since this is
     treated on the request level by pre-fetching Content-Length header.
     """
 
