@@ -44,6 +44,7 @@ class RemoteLog:
         self._url = url
         self._http_session = http_session
         self._limit_bytes = limit_bytes
+        self.remote_log_size = 0
 
     @property
     def url(self) -> str:
