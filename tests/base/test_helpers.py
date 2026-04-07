@@ -83,16 +83,17 @@ def simple_log() -> list[str]:
             and here.\n""",
         """This message is splint into an introduction:
             and a very long continuation, and a very long continuation, and a very long continuation,
-            and a very long continuation ............."""]
+            and a very long continuation ............."""
+    ]
 
 
 @pytest.fixture
-def package_unavailable_log():
+def package_unavailable_log() -> str:
     return "\n".join(DNF_PACKAGE_UNAVAILABLE_EXPECTED_SNIPPETS)
 
 
 @pytest.fixture
-def csgrep_output():
+def csgrep_output_simple() -> str:
     """Provides a sample csgrep JSON output using the new data structures."""
     return CSGrepOutput(
         defects=[
@@ -106,6 +107,8 @@ def csgrep_output():
                         file_name="test.c",
                         line=3,
                         event="error",
+                        input_file="simple.log",
+                        input_line=3,
                         message="An error occurred: file not found.",
                         verbosity_level=1,
                     )
@@ -120,6 +123,8 @@ def csgrep_output():
                     CSGrepEvent(
                         file_name="test.cpp",
                         line=4,
+                        input_file="simple.log",
+                        input_line=4,
                         event="error",
                         message="An error occurred: permission denied.",
                         verbosity_level=1,
@@ -128,3 +133,113 @@ def csgrep_output():
             ),
         ]
     ).model_dump_json()
+
+
+@pytest.fixture
+def siril_log_snippet() -> str:
+    """see https://github.com/fedora-copr/logdetective-sample/blob/main/data/21ad14e5-f01f-4f88-ae60-eea095478e45/build.log#L657"""
+    lines = [
+        (
+            "/usr/bin/ld: "
+            "/builddir/build/BUILD/siril-1.2.5/redhat-linux-build/../src/gui/newdeconv.c:835:"
+            "(.text+0x6003): undefined reference to `gf_estimate_kernel'"
+        ),
+        "collect2: error: ld returned 1 exit status",
+        (
+            "[234/235] g++  -o src/siril-cli src/siril-cli.p/main-cli.c.o -Wl,--as-needed "
+            "-Wl,--no-undefined -Wl,--whole-archive -Wl,--start-group src/libsiril.a"
+        ),
+    ]
+    return "\n".join(lines)
+
+
+@pytest.fixture
+def dolphin_emu_log_snippet() -> str:
+    """see https://github.com/fedora-copr/logdetective-sample/blob/main/data/449ca0a3-a264-4f86-a3ec-b0a7b0af9b4d/build.log#L600"""
+    lines = [
+        (
+            "/builddir/build/BUILD/dolphin-emu-2409-build/dolphin-2409/"
+            "Source/Core/Common/MsgHandler.h:45:49: "
+            "error: expected primary-expression before > token [-Wtemplate-body]"
+        ),
+        "   45 |   static_assert(fmt::detail::is_compile_string<S>::value);",
+        "      |                                                 ^",
+    ]
+    return "\n".join(lines)
+
+
+@pytest.fixture
+def csgrep_output_siril() -> str:
+    """Provides a sample csgrep JSON-validated output from an actual build log file."""
+    return CSGrepOutput(
+        defects=[
+            CSGrepDefect(
+                checker="COMPILER_WARNING",
+                language="c/c++",
+                tool="gcc",
+                key_event_idx=0,
+                events=[
+                    CSGrepEvent(
+                        file_name="collect2",
+                        line=0,
+                        input_file="siril.log",
+                        input_line=2,
+                        event="error",
+                        message="ld returned 1 exit status",
+                        verbosity_level=0,
+                    )
+                ]
+            ),
+        ]
+    ).model_dump_json()
+
+
+@pytest.fixture
+def csgrep_output_dolphin_emu() -> str:
+    """
+    Provides a raw csgrep JSON output from an actual build log file -.
+    Note: csgrep may include 'column' for some events,
+    but it is irrelevant for Log Detective purposes
+    """
+    return (
+        '{'
+        '    "defects": ['
+        '        {'
+        '            "checker": "COMPILER_WARNING",'
+        '            "language": "c/c++",'
+        '            "tool": "gcc",'
+        '            "key_event_idx": 0,'
+        '            "events": ['
+        '                {'
+        '                    "file_name": "/builddir/build/BUILD/dolphin-emu-2409-build/dolphin-2409/Source/Core/Common/MsgHandler.h",'
+        '                    "line": 45,'
+        '                    "column": 49,'
+        '                    "input_file": "dolphin-emu.log",'
+        '                    "input_line": 1,'
+        '                    "event": "error[-Wtemplate-body]",'
+        '                    "message": "expected primary-expression before > token",'
+        '                    "verbosity_level": 0'
+        '                },'
+        '                {'
+        '                    "file_name": "",'
+        '                    "line": 0,'
+        '                    "input_file": "dolphin-emu.log",'
+        '                    "input_line": 2,'
+        '                    "event": "#",'
+        '                    "message": "   45 |   static_assert(fmt::detail::is_compile_string<S>::value);",'
+        '                    "verbosity_level": 1'
+        '                },'
+        '                {'
+        '                    "file_name": "",'
+        '                    "line": 0,'
+        '                    "input_file": "dolphin-emu.log",'
+        '                    "input_line": 3,'
+        '                    "event": "#",'
+        '                    "message": "      |                                                 ^",'
+        '                    "verbosity_level": 1'
+        '                }'
+        '            ]'
+        '        }'
+        '    ]'
+        '}'
+    )

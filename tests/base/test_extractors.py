@@ -7,7 +7,11 @@ from logdetective.extractors import DrainExtractor, CSGrepExtractor, Extractor
 
 from tests.base.test_helpers import (
     simple_log,
-    csgrep_output,
+    csgrep_output_simple,
+    siril_log_snippet,
+    csgrep_output_siril,
+    dolphin_emu_log_snippet,
+    csgrep_output_dolphin_emu,
     package_unavailable_log,
     DNF_PACKAGE_UNAVAILABLE_EXPECTED_SNIPPETS,
 )
@@ -37,7 +41,7 @@ def test_filter_snippet_patterns():
 # --- Tests for DrainExtractor ---
 
 
-def test_drain_extractor_call(simple_log):
+def test_drain_extractor_call(simple_log: list[str]):
     """Tests the basic functionality of the DrainExtractor to ensure it
     clusters and extracts log messages correctly.
     """
@@ -45,7 +49,7 @@ def test_drain_extractor_call(simple_log):
     result = extractor("".join(simple_log))
     # The extractor should identify the two unique "An error occurred" lines
     assert len(result) == 2
-    messages = [e[1] for e in result]
+    messages = [msg for _, msg in result]
     # Two of the longest messages must be included in the results
     assert simple_log[6].strip() in messages
     assert simple_log[7].strip() in messages
@@ -65,21 +69,117 @@ def test_drain_extractor_package_unavailable_log(package_unavailable_log):
 # --- Tests for CSGrepExtractor ---
 
 
-def test_csgrep_extractor_call_success(monkeypatch, simple_log, csgrep_output):
+def test_csgrep_extractor_call_success(monkeypatch, simple_log: list[str], csgrep_output_simple):
     """Tests a successful run of the CSGrepExtractor, ensuring it correctly
     parses the JSON output from a mocked csgrep process.
     """
     mock_run = MagicMock()
-    mock_run.return_value = MagicMock(returncode=0, stdout=csgrep_output, stderr="")
+    mock_run.return_value = MagicMock(returncode=0, stdout=csgrep_output_simple, stderr="")
     monkeypatch.setattr(sp, "run", mock_run)
 
     extractor = CSGrepExtractor()
-    result = extractor(simple_log)
+    snippets = extractor("".join(simple_log))
 
-    assert len(result) == 2
-    assert result[0] == (0, "An error occurred: file not found.")
-    assert result[1] == (0, "An error occurred: permission denied.")
+    assert len(snippets) == 2
+    assert snippets[0] == (3, "An error occurred: file not found.")
+    assert snippets[1] == (4, "An error occurred: permission denied.")
     mock_run.assert_called_once()
+
+
+def test_csgrep_extractor_call_success_model_output(
+    monkeypatch,
+    siril_log_snippet,
+    csgrep_output_siril
+):
+    """
+    Test a snippet from a failed build log file, mocking csgrep result as as validated model.
+    Note: Actually running csgrep would require us to run these tests
+    in a container setup, so we mock the results.
+    """
+    mock_run = MagicMock()
+    mock_run.return_value = MagicMock(
+        returncode=0,
+        stdout=csgrep_output_siril,
+        stderr=""
+    )
+    monkeypatch.setattr(sp, "run", mock_run)
+
+    extractor = CSGrepExtractor()
+    snippets = extractor(siril_log_snippet)
+
+    assert len(snippets) == 1
+    line, text = snippets[0]
+    assert line == 2
+    assert "ld returned 1 exit status" in text
+    mock_run.assert_called_once()
+
+
+def test_csgrep_extractor_call_success_raw_output(
+    monkeypatch,
+    dolphin_emu_log_snippet,
+    csgrep_output_dolphin_emu
+):
+    """
+    Test a snippet from a failed build log file, mocking csgrep result as raw string.
+    Note: Actually running csgrep would require us to run these tests
+    in a container setup, so we mock the results.
+    """
+    mock_run = MagicMock()
+    mock_run.return_value = MagicMock(
+        returncode=0,
+        stdout=csgrep_output_dolphin_emu,
+        stderr=""
+    )
+    monkeypatch.setattr(sp, "run", mock_run)
+
+    extractor = CSGrepExtractor()
+    snippets = extractor(dolphin_emu_log_snippet)
+
+    assert len(snippets) == 1
+    line, text = snippets[0]
+    assert line == 1
+    assert "expected primary-expression before > token" in text
+    assert "static_assert(fmt::detail::is_compile_string<S>::value)" in text
+    mock_run.assert_called_once()
+
+
+def _get_csgrep_version() -> tuple[int]:
+    try:
+        csgrep_ver = tuple(
+            int(x) for x in
+            sp.run(
+                [
+                    "csgrep",
+                    "--version",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            ).stdout.split()[-1].split(".")
+        )
+    except (FileNotFoundError, IndexError, ValueError):
+        csgrep_ver = (0, 0, 0)
+    return csgrep_ver
+
+
+@pytest.mark.skipif(_get_csgrep_version() < (3, 5, 7), reason="requires csgrep >= 3.5.7")
+def test_csgrep_extractor_no_mock(dolphin_emu_log_snippet, siril_log_snippet):
+    extractor = CSGrepExtractor()
+    snippets = extractor(siril_log_snippet)
+
+    assert len(snippets) == 1
+    line, text = snippets[0]
+    assert line == 2
+    assert "ld returned 1 exit status" in text
+
+    extractor = CSGrepExtractor()
+    snippets = extractor(dolphin_emu_log_snippet)
+
+    assert len(snippets) == 1
+    line, text = snippets[0]
+    assert line == 1
+    assert "expected primary-expression before > token" in text
+    assert "static_assert(fmt::detail::is_compile_string<S>::value)" in text
 
 
 def test_csgrep_extractor_call_no_output(monkeypatch, simple_log):

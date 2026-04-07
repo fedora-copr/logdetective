@@ -97,8 +97,8 @@ def get_chunks(
     # Chunk we will be yielding
     chunk = ""
     # Number of line where the message started
-    original_line = 0
-    for i, line in enumerate(lines):
+    original_line = 1
+    for i, line in enumerate(lines, start=1):
         if len(line) == 0:
             continue
         if new_message(line):
