@@ -19,8 +19,7 @@ from logdetective.server.models import AnalysisRequest, ArtifactFile, RemoteArti
 
 
 def connection_error_giveup(details: dict) -> None:
-    """Too many connection errors, give up.
-    """
+    """Too many connection errors, give up."""
     LOG.error("Too many connection errors, giving up. %s", details["exception"])
     raise LogDetectiveConnectionError() from details["exception"]
 
@@ -47,18 +46,26 @@ def we_give_up(details: dict):
 async def get_artifacts_from_payload(
     payload: AnalysisRequest,
     http_session: aiohttp.ClientSession,
+    request_size: int,
 ) -> dict[str, str]:
     """Retrieve artifact contents based on the type of artifact.
     Raise ValueError on unsupported element types."""
     build_artifacts: dict[str, str] = {}
 
+    total_payload_size: int = request_size
+
     for artifact in payload.files:
         if isinstance(artifact, RemoteArtifactFile):
             LOG.info("Downloading artifact %s from %s", artifact.name, artifact.url)
+            remaining_limit = (
+                SERVER_CONFIG.general.max_artifact_size - total_payload_size
+            )
+            if remaining_limit <= 0:
+                raise HTTPException(
+                    400, detail="Total size of submitted request is over the limit."
+                )
             remote_log = RemoteLog(
-                str(artifact.url),
-                http_session,
-                limit_bytes=SERVER_CONFIG.general.max_artifact_size
+                str(artifact.url), http_session, limit_bytes=remaining_limit
             )
             try:
                 log_text = await remote_log.process_url()
@@ -66,6 +73,8 @@ async def get_artifacts_from_payload(
                 raise HTTPException(400, detail=str(ex)) from ex
 
             build_artifacts[artifact.name] = log_text
+            total_payload_size += remote_log.remote_log_size
+
         elif isinstance(artifact, ArtifactFile):
             LOG.info("Handling artifact %s as raw string", artifact.name)
             build_artifacts[artifact.name] = artifact.content
@@ -73,16 +82,21 @@ async def get_artifacts_from_payload(
             raise ValueError(f"Invalid element type {type(artifact)}")
 
     total_payload_len = sum(len(content) for _, content in build_artifacts.items())
-    LOG.info("Total artifact size from the obtained payload (in chars): %d", total_payload_len)
+    LOG.info(
+        "Total artifact size from the obtained payload (in chars): %d "
+        "Total payload size (in bytes): %d",
+        total_payload_len,
+        total_payload_size,
+    )
     return build_artifacts
 
 
 def get_version() -> str:
     """Obtain the version number using importlib"""
-    return version('logdetective')
+    return version("logdetective")
 
 
-def validate_request_size(request: Request) -> None:
+def validate_request_size(request: Request) -> int:
     """
     FastAPI Depend function checking request's Content-Length before loading body into memory.
 
@@ -91,16 +105,20 @@ def validate_request_size(request: Request) -> None:
         With the direct files raw log content, we limit the whole request size to 50 Mib,
         so this fails if all provided logs are under the limit, but exceed it together.
 
+    Returns:
+        Size of request in bytes
+
     Raises:
         HTTPException(411): If Content-Length header is missing or invalid
         HTTPException(413): If Content-Length exceeds maximum allowed size
     """
     size_check: ContentSizeCheck = check_content_size(
-        request.headers,
-        SERVER_CONFIG.general.max_artifact_size
+        request.headers, SERVER_CONFIG.general.max_artifact_size
     )
     if not (size_check.value_present and size_check.size_in_bytes is not None):
-        raise HTTPException(status_code=411, detail="Content-Length is missing or invalid.")
+        raise HTTPException(
+            status_code=411, detail="Content-Length is missing or invalid."
+        )
     if not size_check.result:
         raise HTTPException(
             status_code=413,
@@ -110,8 +128,10 @@ def validate_request_size(request: Request) -> None:
                 f"({size_check.size_in_bytes / (1024 * 1024):.2f} MiB) > "
                 f"{SERVER_CONFIG.general.max_artifact_size} B "
                 f"({SERVER_CONFIG.general.max_artifact_size / (1024 * 1024):.2f} MiB)"
-            )
+            ),
         )
+
+    return size_check.size_in_bytes
 
 
 class SSRFProtectedResolver(aiohttp.ThreadedResolver):
@@ -128,9 +148,7 @@ class SSRFProtectedResolver(aiohttp.ThreadedResolver):
                 ip_address = ipaddress.ip_address(resolved_ip["host"])
             except ValueError as ex:
                 raise socket.gaierror(socket.EAI_FAIL) from ex
-            if (
-                ip_address.is_private
-            ):
+            if ip_address.is_private:
                 msg = (
                     f"Request to host: {host} port: {port} socket: "
                     f"{family} resolved to internal IP: {ip_address}."
