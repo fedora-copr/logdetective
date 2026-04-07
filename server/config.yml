@@ -73,3 +73,7 @@ general:
   # Log Detective server blocks analysis of local files
   # as a security measure. This block can be disabled.
   # block_localhost_urls: true
+  # This is the period in seconds of how often is the emoji feedback collected,
+  # default = 1 hour. Emoji feedback is collected only if `gitlab` config
+  # contains some valid configuration entry.
+  # collect_emojis_interval: 3600
