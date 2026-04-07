@@ -211,8 +211,10 @@ async def lifespan(fapp: FastAPI):
     # Ensure that the database is initialized.
     await logdetective.server.database.base.init()
 
-    # Start the background task scheduler for collecting emojis
-    asyncio.create_task(schedule_collect_emojis_task(fapp.state.connection_manager))
+    # Start the background task scheduler for collecting emojis, if applicable.
+    # ConnectionManager.gitlab_connections is empty if gitlab.instances contains no entries
+    if fapp.state.connection_manager.gitlab_connections:
+        asyncio.create_task(schedule_collect_emojis_task(fapp.state.connection_manager))
 
     yield
 
