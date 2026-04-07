@@ -62,7 +62,7 @@ async def get_artifacts_from_payload(
             )
             if remaining_limit <= 0:
                 raise HTTPException(
-                    400, detail="Total size of submitted request is over the limit."
+                    413, detail="Total size of submitted request is over the limit."
                 )
             remote_log = RemoteLog(
                 str(artifact.url), http_session, limit_bytes=remaining_limit
