@@ -57,10 +57,12 @@ class SkipSnippets(BaseModel):
 class CSGrepEvent(BaseModel):
     """`csgrep` splits error and warning messages into individual events."""
 
-    file_name: str
-    line: int
+    file_name: str  # references the source file which compilation error talks about
+    line: int  # line number in the source file
     event: str
     message: str
+    input_file: str  # references the name of the compilation log (absolute path)
+    input_line: int  # line number in the compilation log
     verbosity_level: int
 
 

@@ -123,6 +123,7 @@ class CSGrepExtractor(DrainExtractor):
                 [
                     "csgrep",
                     "--event=error",
+                    "--record-input-locations",
                     "--remove-duplicates",
                     "--mode=json",
                     "--quiet",
@@ -149,16 +150,20 @@ class CSGrepExtractor(DrainExtractor):
         try:
             report = CSGrepOutput.model_validate_json(result.stdout)
         except ValidationError as ex:
-            LOG.exception("Exception encountered while parsing csgrpe output %s", ex)
+            LOG.exception("Exception encountered while parsing csgrep output %s", ex)
             raise ex
-        for defect in report.defects:
-            # Single original error message can be split across multiple events
-            # before returning, we will turn them back into single string.
-            # We must also extract the original line number.
-            # Line number is NOT location of message in the log, but location of
-            # the issue in source, we can't really mix the two, so we'll set it to `0`.
-
-            chunks.append((0, "\n".join([event.message for event in defect.events])))
+        # Single original error message can be split across multiple events.
+        # Before returning, we will turn them back into single string.
+        # We must also extract the original line number,
+        # i.e. NOT the location of the issue in the source code ("event.line"),
+        # but the location of message in the log ("event.input_line").
+        chunks = [
+            (
+                d.events[0].input_line,
+                "\n".join([e.message for e in d.events])
+            )
+            for d in report.defects if d.events  # skipping potential 0-event defects
+        ]
 
         chunks = self.filter_snippet_patterns(chunks)
         LOG.info("Total %d messages extracted with csgrep", len(chunks))
