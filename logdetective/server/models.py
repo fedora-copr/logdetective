@@ -25,7 +25,7 @@ from logdetective.utils import check_csgrep, mib_to_bytes
 class ArtifactBase(BaseModel):
     """Base build artifact model."""
 
-    model_config = ConfigDict(hide_input_in_errors=True)
+    model_config = ConfigDict(hide_input_in_errors=True, extra="forbid")
 
     name: str = Field(min_length=1, max_length=255, pattern=r"^[a-zA-Z0-9._\-\/ ]+$")
 
