@@ -172,7 +172,9 @@ async def lifespan(fapp: FastAPI):
     fapp.state.koji_callback_manager = KojiCallbackManager()
 
     # OpenAI chat model for agent
-    fapp.state.openai_chat_model = get_openai_chat_model(inference_config=SERVER_CONFIG.inference)
+    fapp.state.openai_chat_model = get_openai_chat_model(
+        inference_config=SERVER_CONFIG.inference
+    )
 
     # Ensure that the database is initialized.
     await logdetective.server.database.base.init()
@@ -244,27 +246,25 @@ app = FastAPI(
 )
 
 
-@app.post(
-    "/analyze",
-    response_model=Response,
-    dependencies=[Depends(validate_request_size)]
-)
+@app.post("/analyze", response_model=Response)
 @track_request()
 async def analyze(
     payload: AnalysisRequest,
     request: Request,
     http_session: aiohttp.ClientSession = Depends(get_http_session),
+    request_size: int = Depends(validate_request_size),
 ):
     """
     Provide endpoint for analysis of artifacts. Artifacts can be submitted directly,
     or using URL. URL must contain appropriate scheme, path and netloc,
     while lacking  result, params or query fields.
     """
-    artifacts = await get_artifacts_from_payload(payload, http_session)
+    artifacts = await get_artifacts_from_payload(
+        payload, http_session, request_size=request_size
+    )
 
     return await analyze_artifacts(
-        artifacts=artifacts,
-        chat_model=request.app.state.openai_chat_model
+        artifacts=artifacts, chat_model=request.app.state.openai_chat_model
     )
 
 
@@ -366,7 +366,7 @@ async def analyze_rpmbuild_koji(
             koji_instance_config,
             koji_connection,
             request.app.state.koji_callback_manager,
-            request.app.state.openai_chat_model
+            request.app.state.openai_chat_model,
         )
 
         # If a callback URL is provided, we need to add it to the callbacks
@@ -420,7 +420,9 @@ async def analyze_koji_task(
         task_id=task_id,
         log_file_name=log_file_name,
     )
-    response = await analyze_artifacts({log_file_name: log_text}, chat_model=openai_chat_model)
+    response = await analyze_artifacts(
+        {log_file_name: log_text}, chat_model=openai_chat_model
+    )
 
     # Now that we have the response, we can update the metrics and mark the
     # koji task analysis as completed.

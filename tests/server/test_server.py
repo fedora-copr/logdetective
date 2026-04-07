@@ -90,8 +90,9 @@ async def test_connection_manager(mock_config):
     assert connection_manager.gitlab_http_sessions["https://gitlab.com"].closed
 
 
+@pytest.mark.parametrize("request_size", [0, 10, 2000])
 @pytest.mark.asyncio
-async def test_get_log_from_payload_with_files():
+async def test_get_log_from_payload_with_files(request_size):
     payload = AnalysisRequest(
         files=[
             ArtifactFile(name="test.log", content=MOCK_LOG),
@@ -100,7 +101,9 @@ async def test_get_log_from_payload_with_files():
     )
 
     async with aiohttp.ClientSession() as session:
-        artifacts = await get_artifacts_from_payload(payload, session)
+        artifacts = await get_artifacts_from_payload(
+            payload, session, request_size=request_size
+        )
 
     assert "test.log" in artifacts
     assert "ignored.log" in artifacts
@@ -111,6 +114,7 @@ async def test_get_log_from_payload_with_files():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("request_size", [0, 10, 2000])
 @pytest.mark.parametrize(
     "dirty_log, redacted_value",
     [
@@ -120,12 +124,16 @@ async def test_get_log_from_payload_with_files():
     ],
     indirect=False,
 )
-async def test_get_log_from_payload_files_sanitization(dirty_log, redacted_value):
+async def test_get_log_from_payload_files_sanitization(
+    dirty_log, redacted_value, request_size
+):
     payload = AnalysisRequest(files=[ArtifactFile(name="test.log", content=dirty_log)])
 
     assert payload.files is not None
     async with aiohttp.ClientSession() as session:
-        artifacts = await get_artifacts_from_payload(payload, session)
+        artifacts = await get_artifacts_from_payload(
+            payload, session, request_size=request_size
+        )
 
     assert len(artifacts) == 1
     assert "test.log" in artifacts
@@ -139,8 +147,9 @@ async def test_get_log_from_payload_files_sanitization(dirty_log, redacted_value
         assert any(i in sanitized for i in ["FFFF", "ffff", "copr-team"])
 
 
+@pytest.mark.parametrize("request_size", [0, 10, 2000])
 @pytest.mark.asyncio
-async def test_get_log_from_payload_url_sanitization():
+async def test_get_log_from_payload_url_sanitization(request_size):
     dirty_log = "This email should be sanitized: contact@someone.com"
     payload = AnalysisRequest(
         files=[
@@ -157,10 +166,12 @@ async def test_get_log_from_payload_url_sanitization():
         mock_remote_log.should_receive("__init__").with_args(
             "http://path.to/file.log",
             session,
-            limit_bytes=SERVER_CONFIG.general.max_artifact_size,
+            limit_bytes=SERVER_CONFIG.general.max_artifact_size - request_size,
         )
         mock_remote_log.should_receive("get_url_content").and_return(awaited_dirty_log)
-        artifacts = await get_artifacts_from_payload(payload, session)
+        artifacts = await get_artifacts_from_payload(
+            payload, session, request_size=request_size
+        )
 
     assert len(artifacts) == 1
     assert "mock_log.log" in artifacts
