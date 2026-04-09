@@ -72,7 +72,9 @@ async def analyze_artifacts(
         artifacts=",".join(artifacts.keys())
     )
 
-    agent_output = await agent.run(agent_input).middleware(middleware)
+    agent_output = await agent.run(
+        agent_input, max_retries_per_step=10, total_max_retries=40
+    ).middleware(middleware)
 
     if not agent_output.state.answer:
         raise LogDetectiveAgentResponseFailure
