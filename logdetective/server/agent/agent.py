@@ -36,6 +36,7 @@ async def analyze_artifacts(
         ConditionalRequirement(
             DrainExtractorTool,
             consecutive_allowed=True,
+            min_invocations=1,
             max_invocations=len(artifacts),
         ),
     ]
