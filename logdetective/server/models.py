@@ -211,7 +211,6 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
     """Model for inference configuration of logdetective server."""
 
     max_tokens: int = -1
-    log_probs: bool = True
     url: str = ""
     # OpenAI client library requires a string to be specified for API token
     # even if it is not checked on the server side
