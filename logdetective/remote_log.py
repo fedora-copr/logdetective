@@ -51,11 +51,6 @@ class RemoteLog:
         """The remote log url."""
         return self._url
 
-    @property
-    async def content(self) -> str:
-        """Content of the url."""
-        return await self.get_url_content()
-
     def validate_url(self) -> bool:
         """Validate incoming URL to be at least somewhat sensible for log files.
         Only http and https protocols permitted. No result, params or query fields allowed.
