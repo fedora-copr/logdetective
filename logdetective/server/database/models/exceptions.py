@@ -13,5 +13,5 @@ class KojiTaskAnalysisTimeoutError(Exception):
     """Exception raised when a koji task analysis has timed out"""
 
 
-class AnalyzeRequestMetricsNotFroundError(Exception):
+class AnalyzeRequestMetricsNotFoundError(Exception):
     """Exception raised when AnalyzeRequestMetrics is not found"""
