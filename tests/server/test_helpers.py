@@ -19,12 +19,12 @@ from openai.resources.chat.completions import AsyncCompletions
 import koji
 
 from logdetective.server.models import (
-    BuildLogFile,
+    ArtifactFile,
     Response,
     Explanation,
     Config,
 )
-from logdetective.server import gitlab, llm
+from logdetective.server import gitlab
 from logdetective.server.database import base
 from logdetective.server.database.base import init, destroy
 from logdetective.server.database.models import (
@@ -71,8 +71,7 @@ EXAMPLE_TASK_ID = 133858346
 # So we use a reference to a precomputed call to populate the DB.
 _PRECOMPUTED_COMPRESSED_RESPONSE = LLMResponseCompressor(
     Response(
-        explanation=Explanation(text="a small error", logprobs=[]),
-        response_certainty=0.1,
+        explanation=Explanation(text="a small error"),
     )
 ).zip_response()
 
@@ -135,7 +134,6 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
                     id_=id_,
                     response_sent_at=response_time,
                     response_length=next(response_lengths),
-                    response_certainty=70,
                     compressed_response=_PRECOMPUTED_COMPRESSED_RESPONSE
                 )
                 current_time += interval
@@ -172,7 +170,6 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
         `records`: relative timedeltas to `time_anchor` and API response durations
         """
         response_lengths = cycle([500, 1000, 1500, 2000])
-        response_certainties = cycle([75, 85, 95])
         # pylint: disable=contextmanager-generator-missing-cleanup
         async with cls().db_factory.make_new_db() as session_factory:
             for offset, runtime in records:
@@ -183,7 +180,6 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
                     id_,
                     response_timestamp,
                     next(response_lengths),
-                    next(response_certainties),
                     _PRECOMPUTED_COMPRESSED_RESPONSE,
                 )
             yield session_factory
@@ -298,8 +294,8 @@ def build_log_two_files():
         "payload": flexmock(
             url=None,
             files=[
-                BuildLogFile(name="builder-live.log", content=MOCK_LOG),
-                BuildLogFile(name="backend.log", content=MOCK_LOG)
+                ArtifactFile(name="builder-live.log", content=MOCK_LOG),
+                ArtifactFile(name="backend.log", content=MOCK_LOG)
             ]
         )
     }
@@ -311,7 +307,7 @@ def build_log_one_file():
         "payload": flexmock(
             url=None,
             files=[
-                BuildLogFile(name="build.log", content=MOCK_LOG)
+                ArtifactFile(name="build.log", content=MOCK_LOG)
             ]
         )
     }
@@ -383,7 +379,7 @@ def gitlab_cfg() -> GitLabInstanceConfig:
             "url": "https://gitlab.com",
             "api_path": "/api/v4",
             "api_token": "empty",
-            "max_artifact_size": 300,
+            "max_artifact_size": 50,
         },
     )
 
@@ -472,6 +468,5 @@ def mock_config():
         }
     )
     flexmock(gitlab).should_receive("SERVER_CONFIG").and_return(server_config)
-    flexmock(llm).should_receive("SERVER_CONFIG").and_return(server_config)
 
     return {"server_config": server_config}

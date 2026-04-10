@@ -1,29 +1,17 @@
-FROM fedora:43
+FROM fedora:42
 # Fedora's llama-cpp-python is segfaulting on the model we use :/
+# python3-alembic is needed for the alembic-3
 RUN dnf install -y \
-    fastapi-cli \
-    python3-fastapi \
-    python3-drain3 \
     python3-pip \
-    python3-pydantic-settings \
-    python3-starlette+full \
+    python3-devel \
     gcc \
     gcc-c++ \
-    git-core python3-gunicorn \
-    python3-gitlab \
-    python3-diskcache \
-    python3-sqlalchemy+asyncio \
-    python3-alembic \
-    python3-aiohttp \
-    python3-backoff \
-    python3-sentry-sdk+fastapi \
-    python3-koji \
+    git-core \
     csdiff \
-    python3-asyncpg \
+    krb5-devel \
     && dnf clean all
-# the newest 0.2.86 fails to build, it seems vendored llama-cpp is missing in the archive
-RUN pip3 install aiolimiter llama_cpp_python==0.2.85 sse-starlette starlette-context openai==1.82.1 \
-    && mkdir /src
+
+RUN mkdir /src
 
 # uncomment below if you need to download the model, otherwise just bindmount your local
 # models inside the container
@@ -44,4 +32,4 @@ RUN update-ca-trust
 
 WORKDIR /src
 
-RUN pip3 install .
+RUN pip3 install .[server]

@@ -3,6 +3,7 @@ import logging
 import yaml
 import httpx
 from openai import AsyncOpenAI
+from beeai_framework.adapters.openai import OpenAIChatModel
 
 from logdetective.utils import load_prompts, load_skip_snippet_patterns
 from logdetective.server.models import Config, InferenceConfig
@@ -51,6 +52,16 @@ def get_log(config: Config):
 
     log.initialized = True
     return log
+
+
+def get_openai_chat_model(inference_config: InferenceConfig) -> OpenAIChatModel:
+    """Set up OpenAI chat model for Log Detective agent"""
+    return OpenAIChatModel(
+        model_id=inference_config.model,
+        api_key=inference_config.api_token,
+        base_url=inference_config.url,
+        tool_choice_support={"auto"},
+    )
 
 
 def get_openai_api_client(inference_config: InferenceConfig):

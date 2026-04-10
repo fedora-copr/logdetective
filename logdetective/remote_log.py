@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 
 import aiohttp
 
-from logdetective.constants import DEFAULT_MAXIMUM_LOG_MIB
+from logdetective.constants import DEFAULT_MAXIMUM_ARTIFACT_MIB
 from logdetective.exceptions import (
     RemoteLogRequestError,
     RemoteLogHeaderError,
@@ -25,11 +25,13 @@ class RemoteLog:
     Handles retrieval of remote log files.
     """
 
+    remote_log_size: int = 0
+
     def __init__(
         self,
         url: str,
         http_session: aiohttp.ClientSession,
-        limit_bytes: int = mib_to_bytes(DEFAULT_MAXIMUM_LOG_MIB)
+        limit_bytes: int = mib_to_bytes(DEFAULT_MAXIMUM_ARTIFACT_MIB),
     ):
         """
         Initialize with a remote log URL and HTTP session.
@@ -42,16 +44,12 @@ class RemoteLog:
         self._url = url
         self._http_session = http_session
         self._limit_bytes = limit_bytes
+        self.remote_log_size = 0
 
     @property
     def url(self) -> str:
         """The remote log url."""
         return self._url
-
-    @property
-    async def content(self) -> str:
-        """Content of the url."""
-        return await self.get_url_content()
 
     def validate_url(self) -> bool:
         """Validate incoming URL to be at least somewhat sensible for log files.
@@ -75,12 +73,13 @@ class RemoteLog:
         LOG.debug("process url %s", self.url)
         # obtain the head for size-check
         try:
-            head_response = await self._http_session.head(self.url, raise_for_status=True)
+            head_response = await self._http_session.head(
+                self.url, raise_for_status=True
+            )
         except (aiohttp.ClientResponseError, aiohttp.ClientConnectorError) as ex:
             raise RemoteLogAccessError(f"We couldn't obtain the headers from {self.url}") from ex
         size_check: ContentSizeCheck = check_content_size(
-            head_response.headers,
-            self._limit_bytes
+            head_response.headers, self._limit_bytes
         )
         if not size_check.result:
             if size_check.size_in_bytes is None:
@@ -92,6 +91,7 @@ class RemoteLog:
             raise RemoteLogTooLargeError(
                 f"Content-Length is over the limit: `{size_check.size_in_bytes}`"
             )
+        self.remote_log_size = size_check.size_in_bytes
         # if size-check passes, we obtain the whole content
         try:
             response = await self._http_session.get(self.url, raise_for_status=True)
@@ -100,7 +100,9 @@ class RemoteLog:
         return await response.text()
 
 
-async def retrieve_log_content(http: aiohttp.ClientSession, log_path: str, size_limit: int) -> str:
+async def retrieve_log_content(
+    http: aiohttp.ClientSession, log_path: str, size_limit: int
+) -> str:
     """Get content of the file on the log_path path.
     Path is assumed to be valid URL if it has a scheme.
     Otherwise it attempts to pull it from local filesystem."""
@@ -116,7 +118,7 @@ async def retrieve_log_content(http: aiohttp.ClientSession, log_path: str, size_
 
     else:
         remote_log = RemoteLog(log_path, http, limit_bytes=size_limit)
-        # limited to DEFAULT_MAXIMUM_LOG_LENGTH (300 MiB)
+        # limited to DEFAULT_MAXIMUM_ARTIFACT_MIB (50 MiB)
         log = await remote_log.get_url_content()
 
     return log

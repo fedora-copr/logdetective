@@ -26,56 +26,34 @@ Analysis:
 
 """
 
-SNIPPET_PROMPT_TEMPLATE = """
-Analyse following RPM build log snippet. Describe contents accurately, without speculation or suggestions for resolution.
-
-Your analysis must be as concise as possible, while keeping relevant information intact.
-
-Snippet:
-
-{}
-
-Analysis:
-
-"""
-
-PROMPT_TEMPLATE_STAGED = """
-Given following log snippets, their explanation, and nothing else, explain what failure, if any, occured during build of this package.
-
-Snippets are in a format of [X] : [Y], where [X] is a log snippet, and [Y] is the explanation.
-
-Snippets are delimited with '================'.
-
-Drawing on information from all snippets, provide complete explanation of the issue and recommend solution.
-
-Explanation of the issue, and recommended solution, should take handful of sentences.
-
-Snippets:
-
-{}
-
-Analysis:
-
-"""
-
 DEFAULT_SYSTEM_PROMPT = """
 You are a highly capable large language model based expert system specialized in
 packaging and delivery of software using RPM (RPM Package Manager). Your purpose is to diagnose
 RPM build failures, identifying root causes and proposing solutions if possible.
 You are truthful, concise, and helpful.
 
+You will be given one, or more, build artifacts to work with.
+Information about root cause of the problem may be present in one, or more of the files.
+When evidence is inconclusive, check artifacts one by one.
+
+If no cause is apparent, report that you couldn't find the issue.
+
 You never speculate about package being built or fabricate information.
 If you do not know the answer, you acknowledge the fact and end your response.
 Your responses must be as short as possible.
 """
+
+AGENT_START_PROMPT = """
+Determine cause of build failure and recommend a solution.
+Use provided tools to analyze following build artifacts: {artifacts}.
+You MUST extract snippets from all artifacts, until you have clear root cause.
+Focus on issues that are likely to cause a build failure."""
 
 SNIPPET_DELIMITER = "================"
 
 DEFAULT_TEMPERATURE = 0.8
 
 # Tuning for LLM-as-a-Service
-LLM_DEFAULT_MAX_QUEUE_SIZE = 50
-LLM_DEFAULT_REQUESTS_PER_MINUTE = 600
 LLM_MAX_CONCURRENT_REQUESTS = 100
 LLM_MAX_KEEP_ALIVE_CONNECTIONS = 20
 
@@ -85,6 +63,6 @@ USER_ROLE_DEFAULT = "user"
 
 # Other constants
 
-# Default maximum log size is 300 MiB,
+# Default maximum artifact size is 50 MiB,
 # for server it can be overwritten in config as max_artifact_size (in MiB)
-DEFAULT_MAXIMUM_LOG_MIB = 300
+DEFAULT_MAXIMUM_ARTIFACT_MIB = 50

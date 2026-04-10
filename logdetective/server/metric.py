@@ -1,11 +1,10 @@
 import inspect
 from collections import defaultdict
 import datetime
-from typing import Optional, Union, Dict
+from typing import Optional, Dict
 from functools import wraps
 
 import numpy
-from starlette.responses import StreamingResponse
 
 from logdetective.server.config import LOG
 from logdetective.server.compressors import (
@@ -14,7 +13,6 @@ from logdetective.server.compressors import (
 from logdetective.server.models import (
     TimePeriod,
     MetricTimeSeries,
-    StagedResponse,
     Response,
     Explanation,
 )
@@ -40,14 +38,14 @@ async def add_new_metrics(
 
 async def update_metrics(
     metrics_id: int,
-    response: Union[Response, StagedResponse, StreamingResponse],
+    response: Response,
     sent_at: Optional[datetime.datetime] = None,
 ) -> None:
     """Update a database metric entry for a received request,
     filling data for the given response.
 
     This will add to the database entry the time when the response was sent,
-    the length of the created response and the certainty for it.
+    the length of the created response.
     """
     try:
         compressed_response = LLMResponseCompressor(response).zip_response()
@@ -67,14 +65,10 @@ async def update_metrics(
         response.explanation, Explanation
     ):
         response_length = len(response.explanation.text)
-    response_certainty = (
-        response.response_certainty if hasattr(response, "response_certainty") else None
-    )
     await AnalyzeRequestMetrics.update(
         id_=metrics_id,
         response_sent_at=response_sent_at,
         response_length=response_length,
-        response_certainty=response_certainty,
         compressed_response=compressed_response,
     )
 
@@ -93,7 +87,7 @@ def track_request(name=None):
 
     >>> @app.post("/analyze", response_model=Response)
     >>> @track_request()
-    >>> async def analyze_log(payload)
+    >>> async def analyze(payload)
     >>>     pass
 
     Warning: the decorators' order is important!

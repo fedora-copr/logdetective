@@ -39,7 +39,7 @@ from tests.server.test_helpers import (
     "response",
     [
         flexmock(
-            response_certainty=37.7, explanation=Explanation(text="abc", logprobs=[])
+            explanation=Explanation(text="abc")
         ),
         flexmock(),  # mimic StreamResponse
     ],
@@ -48,7 +48,7 @@ from tests.server.test_helpers import (
 async def test_track_request_async(build_log_request, mock_AnalyzeRequestMetrics, response):
     """Test the @track_request decorator for a mock analyze log function call."""
     @track_request()
-    async def analyze_log(payload, http_session):
+    async def analyze(payload, http_session):
         return response
 
     mock_header = {"Content-Length": "3"}
@@ -57,7 +57,7 @@ async def test_track_request_async(build_log_request, mock_AnalyzeRequestMetrics
         mock.head("https://example.com/logs/123", status=200, headers=mock_header)
         mock.get("https://example.com/logs/123", status=200, body=mock_response)
         async with aiohttp.ClientSession() as session:
-            await analyze_log(**build_log_request, http_session=session)
+            await analyze(**build_log_request, http_session=session)
     mock_create = mock_AnalyzeRequestMetrics["mock_create"]
     mock_update = mock_AnalyzeRequestMetrics["mock_update"]
 
@@ -73,11 +73,6 @@ async def test_track_request_async(build_log_request, mock_AnalyzeRequestMetrics
 
     # Verify type of time stamp
     assert isinstance(update_kwargs["response_sent_at"], datetime.datetime)
-
-    # Verify value of 'response_certainty'
-    assert update_kwargs["response_certainty"] == getattr(
-        response, "response_certainty", None
-    )
 
     # Verify value of response length
     if explanation := getattr(response, "explanation", None):
@@ -101,7 +96,7 @@ def test_hour_Definition():
 
 @pytest.mark.parametrize(
     "endpoint",
-    [EndpointType.ANALYZE, EndpointType.ANALYZE_STAGED],
+    [EndpointType.ANALYZE],
 )
 @pytest.mark.asyncio
 async def test_create_time_series_arrays(endpoint):
@@ -151,19 +146,9 @@ async def test_get_period_start_time(end_time):
             id="Requests per time for ANALYZE endpoint",
         ),
         pytest.param(
-            EndpointType.ANALYZE_STAGED,
-            requests_per_time,
-            id="Requests per time for ANALYZE_STAGED endpoint",
-        ),
-        pytest.param(
             EndpointType.ANALYZE,
             average_time_per_responses,
             id="Average response times for ANALYZE endpoint",
-        ),
-        pytest.param(
-            EndpointType.ANALYZE_STAGED,
-            average_time_per_responses,
-            id="Average response times for ANALYZE_STAGED endpoint",
         ),
     ],
 )

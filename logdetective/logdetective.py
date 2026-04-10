@@ -9,7 +9,7 @@ import aiohttp
 from logdetective.constants import (
     DEFAULT_ADVISOR,
     DEFAULT_TEMPERATURE,
-    DEFAULT_MAXIMUM_LOG_MIB,
+    DEFAULT_MAXIMUM_ARTIFACT_MIB,
 )
 from logdetective.utils import (
     process_log,
@@ -95,7 +95,7 @@ def setup_args():
     parser.add_argument(
         "--mib_limit",
         type=int,
-        default=DEFAULT_MAXIMUM_LOG_MIB,
+        default=DEFAULT_MAXIMUM_ARTIFACT_MIB,
         help="Maximum log size in MiB (default: %(default)s)",
     )
     return parser.parse_args()

@@ -7,7 +7,7 @@ echo "Running database migrations..."
 ATTEMPTS=7
 n=0
 while [[ $n -lt $ATTEMPTS ]]; do
-  alembic-3 upgrade head && break
+  python3 -m alembic upgrade head && break
   n=$((n+1))
   sleep 2
 done
