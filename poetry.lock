@@ -1284,6 +1284,31 @@ files = [
 decorator = "*"
 
 [[package]]
+name = "gunicorn"
+version = "25.3.0"
+description = "WSGI HTTP Server for UNIX"
+optional = true
+python-versions = ">=3.10"
+groups = ["main"]
+markers = "extra == \"server\" or extra == \"server-testing\""
+files = [
+    {file = "gunicorn-25.3.0-py3-none-any.whl", hash = "sha256:cacea387dab08cd6776501621c295a904fe8e3b7aae9a1a3cbb26f4e7ed54660"},
+    {file = "gunicorn-25.3.0.tar.gz", hash = "sha256:f74e1b2f9f76f6cd1ca01198968bd2dd65830edc24b6e8e4d78de8320e2fe889"},
+]
+
+[package.dependencies]
+packaging = "*"
+
+[package.extras]
+eventlet = ["eventlet (>=0.40.3)"]
+fast = ["gunicorn_h1c (>=0.6.3)"]
+gevent = ["gevent (>=24.10.1)"]
+http2 = ["h2 (>=4.1.0)"]
+setproctitle = ["setproctitle"]
+testing = ["coverage", "eventlet (>=0.40.3)", "gevent (>=24.10.1)", "h2 (>=4.1.0)", "httpx[http2]", "pytest", "pytest-asyncio", "pytest-cov", "uvloop (>=0.19.0)"]
+tornado = ["tornado (>=6.5.0)"]
+
+[[package]]
 name = "h11"
 version = "0.16.0"
 description = "A pure-Python, bring-your-own-I/O implementation of HTTP/1.1"
@@ -3408,15 +3433,15 @@ sqlcipher = ["sqlcipher3_binary"]
 
 [[package]]
 name = "starlette"
-version = "1.0.0"
+version = "0.52.1"
 description = "The little ASGI library that shines."
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
 markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
-    {file = "starlette-1.0.0-py3-none-any.whl", hash = "sha256:d3ec55e0bb321692d275455ddfd3df75fff145d009685eb40dc91fc66b03d38b"},
-    {file = "starlette-1.0.0.tar.gz", hash = "sha256:6a4beaf1f81bb472fd19ea9b918b50dc3a77a6f2e190a12954b25e6ed5eea149"},
+    {file = "starlette-0.52.1-py3-none-any.whl", hash = "sha256:0029d43eb3d273bc4f83a08720b4912ea4b071087a3b48db01b7c839f7954d74"},
+    {file = "starlette-0.52.1.tar.gz", hash = "sha256:834edd1b0a23167694292e94f597773bc3f89f362be6effee198165a35d62933"},
 ]
 
 [package.dependencies]
@@ -3626,6 +3651,26 @@ brotli = ["brotli (>=1.2.0) ; platform_python_implementation == \"CPython\"", "b
 h2 = ["h2 (>=4,<5)"]
 socks = ["pysocks (>=1.5.6,!=1.5.7,<2.0)"]
 zstd = ["backports-zstd (>=1.0.0) ; python_version < \"3.14\""]
+
+[[package]]
+name = "uvicorn"
+version = "0.44.0"
+description = "The lightning-fast ASGI server."
+optional = true
+python-versions = ">=3.10"
+groups = ["main"]
+markers = "extra == \"server\" or extra == \"server-testing\""
+files = [
+    {file = "uvicorn-0.44.0-py3-none-any.whl", hash = "sha256:ce937c99a2cc70279556967274414c087888e8cec9f9c94644dfca11bd3ced89"},
+    {file = "uvicorn-0.44.0.tar.gz", hash = "sha256:6c942071b68f07e178264b9152f1f16dfac5da85880c4ce06366a96d70d4f31e"},
+]
+
+[package.dependencies]
+click = ">=7.0"
+h11 = ">=0.8"
+
+[package.extras]
+standard = ["colorama (>=0.4) ; sys_platform == \"win32\"", "httptools (>=0.6.3)", "python-dotenv (>=0.13)", "pyyaml (>=5.1)", "uvloop (>=0.15.1) ; sys_platform != \"win32\" and sys_platform != \"cygwin\" and platform_python_implementation != \"PyPy\"", "watchfiles (>=0.20)", "websockets (>=10.4)"]
 
 [[package]]
 name = "virtualenv"
@@ -3913,11 +3958,11 @@ test = ["big-O", "jaraco.functools", "jaraco.itertools", "jaraco.test", "more_it
 type = ["pytest-mypy"]
 
 [extras]
-server = ["alembic", "asyncpg", "backoff", "fastapi", "httpx", "koji", "python-gitlab", "sentry-sdk", "sqlalchemy"]
-server-testing = ["alembic", "asyncpg", "backoff", "fastapi", "httpx", "koji", "pytest-mock", "python-gitlab", "responses", "sentry-sdk", "sqlalchemy"]
+server = ["alembic", "asyncpg", "backoff", "fastapi", "gunicorn", "httpx", "koji", "python-gitlab", "sentry-sdk", "sqlalchemy", "starlette", "uvicorn"]
+server-testing = ["alembic", "asyncpg", "backoff", "fastapi", "gunicorn", "httpx", "koji", "pytest-mock", "python-gitlab", "responses", "sentry-sdk", "sqlalchemy", "starlette", "uvicorn"]
 testing = ["aioresponses", "asciidoc", "flexmock", "pytest", "pytest-asyncio", "pytest-cov"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "92d16a54fdd25ec79a7ca62d1c8ac0faeb3553eec567183387c19ebc5097f06e"
+content-hash = "dc556604f8bd331697859120b9638d26172f944e4c0d2eca0b0a6c0a7fcd1b8e"
