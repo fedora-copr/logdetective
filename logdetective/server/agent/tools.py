@@ -23,9 +23,12 @@ class ExtractorToolOutput(ToolOutput, BaseModel):
     extracted_snippets: list[Snippet] = Field(
         description="Snippets extracted from the artifact. Each element is a tuple of original line number, and the extracted text."
     )
+    remaining_artifacts: set[str] = Field(
+        description="Set of artifacts that this extractor was not used on yet."
+    )
 
     def get_text_content(self) -> str:
-        return f"source_artifact: {self.source_artifact}, extracted_snippets: {self.extracted_snippets}"
+        return f"source_artifact: {self.source_artifact}, extracted_snippets: {self.extracted_snippets}, remaining_artifacts: {self.remaining_artifacts}"
 
     def is_empty(self) -> bool:
         return False
@@ -43,6 +46,7 @@ class ExtractorTool(Tool[ExtractorToolInput]):
     available_artifacts: dict[str, str]
 
     extracted_snippets: list[Snippet]
+    _remaining_artifacts: set[str]
 
     def __init__(
         self,
@@ -54,6 +58,7 @@ class ExtractorTool(Tool[ExtractorToolInput]):
         self._input_schema = schema
         self.available_artifacts = available_artifacts
         self.extracted_snippets = []
+        self._remaining_artifacts = set(available_artifacts.keys())
 
     async def _run(
         self,
@@ -62,6 +67,9 @@ class ExtractorTool(Tool[ExtractorToolInput]):
         context: RunContext,
     ) -> ExtractorToolOutput:
         """Extract snippets from selected build artifact."""
+
+        self._remaining_artifacts.remove(input.artifact_name)
+
         artifact = self.available_artifacts[input.artifact_name]
         raw_snippets = self.extractor(artifact)
         for line_number, text in raw_snippets:
@@ -73,6 +81,7 @@ class ExtractorTool(Tool[ExtractorToolInput]):
         return ExtractorToolOutput(
             source_artifact=input.artifact_name,
             extracted_snippets=self.extracted_snippets,
+            remaining_artifacts=self._remaining_artifacts,
         )
 
     def _create_emitter(self) -> Emitter:
@@ -86,7 +95,8 @@ class ExtractorTool(Tool[ExtractorToolInput]):
 class DrainExtractorTool(ExtractorTool):
     name: str = "drain_extractor"
     description_template: str = (
-        "Extracts {max_clusters} snippets from a log file, using clustering Drain algorithm."
+        "Use this tool at most once per artifact."
+        "Extracts up to {max_clusters} snippets from a log file, using clustering Drain algorithm."
         "Maximum length of extracted snippet is {max_snippet_len}."
     )
     extractor: DrainExtractor
@@ -118,7 +128,8 @@ class DrainExtractorTool(ExtractorTool):
 class CSGrepExtractorTool(ExtractorTool):
     name: str = "csgrep_extractor"
     description_template: str = (
-        "Extracts {max_clusters} snippets from a log file containing GCC traces, using csgrep tool."
+        "Use this tool at most once per artifact."
+        "Extracts up to {max_clusters} snippets from a log file containing GCC traces, using csgrep tool."
         "Do not use on artifacts that don't contain traces from compiler."
         "Maximum length of extracted snippet is {max_snippet_len}."
     )
