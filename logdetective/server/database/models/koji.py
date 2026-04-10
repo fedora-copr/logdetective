@@ -15,7 +15,7 @@ from logdetective.server.database.models.exceptions import (
     KojiTaskNotFoundError,
     KojiTaskNotAnalyzedError,
     KojiTaskAnalysisTimeoutError,
-    AnalyzeRequestMetricsNotFroundError,
+    AnalyzeRequestMetricsNotFoundError,
 )
 from logdetective.server.models import KojiResponse
 
@@ -88,7 +88,7 @@ class KojiTaskAnalysis(Base):
             query_result = await session.execute(query)
             koji_task_analysis = query_result.scalars().first()
             if not koji_task_analysis:
-                raise AnalyzeRequestMetricsNotFroundError(
+                raise AnalyzeRequestMetricsNotFoundError(
                     f"No AnalyzeRequestMetrics record found for id {metric_id}")
             # Ensure that the task analysis doesn't already have a response
             if koji_task_analysis.response:
