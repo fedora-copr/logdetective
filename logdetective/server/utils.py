@@ -24,25 +24,6 @@ def connection_error_giveup(details: dict) -> None:
     raise LogDetectiveConnectionError() from details["exception"]
 
 
-def should_we_giveup(exc: aiohttp.ClientResponseError) -> bool:
-    """From backoff's docs:
-
-    > a function which accepts the exception and returns
-    > a truthy value if the exception should not be retried
-    """
-    LOG.info("Should we give up on retrying error %s", exc)
-    return exc.status < 400
-
-
-def we_give_up(details: dict):
-    """Retries didn't work (or we got a different exc)
-    we give up and raise proper 500 for our API endpoint
-    """
-    LOG.error("Last exception: %s", details["exception"])
-    LOG.error("Inference error: %s", details["args"])
-    raise HTTPException(500, "Request to the inference API failed")
-
-
 async def get_artifacts_from_payload(
     payload: AnalysisRequest,
     http_session: aiohttp.ClientSession,
