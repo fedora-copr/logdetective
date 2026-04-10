@@ -71,7 +71,7 @@ EXAMPLE_TASK_ID = 133858346
 # So we use a reference to a precomputed call to populate the DB.
 _PRECOMPUTED_COMPRESSED_RESPONSE = LLMResponseCompressor(
     Response(
-        explanation=Explanation(text="a small error", logprobs=[]),
+        explanation=Explanation(text="a small error"),
     )
 ).zip_response()
 
