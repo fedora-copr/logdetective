@@ -42,7 +42,7 @@ class ExtractorTool(Tool[ExtractorToolInput]):
     extractor: Extractor
     available_artifacts: dict[str, str]
 
-    extracted_snippets: list[Snippet] = []
+    extracted_snippets: list[Snippet]
 
     def __init__(
         self,
@@ -53,6 +53,7 @@ class ExtractorTool(Tool[ExtractorToolInput]):
         super().__init__(options)
         self._input_schema = schema
         self.available_artifacts = available_artifacts
+        self.extracted_snippets = []
 
     async def _run(
         self,
