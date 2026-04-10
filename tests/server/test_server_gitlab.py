@@ -160,46 +160,6 @@ async def mock_job_hook():
         "role": "assistant",
         "content": "Hello!"
       },
-      "logprobs": {
-        "content": [
-          {
-            "token": "Hello",
-            "logprob": -0.31725305,
-            "bytes": [72, 101, 108, 108, 111],
-            "top_logprobs": [
-              {
-                "token": "Hello",
-                "logprob": -0.31725305,
-                "bytes": [72, 101, 108, 108, 111]
-              },
-              {
-                "token": "Hi",
-                "logprob": -1.3190403,
-                "bytes": [72, 105]
-              }
-            ]
-          },
-          {
-            "token": "!",
-            "logprob": -0.02380986,
-            "bytes": [
-              33
-            ],
-            "top_logprobs": [
-              {
-                "token": "!",
-                "logprob": -0.02380986,
-                "bytes": [33]
-              },
-              {
-                "token": " there",
-                "logprob": -3.787621,
-                "bytes": [32, 116, 104, 101, 114, 101]
-              }
-            ]
-          }
-        ]
-      },
       "finish_reason": "stop"
     }
   ]
