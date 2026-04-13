@@ -3,6 +3,7 @@ from typing import Any
 from beeai_framework.context import RunContext
 from beeai_framework.emitter.emitter import Emitter
 from beeai_framework.tools import Tool
+from beeai_framework.tools.errors import ToolInputValidationError
 from beeai_framework.tools.types import ToolOutput, ToolRunOptions
 from pydantic import BaseModel, Field
 
@@ -68,6 +69,11 @@ class ExtractorTool(Tool[ExtractorToolInput]):
     ) -> ExtractorToolOutput:
         """Extract snippets from selected build artifact."""
 
+        if input.artifact_name not in self.available_artifacts:
+            raise ToolInputValidationError(
+                f"Requested artifact: {input.artifact_name} does not exist."
+                f"Only following artifacts are available: {self.available_artifacts}"
+            )
         self._remaining_artifacts.remove(input.artifact_name)
 
         artifact = self.available_artifacts[input.artifact_name]
