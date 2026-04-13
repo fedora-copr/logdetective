@@ -54,7 +54,7 @@ logdetective - Analyze and summarize log files using LLM and Drain templates
 *--prompt-templates* *TEMPLATE_DIR*:: Path to prompt template dir (default `logdetective/prompts`). Prompts must be valid Jinja templates, and system prompts must include field *system_time*.
 
 *--temperature* *TEMPERATURE*::
-  Temperature for inference. Higher temperature leads to more creative and variable outputs. (default 0.8)
+  Temperature for inference. Higher temperature leads to more creative and variable outputs. (default 0.0)
 
 *--skip-snippets* *SNIPPETS_FILE*::
   Path to patterns for skipping snippets. User can specify regular expressions matching log chunks (which may not contribute to the analysis of the problem), along with simple description. Patterns to be skipped must be defined in a `yaml` file as a dictionary, where key is a description and value is a regex.
