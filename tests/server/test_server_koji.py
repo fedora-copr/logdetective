@@ -4,7 +4,7 @@ import pytest
 from beeai_framework.adapters.openai import OpenAIChatModel
 
 from logdetective.utils import mib_to_bytes
-from logdetective.server.models import Response, Explanation
+from logdetective.server.models import APIResponse, Explanation
 from logdetective.server.server import analyze_koji_task, KojiCallbackManager
 from logdetective.server.exceptions import LogsTooLargeError, LogsMissingError
 from logdetective.server.koji import (
@@ -211,7 +211,7 @@ async def test_koji_get_failed_log_from_task_log_missing(mocker, method):
 def mock_analysis(mocker, request):
     """Fixture to mock analyze_artifacts directly at the server level."""
     message = getattr(request, "param", "This is a mock message")
-    mock_response = Response(
+    mock_response = APIResponse(
         explanation=Explanation(text=message),
         snippets=None
     )
@@ -250,5 +250,5 @@ async def test_koji_analyze_koji_task(mocker, method, mock_analysis):
         assert response is not None
 
         # Verify the response content
-        assert isinstance(response, Response)
+        assert isinstance(response, APIResponse)
         assert response.explanation.text == "This is a mock message"

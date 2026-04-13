@@ -20,7 +20,7 @@ import koji
 
 from logdetective.server.models import (
     ArtifactFile,
-    Response,
+    APIResponse,
     Explanation,
     Config,
 )
@@ -70,7 +70,7 @@ EXAMPLE_TASK_ID = 133858346
 # Purpose of these tests is not testing the compression which takes substantial time.
 # So we use a reference to a precomputed call to populate the DB.
 _PRECOMPUTED_COMPRESSED_RESPONSE = LLMResponseCompressor(
-    Response(
+    APIResponse(
         explanation=Explanation(text="a small error"),
     )
 ).zip_response()

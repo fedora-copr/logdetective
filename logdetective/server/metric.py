@@ -13,7 +13,7 @@ from logdetective.server.compressors import (
 from logdetective.server.models import (
     TimePeriod,
     MetricTimeSeries,
-    Response,
+    APIResponse,
     Explanation,
 )
 from logdetective.server.database.models import EndpointType, AnalyzeRequestMetrics, Reactions
@@ -38,7 +38,7 @@ async def add_new_metrics(
 
 async def update_metrics(
     metrics_id: int,
-    response: Response,
+    response: APIResponse,
     sent_at: Optional[datetime.datetime] = None,
 ) -> None:
     """Update a database metric entry for a received request,

@@ -1,3 +1,4 @@
+from typing import Optional
 from beeai_framework.agents.requirement import RequirementAgent
 from beeai_framework.agents.requirement.requirements.conditional import (
     ConditionalRequirement,
@@ -9,14 +10,21 @@ from beeai_framework.middleware.trajectory import GlobalTrajectoryMiddleware
 
 from logdetective.server.config import PROMPT_CONFIG, SERVER_CONFIG
 from logdetective.server.agent.tools import DrainExtractorTool, CSGrepExtractorTool
-from logdetective.server.models import Response, Explanation
+from logdetective.server.models import APIResponse, BuildMetadata, Explanation
 from logdetective.server.exceptions import LogDetectiveAgentResponseFailure
 
 
 async def analyze_artifacts(
-    artifacts: dict[str, str], chat_model: OpenAIChatModel
-) -> Response:
-    """Analyze build artifacts using Log Detective agent."""
+    artifacts: dict[str, str], chat_model: OpenAIChatModel, build_metadata: Optional[BuildMetadata] = None
+) -> APIResponse:
+    """Analyze build artifacts using Log Detective agent.
+
+    :artifacts: dictionary of build artifacts, each referenced by their file name
+    :chat_model: OpenAIChatModel providing inference to the agent
+    :build_metadata: BuildMetadata structure, containing additional information
+                     Full implementation in future release
+    """
+    # TODO: Handle build_metadata by supplying it to the agent
 
     drain_extractor = DrainExtractorTool(
         extractor_config=SERVER_CONFIG.extractor, available_artifacts=artifacts
@@ -55,6 +63,7 @@ async def analyze_artifacts(
             )
         )
 
+    # TODO: Use AgentResponse as an output
     agent = RequirementAgent(
         llm=chat_model,
         memory=UnconstrainedMemory(),
@@ -87,7 +96,7 @@ async def analyze_artifacts(
     if csgrep_extractor:
         all_snippets.extend(csgrep_extractor.extracted_snippets)
 
-    response = Response(
+    response = APIResponse(
         explanation=Explanation(text=agent_output.state.answer.text),
         snippets=all_snippets,
     )
