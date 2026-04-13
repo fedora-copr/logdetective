@@ -31,7 +31,7 @@ class ExtractorToolOutput(ToolOutput, BaseModel):
         return f"source_artifact: {self.source_artifact}, extracted_snippets: {self.extracted_snippets}, remaining_artifacts: {self.remaining_artifacts}"
 
     def is_empty(self) -> bool:
-        return False
+        return not self.extracted_snippets
 
 
 class ExtractorTool(Tool[ExtractorToolInput]):
