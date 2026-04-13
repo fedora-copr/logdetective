@@ -14,9 +14,6 @@ from pydantic import (
 from logdetective.constants import (
     DEFAULT_TEMPERATURE,
     SYSTEM_ROLE_DEFAULT,
-    USER_ROLE_DEFAULT,
-    LLM_MAX_CONCURRENT_REQUESTS,
-    LLM_MAX_KEEP_ALIVE_CONNECTIONS,
     DEFAULT_MAXIMUM_ARTIFACT_MIB,
 )
 from logdetective.utils import check_csgrep, mib_to_bytes
@@ -217,12 +214,7 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
     api_token: str = "None"
     model: str = "default-model"
     temperature: NonNegativeFloat = DEFAULT_TEMPERATURE
-    http_timeout: float = 5.0
-    user_role: str = USER_ROLE_DEFAULT
     system_role: str = SYSTEM_ROLE_DEFAULT
-    llm_api_timeout: float = 15.0
-    max_concurrent_requests: int = LLM_MAX_CONCURRENT_REQUESTS
-    max_keep_alive_connections: int = LLM_MAX_KEEP_ALIVE_CONNECTIONS
 
 
 class ExtractorConfig(BaseModel):
@@ -347,10 +339,8 @@ class GeneralConfig(BaseModel):
 
     packages: List[str] = []
     excluded_packages: List[str] = []
-    devmode: bool = False
     sentry_dsn: HttpUrl | None = None
     collect_emojis_interval: int = 60 * 60  # seconds
-    top_k_snippets: int = 0
     # max_artifact_size in config.yml is in MiBs, here (GeneralConfig class) is in bytes
     max_artifact_size: int = mib_to_bytes(DEFAULT_MAXIMUM_ARTIFACT_MIB)
     block_localhost_urls: bool = True

@@ -384,22 +384,14 @@ Note that before any log or its snippets are sent to LLM for analysis, they are 
 Log Detective removes certain personal information, such as emails and GPG fingerprints from logs, before calling LLM.
 LLM should be aware of this fact and factor it into its responses.
 
-## Filtering snippet analysis by relevance
-
-**Note**: This feautre requires LLM provider with support for JSON structured output. Smaller models, even though techically capable of providing structured output, may not be able to appropriatelly estimate snippet relevance.
-
-Filtering is disabled by default and must be enabled by setting value of `top_k_snippets` field in `general` section of server configuration. Value indicates number of snippets with highest estimated relavance that will be submitted for final analysis.
-
 Example:
 
 ```yaml
 general:
-  devmode: False
   packages:
     - .*
   excluded_packages:
     - ^redhat-internal-.*
-  top_k_snippets: 10
 ```
 
 If all snippets are rated the same, the filtering is skipped and warning raised in logs.

@@ -51,15 +51,10 @@ Focus on issues that are likely to cause a build failure."""
 
 SNIPPET_DELIMITER = "================"
 
-DEFAULT_TEMPERATURE = 0.8
+DEFAULT_TEMPERATURE = 0.0
 
-# Tuning for LLM-as-a-Service
-LLM_MAX_CONCURRENT_REQUESTS = 100
-LLM_MAX_KEEP_ALIVE_CONNECTIONS = 20
-
-# Roles for chat API
+# Role for chat API
 SYSTEM_ROLE_DEFAULT = "developer"
-USER_ROLE_DEFAULT = "user"
 
 # Other constants
 
