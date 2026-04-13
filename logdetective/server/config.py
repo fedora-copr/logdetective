@@ -1,8 +1,6 @@
 import os
 import logging
 import yaml
-import httpx
-from openai import AsyncOpenAI
 from beeai_framework.adapters.openai import OpenAIChatModel
 
 from logdetective.utils import load_prompts, load_skip_snippet_patterns
@@ -56,25 +54,16 @@ def get_log(config: Config):
 
 def get_openai_chat_model(inference_config: InferenceConfig) -> OpenAIChatModel:
     """Set up OpenAI chat model for Log Detective agent"""
-    return OpenAIChatModel(
+    chat_model = OpenAIChatModel(
         model_id=inference_config.model,
         api_key=inference_config.api_token,
         base_url=inference_config.url,
         tool_choice_support={"auto"},
     )
 
-
-def get_openai_api_client(inference_config: InferenceConfig):
-    """Set up AsyncOpenAI client with default configuration."""
-    limits = httpx.Limits(
-        max_connections=inference_config.max_concurrent_requests,
-        max_keepalive_connections=inference_config.max_keep_alive_connections,
-    )
-    return AsyncOpenAI(
-        api_key=inference_config.api_token, base_url=inference_config.url,
-        timeout=inference_config.llm_api_timeout,
-        http_client=httpx.AsyncClient(limits=limits)  # Defaults are too restrictive
-    )
+    chat_model.parameters.temperature = inference_config.temperature
+    chat_model.parameters.max_tokens = inference_config.max_tokens
+    return chat_model
 
 
 SERVER_CONFIG_PATH = os.environ.get("LOGDETECTIVE_SERVER_CONF", None)
@@ -92,5 +81,3 @@ PROMPT_CONFIG = load_prompts(SERVER_PROMPT_CONF_PATH, SERVER_PROMPT_PATH)
 SKIP_SNIPPETS_CONFIG = load_skip_snippet_patterns(SERVER_SKIP_PATTERNS_PATH)
 
 LOG = get_log(SERVER_CONFIG)
-
-CLIENT = get_openai_api_client(SERVER_CONFIG.inference)

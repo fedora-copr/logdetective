@@ -7,25 +7,9 @@ inference:
   log_probs: true
   url: http://inference-server:8000/v1
   api_token: "XXX" # Must not be empty, even if the server doesn't require authentication
-  requests_per_minute: 6000
-  http_timeout: 5.0
-  http_connect_timeout: 3.07
-  llm_api_timeout: 15.0 # Timeout for the LLM API client, how long should it wait for inference server response
   model: "fedora-copr/granite-4.0-h-tiny-quantized.w8a8"
-  # Roles are used to format prompts into chat messages
-  # If the roles are same, the system prompt and user message are concatenated
-  user_role: user
+  # Role needs to be aligned with chat template
   system_role: system
-  # Limits on connections for AsyncOpenAI client
-  max_concurrent_requests: 100
-  max_keep_alive_connections: 20
-# Separate LLM endpoint for snippet analysis, optional
-# snippet_inference:
-#   max_tokens: -1
-#   log_probs: true
-#   url: http://inference-server:8000
-#   api_token: ""
-#   requests_per_minute: 6
 extractor:
   max_clusters: 25
   verbose: false
@@ -58,16 +42,10 @@ extractor:
 #         - example_token
 general:
   max_artifact_size: 50  # in MiB
-  devmode: False
   packages:
     - .*
   excluded_packages:
     - ^redhat-internal-.*
-  # If set to value greater than zero, this option enables
-  # filtering of snippets based on their estimated relevance.
-  # Values equal, or higher, than number of snippets produced,
-  # will effectivelly result in no filtering at all.
-  # top_k_snippets: 0
   # Log Detective server blocks analysis of local files
   # as a security measure. This block can be disabled.
   # block_localhost_urls: true
