@@ -215,6 +215,8 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
     model: str = "default-model"
     temperature: NonNegativeFloat = DEFAULT_TEMPERATURE
     system_role: str = SYSTEM_ROLE_DEFAULT
+    total_max_retries: int = 10
+    max_retries_per_step: int = 3
 
 
 class ExtractorConfig(BaseModel):

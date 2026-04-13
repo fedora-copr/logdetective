@@ -10,6 +10,10 @@ inference:
   model: "fedora-copr/granite-4.0-h-tiny-quantized.w8a8"
   # Role needs to be aligned with chat template
   system_role: system
+  # How many attempts agent has to make a correct tool call
+  # increase when working with smaller models
+  total_max_retries: 10
+  max_retries_per_step: 3
 extractor:
   max_clusters: 25
   verbose: false
