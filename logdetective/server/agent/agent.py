@@ -74,7 +74,9 @@ async def analyze_artifacts(
     )
 
     agent_output = await agent.run(
-        agent_input, max_retries_per_step=10, total_max_retries=40
+        agent_input,
+        max_retries_per_step=SERVER_CONFIG.inference.max_retries_per_step,
+        total_max_retries=SERVER_CONFIG.inference.total_max_retries,
     ).middleware(middleware)
 
     if not agent_output.state.answer:
