@@ -22,7 +22,7 @@ class ExtractorToolOutput(ToolOutput, BaseModel):
         description="Name of the artifact the snippets were extracted from."
     )
     extracted_snippets: list[Snippet] = Field(
-        description="Snippets extracted from the artifact. Each element is a tuple of original line number, and the extracted text."
+        description="List of snippets extracted from the artifact."
     )
     remaining_artifacts: set[str] = Field(
         description="Set of artifacts that this extractor was not used on yet."

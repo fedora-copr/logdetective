@@ -160,7 +160,7 @@ class Solution(BaseModel):
 
 
 class Snippet(BaseModel):
-    """Model for snippets not yet processed by Log Detective.
+    """Model for snippets created by extractors.
 
     text: original snippet text
     line_number: location of snippet in the original build artifact
