@@ -309,10 +309,8 @@ def load_skip_snippet_patterns(path: str | None) -> SkipSnippets:
         try:
             with open(path, "r") as file:
                 return SkipSnippets(yaml.safe_load(file))
-        except OSError as e:
-            LOG.error("Couldn't open file with snippet skip patterns `%s`", path)
-            raise e
-
+        except FileNotFoundError:
+            LOG.error("Couldn't open file with snippet skip patterns `%s`", path, stack_info=True)
     return SkipSnippets({})
 
 

@@ -180,8 +180,11 @@ def test_snippet_filtering():
 
 def test_load_skip_snippet_patterns_wrong_path():
     """Test behavior for case when the path doesn't lead to a any file."""
-    with pytest.raises(FileNotFoundError):
-        load_skip_snippet_patterns("/there/is/nothing/to/read.yml")
+
+    default_skip_pattern = load_skip_snippet_patterns("/there/is/nothing/to/read.yml")
+
+    assert isinstance(default_skip_pattern, SkipSnippets)
+    assert len(default_skip_pattern.snippet_patterns) == 0
 
 
 def test_load_skip_snippet_patterns_correct_path():
