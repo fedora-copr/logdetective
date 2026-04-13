@@ -20,7 +20,7 @@ from logdetective.server.gitlab import (
     check_artifacts_file_size,
 )
 from logdetective.server.server import process_gitlab_job_event
-from logdetective.server.models import JobHook, GitLabInstanceConfig, Response, Explanation
+from logdetective.server.models import JobHook, GitLabInstanceConfig, APIResponse, Explanation
 from logdetective.server.database.models import (
     AnalyzeRequestMetrics,
     Forge,
@@ -255,7 +255,7 @@ async def mock_job_hook():
 def mock_analysis(mocker, request):
     """Fixture to mock analyze_artifacts directly at the server level."""
     message = getattr(request, "param", "This is a mock message")
-    mock_response = Response(
+    mock_response = APIResponse(
         explanation=Explanation(text=message),
         snippets=[]
     )

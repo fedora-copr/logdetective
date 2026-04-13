@@ -3,7 +3,7 @@ import zipfile
 
 from typing import Dict
 from logdetective.server.models import (
-    Response,
+    APIResponse,
     AnalyzedSnippet,
     Explanation,
 )
@@ -64,7 +64,7 @@ class LLMResponseCompressor:
     SNIPPET_FILE_NAME = "snippet_{number}.txt"
     COMPRESSOR = TextCompressor()
 
-    def __init__(self, response: Response):
+    def __init__(self, response: APIResponse):
         """
         Initialize with an LLM response.
 
@@ -95,7 +95,7 @@ class LLMResponseCompressor:
     @classmethod
     def unzip(
         cls, zip_data: bytes
-    ) -> Response:
+    ) -> APIResponse:
         """
         Uncompress the zipped content of the LLM response.
 
@@ -125,6 +125,6 @@ class LLMResponseCompressor:
                 )
             )
 
-        response = Response(explanation=explanation, snippets=snippets)
+        response = APIResponse(explanation=explanation, snippets=snippets)
 
         return response

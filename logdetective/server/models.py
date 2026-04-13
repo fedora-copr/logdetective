@@ -67,7 +67,7 @@ class AnalysisRequest(BaseModel):
         max_length=15,
     )
     build_metadata: Optional[BuildMetadata] = Field(
-        description="Optional build metadata.", default=None
+        description="Optional build metadata. Unused in the initial release.", default=None
     )
 
     @model_validator(mode="after")
@@ -178,7 +178,20 @@ class AnalyzedSnippet(Snippet):
     snippet_analysis: SnippetAnalysis
 
 
-class Response(BaseModel):
+class AgentResponse(BaseModel):
+    """Model for the final agent response, containing explanation,
+    proposed solution and a flag indicating if any issue has been found.
+
+    explanation: Explanation
+    solution: Proposed solution to the detected issue
+    no_issue_found: Set to true if no issue was detected
+    """
+    explanation: Explanation
+    solution: Optional[Solution] = None
+    no_issue_found: bool = False
+
+
+class APIResponse(AgentResponse):
     """Model of data returned by Log Detective API
 
     explanation: Explanation
@@ -187,10 +200,7 @@ class Response(BaseModel):
     no_issue_found: Set to true if no issue was detected
     """
 
-    explanation: Explanation
     snippets: Optional[List[Union[AnalyzedSnippet, Snippet]]] = None
-    solution: Optional[Solution] = None
-    no_issue_found: bool = False
 
 
 class KojiResponse(BaseModel):
@@ -201,7 +211,7 @@ class KojiResponse(BaseModel):
 
     task_id: int
     log_file_name: str
-    response: Response
+    response: APIResponse
 
 
 class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attributes

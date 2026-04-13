@@ -55,7 +55,7 @@ from logdetective.server.models import (
     JobHook,
     KojiInstanceConfig,
     KojiResponse,
-    Response,
+    APIResponse,
     TimePeriod,
     MetricResponse,
 )
@@ -246,7 +246,7 @@ app = FastAPI(
 )
 
 
-@app.post("/analyze", response_model=Response)
+@app.post("/analyze", response_model=APIResponse)
 @track_request()
 async def analyze(
     payload: AnalysisRequest,

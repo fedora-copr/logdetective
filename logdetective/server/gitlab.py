@@ -28,7 +28,7 @@ from logdetective.server.metric import add_new_metrics, update_metrics
 from logdetective.server.models import (
     GitLabInstanceConfig,
     JobHook,
-    Response,
+    APIResponse,
 )
 from logdetective.server.database.models import (
     AnalyzeRequestMetrics,
@@ -51,7 +51,7 @@ async def process_gitlab_job_event(
     forge: Forge,
     job_hook: JobHook,
     chat_model: OpenAIChatModel,
-) -> Response | None:
+) -> APIResponse | None:
     """Handle a received job_event webhook from GitLab"""
     LOG.debug("Received webhook message from %s:\n%s", forge.value, job_hook)
 
@@ -343,7 +343,7 @@ async def comment_on_mr(  # pylint: disable=too-many-arguments disable=too-many-
     merge_request_iid: int,
     job: gitlab.v4.objects.ProjectJob,
     log_url: str,
-    response: Response,
+    response: APIResponse,
     metrics_id: int,
 ):
     """Add the Log Detective response as a comment to the merge request"""
@@ -449,7 +449,7 @@ async def suppress_latest_comment(
 async def generate_mr_comment(
     job: gitlab.v4.objects.ProjectJob,
     log_url: str,
-    response: Response,
+    response: APIResponse,
     full: bool = True,
 ) -> str:
     """Use a template to generate a comment string to submit to Gitlab"""
