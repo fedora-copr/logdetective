@@ -20,7 +20,7 @@ from logdetective.utils import (
     load_skip_snippet_patterns,
     check_csgrep,
     mine_logs,
-    sanitize_log,
+    sanitize_artifact,
     mib_to_bytes,
 )
 from logdetective.remote_log import retrieve_log_content
@@ -167,7 +167,7 @@ async def run():  # pylint: disable=too-many-statements,too-many-locals,too-many
             # file does not exist
             LOG.error(e)
             sys.exit(4)
-    log = sanitize_log(log)
+    log = sanitize_artifact(log)
     log_summary = mine_logs(log=log, extractors=extractors)
     LOG.info("Analyzing the text")
 

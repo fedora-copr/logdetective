@@ -1,4 +1,4 @@
-from logdetective.utils import sanitize_log
+from logdetective.utils import sanitize_artifact
 
 
 def test_sanitize_identifiers():
@@ -14,7 +14,7 @@ def test_sanitize_identifiers():
     ]
 
     # by doing this, we also check if the order of lines isn't somehow changed
-    redacted_lines = sanitize_log("\n".join(test_lines)).split("\n")
+    redacted_lines = sanitize_artifact("\n".join(test_lines)).split("\n")
 
     assert "copr-team@redhat.com" in redacted_lines[0]
     assert "example-mail@arbitrary.domain.com" not in redacted_lines[0]
@@ -49,7 +49,7 @@ def test_do_not_sanitize_identifiers():
         "user@-domain.com",
         "user@domain-.com",
     ]
-    redacted_lines = sanitize_log("\n".join(test_lines)).split("\n")
+    redacted_lines = sanitize_artifact("\n".join(test_lines)).split("\n")
 
     assert "root@12.34.56.78" in redacted_lines[0]
     assert "copr-team" not in redacted_lines[0]
@@ -87,7 +87,7 @@ def test_sanitize_all_emails():
         "- commit header: Mon Jan 1 2020 John Doe <jdoe@domain.com>",
     ]
 
-    redacted_lines = sanitize_log("\n".join(test_lines)).split("\n")
+    redacted_lines = sanitize_artifact("\n".join(test_lines)).split("\n")
 
     assert "copr-team@redhat.com" in redacted_lines[0]
     assert all(i not in redacted_lines[0] for i in ["onename", "something", "some-domain"])
@@ -133,7 +133,7 @@ def test_do_not_sanitize_emails():
         "this is some journal entry, not a mail: system@0005ebbfd4385848-2e5dff5354ab9bcf.journal",
     ]
 
-    redacted_lines = sanitize_log("\n".join(test_lines)).split("\n")
+    redacted_lines = sanitize_artifact("\n".join(test_lines)).split("\n")
 
     assert all("copr-team@redhat.com" not in line for line in redacted_lines)
 

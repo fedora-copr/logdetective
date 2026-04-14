@@ -22,7 +22,7 @@ import aiohttp
 import sentry_sdk
 from beeai_framework.adapters.openai import OpenAIChatModel
 
-from logdetective.utils import sanitize_log
+from logdetective.utils import sanitize_artifact
 from logdetective.server.exceptions import KojiInvalidTaskID
 
 from logdetective.server.database.models.koji import KojiTaskAnalysis
@@ -403,7 +403,7 @@ async def analyze_koji_task(
     log_file_name, log_text = await get_failed_log_from_koji_task(
         koji_connection, task_id, max_size=SERVER_CONFIG.koji.max_artifact_size
     )
-    log_text = sanitize_log(log_text)
+    log_text = sanitize_artifact(log_text)
 
     # We need to handle the metric tracking manually here, because we need
     # to retrieve the metric ID to associate it with the koji task analysis.

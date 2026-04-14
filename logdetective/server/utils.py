@@ -16,6 +16,7 @@ from logdetective.server.exceptions import LogDetectiveConnectionError
 from logdetective.remote_log import RemoteLog
 from logdetective.exceptions import RemoteLogError
 from logdetective.server.models import AnalysisRequest, ArtifactFile, RemoteArtifactFile
+from logdetective.utils import sanitize_artifact
 
 
 def connection_error_giveup(details: dict) -> None:
@@ -30,6 +31,7 @@ async def get_artifacts_from_payload(
     request_size: int,
 ) -> dict[str, str]:
     """Retrieve artifact contents based on the type of artifact.
+    Sanitize all artifacts.
     Raise ValueError on unsupported element types."""
     build_artifacts: dict[str, str] = {}
 
@@ -52,7 +54,7 @@ async def get_artifacts_from_payload(
                 log_text = await remote_log.get_url_content()
             except RemoteLogError as ex:
                 raise HTTPException(status_code=ex.status_code, detail=f"{ex}") from ex
-            build_artifacts[artifact.name] = log_text
+            build_artifacts[artifact.name] = sanitize_artifact(log_text)
             total_payload_size += remote_log.remote_log_size
 
         elif isinstance(artifact, ArtifactFile):

@@ -171,8 +171,8 @@ def compute_certainty(probs: List[Dict]) -> float:
     return certainty
 
 
-def sanitize_log(log: str) -> str:
-    """Redact personal identifiers from the log content before it is sent to the LLM for analysis.
+def sanitize_artifact(log: str) -> str:
+    """Redact personal identifiers from the artifact content before it is sent to the LLM.
 
     Redaction is done by replacing emails, and various public keys/signatures.
     """
