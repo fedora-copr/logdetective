@@ -20,7 +20,7 @@ from logdetective.server.models import (
     Config,
 )
 from logdetective.server.utils import get_artifacts_from_payload
-from logdetective.utils import sanitize_log
+from logdetective.utils import sanitize_artifact
 
 from tests.server.test_helpers import (
     MOCK_LOG,
@@ -140,7 +140,7 @@ async def test_get_log_from_payload_files_sanitization(
     assert artifacts[payload.files[0].name] == dirty_log
 
     for text in artifacts.values():
-        sanitized = sanitize_log(text)
+        sanitized = sanitize_artifact(text)
 
         assert sanitized != dirty_log
         assert redacted_value not in sanitized
@@ -175,10 +175,7 @@ async def test_get_log_from_payload_url_sanitization(request_size):
 
     assert len(artifacts) == 1
     assert "mock_log.log" in artifacts
-    assert artifacts["mock_log.log"] == dirty_log
 
-    sanitized = sanitize_log(artifacts["mock_log.log"])
-
-    assert sanitized != dirty_log
-    assert "contact@someone.com" not in sanitized
-    assert "copr-team@redhat.com" in sanitized
+    assert artifacts["mock_log.log"] != dirty_log
+    assert "contact@someone.com" not in artifacts["mock_log.log"]
+    assert "copr-team@redhat.com" in artifacts["mock_log.log"]
