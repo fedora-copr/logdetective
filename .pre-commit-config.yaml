@@ -2,13 +2,13 @@
 # See https://pre-commit.com/hooks.html for more hooks
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0
     hooks:
     -   id: trailing-whitespace
     -   id: end-of-file-fixer
     -   id: check-yaml
     -   id: check-added-large-files
 -   repo: https://github.com/pycqa/flake8
-    rev: '7.1.1'  # pick a git hash / tag to point to
+    rev: 'd93590f5be797aabb60e3b09f2f52dddb02f349f'  # frozen: 7.3.0
     hooks:
     -   id: flake8
