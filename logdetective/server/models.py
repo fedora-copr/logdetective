@@ -41,19 +41,20 @@ class RemoteArtifactFile(ArtifactBase):
 
 
 class BuildMetadata(BaseModel):
-    """Model of addtional information provided about the build."""
+    """Model of additional information provided about the build."""
 
     specfile: Optional[str] = Field(
-        description="Contents of package spec file as a string."
+        description="Contents of package spec file as a string.", default=None
     )
     last_patch: Optional[str] = Field(
-        description="Contents of last patch applied as a string."
+        description="Contents of last patch applied as a string.", default=None
     )
     commentary: Optional[str] = Field(
-        description="Comment attached to the triggered build, such as PR description."
+        description="Comment attached to the triggered build, such as PR description.",
+        default=None,
     )
     infra_status: Optional[str] = Field(
-        description="State of build infrastructure as a string."
+        description="State of build infrastructure as a string.", default=None
     )
 
 
@@ -67,7 +68,8 @@ class AnalysisRequest(BaseModel):
         max_length=15,
     )
     build_metadata: Optional[BuildMetadata] = Field(
-        description="Optional build metadata. Unused in the initial release.", default=None
+        description="Optional build metadata. Unused in the initial release.",
+        default=None,
     )
 
     @model_validator(mode="after")
@@ -186,6 +188,7 @@ class AgentResponse(BaseModel):
     solution: Proposed solution to the detected issue
     no_issue_found: Set to true if no issue was detected
     """
+
     explanation: Explanation
     solution: Optional[Solution] = None
     no_issue_found: bool = False
