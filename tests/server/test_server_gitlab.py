@@ -19,7 +19,7 @@ from logdetective.server.gitlab import (
     retrieve_and_preprocess_koji_logs,
     check_artifacts_file_size,
 )
-from logdetective.server.server import process_gitlab_job_event
+from logdetective.server.gitlab import process_gitlab_job_event
 from logdetective.server.models import JobHook, GitLabInstanceConfig, APIResponse, Explanation
 from logdetective.server.database.models import (
     AnalyzeRequestMetrics,
