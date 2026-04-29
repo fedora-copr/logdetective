@@ -417,14 +417,14 @@ wikipedia = ["wikipedia-api (>=0.8.1,<0.9.0)"]
 
 [[package]]
 name = "cachetools"
-version = "7.0.5"
+version = "7.0.6"
 description = "Extensible memoizing collections and decorators"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "cachetools-7.0.5-py3-none-any.whl", hash = "sha256:46bc8ebefbe485407621d0a4264b23c080cedd913921bad7ac3ed2f26c183114"},
-    {file = "cachetools-7.0.5.tar.gz", hash = "sha256:0cd042c24377200c1dcd225f8b7b12b0ca53cc2c961b43757e774ebe190fd990"},
+    {file = "cachetools-7.0.6-py3-none-any.whl", hash = "sha256:4e94956cfdd3086f12042cdd29318f5ced3893014f7d0d059bf3ead3f85b7f8b"},
+    {file = "cachetools-7.0.6.tar.gz", hash = "sha256:e5d524d36d65703a87243a26ff08ad84f73352adbeafb1cde81e207b456aaf24"},
 ]
 
 [[package]]
@@ -820,29 +820,25 @@ files = [
 ]
 
 [[package]]
-name = "drain3"
-version = "0.9.11"
+name = "drain3-improved"
+version = "0.10.0"
 description = "Persistent & streaming log template miner"
 optional = false
-python-versions = "^3.7"
+python-versions = ">=3.10"
 groups = ["main"]
-files = []
-develop = false
+files = [
+    {file = "drain3_improved-0.10.0-py3-none-any.whl", hash = "sha256:0f1c54eddeedba617de001c372861b8cfa81d7b263831967fc59f2d2cafbb8c0"},
+    {file = "drain3_improved-0.10.0.tar.gz", hash = "sha256:9e6d19122e50b0ef87cf2844a2415e706ce2efec619cee7025dc298aee7874bc"},
+]
 
 [package.dependencies]
-cachetools = "*"
-jsonpickle = "*"
+cachetools = ">=7.0.6"
+jsonpickle = ">=4.1.1"
 
 [package.extras]
-all = ["kafka-python", "redis"]
-kafka = ["kafka-python"]
-redis = ["redis"]
-
-[package.source]
-type = "git"
-url = "https://github.com/logpai/Drain3.git"
-reference = "0fb6d6e1828838fa05c8f6fa5cda878e02ea79c7"
-resolved_reference = "0fb6d6e1828838fa05c8f6fa5cda878e02ea79c7"
+kafka = ["kafka-python (>=2.3.0)"]
+redis = ["redis (>=7.4.0)"]
+valkey = ["valkey (>=6.1.1)"]
 
 [[package]]
 name = "execnet"
@@ -3965,4 +3961,4 @@ testing = ["aioresponses", "asciidoc", "flexmock", "pytest", "pytest-asyncio", "
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "dc556604f8bd331697859120b9638d26172f944e4c0d2eca0b0a6c0a7fcd1b8e"
+content-hash = "6efd62e087aedc049843c4d3c5d3df37fb868e0a06559b89c373c8b177cb2648"
