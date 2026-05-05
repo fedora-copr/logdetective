@@ -16,7 +16,7 @@ services:
         condition: service_healthy
 
 
-  # 4 GPU vLLM inference using 8-bit quant of granite-3.1
+  # 4 GPU vLLM inference using 8-bit quant of granite-4.0-tiny
   # requires the exact number of CUDA devices and accesss to Hugging Face
   # for pulling the model.
 
@@ -29,7 +29,9 @@ services:
       --max-model-len 65536
       --kv-cache-dtype fp8
       --max-num-seqs 64
+      --tool-call-parser granite
       --port ${INFERENCE_SERVER_PORT:-8100}
+      --enable-auto-tool-choice
     deploy:
       resources:
         reservations:
