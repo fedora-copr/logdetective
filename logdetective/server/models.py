@@ -225,6 +225,7 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
     # OpenAI client library requires a string to be specified for API token
     # even if it is not checked on the server side
     api_token: str = "None"
+    api_timeout: float = 30.0
     model: str = "default-model"
     temperature: NonNegativeFloat = DEFAULT_TEMPERATURE
     system_role: str = SYSTEM_ROLE_DEFAULT

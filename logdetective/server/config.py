@@ -59,6 +59,9 @@ def get_openai_chat_model(inference_config: InferenceConfig) -> OpenAIChatModel:
         api_key=inference_config.api_token,
         base_url=inference_config.url,
         tool_choice_support={"auto"},
+        settings={
+            "timeout": inference_config.api_timeout,
+        },
     )
 
     chat_model.parameters.temperature = inference_config.temperature
