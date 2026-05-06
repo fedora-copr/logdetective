@@ -45,5 +45,9 @@ class InvalidKojiTaskResultResponse(LogDetectiveKojiException):
     """Call to `getTaskResult` has returned an unexpected data structure"""
 
 
-class LogDetectiveAgentResponseFailure(Exception):
+class LogDetectiveAgentResponseFailure(LogDetectiveException):
     """Log Detective agent did not return a valid response."""
+
+
+class LogDetectiveInferenceTimeout(LogDetectiveException):
+    """Inference server took longer than allowed to respond."""

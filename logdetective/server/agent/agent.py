@@ -11,7 +11,12 @@ from beeai_framework.middleware.trajectory import GlobalTrajectoryMiddleware
 from logdetective.server.config import PROMPT_CONFIG, SERVER_CONFIG
 from logdetective.server.agent.tools import DrainExtractorTool, CSGrepExtractorTool
 from logdetective.server.models import APIResponse, BuildMetadata, Explanation
-from logdetective.server.exceptions import LogDetectiveAgentResponseFailure
+from logdetective.server.exceptions import (
+    LogDetectiveAgentResponseFailure,
+    LogDetectiveInferenceTimeout,
+)
+from beeai_framework.backend.errors import ChatModelError
+from litellm.exceptions import Timeout as LiteLLMTimeout
 
 
 async def analyze_artifacts(
@@ -82,11 +87,16 @@ async def analyze_artifacts(
         artifacts=",".join(artifacts.keys())
     )
 
-    agent_output = await agent.run(
-        agent_input,
-        max_retries_per_step=SERVER_CONFIG.inference.max_retries_per_step,
-        total_max_retries=SERVER_CONFIG.inference.total_max_retries,
-    ).middleware(middleware)
+    try:
+        agent_output = await agent.run(
+            agent_input,
+            max_retries_per_step=SERVER_CONFIG.inference.max_retries_per_step,
+            total_max_retries=SERVER_CONFIG.inference.total_max_retries,
+        ).middleware(middleware)
+    except ChatModelError as e:
+        if isinstance(e.__cause__, LiteLLMTimeout):
+            raise LogDetectiveInferenceTimeout from e
+        raise
 
     if not agent_output.state.answer:
         raise LogDetectiveAgentResponseFailure

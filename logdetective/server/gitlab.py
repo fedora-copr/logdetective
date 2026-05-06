@@ -22,6 +22,7 @@ from logdetective.server.exceptions import (
     LogsTooLargeError,
     LogDetectiveConnectionError,
     LogDetectiveArtifactsMissingError,
+    LogDetectiveInferenceTimeout,
 )
 from logdetective.server.agent.agent import analyze_artifacts
 from logdetective.server.metric import add_new_metrics, update_metrics
@@ -43,7 +44,8 @@ MR_REGEX = re.compile(r"refs/merge-requests/(\d+)/.*$")
 FAILURE_LOG_REGEX = re.compile(r"(\w*\.log)")
 
 
-# pylint: disable=too-many-locals disable=too-many-arguments disable=too-many-positional-arguments
+# pylint: disable=too-many-locals, too-many-arguments, \
+# pylint: disable=too-many-positional-arguments, too-many-return-statements
 async def process_gitlab_job_event(
     gitlab_cfg: GitLabInstanceConfig,
     gitlab_connection: gitlab.Gitlab,
@@ -119,10 +121,21 @@ async def process_gitlab_job_event(
     metrics_id = await add_new_metrics(
         api_name=EndpointType.ANALYZE_GITLAB_JOB,
     )
-    response = await analyze_artifacts(artifacts={log_url: log_text}, chat_model=chat_model)
+    try:
+        response = await analyze_artifacts(
+            artifacts={log_url: log_text}, chat_model=chat_model
+        )
+    except LogDetectiveInferenceTimeout:
+        LOG.error(
+            "Inference server timed out for job %d in project %s.",
+            job_hook.build_id,
+            project.id,
+        )
+        return
+    finally:
+        preprocessed_log.close()
 
     await update_metrics(metrics_id, response)
-    preprocessed_log.close()
 
     # check if this project is on the opt-in list for posting comments.
     if not is_eligible_package(project.name):
