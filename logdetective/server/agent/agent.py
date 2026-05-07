@@ -15,7 +15,12 @@ from litellm.exceptions import (
 )
 
 from logdetective.server.config import PROMPT_CONFIG, SERVER_CONFIG
-from logdetective.server.agent.tools import DrainExtractorTool, CSGrepExtractorTool
+from logdetective.server.agent.tools import (
+    ExtractorTool,
+    DrainExtractorTool,
+    CSGrepExtractorTool,
+    SnippetAnalysisTool,
+)
 from logdetective.server.models import APIResponse, BuildMetadata, Explanation
 from logdetective.server.exceptions import (
     LogDetectiveAgentResponseFailure,
@@ -75,6 +80,20 @@ async def analyze_artifacts(
                 max_invocations=len(artifacts),
             )
         )
+
+    # Add snippet analysis tool, link all extractors and condition it to run after them
+    # max_invocations are set at 5. Most snippets are not informative, and annotating them
+    # provides no benefit.
+    extractors = [tool for tool in tools if isinstance(tool, ExtractorTool)]
+    tools.append(SnippetAnalysisTool(extractors=extractors))
+    requirements.append(
+        ConditionalRequirement(
+            SnippetAnalysisTool,
+            consecutive_allowed=True,
+            only_after=ExtractorTool,
+            max_invocations=5,
+        )
+    )
 
     # TODO: Use AgentResponse as an output
     agent = RequirementAgent(

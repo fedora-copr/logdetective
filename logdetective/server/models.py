@@ -136,12 +136,6 @@ class EmojiHook(BaseModel):
     merge_request: EmojiMergeRequest = Field(default=None)
 
 
-class SnippetAnalysis(BaseModel):
-    """Model of snippet analysis from LLM."""
-
-    text: str = Field(description="Analysis of artifact snippet contents.")
-
-
 class Explanation(BaseModel):
     """Model of snippet or general artifact explanation from Log Detective"""
 
@@ -174,10 +168,10 @@ class Snippet(BaseModel):
 class AnalyzedSnippet(Snippet):
     """Model for snippets already processed by Log Detective.
 
-    snippet_analysis: LLM output in form of a dictionary
+    snippet_analysis: analysis from the LLM
     """
 
-    snippet_analysis: SnippetAnalysis
+    snippet_analysis: str
 
 
 class AgentResponse(BaseModel):
