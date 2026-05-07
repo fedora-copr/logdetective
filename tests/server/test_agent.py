@@ -1,11 +1,19 @@
 from unittest.mock import AsyncMock, patch, MagicMock
+
 import pytest
 from beeai_framework.tools.think import ThinkTool
 from beeai_framework.adapters.openai import OpenAIChatModel
+from beeai_framework.backend.errors import ChatModelError
+from litellm.exceptions import Timeout, RateLimitError
 
 from logdetective.server.agent.agent import analyze_artifacts
 from logdetective.server.agent.tools import DrainExtractorTool, CSGrepExtractorTool
-from logdetective.server.config import SERVER_CONFIG
+from logdetective.server.config import SERVER_CONFIG, get_openai_chat_model
+from logdetective.server.exceptions import (
+    LogDetectiveInferenceError,
+    LogDetectiveInferenceTimeout,
+    LogDetectiveInferenceRateLimit,
+)
 
 
 @pytest.fixture
@@ -86,3 +94,27 @@ async def test_analyze_artifacts_execution_flow():
         run_call_args = mock_agent_instance.run.call_args[0][0]
         assert "artifact_1.log" in run_call_args
         assert "artifact_2.log" in run_call_args
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("cause, expected_exc", [
+    (Timeout("timed out", "model-mock", "provider-mock"), LogDetectiveInferenceTimeout),
+    (RateLimitError("rate limited", "model-mock", "provider-mock"), LogDetectiveInferenceRateLimit),
+    (ChatModelError(), LogDetectiveInferenceError),
+])
+async def test_analyze_artifacts_inference_errors(mock_agent_setup, cause, expected_exc):
+    mock_artifacts, mock_chat_model, _ = mock_agent_setup
+    mock_error = ChatModelError("model error")
+    mock_error.__cause__ = cause
+
+    with patch("logdetective.server.agent.agent.RequirementAgent") as MockAgent:
+        mock_run_instance = MagicMock()
+        mock_run_instance.middleware = AsyncMock(
+            side_effect=mock_error
+        )
+        MockAgent.return_value.run.return_value = mock_run_instance
+
+        with pytest.raises(LogDetectiveInferenceError) as exc_info:
+            await analyze_artifacts(mock_artifacts, mock_chat_model)
+
+    assert isinstance(exc_info.value, expected_exc)
