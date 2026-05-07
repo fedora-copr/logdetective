@@ -25,7 +25,7 @@ from beeai_framework.adapters.openai import OpenAIChatModel
 from logdetective.utils import sanitize_artifact
 from logdetective.server.exceptions import (
     KojiInvalidTaskID,
-    LogDetectiveInferenceTimeout,
+    LogDetectiveInferenceError,
 )
 
 from logdetective.server.database.models.koji import KojiTaskAnalysis
@@ -266,10 +266,10 @@ async def analyze(
         response = await analyze_artifacts(
             artifacts=artifacts, chat_model=request.app.state.openai_chat_model
         )
-    except LogDetectiveInferenceTimeout as exc:
+    except LogDetectiveInferenceError as exc:
         raise HTTPException(
-            status_code=504,
-            detail="Inference server timed out during some LLM call.",
+            status_code=exc.http_status_code,
+            detail=f"{type(exc).__doc__}: {exc}",
         ) from exc
     return response
 
@@ -430,10 +430,10 @@ async def analyze_koji_task(
         response = await analyze_artifacts(
             {log_file_name: log_text}, chat_model=openai_chat_model
         )
-    except LogDetectiveInferenceTimeout:
-        LOG.error("Inference service timed out for koji task %d.", task_id)
+    except LogDetectiveInferenceError as exc:
         # The empty task will sit with null response_id until analysis_timeout elapses,
         # then callers get KojiTaskAnalysisTimeoutError -> handled as 503
+        LOG.error("Not processing Koji task %d: %s: %s", task_id, type(exc).__name__, exc)
         return
 
     # Now that we have the response, we can update the metrics and mark the

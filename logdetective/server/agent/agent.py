@@ -1,12 +1,18 @@
 from typing import Optional
+
 from beeai_framework.agents.requirement import RequirementAgent
 from beeai_framework.agents.requirement.requirements.conditional import (
     ConditionalRequirement,
 )
+from beeai_framework.backend.errors import ChatModelError
 from beeai_framework.memory import UnconstrainedMemory
 from beeai_framework.tools.think import ThinkTool
 from beeai_framework.adapters.openai import OpenAIChatModel
 from beeai_framework.middleware.trajectory import GlobalTrajectoryMiddleware
+from litellm.exceptions import (
+    Timeout as LiteLLMTimeout,
+    RateLimitError as LiteLLMRateLimit
+)
 
 from logdetective.server.config import PROMPT_CONFIG, SERVER_CONFIG
 from logdetective.server.agent.tools import DrainExtractorTool, CSGrepExtractorTool
@@ -14,13 +20,15 @@ from logdetective.server.models import APIResponse, BuildMetadata, Explanation
 from logdetective.server.exceptions import (
     LogDetectiveAgentResponseFailure,
     LogDetectiveInferenceTimeout,
+    LogDetectiveInferenceError,
+    LogDetectiveInferenceRateLimit,
 )
-from beeai_framework.backend.errors import ChatModelError
-from litellm.exceptions import Timeout as LiteLLMTimeout
 
 
 async def analyze_artifacts(
-    artifacts: dict[str, str], chat_model: OpenAIChatModel, build_metadata: Optional[BuildMetadata] = None
+    artifacts: dict[str, str],
+    chat_model: OpenAIChatModel,
+    build_metadata: Optional[BuildMetadata] = None
 ) -> APIResponse:
     """Analyze build artifacts using Log Detective agent.
 
@@ -93,10 +101,13 @@ async def analyze_artifacts(
             max_retries_per_step=SERVER_CONFIG.inference.max_retries_per_step,
             total_max_retries=SERVER_CONFIG.inference.total_max_retries,
         ).middleware(middleware)
-    except ChatModelError as e:
-        if isinstance(e.__cause__, LiteLLMTimeout):
-            raise LogDetectiveInferenceTimeout from e
-        raise
+    except ChatModelError as exc:
+        cause = exc.__cause__
+        if isinstance(cause, LiteLLMTimeout):
+            raise LogDetectiveInferenceTimeout(str(cause)) from exc
+        if isinstance(cause, LiteLLMRateLimit):
+            raise LogDetectiveInferenceRateLimit(str(cause)) from exc
+        raise LogDetectiveInferenceError(exc.message) from exc
 
     if not agent_output.state.answer:
         raise LogDetectiveAgentResponseFailure
