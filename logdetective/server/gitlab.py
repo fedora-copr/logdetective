@@ -22,7 +22,7 @@ from logdetective.server.exceptions import (
     LogsTooLargeError,
     LogDetectiveConnectionError,
     LogDetectiveArtifactsMissingError,
-    LogDetectiveInferenceTimeout,
+    LogDetectiveInferenceError,
 )
 from logdetective.server.agent.agent import analyze_artifacts
 from logdetective.server.metric import add_new_metrics, update_metrics
@@ -125,11 +125,10 @@ async def process_gitlab_job_event(
         response = await analyze_artifacts(
             artifacts={log_url: log_text}, chat_model=chat_model
         )
-    except LogDetectiveInferenceTimeout:
+    except LogDetectiveInferenceError as exc:
         LOG.error(
-            "Inference server timed out for job %d in project %s.",
-            job_hook.build_id,
-            project.id,
+            "%s during job %d in project %s: %s",
+            type(exc).__name__, job_hook.build_id, project.id, exc
         )
         return
     finally:

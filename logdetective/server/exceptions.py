@@ -49,5 +49,16 @@ class LogDetectiveAgentResponseFailure(LogDetectiveException):
     """Log Detective agent did not return a valid response."""
 
 
-class LogDetectiveInferenceTimeout(LogDetectiveException):
+class LogDetectiveInferenceError(LogDetectiveException):
+    """Inference service encountered some issue."""
+    http_status_code = 500
+
+
+class LogDetectiveInferenceTimeout(LogDetectiveInferenceError):
     """Inference server took longer than allowed to respond."""
+    http_status_code = 500
+
+
+class LogDetectiveInferenceRateLimit(LogDetectiveInferenceError):
+    """Inference service (temporarily) unavailable. Try again later."""
+    http_status_code = 503
