@@ -10,6 +10,8 @@ from logdetective.constants import (
     DEFAULT_ADVISOR,
     DEFAULT_TEMPERATURE,
     DEFAULT_MAXIMUM_ARTIFACT_MIB,
+    PROMPT_CONF_PATH,
+    PROMPT_PATH,
 )
 from logdetective.utils import (
     process_log,
@@ -67,13 +69,13 @@ def setup_args():
         "--prompts",
         "--prompts-config",
         type=str,
-        default=f"{os.path.dirname(__file__)}/prompts.yml",
+        default=PROMPT_CONF_PATH,
         help="Path to prompt configuration file.",
     )
     parser.add_argument(
         "--prompt-templates",
         type=str,
-        default=f"{os.path.dirname(__file__)}/prompts",
+        default=PROMPT_PATH,
         help="Path to prompt template dir. Prompts must be valid Jinja templates, \
               and system prompts must include field `system_time`.",
     )
@@ -117,7 +119,7 @@ async def run():  # pylint: disable=too-many-statements,too-many-locals,too-many
         log_level = 0
 
     # Get prompts configuration
-    prompts_configuration = load_prompts(args.prompts, args.prompt_templates)
+    prompt_manager = load_prompts(template_path=args.prompt_templates, config_path=args.prompts)
 
     logging.basicConfig(stream=sys.stdout)
     LOG.setLevel(log_level)
@@ -181,7 +183,7 @@ async def run():  # pylint: disable=too-many-statements,too-many-locals,too-many
         log_summary,
         model,
         stream,
-        prompt_templates=prompts_configuration,
+        prompt_manager=prompt_manager,
         temperature=args.temperature,
     )
     probs = []

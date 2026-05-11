@@ -110,9 +110,7 @@ async def analyze_artifacts(
     middleware = GlobalTrajectoryMiddleware(pretty=True)
 
     # Names of build artifacts are inserted into the template.
-    agent_input = PROMPT_CONFIG.agent_start_prompt.format(
-        artifacts=",".join(artifacts.keys())
-    )
+    agent_input = PROMPT_CONFIG.agent_start_prompt(list(artifacts.keys()))
 
     try:
         agent_output = await agent.run(

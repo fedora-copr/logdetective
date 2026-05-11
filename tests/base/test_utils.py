@@ -3,7 +3,7 @@ from unittest import mock
 import aiohttp
 import aioresponses
 import pytest
-
+from jinja2.exceptions import TemplateNotFound
 
 from logdetective.utils import (
     compute_certainty,
@@ -15,7 +15,7 @@ from logdetective.utils import (
     get_chunks,
     mib_to_bytes,
 )
-from logdetective.constants import DEFAULT_MAXIMUM_ARTIFACT_MIB
+from logdetective.constants import DEFAULT_MAXIMUM_ARTIFACT_MIB, PROMPT_PATH
 from logdetective.remote_log import RemoteLog
 from logdetective.exceptions import (
     RemoteLogAccessError,
@@ -23,12 +23,11 @@ from logdetective.exceptions import (
     RemoteLogRequestError,
     RemoteLogTooLargeError,
 )
-from logdetective.models import PromptConfig, SkipSnippets
-from logdetective import constants
+from logdetective.models import SkipSnippets
+from logdetective.prompts import PromptManager
 
 from tests.base.test_helpers import (
     test_snippets,
-    test_prompts,
     test_filter_patterns,
     test_snippets_filtering,
     simple_log,
@@ -58,24 +57,17 @@ def test_format_snippets(snippets):
 
 def test_load_prompts_wrong_path():
     """Test behavior for case when the path doesn't lead to a any file."""
-    prompts_config = load_prompts("/there/is/nothing/to/read.yml")
 
-    assert isinstance(prompts_config, PromptConfig)
-
-    assert prompts_config.prompt_template == constants.PROMPT_TEMPLATE
+    with pytest.raises(TemplateNotFound):
+        load_prompts("/there/is/nothing/to/read.yml")
 
 
 def test_load_prompts_correct_path():
-    """Test behavior for case when the path is correct and only
-    some prompts are overriden with user settings, the rest must remain
-    set to defaults in `constants`."""
+    """Test behavior for case when the path is correct."""
 
-    with mock.patch("logdetective.utils.open", mock.mock_open(read_data=test_prompts)):
-        prompts_config = load_prompts("/there/is/nothing/to/read.yml")
+    prompts_config = load_prompts(template_path=PROMPT_PATH)
 
-    assert isinstance(prompts_config, PromptConfig)
-
-    assert prompts_config.prompt_template == "This is basic template."
+    assert isinstance(prompts_config, PromptManager)
 
 
 @pytest.mark.asyncio

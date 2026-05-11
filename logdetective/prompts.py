@@ -3,7 +3,6 @@ from typing import Optional
 from jinja2 import Environment, FileSystemLoader, Template
 
 from logdetective.models import PromptConfig
-from logdetective.constants import AGENT_START_PROMPT
 
 
 class PromptManager:  # pylint: disable=too-many-instance-attributes
@@ -12,9 +11,7 @@ class PromptManager:  # pylint: disable=too-many-instance-attributes
 
     # Templates for system prompts
     _default_system_prompt_template: Template
-
-    agent_start_prompt: str = AGENT_START_PROMPT
-
+    _default_agent_start_prompt_template: Template
     _references: Optional[list[dict[str, str]]] = None
 
     def __init__(
@@ -22,6 +19,9 @@ class PromptManager:  # pylint: disable=too-many-instance-attributes
     ) -> None:
         self._tmp_env = Environment(loader=FileSystemLoader(prompts_path))
 
+        self._default_agent_start_prompt_template = self._tmp_env.get_template(
+            "agent_start_prompt.j2"
+        )
         self._default_system_prompt_template = self._tmp_env.get_template(
             "system_prompt.j2"
         )
@@ -31,7 +31,6 @@ class PromptManager:  # pylint: disable=too-many-instance-attributes
         if prompts_configuration:
             self._references = prompts_configuration.references
 
-    # To maintain backward compatibility with `logdetective.models.PromptConfig`
     @property
     def default_system_prompt(self) -> str:
         """Render system prompt from a template"""
@@ -39,7 +38,13 @@ class PromptManager:  # pylint: disable=too-many-instance-attributes
             system_time=datetime.now(timezone.utc), references=self._references
         )
 
-    @property
-    def prompt_template(self) -> str:
+    def render_message_template(self, snippets: str) -> str:
         """Render message prompt from the template"""
-        return self.default_message_template.render()
+        return self.default_message_template.render(snippets=snippets)
+
+    def agent_start_prompt(self, artifacts: list[str]) -> str:
+        """Render agent start prompt"""
+
+        return self._default_agent_start_prompt_template.render(
+            artifacts=artifacts
+        )

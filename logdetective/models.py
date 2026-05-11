@@ -2,20 +2,9 @@ import re
 from typing import Optional
 from pydantic import BaseModel, model_validator
 
-from logdetective.constants import (
-    PROMPT_TEMPLATE,
-    DEFAULT_SYSTEM_PROMPT,
-    AGENT_START_PROMPT
-)
-
 
 class PromptConfig(BaseModel):
     """Configuration for basic log detective prompts."""
-
-    prompt_template: str = PROMPT_TEMPLATE
-    agent_start_prompt: str = AGENT_START_PROMPT
-
-    default_system_prompt: str = DEFAULT_SYSTEM_PROMPT
 
     references: Optional[list[dict[str, str]]] = None
 

@@ -1,0 +1,7 @@
+Determine cause of build failure and recommend a solution.
+Use provided tools to analyze following build artifacts:
+{% for artifact in artifacts %}
+* {{ artifact }}
+{% endfor %}
+You MUST extract snippets from all artifacts, until you have clear root cause.
+Focus on issues that are likely to cause a build failure.
