@@ -7,7 +7,12 @@ from beeai_framework.tools.errors import ToolInputValidationError, ToolError
 from beeai_framework.tools.types import ToolOutput, ToolRunOptions
 from pydantic import BaseModel, Field
 
-from logdetective.extractors import DrainExtractor, CSGrepExtractor, Extractor
+from logdetective.extractors import (
+    Extractor,
+    DrainExtractor,
+    CSGrepExtractor,
+    PythonTracebackExtractor,
+)
 from logdetective.server.models import ExtractorConfig, Snippet, AnalyzedSnippet
 
 
@@ -162,6 +167,38 @@ class CSGrepExtractorTool(ExtractorTool):
     def _create_emitter(self) -> Emitter:
         return Emitter.root().child(
             namespace=["tool", "extractor", "csgrep"], creator=self
+        )
+
+
+class PythonTracebackExtractorTool(ExtractorTool):
+    name: str = "python_traceback_extractor"
+    description_template: str = (
+        "Use this tool at most once per artifact. "
+        "Extracts Python exception tracebacks from a log file. "
+        "Use on artifacts that contain Python output or test results. "
+        "Do not use on artifacts that don't contain Python tracebacks. "
+        "Maximum length of extracted snippet is {max_snippet_len}."
+    )
+    extractor: PythonTracebackExtractor
+
+    def __init__(
+        self,
+        extractor_config: ExtractorConfig,
+        available_artifacts: dict[str, str],
+        options: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(available_artifacts=available_artifacts, options=options)
+        self.description = self.description_template.format(
+            max_snippet_len=extractor_config.max_snippet_len,
+        )
+        self.extractor = PythonTracebackExtractor(
+            verbose=extractor_config.verbose,
+            max_snippet_len=extractor_config.max_snippet_len,
+        )
+
+    def _create_emitter(self) -> Emitter:
+        return Emitter.root().child(
+            namespace=["tool", "extractor", "python_traceback"], creator=self
         )
 
 
