@@ -171,3 +171,139 @@ class CSGrepExtractor(DrainExtractor):
         snippets = self._extract_messages(chunks=chunks)
 
         return snippets
+
+
+class PythonTracebackExtractor(Extractor):
+    """Extract Python exception tracebacks from logs using a line-scanning state machine."""
+
+    _TB_START = "Traceback (most recent call last):"
+    _CHAIN_CONT = (
+        "During handling of the above exception, another exception occurred:",
+        "The above exception was the direct cause of the following exception:",
+    )
+    _TRUNCATE_STR = "\n...<truncated>...\n"
+
+    def __call__(self, log: str) -> list[Tuple[int, str]]:
+        lines = log.splitlines()
+        chunks = []
+        current_idx = 0
+        while current_idx < len(lines):
+            if lines[current_idx] == self._TB_START:
+                snippet_lines, next_idx = self._collect_traceback(lines, current_idx)
+                text = "\n".join(snippet_lines)
+                chunks.append((current_idx + 1, text))  # 1-indexed
+                current_idx = next_idx
+            else:
+                current_idx += 1
+        filtered_chunks = self.filter_snippet_patterns(chunks)
+        truncated_chunks = list(map(self._truncate_long_traceback, filtered_chunks))
+        LOG.info("Total %d python tracebacks messages", len(truncated_chunks))
+        return truncated_chunks
+
+    def _truncate_long_traceback(self, snippet: tuple[int, str]) -> list[tuple[int, str]]:
+        """Shorten a snippet with text longer than `max_snippet_len`"""
+        line_no, text = snippet
+        if len(text) <= self.max_snippet_len:
+            return snippet
+        border = (self.max_snippet_len - len(self._TRUNCATE_STR)) // 2
+        return (line_no, f"{text[:border]}{self._TRUNCATE_STR}{text[-border:]}")
+
+    # In the following, by chaining, we mean:
+    #   |Traceback ...
+    #   |...
+    #   |<blank line>
+    #   |During handling of the above ...
+    #   |<blank line>
+    #   |Traceback ...
+    #   |...
+
+    # And by frames, we mean file-code references:
+    #   |Traceback ...
+    #   |  File "module1.py", line 42, in <module>  <- frame
+    #   |    foo()
+    #   |  File "module2.py" ...  <- another frame
+    #   |    bar()
+    #   |  ...
+    #   |Exception: details of exception
+
+    def _is_frame_line(self, line: str) -> bool:
+        """Check if line is an indented traceback frame (File/code reference)."""
+        return bool(line.startswith((" ", "\t")) and line.strip())
+
+    def _is_chain_marker(self, line: str) -> bool:
+        """Check if line marks a chained exception or new traceback."""
+        return bool(line in self._CHAIN_CONT or line == self._TB_START)
+
+    def _find_next_non_blank(self, lines: list[str], start_idx: int) -> int:
+        """Find index of next non-blank line. Returns len(lines) if none found."""
+        idx = start_idx
+        while idx < len(lines) and not lines[idx].strip():
+            idx += 1
+        return idx
+
+    def _has_chain_continuation(self, lines: list[str], from_idx: int) -> int:
+        """Check if a chain continuation follows after blank lines.
+
+        Returns:
+            Non-negative index of chain marker if found, otherwise -1
+        """
+        next_non_blank = self._find_next_non_blank(lines, from_idx)
+        if next_non_blank < len(lines) and self._is_chain_marker(lines[next_non_blank]):
+            return next_non_blank
+        return -1
+
+    def _collect_traceback(self, lines: list[str], start_idx: int) -> tuple[list[str], int]:
+        """Collect all lines belonging to a traceback, including chained exceptions.
+
+        Handles the state machine for parsing Python tracebacks:
+        1. Indented frame lines (File/code references)
+        2. Blank lines (may separate chained tracebacks)
+        3. Chain continuation markers
+        4. Exception type lines (non-indented, non-blank)
+
+        Args:
+            lines: All log lines
+            start_idx: Index of "Traceback (most recent call last):" line
+
+        Returns:
+            Tuple of (collected lines, index after last collected line)
+        """
+        collected = [lines[start_idx]]
+        current_idx = start_idx + 1
+
+        while current_idx < len(lines):
+            line = lines[current_idx]
+            line = line.rstrip()
+
+            # frame line (File/code reference)
+            if self._is_frame_line(line):
+                collected.append(line)
+                current_idx += 1
+                continue
+
+            # blank line -> check if chain continues
+            if not line.strip():
+                chain_idx = self._has_chain_continuation(lines, current_idx + 1)
+                if chain_idx >= 0:
+                    current_idx = chain_idx
+                    continue
+                break
+
+            # chain marker / new traceback
+            if self._is_chain_marker(line):
+                collected.append(line)
+                current_idx += 1
+                continue
+
+            # exception type (non-indented, non-blank)
+            collected.append(line)
+            current_idx += 1
+
+            # check if another exception follows after
+            chain_idx = self._has_chain_continuation(lines, current_idx)
+            if chain_idx >= 0:
+                current_idx = chain_idx
+                continue
+            break
+
+        return collected, current_idx
