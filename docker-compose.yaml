@@ -27,7 +27,7 @@ services:
     command: "llama-server --host 0.0.0.0 --port ${INFERENCE_SERVER_PORT:-8100} --jinja --chat-template-file ${MODELS_PATH-./models}/chat_template.jinja"
     stdin_open: true
     tty: true
-    env_file: .env
+    env_file: ./env_file
     expose:
       - "${INFERENCE_SERVER_PORT:-8100}"
     volumes:
@@ -54,7 +54,7 @@ services:
       - ./files/run_server.sh:/run_server.sh:z
     ports:
       - "${LOGDETECTIVE_SERVER_PORT:-8080}:${LOGDETECTIVE_SERVER_PORT:-8080}"
-    env_file: .env
+    env_file: ./env_file
     # so gunicorn can find logdetective python module
     # and alembic can find alembic.ini
     working_dir: /src
@@ -66,7 +66,7 @@ services:
       - database_data:/var/lib/postgresql/data
     ports:
       - "${POSTGRESQL_PORT:-5432}:${POSTGRESQL_PORT:-5432}"
-    env_file: .env
+    env_file: ./env_file
 
   packit-interface:
     image: quay.io/logdetective/packit:latest
@@ -79,7 +79,7 @@ services:
     # github.com/fedora-copr/logdetective-packit
     ports:
       - "${PACKIT_INTERFACE_PORT:-8090}:${PACKIT_INTERFACE_PORT:-8090}"
-    env_file: .env
+    env_file: ./env_file
 
 volumes:
   database_data:

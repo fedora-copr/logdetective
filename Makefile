@@ -1,4 +1,4 @@
-include .env
+include env_file
 
 CONTAINER_ENGINE ?= $(shell command -v podman 2> /dev/null || echo docker)
 COMPOSE_ENGINE ?= $(shell command -v podman-compose 2> /dev/null || echo docker-compose)
