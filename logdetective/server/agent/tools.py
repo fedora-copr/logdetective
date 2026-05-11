@@ -190,7 +190,10 @@ class SnippetAnalysisTool(
     Tool[SnippetAnalysisToolInput, ToolRunOptions, SnippetAnalysisToolOutput]
 ):
     name: str = "snippet_analysis"
-    description: str = "Analyzes single snippet from list of all extracted snippets"
+    description: str = (
+        "Analyzes single snippet from list of all extracted snippets."
+        "Only the most interesting snippets require separate analysis."
+    )
 
     _extractors: list[ExtractorTool]
 
@@ -229,6 +232,10 @@ class SnippetAnalysisTool(
         for extractor in self._extractors:
             for snippet_index, snippet in enumerate(extractor.extracted_snippets):
                 if snippet.source_file == input.source_file and snippet.line_number == input.line_number:
+                    if isinstance(snippet, AnalyzedSnippet):
+                        raise ToolInputValidationError(
+                            f"Selected snippet from file: {input.source_file} line: {input.line_number} has been analyzed already."
+                        )
                     extractor.extracted_snippets[snippet_index] = AnalyzedSnippet(
                         text=snippet.text,
                         line_number=snippet.line_number,
