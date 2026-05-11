@@ -61,6 +61,133 @@ DNF_PACKAGE_UNAVAILABLE_EXPECTED_SNIPPETS = [
 ]
 
 
+# --- Python traceback examples ---
+
+
+PYTHON_SIMPLE_TB = """\
+Traceback (most recent call last):
+  File "/usr/lib/rpm/redhat/pyproject_buildrequires.py", line 721, in main
+    generate_requires()
+  File "/usr/lib/rpm/redhat/pyproject_buildrequires.py", line 263, in get_backend
+    raise FileNotFoundError('File "setup.py" not found for legacy project.')
+FileNotFoundError: File "setup.py" not found for legacy project.\
+"""
+
+
+PYTHON_SIMPLE_CHAINED_TB = """\
+Traceback (most recent call last):
+  File "/usr/bin/tool", line 10, in run
+    do_work()
+ValueError: inner error
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/bin/tool", line 20, in main
+    run()
+RuntimeError: outer error\
+"""
+
+
+PYTHON_LONGER_TB = """\
+Traceback (most recent call last):
+  File "/app/main.py", line 12, in <module>
+    app.run()
+  File "/app/app.py", line 45, in run
+    self.process()
+  File "/app/handler.py", line 78, in process
+    self.execute()
+  File "/app/executor.py", line 120, in execute
+    self.validate()
+  File "/app/validator.py", line 34, in validate
+    raise ValueError("Invalid input")
+ValueError: Invalid input\
+"""
+
+
+PYTHON_LONG_CHAIN_TB = """\
+Traceback (most recent call last):
+  File "/app/level1.py", line 10, in func1
+    level2.call()
+ValueError: Error at level 1
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/level2.py", line 20, in func2
+    level3.call()
+RuntimeError: Error at level 2
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/app/level3.py", line 30, in func3
+    raise TypeError("Error at level 3")
+TypeError: Error at level 3\
+"""
+
+
+# --- Log examples with inserted tracebacks ---
+
+
+SIMPLE_TRACEBACK_LOG = f"""\
+[INFO] Starting job
+[INFO] Running step
+{PYTHON_SIMPLE_TB}
+[ERROR] Build failed
+Finish: rpmbuild random-package-2026.1.2.3-4.fc42.src.rpm
+Finish: build phase for random-package-2026.1.2.3-4.fc42.src.rpm
+"""
+
+
+CHAINED_TRACEBACK_LOG = f"""\
+Mock output
+Running: git clone https://copr.org/author/org/product /some/abs/path/to/package --depth 500 --no-single-branch --recursive
+
+cmd: ['git', 'clone', 'https://copr.org/author/org/product', '/some/abs/path/to/package', '--depth', '500', '--no-single-branch', '--recursive']
+cwd: .
+rc: 0
+stdout:
+stderr: Cloning into '/some/abs/path/to/package'...
+INFO: calling preinit hooks
+INFO: enabled root cache
+INFO: enabled package manager cache
+
+{PYTHON_SIMPLE_CHAINED_TB}
+Installing group/module packages:
+ bash                              x86_64 5.2.37-1.fc42              fedora       8.2 MiB
+ bzip2                             x86_64 1.0.8-20.fc42              fedora      99.3 KiB
+ coreutils                         x86_64 9.6-4.fc42                 updates      5.4 MiB
+"""
+
+
+LONGER_TRACEBACK_LOG = f"""\
+Building target platforms: x86_64
+Building for target x86_64
+warning: %source_date_epoch_from_changelog is set, but %changelog has no entries to take a date from
+{PYTHON_LONGER_TB}
+
+Start(bootstrap): cleaning package manager metadata
+Finish(bootstrap): cleaning package manager metadata
+"""
+
+
+LONG_CHAIN_TRACEBACK_LOG = f"""\
+RPM build warnings:
+    %source_date_epoch_from_changelog is set, but %changelog has no entries to take a date from
+    absolute symlink: /usr/bin/package -> /usr/share/package
+
+{PYTHON_LONG_CHAIN_TB}
+
++ RPM_EC=0
+++ jobs -p
++ exit 0
+"""
+
+
+# --- Other log examples for CSGrep ---
+
+
 @pytest.fixture
 def simple_log() -> list[str]:
     """Provides a simple log for testing."""
