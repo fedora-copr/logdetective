@@ -24,7 +24,7 @@ The sample [production](./docker-compose-prod.yaml) configuration, uses 4 load b
 The basic setup:
 
 1. Make sure your `MODELS_PATH` environment variable points to a directory with your local LLM files.
-You can either edit the value in [.env](.env), create a symlink `ln -s /directory/with/your/llms ./models`, or:
+You can either edit the value in [env_file](env_file), create a symlink `ln -s /directory/with/your/llms ./models`, or:
     ```sh
     $ export MODELS_PATH=/path/to/models/
     $ ll $MODELS_PATH
