@@ -159,6 +159,37 @@ async def test_snippet_analysis_multiple_extractors():
 
 
 @pytest.mark.asyncio
+async def test_snippet_analysis_already_analyzed():
+    """ToolInputValidationError when attempting to analyze a snippet that was already analyzed."""
+    from beeai_framework.tools.errors import ToolInputValidationError
+
+    source_file = "build.log"
+    artifact_content = "extracted text"
+    snippet = Snippet(text=artifact_content, line_number=0, source_file=source_file)
+    extractors: list[ExtractorTool] = [
+        DrainExtractorTool(
+            ExtractorConfig(), available_artifacts={source_file: artifact_content}
+        )
+    ]
+    extractors[0].extracted_snippets.append(snippet)
+    tool = SnippetAnalysisTool(extractors=extractors)
+    analysis_input = SnippetAnalysisToolInput(
+        source_file=source_file, line_number=0, snippet_analysis="first analysis"
+    )
+    await tool._run(
+        input=analysis_input,
+        context=RunContext(instance=MockRunInstance(), signal=None),
+        options=None,
+    )
+    with pytest.raises(ToolInputValidationError):
+        await tool._run(
+            input=analysis_input,
+            context=RunContext(instance=MockRunInstance(), signal=None),
+            options=None,
+        )
+
+
+@pytest.mark.asyncio
 async def test_snippet_analysis_no_extracted_snippets():
     """ToolError when source_file is valid but no snippets have been extracted yet."""
     from beeai_framework.tools.errors import ToolError
