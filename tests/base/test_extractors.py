@@ -1,9 +1,15 @@
+import re
 import subprocess as sp
 from unittest.mock import MagicMock
 import pytest
 
 from logdetective.models import SkipSnippets
-from logdetective.extractors import DrainExtractor, CSGrepExtractor, Extractor
+from logdetective.extractors import (
+    Extractor,
+    DrainExtractor,
+    CSGrepExtractor,
+    PythonTracebackExtractor,
+)
 
 from tests.base.test_helpers import (
     simple_log,
@@ -14,6 +20,14 @@ from tests.base.test_helpers import (
     csgrep_output_dolphin_emu,
     package_unavailable_log,
     DNF_PACKAGE_UNAVAILABLE_EXPECTED_SNIPPETS,
+    SIMPLE_TRACEBACK_LOG,
+    CHAINED_TRACEBACK_LOG,
+    LONGER_TRACEBACK_LOG,
+    LONG_CHAIN_TRACEBACK_LOG,
+    PYTHON_SIMPLE_TB,
+    PYTHON_SIMPLE_CHAINED_TB,
+    PYTHON_LONGER_TB,
+    PYTHON_LONG_CHAIN_TB,
 )
 
 
@@ -238,3 +252,138 @@ def test_csgrep_extractor_invalid_json(monkeypatch, simple_log):
     with pytest.raises(Exception):
         extractor(simple_log)
     mock_run.assert_called_once()
+
+
+# --- Tests for PythonTracebackExtractor ---
+
+
+def test_python_tb_single():
+    """Single traceback embedded in surrounding log output."""
+    extractor = PythonTracebackExtractor()
+    results = extractor(SIMPLE_TRACEBACK_LOG)
+
+    assert len(results) == 1
+    line_no, text = results[0]
+    assert line_no == 3
+    assert PYTHON_SIMPLE_TB in text
+    assert "\n\n" not in text
+
+
+def test_python_tb_chained():
+    """Chained tracebacks are coalesced into a single snippet."""
+    extractor = PythonTracebackExtractor()
+    results = extractor(CHAINED_TRACEBACK_LOG)
+
+    assert len(results) == 1
+    line_no, text = results[0]
+    assert line_no == 13
+    assert not text.startswith("\n")
+    assert not text.endswith("\n")
+    assert PYTHON_SIMPLE_CHAINED_TB.replace("\n\n", "\n") in text
+    assert "\n\n" not in text
+
+
+def test_python_tb_multiple_independent():
+    """Two separate tracebacks produce two independent snippets."""
+    log = SIMPLE_TRACEBACK_LOG + "\n" + SIMPLE_TRACEBACK_LOG
+    extractor = PythonTracebackExtractor()
+    results = extractor(log)
+
+    assert len(results) == 2
+    assert results[0][0] == 3
+    assert results[1][0] == 15
+    assert all(PYTHON_SIMPLE_TB in snip for _, snip in results)
+    assert all("\n\n" not in snip for _, snip in results)
+
+
+def test_python_tb_empty():
+    """Log with no tracebacks returns empty list."""
+    extractor = PythonTracebackExtractor()
+    results = extractor("[INFO] All good\n[INFO] Done\n")
+
+    assert not results
+
+
+def test_python_tb_max_snippet_len():
+    """Traceback exceeding max_snippet_len is truncated with ...<truncated>..."""
+    extractor = PythonTracebackExtractor(max_snippet_len=50)
+    results = extractor(SIMPLE_TRACEBACK_LOG)
+
+    assert len(results) == 1
+    line_no, text = results[0]
+    assert line_no == 3
+    assert "...<truncated>..." in text
+    assert "\n\n" not in text
+
+
+def test_python_tb_skip_patterns():
+    """Skip pattern matching removes tracebacks whose text matches the pattern."""
+    skip = SkipSnippets(data={"skip_file_not_found": ".*FileNotFoundError.*"})
+    extractor = PythonTracebackExtractor(skip_snippets=skip)
+    results = extractor(SIMPLE_TRACEBACK_LOG)
+
+    assert len(results) == 0
+
+
+def test_python_tb_line_numbers():
+    """Line numbers correspond to the 1-indexed position of the Traceback header in the log."""
+    log = "line1\nline2\n" + CHAINED_TRACEBACK_LOG
+    extractor = PythonTracebackExtractor()
+    results = extractor(log)
+
+    assert len(results) == 1
+    line_no, text = results[0]
+    assert line_no == 15
+    assert "\n\n" not in text
+
+
+def test_python_tb_long_stack():
+    """Long call stack (5+ frames) is captured completely."""
+    extractor = PythonTracebackExtractor()
+    results = extractor(LONGER_TRACEBACK_LOG)
+
+    assert len(results) == 1
+    line_no, text = results[0]
+    assert line_no == 4
+    assert PYTHON_LONGER_TB in text
+    assert "\n\n" not in text
+
+
+def test_python_tb_chained_3():
+    """Three-level exception chain is captured as single snippet."""
+    extractor = PythonTracebackExtractor()
+    results = extractor(LONG_CHAIN_TRACEBACK_LOG)
+
+    assert len(results) == 1
+    line_no, text = results[0]
+    assert line_no == 5
+    assert not text.startswith("\n")
+    assert not text.endswith("\n")
+    assert PYTHON_LONG_CHAIN_TB.replace("\n\n", "\n") in text
+
+
+def test_python_tb_all():
+    """Four concatenated logs, each with 1 separate traceback."""
+    long_log: str = "\n".join([
+        SIMPLE_TRACEBACK_LOG,
+        LONGER_TRACEBACK_LOG,
+        CHAINED_TRACEBACK_LOG,
+        LONG_CHAIN_TRACEBACK_LOG,
+    ])
+    extractor = PythonTracebackExtractor()
+    results = extractor(long_log)
+
+    assert len(results) == 4
+    assert all("\n\n" not in snip for _, snip in results)
+
+    assert results[0][0] == 3
+    assert PYTHON_SIMPLE_TB in results[0][1]
+
+    assert results[1][0] == 16
+    assert PYTHON_LONGER_TB in results[1][1]
+
+    assert results[2][0] == 44
+    assert PYTHON_SIMPLE_CHAINED_TB.replace("\n\n", "\n") in results[2][1]
+
+    assert results[3][0] == 64
+    assert PYTHON_LONG_CHAIN_TB.replace("\n\n", "\n") in results[3][1]
