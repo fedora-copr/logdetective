@@ -19,6 +19,7 @@ from logdetective.server.agent.tools import (
     ExtractorTool,
     DrainExtractorTool,
     CSGrepExtractorTool,
+    PythonTracebackExtractorTool,
     SnippetAnalysisTool,
 )
 from logdetective.server.models import APIResponse, BuildMetadata, Explanation
@@ -48,6 +49,7 @@ async def analyze_artifacts(
         extractor_config=SERVER_CONFIG.extractor, available_artifacts=artifacts
     )
     csgrep_extractor = None
+    python_tb_extractor = None
     tools = [
         ThinkTool(),
         drain_extractor,
@@ -76,6 +78,19 @@ async def analyze_artifacts(
         requirements.append(
             ConditionalRequirement(
                 CSGrepExtractorTool,
+                consecutive_allowed=True,
+                max_invocations=len(artifacts),
+            )
+        )
+
+    if SERVER_CONFIG.extractor.python_traceback:
+        python_tb_extractor = PythonTracebackExtractorTool(
+            extractor_config=SERVER_CONFIG.extractor, available_artifacts=artifacts
+        )
+        tools.append(python_tb_extractor)
+        requirements.append(
+            ConditionalRequirement(
+                PythonTracebackExtractorTool,
                 consecutive_allowed=True,
                 max_invocations=len(artifacts),
             )
@@ -133,6 +148,9 @@ async def analyze_artifacts(
 
     if csgrep_extractor:
         all_snippets.extend(csgrep_extractor.extracted_snippets)
+
+    if python_tb_extractor:
+        all_snippets.extend(python_tb_extractor.extracted_snippets)
 
     response = APIResponse(
         explanation=Explanation(text=agent_output.state.answer.text),

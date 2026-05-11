@@ -18,8 +18,12 @@ inference:
 extractor:
   max_clusters: 25
   verbose: false
-# Set this value to reasonable number based on maximum context length of your model
+  # Set this value to reasonable number based on maximum context length of your model
   # max_snippet_len: 2000
+  # Enable csgrep extractor for GCC compiler errors (requires csgrep binary)
+  # csgrep: false
+  # Enable Python traceback extractor for Python exception tracebacks
+  # python_traceback: false
 # Configuration for gitlab and koji
 # gitlab:
 #   "GitLab SaaS":
