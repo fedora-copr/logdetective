@@ -24,11 +24,6 @@ test_snippets = [
     ],
 ]
 
-test_prompts = """
-prompt_template: This is basic template.
-
-"""
-
 # For testing snippet filtering
 test_filter_patterns = {
     "starts_one_or_two": "^[12]",

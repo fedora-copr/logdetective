@@ -5,6 +5,7 @@ from beeai_framework.adapters.openai import OpenAIChatModel
 
 from logdetective.utils import load_prompts, load_skip_snippet_patterns
 from logdetective.server.models import Config, InferenceConfig
+from logdetective.constants import PROMPT_PATH, PROMPT_CONF_PATH
 import logdetective
 
 
@@ -70,8 +71,7 @@ def get_openai_chat_model(inference_config: InferenceConfig) -> OpenAIChatModel:
 
 
 SERVER_CONFIG_PATH = os.environ.get("LOGDETECTIVE_SERVER_CONF", None)
-SERVER_PROMPT_CONF_PATH = os.environ.get("LOGDETECTIVE_PROMPTS", None)
-SERVER_PROMPT_PATH = os.environ.get("LOGDETECTIVE_PROMPT_TEMPLATES", None)
+
 # The default location for skip patterns is in the same directory
 # as logdetective __init__.py file.
 SERVER_SKIP_PATTERNS_PATH = os.environ.get(
@@ -80,7 +80,9 @@ SERVER_SKIP_PATTERNS_PATH = os.environ.get(
 )
 
 SERVER_CONFIG = load_server_config(SERVER_CONFIG_PATH)
-PROMPT_CONFIG = load_prompts(SERVER_PROMPT_CONF_PATH, SERVER_PROMPT_PATH)
+PROMPT_CONFIG = load_prompts(
+    template_path=PROMPT_PATH, config_path=PROMPT_CONF_PATH
+)
 SKIP_SNIPPETS_CONFIG = load_skip_snippet_patterns(SERVER_SKIP_PATTERNS_PATH)
 
 LOG = get_log(SERVER_CONFIG)

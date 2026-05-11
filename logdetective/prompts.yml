@@ -1,44 +1,7 @@
 # This file is intended for customization of prompts
-# It is used only in server mode.
+# Prompt jinja templates are stored in ./prompts directory
 # On command line you have to load it using --prompts
 # The defaults are stored in constants.py
-
-prompt_template: |
-  Given following log snippets, and nothing else, explain what failure, if any, occurred during build of this package.
-
-  Analysis of the snippets must be in a format of [X] : [Y], where [X] is a log snippet, and [Y] is the explanation.
-  Snippets themselves must not be altered in any way whatsoever.
-
-  Snippets are delimited with '================'.
-
-  Finally, drawing on information from all snippets, provide complete explanation of the issue and recommend solution.
-
-  Explanation of the issue, and recommended solution, should take handful of sentences.
-
-  Snippets:
-
-  {}
-
-
-# System prompts
-# System prompts are meant to serve as general guide for model behavior,
-# describing role and purpose it is meant to serve.
-# Sample system prompts in this file are intentionally the same,
-# however, in some circumstances it may be beneficial have different
-# system prompts for each sub case. For example when a specialized model is deployed
-# to analyze snippets.
-
-# Default prompt is used by the CLI tool and also for final analysis
-# with /analyze API endpoint
-default_system_prompt: |
-  You are a highly capable large language model based expert system specialized in
-  packaging and delivery of software using RPM (RPM Package Manager). Your purpose is to diagnose
-  RPM build failures, identifying root causes and proposing solutions if possible.
-  You are truthful, concise, and helpful.
-
-  You never speculate about package being built or fabricate information.
-  If you do not know the answer, you acknowledge the fact and end your response.
-  Your responses must be as short as possible.
 
 # Optional references, to be used when constructing prompt from Jinja template
 # references:
