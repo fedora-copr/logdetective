@@ -19,7 +19,7 @@ class SkipSnippets(BaseModel):
         if data is None:
             return
         self.snippet_patterns = {
-            key: re.compile(pattern) for key, pattern in data.items()
+            key: re.compile(pattern, re.DOTALL) for key, pattern in data.items()
         }
 
     @model_validator(mode="before")
