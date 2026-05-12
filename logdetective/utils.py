@@ -247,9 +247,9 @@ def load_prompts(
         try:
             with open(config_path, "r") as file:
                 configuration = PromptConfig(**yaml.safe_load(file))
-        except FileNotFoundError:
+        except (FileNotFoundError, TypeError):
             LOG.error(
-                "Prompt configuration file not found, reverting to defaults.",
+                "Prompt configuration file not found or empty, reverting to defaults.",
                 exc_info=True,
             )
 
