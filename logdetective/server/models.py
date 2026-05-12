@@ -151,6 +151,10 @@ class Solution(BaseModel):
 
     text: str
 
+    def __str__(self):
+        """Return text of the Solution"""
+        return self.text
+
 
 class Snippet(BaseModel):
     """Model for snippets created by extractors.
