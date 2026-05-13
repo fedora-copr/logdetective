@@ -13,6 +13,7 @@ from litellm.exceptions import (
     Timeout as LiteLLMTimeout,
     RateLimitError as LiteLLMRateLimit
 )
+from pydantic import ValidationError
 
 from logdetective.server.config import PROMPT_CONFIG, SERVER_CONFIG
 from logdetective.server.agent.tools import (
@@ -22,7 +23,7 @@ from logdetective.server.agent.tools import (
     PythonTracebackExtractorTool,
     SnippetAnalysisTool,
 )
-from logdetective.server.models import APIResponse, BuildMetadata, Explanation
+from logdetective.server.models import APIResponse, BuildMetadata, AgentResponse
 from logdetective.server.exceptions import (
     LogDetectiveAgentResponseFailure,
     LogDetectiveInferenceTimeout,
@@ -110,7 +111,6 @@ async def analyze_artifacts(
         )
     )
 
-    # TODO: Use AgentResponse as an output
     agent = RequirementAgent(
         llm=chat_model,
         memory=UnconstrainedMemory(),
@@ -128,10 +128,11 @@ async def analyze_artifacts(
     agent_input = PROMPT_CONFIG.agent_start_prompt(list(artifacts.keys()))
 
     try:
-        agent_output = await agent.run(
+        raw_output = await agent.run(
             agent_input,
             max_retries_per_step=SERVER_CONFIG.inference.max_retries_per_step,
             total_max_retries=SERVER_CONFIG.inference.total_max_retries,
+            expected_output=AgentResponse
         ).middleware(middleware)
     except ChatModelError as exc:
         cause = exc.__cause__
@@ -141,8 +142,12 @@ async def analyze_artifacts(
             raise LogDetectiveInferenceRateLimit(str(cause)) from exc
         raise LogDetectiveInferenceError(exc.message) from exc
 
-    if not agent_output.state.answer:
+    if not raw_output.output_structured:
         raise LogDetectiveAgentResponseFailure
+    try:
+        structured_output: AgentResponse = AgentResponse.model_validate(raw_output.output_structured)
+    except ValidationError as exc:
+        raise LogDetectiveInferenceError("Invalid format of the agent response") from exc
 
     all_snippets = drain_extractor.extracted_snippets
 
@@ -153,7 +158,9 @@ async def analyze_artifacts(
         all_snippets.extend(python_tb_extractor.extracted_snippets)
 
     response = APIResponse(
-        explanation=Explanation(text=agent_output.state.answer.text),
+        explanation=structured_output.explanation,
+        solution=structured_output.solution,
+        no_issue_found=structured_output.no_issue_found,
         snippets=all_snippets,
     )
     return response
