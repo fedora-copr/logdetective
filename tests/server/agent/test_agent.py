@@ -14,6 +14,7 @@ from logdetective.server.exceptions import (
     LogDetectiveInferenceTimeout,
     LogDetectiveInferenceRateLimit,
 )
+from logdetective.server.models import AgentResponse, Explanation
 
 
 @pytest.fixture
@@ -24,7 +25,8 @@ def mock_agent_setup():
 
     mock_agent_output = MagicMock()
     mock_agent_output.state.answer.text = "Mocked analysis result"
-
+    mock_agent_output.output_structured = AgentResponse(
+        explanation=Explanation(text="Mock explanation"))
     return mock_artifacts, mock_chat_model, mock_agent_output
 
 
@@ -71,14 +73,13 @@ async def test_analyze_artifacts_init_with_csgrep(mock_agent_setup):
 
 
 @pytest.mark.asyncio
-async def test_analyze_artifacts_execution_flow():
+async def test_analyze_artifacts_execution_flow(mock_agent_setup):
     """Test the execution flow and response mapping of analyze_artifacts."""
+    mock_artifacts, mock_chat_model, mock_agent_output = mock_agent_setup
     mock_artifacts = {"artifact_1.log": "content 1", "artifact_2.log": "content 2"}
-    mock_chat_model = MagicMock(spec=OpenAIChatModel)
 
     expected_answer = "The build failed because of a missing dependency."
-    mock_agent_output = MagicMock()
-    mock_agent_output.state.answer.text = expected_answer
+    mock_agent_output.output_structured.explanation.text = expected_answer
 
     mock_run_chain = MagicMock()
     mock_run_chain.middleware = AsyncMock(return_value=mock_agent_output)
