@@ -42,9 +42,10 @@ class PromptManager:  # pylint: disable=too-many-instance-attributes
         """Render message prompt from the template"""
         return self.default_message_template.render(snippets=snippets)
 
-    def agent_start_prompt(self, artifacts: list[str]) -> str:
+    def agent_start_prompt(self, artifacts: list[str], commentary: Optional[str] = None) -> str:
         """Render agent start prompt"""
 
         return self._default_agent_start_prompt_template.render(
-            artifacts=artifacts
+            artifacts=artifacts,
+            commentary=commentary,
         )
