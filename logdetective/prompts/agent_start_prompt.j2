@@ -5,3 +5,12 @@ Use provided tools to analyze following build artifacts:
 {% endfor %}
 You MUST extract snippets from all artifacts, until you have clear root cause.
 Focus on issues that are likely to cause a build failure.
+
+{% if commentary %}
+Comments:
+
+Following provides additional insight into circumstances of the build failure,
+such as environment.
+
+{{ commentary }}
+{% endif %}
