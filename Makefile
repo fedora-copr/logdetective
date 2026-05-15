@@ -26,7 +26,7 @@ alembic-generate-revision: server-up
 
 	@echo "Checking if database is ready..."
 	$(CONTAINER_ENGINE) run --rm --network logdetective_default \
-		quay.io/sclorg/postgresql-15-c9s \
+		quay.io/logdetective/postgresql-15-c9s-pgvector \
 		pg_isready -h postgres -U $(POSTGRESQL_USER) -d $(POSTGRESQL_DATABASE) \
 		|| (echo "Database not ready -h postgres -U $(POSTGRESQL_USER) -d $(POSTGRESQL_DATABASE)"; exit 1)
 
