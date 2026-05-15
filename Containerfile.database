@@ -1,0 +1,35 @@
+FROM quay.io/sclorg/postgresql-15-c9s
+
+USER root
+
+RUN dnf install -y \
+    git \
+    make \
+    postgresql-private-devel \
+    postgresql-server-devel \
+    gcc \
+    redhat-rpm-config
+
+RUN cd /tmp && \
+git clone --branch v0.8.2 https://github.com/pgvector/pgvector.git
+
+RUN cd /tmp/pgvector && \
+make && \
+make install
+
+# Cleanup
+RUN rm -r /tmp/pgvector
+RUN dnf remove -y \
+    git \
+    make \
+    postgresql-private-devel \
+    postgresql-server-devel \
+    gcc \
+    redhat-rpm-config &&\
+    dnf clean all
+
+# Copy script enabling pgvector extension so that it runs on startup
+COPY ./scripts/enable_pgvector.sh /usr/share/container-scripts/postgresql/start/
+
+# Switching back to user from the base image
+USER 26

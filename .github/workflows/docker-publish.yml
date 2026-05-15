@@ -17,6 +17,7 @@ env:
   REGISTRY: quay.io
   SERVER_IMAGE: logdetective/server
   INFERENCE_IMAGE: logdetective/inference
+  DATABASE_IMAGE: logdetective/database
 
 jobs:
   build:
@@ -110,6 +111,32 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # Extract metadata (tags, labels) for database image with pgvector
+      # https://github.com/docker/metadata-action
+      - name: Extract metadata for database image with pgvector support
+        id: meta-database
+        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5.7.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.DATABASE_IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=sha
+            type=raw,value=latest,enable=${{ contains(github.ref, 'refs/tags/') }}
+
+      # Build Docker image with Buildx
+      # https://github.com/docker/build-push-action
+      - name: Build and push database image with pgvector support
+        id: build-image-database
+        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
+        with:
+          context: .
+          file: Containerfile.database
+          push: ${{ github.event_name != 'pull_request' && contains(github.ref, 'refs/tags/') }}
+          tags: ${{ steps.meta-database.outputs.tags }}
+          labels: ${{ steps.meta-database.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       # Sign the resulting Docker image digest except on PRs.
       # This will only write to the public Rekor transparency log when the Docker
       # repository is public to avoid leaking data.  If you would like to publish
@@ -136,6 +163,21 @@ jobs:
           # https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable
           TAGS: ${{ steps.meta-cuda.outputs.tags }}
           DIGEST: ${{ steps.build-image-cuda.outputs.digest }}
+        # This step uses the identity token to provision an ephemeral certificate
+        # against the sigstore community Fulcio instance.
+        run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
+
+      # Sign the resulting Docker image digest except on PRs.
+      # This will only write to the public Rekor transparency log when the Docker
+      # repository is public to avoid leaking data.  If you would like to publish
+      # transparency data even for private images, pass --force to cosign below.
+      # https://github.com/sigstore/cosign
+      - name: Sign the published database server image
+        if: ${{ github.event_name != 'pull_request' && contains(github.ref, 'refs/tags/') }}
+        env:
+          # https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable
+          TAGS: ${{ steps.meta-database.outputs.tags }}
+          DIGEST: ${{ steps.build-image-database.outputs.digest }}
         # This step uses the identity token to provision an ephemeral certificate
         # against the sigstore community Fulcio instance.
         run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
