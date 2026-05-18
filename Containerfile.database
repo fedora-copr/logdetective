@@ -10,8 +10,9 @@ RUN dnf install -y \
     gcc \
     redhat-rpm-config
 
+# Use pgvector v0.8.2
 RUN cd /tmp && \
-git clone --branch v0.8.2 https://github.com/pgvector/pgvector.git
+git clone --rev cab9da72c04353f143bb06b42ab70a403daac64a https://github.com/pgvector/pgvector.git
 
 RUN cd /tmp/pgvector && \
 make && \
@@ -31,5 +32,5 @@ RUN dnf remove -y \
 # Copy script enabling pgvector extension so that it runs on startup
 COPY ./scripts/enable_pgvector.sh /usr/share/container-scripts/postgresql/start/
 
-# Switching back to user from the base image
+# Switching to default Postgresql user
 USER 26
