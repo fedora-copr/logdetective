@@ -162,6 +162,7 @@ class CSGrepExtractorTool(ExtractorTool):
             verbose=extractor_config.verbose,
             max_snippet_len=extractor_config.max_snippet_len,
             max_clusters=extractor_config.max_clusters,
+            csgrep_timeout=extractor_config.csgrep_timeout,
         )
 
     def _create_emitter(self) -> Emitter:

@@ -56,6 +56,8 @@ def test_default_initialization_and_configuration():
     assert config.verbose is False
     assert config.max_snippet_len == 2000
     assert config.csgrep is False
+    assert config.csgrep_timeout == 1.0
+    assert not config.python_traceback
 
 
 def test_initialization_with_custom_data(mocker: MockerFixture):
