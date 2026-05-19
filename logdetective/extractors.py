@@ -104,14 +104,17 @@ class CSGrepExtractor(DrainExtractor):
     extracting other messages from the logs. Therefore, it must only
     be used together with the Drain based extractor."""
 
+    # pylint: disable=too-many-arguments, too-many-positional-arguments
     def __init__(
         self,
         verbose: bool = False,
         skip_snippets: SkipSnippets = SkipSnippets({}),
         max_snippet_len: int = 2000,
         max_clusters: int = 8,
+        csgrep_timeout: float = 1.0,
     ):
         super().__init__(verbose, skip_snippets, max_snippet_len, max_clusters)
+        self.csgrep_timeout = csgrep_timeout
 
     def __call__(self, log: str) -> list[Tuple[int, str]]:
         """Extract error messages from log using csgrep"""
@@ -133,7 +136,7 @@ class CSGrepExtractor(DrainExtractor):
                 check=False,
                 capture_output=True,
                 text=True,
-                timeout=1.0,
+                timeout=self.csgrep_timeout,
             )
         except sp.TimeoutExpired as ex:
             LOG.exception("Exception encountered while parsing log with csgrep %s", ex)

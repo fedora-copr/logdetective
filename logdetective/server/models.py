@@ -238,6 +238,7 @@ class ExtractorConfig(BaseModel):
     verbose: bool = False
     max_snippet_len: int = 2000
     csgrep: bool = False
+    csgrep_timeout: float = 1.0
     python_traceback: bool = False
 
     @field_validator("csgrep", mode="before")
