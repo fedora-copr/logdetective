@@ -12,7 +12,7 @@ Please know that the explanation was provided by AI and may be incorrect.
 <summary>Snippets</summary>
 <ul>
 {% for snippet in snippets -%}
-<li><div><b>Line {{ snippet.line_number }}:</b> <code>{{ snippet.text | e }}</code><br>{{ snippet.explanation.text | e }}</div></li>
+<li><div><b>Line {{ snippet.line_number }}:</b> <code>{{ snippet.text | e }}</code>{% if snippet.snippet_analysis %}<br>{{ snippet.snippet_analysis | e }}{% endif %}</div></li>
 {%- endfor %}
 </ul>
 </details>

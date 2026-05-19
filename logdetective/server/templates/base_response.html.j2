@@ -12,7 +12,7 @@
             {% for snippet in snippets %}
                 <li>
                     <b>Line {{ snippet.line_number }}:</b> <code>{{ snippet.text }}</code>
-                    {{ snippet.explanation.text }}
+                    {% if snippet.snippet_analysis %}{{ snippet.snippet_analysis }}{% endif %}
                 </li>
             {% endfor %}
         </ul>
