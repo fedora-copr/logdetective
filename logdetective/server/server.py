@@ -264,7 +264,9 @@ async def analyze(
 
     try:
         response = await analyze_artifacts(
-            artifacts=artifacts, chat_model=request.app.state.openai_chat_model
+            artifacts=artifacts,
+            chat_model=request.app.state.openai_chat_model,
+            build_metadata=payload.build_metadata
         )
     except LogDetectiveInferenceError as exc:
         raise HTTPException(
