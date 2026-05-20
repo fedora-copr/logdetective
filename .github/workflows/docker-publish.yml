@@ -17,7 +17,7 @@ env:
   REGISTRY: quay.io
   SERVER_IMAGE: logdetective/server
   INFERENCE_IMAGE: logdetective/inference
-  DATABASE_IMAGE: logdetective/database
+  DATABASE_IMAGE: logdetective/postgresql-15-c9s-pgvector
 
 jobs:
   build:
