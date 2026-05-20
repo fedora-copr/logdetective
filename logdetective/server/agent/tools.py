@@ -49,22 +49,22 @@ class ExtractorTool(Tool[ExtractorToolInput]):
     )
     description_template: str
     extractor: Extractor
-    available_artifacts: dict[str, str]
+    all_artifacts: dict[str, str]
 
     extracted_snippets: list[Snippet]
     _remaining_artifacts: set[str]
 
     def __init__(
         self,
-        available_artifacts: dict[str, str],
+        all_artifacts: dict[str, str],
         schema: type[ExtractorToolInput] = ExtractorToolInput,
         options: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(options)
         self._input_schema = schema
-        self.available_artifacts = available_artifacts
+        self.all_artifacts = all_artifacts
         self.extracted_snippets = []
-        self._remaining_artifacts = set(available_artifacts.keys())
+        self._remaining_artifacts = set(all_artifacts.keys())
 
     async def _run(
         self,
@@ -74,14 +74,19 @@ class ExtractorTool(Tool[ExtractorToolInput]):
     ) -> ExtractorToolOutput:
         """Extract snippets from selected build artifact."""
 
-        if input.artifact_name not in self.available_artifacts:
+        if input.artifact_name not in self.all_artifacts:
             raise ToolInputValidationError(
                 f"Requested artifact: {input.artifact_name} does not exist."
-                f"Only following artifacts are available: {self.available_artifacts}"
+            )
+
+        if input.artifact_name not in self._remaining_artifacts:
+            raise ToolInputValidationError(
+                f"Requested artifact: {input.artifact_name} was already analyzed."
+                f"Only following artifacts are available: {self._remaining_artifacts}"
             )
         self._remaining_artifacts.remove(input.artifact_name)
 
-        artifact = self.available_artifacts[input.artifact_name]
+        artifact = self.all_artifacts[input.artifact_name]
         raw_snippets = self.extractor(artifact)
         for line_number, text in raw_snippets:
             self.extracted_snippets.append(
@@ -119,7 +124,7 @@ class DrainExtractorTool(ExtractorTool):
         options: dict[str, Any] | None = None,
     ) -> None:
 
-        super().__init__(available_artifacts=available_artifacts, options=options)
+        super().__init__(all_artifacts=available_artifacts, options=options)
         self.description = self.description_template.format(
             max_clusters=extractor_config.max_clusters,
             max_snippet_len=extractor_config.max_snippet_len,
@@ -153,7 +158,7 @@ class CSGrepExtractorTool(ExtractorTool):
         available_artifacts: dict[str, str],
         options: dict[str, Any] | None = None,
     ) -> None:
-        super().__init__(available_artifacts=available_artifacts, options=options)
+        super().__init__(all_artifacts=available_artifacts, options=options)
         self.description = self.description_template.format(
             max_clusters=extractor_config.max_clusters,
             max_snippet_len=extractor_config.max_snippet_len,
@@ -188,7 +193,7 @@ class PythonTracebackExtractorTool(ExtractorTool):
         available_artifacts: dict[str, str],
         options: dict[str, Any] | None = None,
     ) -> None:
-        super().__init__(available_artifacts=available_artifacts, options=options)
+        super().__init__(all_artifacts=available_artifacts, options=options)
         self.description = self.description_template.format(
             max_snippet_len=extractor_config.max_snippet_len,
         )
@@ -260,7 +265,7 @@ class SnippetAnalysisTool(
         # This sanity check does not guarantee that snippet actually exists
         # only that the it could have been extracted at some point.
         if not any(
-            input.source_file in extractor.available_artifacts
+            input.source_file in extractor.all_artifacts
             for extractor in self._extractors
         ):
             raise ToolInputValidationError(
