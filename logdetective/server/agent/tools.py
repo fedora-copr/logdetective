@@ -6,6 +6,7 @@ from beeai_framework.tools import Tool
 from beeai_framework.tools.errors import ToolInputValidationError, ToolError
 from beeai_framework.tools.types import ToolOutput, ToolRunOptions
 from pydantic import BaseModel, Field
+import yaml
 
 from logdetective.extractors import (
     Extractor,
@@ -34,7 +35,17 @@ class ExtractorToolOutput(ToolOutput, BaseModel):
     )
 
     def get_text_content(self) -> str:
-        return f"source_artifact: {self.source_artifact}, extracted_snippets: {self.extracted_snippets}, remaining_artifacts: {self.remaining_artifacts}"
+        """Convert the extractor output into YAML"""
+        return yaml.safe_dump(
+            self.model_dump(
+                exclude_defaults=True,
+                exclude_none=True,
+                exclude_computed_fields=True,
+                exclude_unset=True,
+                mode="json",
+            ),
+            default_flow_style=False,
+        )
 
     def is_empty(self) -> bool:
         return not self.extracted_snippets
