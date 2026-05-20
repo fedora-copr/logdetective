@@ -14,6 +14,7 @@ from logdetective.extractors import (
     CSGrepExtractor,
     PythonTracebackExtractor,
 )
+from logdetective.models import SkipSnippets
 from logdetective.server.models import ExtractorConfig, Snippet, AnalyzedSnippet
 
 
@@ -132,6 +133,7 @@ class DrainExtractorTool(ExtractorTool):
         self,
         extractor_config: ExtractorConfig,
         available_artifacts: dict[str, str],
+        skip_snippets: SkipSnippets = SkipSnippets({}),
         options: dict[str, Any] | None = None,
     ) -> None:
 
@@ -142,6 +144,7 @@ class DrainExtractorTool(ExtractorTool):
         )
         self.extractor = DrainExtractor(
             verbose=extractor_config.verbose,
+            skip_snippets=skip_snippets,
             max_snippet_len=extractor_config.max_snippet_len,
             max_clusters=extractor_config.max_clusters,
         )
@@ -167,6 +170,7 @@ class CSGrepExtractorTool(ExtractorTool):
         self,
         extractor_config: ExtractorConfig,
         available_artifacts: dict[str, str],
+        skip_snippets: SkipSnippets = SkipSnippets({}),
         options: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(all_artifacts=available_artifacts, options=options)
@@ -176,6 +180,7 @@ class CSGrepExtractorTool(ExtractorTool):
         )
         self.extractor = CSGrepExtractor(
             verbose=extractor_config.verbose,
+            skip_snippets=skip_snippets,
             max_snippet_len=extractor_config.max_snippet_len,
             max_clusters=extractor_config.max_clusters,
             csgrep_timeout=extractor_config.csgrep_timeout,
@@ -202,6 +207,7 @@ class PythonTracebackExtractorTool(ExtractorTool):
         self,
         extractor_config: ExtractorConfig,
         available_artifacts: dict[str, str],
+        skip_snippets: SkipSnippets = SkipSnippets({}),
         options: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(all_artifacts=available_artifacts, options=options)
@@ -210,6 +216,7 @@ class PythonTracebackExtractorTool(ExtractorTool):
         )
         self.extractor = PythonTracebackExtractor(
             verbose=extractor_config.verbose,
+            skip_snippets=skip_snippets,
             max_snippet_len=extractor_config.max_snippet_len,
         )
 

@@ -308,6 +308,13 @@ def load_skip_snippet_patterns(path: str | None) -> SkipSnippets:
                 path,
                 stack_info=True,
             )
+        except (TypeError, AttributeError) as exc:
+            LOG.warning(
+                "Skip pattern file `%s` is empty, no skip patterns loaded: %s",
+                path,
+                exc,
+            )
+            return SkipSnippets({})
     return SkipSnippets({})
 
 
