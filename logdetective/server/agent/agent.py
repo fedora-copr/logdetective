@@ -15,7 +15,7 @@ from litellm.exceptions import (
 )
 from pydantic import ValidationError
 
-from logdetective.server.config import PROMPT_CONFIG, SERVER_CONFIG
+from logdetective.server.config import PROMPT_CONFIG, SERVER_CONFIG, SKIP_SNIPPETS_CONFIG
 from logdetective.server.agent.tools import (
     ExtractorTool,
     DrainExtractorTool,
@@ -47,7 +47,9 @@ async def analyze_artifacts(
     # TODO: Handle build_metadata by supplying it to the agent
 
     drain_extractor = DrainExtractorTool(
-        extractor_config=SERVER_CONFIG.extractor, available_artifacts=artifacts
+        extractor_config=SERVER_CONFIG.extractor,
+        available_artifacts=artifacts,
+        skip_snippets=SKIP_SNIPPETS_CONFIG,
     )
     csgrep_extractor = None
     python_tb_extractor = None
@@ -73,7 +75,9 @@ async def analyze_artifacts(
     # Use CSGrepExtractorTool only if it is enabled
     if SERVER_CONFIG.extractor.csgrep:
         csgrep_extractor = CSGrepExtractorTool(
-            extractor_config=SERVER_CONFIG.extractor, available_artifacts=artifacts
+            extractor_config=SERVER_CONFIG.extractor,
+            available_artifacts=artifacts,
+            skip_snippets=SKIP_SNIPPETS_CONFIG,
         )
         tools.append(csgrep_extractor)
         requirements.append(
@@ -86,7 +90,9 @@ async def analyze_artifacts(
 
     if SERVER_CONFIG.extractor.python_traceback:
         python_tb_extractor = PythonTracebackExtractorTool(
-            extractor_config=SERVER_CONFIG.extractor, available_artifacts=artifacts
+            extractor_config=SERVER_CONFIG.extractor,
+            available_artifacts=artifacts,
+            skip_snippets=SKIP_SNIPPETS_CONFIG,
         )
         tools.append(python_tb_extractor)
         requirements.append(
