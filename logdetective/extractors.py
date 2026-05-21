@@ -1,7 +1,7 @@
 import os
 import logging
 import subprocess as sp
-from typing import Tuple
+from typing import Optional, Tuple
 
 from drain3.template_miner import TemplateMiner
 from drain3.template_miner_config import TemplateMinerConfig
@@ -19,7 +19,7 @@ class Extractor:
     def __init__(
         self,
         verbose: bool = False,
-        skip_snippets: SkipSnippets = SkipSnippets({}),
+        skip_snippets: Optional[SkipSnippets] = None,
         max_snippet_len: int = 2000,
     ):
         self.verbose = verbose
@@ -36,6 +36,8 @@ class Extractor:
         self, chunks: list[tuple[int, str]]
     ) -> list[tuple[int, str]]:
         """Keep only chunks that don't match any of the excluded patterns"""
+        if not self.skip_snippets or not self.skip_snippets.snippet_patterns:
+            return chunks
         chunks = [
             (_, chunk)
             for _, chunk in chunks
@@ -52,7 +54,7 @@ class DrainExtractor(Extractor):
     def __init__(
         self,
         verbose: bool = False,
-        skip_snippets: SkipSnippets = SkipSnippets({}),
+        skip_snippets: Optional[SkipSnippets] = None,
         max_snippet_len: int = 2000,
         max_clusters: int = 8,
     ):
@@ -108,7 +110,7 @@ class CSGrepExtractor(DrainExtractor):
     def __init__(
         self,
         verbose: bool = False,
-        skip_snippets: SkipSnippets = SkipSnippets({}),
+        skip_snippets: Optional[SkipSnippets] = None,
         max_snippet_len: int = 2000,
         max_clusters: int = 8,
         csgrep_timeout: float = 1.0,

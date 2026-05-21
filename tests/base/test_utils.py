@@ -175,8 +175,39 @@ def test_load_skip_snippet_patterns_wrong_path():
 
     default_skip_pattern = load_skip_snippet_patterns("/there/is/nothing/to/read.yml")
 
-    assert isinstance(default_skip_pattern, SkipSnippets)
-    assert len(default_skip_pattern.snippet_patterns) == 0
+    assert default_skip_pattern is None
+
+
+def test_load_skip_snippet_patterns_no_path():
+    """Test behavior for case when no path is provided."""
+
+    assert load_skip_snippet_patterns(None) is None
+
+
+def test_load_skip_snippet_patterns_empty_file():
+    """Test behavior for case when the file exists but is empty."""
+
+    with mock.patch("logdetective.utils.open", mock.mock_open(read_data="")):
+        result = load_skip_snippet_patterns("/valid/but/empty.yml")
+
+    assert result is None
+
+
+def test_load_skip_snippet_patterns_only_comments():
+    """Test behavior for case when the file is functionally empty (only comments)."""
+
+    with mock.patch(
+        "logdetective.utils.open",
+        mock.mock_open(
+            read_data=(
+                "# commented out stuff\n"
+                "# contains_capital_a: \"^.*A.*\""
+            ),
+        ),
+    ):
+        result = load_skip_snippet_patterns("/valid/but/empty.yml")
+
+    assert result is None
 
 
 def test_load_skip_snippet_patterns_correct_path():
