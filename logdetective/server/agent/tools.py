@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 
 from beeai_framework.context import RunContext
 from beeai_framework.emitter.emitter import Emitter
@@ -133,7 +133,7 @@ class DrainExtractorTool(ExtractorTool):
         self,
         extractor_config: ExtractorConfig,
         available_artifacts: dict[str, str],
-        skip_snippets: SkipSnippets = SkipSnippets({}),
+        skip_snippets: Optional[SkipSnippets] = None,
         options: dict[str, Any] | None = None,
     ) -> None:
 
@@ -170,7 +170,7 @@ class CSGrepExtractorTool(ExtractorTool):
         self,
         extractor_config: ExtractorConfig,
         available_artifacts: dict[str, str],
-        skip_snippets: SkipSnippets = SkipSnippets({}),
+        skip_snippets: Optional[SkipSnippets] = None,
         options: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(all_artifacts=available_artifacts, options=options)
@@ -207,7 +207,7 @@ class PythonTracebackExtractorTool(ExtractorTool):
         self,
         extractor_config: ExtractorConfig,
         available_artifacts: dict[str, str],
-        skip_snippets: SkipSnippets = SkipSnippets({}),
+        skip_snippets: Optional[SkipSnippets] = None,
         options: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(all_artifacts=available_artifacts, options=options)

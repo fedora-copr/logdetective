@@ -285,9 +285,14 @@ def prompt_to_messages(
     return messages
 
 
-def filter_snippet_patterns(snippet: str, skip_snippets: SkipSnippets) -> bool:
+def filter_snippet_patterns(
+    snippet: str,
+    skip_snippets: Optional[SkipSnippets] = None
+) -> bool:
     """Try to match snippet agains provided patterns to determine if we should
     filter it out or not."""
+    if not skip_snippets:
+        return False
     for key, pattern in skip_snippets.snippet_patterns.items():
         if pattern.match(snippet):
             LOG.debug("Snippet `%s` has matched against skip pattern %s", snippet, key)
@@ -296,7 +301,7 @@ def filter_snippet_patterns(snippet: str, skip_snippets: SkipSnippets) -> bool:
     return False
 
 
-def load_skip_snippet_patterns(path: str | None) -> SkipSnippets:
+def load_skip_snippet_patterns(path: str | None) -> SkipSnippets | None:
     """Load dictionary of snippet patterns we want to skip."""
     if path:
         try:
@@ -314,8 +319,7 @@ def load_skip_snippet_patterns(path: str | None) -> SkipSnippets:
                 path,
                 exc,
             )
-            return SkipSnippets({})
-    return SkipSnippets({})
+    return None
 
 
 def check_csgrep() -> bool:
