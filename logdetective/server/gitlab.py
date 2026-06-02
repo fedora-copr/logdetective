@@ -308,13 +308,13 @@ async def check_artifacts_file_size(
     The python-gitlab library doesn't expose a way to check this value directly,
     so we need to interact with directly with the headers.
 
-    If the `content-length` is not set or is invalid, treat artifacts as too large.
+    If the `Content-Length` is not set or is invalid, treat artifacts as too large (reject).
 
     Raises:
         LogDetectiveArtifactsMissingError in case error status code 404
         LogDetectiveConnectionError in case of other error status codes
     Return:
-        True if artifact is not over the max limit.
+        True if Content-Length is present, valid, and within the size limit; False otherwise.
     """
     artifacts_path = (
         f"{gitlab_cfg.api_path}/projects/{job.project_id}/jobs/{job.id}/artifacts"
@@ -346,7 +346,7 @@ async def check_artifacts_file_size(
         str(size_check.size_in_bytes),
         gitlab_cfg.max_artifact_size,
     )
-    return size_check.result
+    return size_check.proceed
 
 
 async def comment_on_mr(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments

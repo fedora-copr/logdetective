@@ -12,7 +12,7 @@ class RemoteLogRequestError(RemoteLogError):
 
 
 class RemoteLogHeaderError(RemoteLogError):
-    """Missing or invalid header when accessing a log via URL."""
+    """Invalid Content-Length header when accessing a log via URL."""
     status_code = 411  # Length Required
 
 

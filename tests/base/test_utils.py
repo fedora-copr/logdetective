@@ -72,41 +72,72 @@ def test_load_prompts_correct_path():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "url, mock_header, exc_type, exc_match",
+    "url, mock_header, mock_body, limit_bytes, exc_type, exc_match",
     [
-        ("http://example.com/build.log", {"Content-Length": "3"}, None, None),
+        ("http://example.com/build.log", {"Content-Length": "3"}, "123", None, None, None),
         (
             "http://example.com/build.log",
             {"Content-Length": "test"},
+            "123",
+            None,
             RemoteLogHeaderError,
-            "Content-Length is invalid",
+            "Content-Length header is invalid",
         ),
         (
             "http://example.com/build.log",
             {"Content-Length": f"{mib_to_bytes(DEFAULT_MAXIMUM_ARTIFACT_MIB) + 1}"},
+            "123",
+            None,
             RemoteLogTooLargeError,
             "Content-Length is over the limit",
         ),
-        ("not-a-valid-url", {}, RemoteLogRequestError, "Invalid log URL"),
-        ("http://example.com/build.log", {}, RemoteLogHeaderError, "Content-Length is missing")
+        ("not-a-valid-url", {}, "123", None, RemoteLogRequestError, "Invalid log URL"),
+        # No Content-Length: small body succeeds
+        ("http://example.com/build.log", {}, "123", None, None, None),
+        # No Content-Length: body over limit is rejected while reading
+        (
+            "http://example.com/build.log",
+            {},
+            "x" * 20,
+            10,
+            RemoteLogTooLargeError,
+            "exceeds the limit",
+        ),
+        # Lying Content-Length: declared within limit, actual body over limit
+        (
+            "http://example.com/build.log",
+            {"Content-Length": "3"},
+            "x" * 20,
+            10,
+            RemoteLogTooLargeError,
+            "exceeds the limit",
+        ),
     ],
     indirect=False,
 )
-async def test_get_url_content(url, mock_header, exc_type, exc_match):
+# pylint: disable=too-many-arguments,too-many-positional-arguments
+async def test_get_url_content(
+    url,
+    mock_header,
+    mock_body,
+    limit_bytes,
+    exc_type,
+    exc_match
+):
     """Test various URL requests and correct Exceptions during RemoteLog access."""
-    mock_response = "123"
     with aioresponses.aioresponses() as mock:
         mock.head(url, status=200, headers=mock_header)
-        mock.get(url, status=200, body=mock_response)
+        mock.get(url, status=200, body=mock_body)
         async with aiohttp.ClientSession() as http:
+            kwargs = {"limit_bytes": limit_bytes} if limit_bytes is not None else {}
             if exc_type:
                 with pytest.raises(exc_type, match=exc_match):
-                    remote_log = RemoteLog(url, http)
+                    remote_log = RemoteLog(url, http, **kwargs)
                     await remote_log.get_url_content()
             else:
-                remote_log = RemoteLog(url, http)
+                remote_log = RemoteLog(url, http, **kwargs)
                 url_output = await remote_log.get_url_content()
-                assert url_output == "123"
+                assert url_output == mock_body
 
 
 @pytest.mark.asyncio
