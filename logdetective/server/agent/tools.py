@@ -1,4 +1,5 @@
 from typing import Any, Optional
+from enum import Enum
 
 from beeai_framework.context import RunContext
 from beeai_framework.emitter.emitter import Emitter
@@ -17,10 +18,13 @@ from logdetective.extractors import (
 from logdetective.models import SkipSnippets
 from logdetective.server.models import ExtractorConfig, Snippet, AnalyzedSnippet
 
+ARTIFACT_NAME_DESC = "The exact name of the artifact you want to extract information from."
+
 
 class ExtractorToolInput(BaseModel):
-    artifact_name: str = Field(
-        description="The exact name of the artifact you want to extract information from."
+    """Possible values of artifact_name, are derived during runtime."""
+    artifact_name: Enum = Field(
+        description=ARTIFACT_NAME_DESC
     )
 
 
@@ -117,7 +121,15 @@ class ExtractorTool(Tool[ExtractorToolInput]):
 
     @property
     def input_schema(self) -> type[ExtractorToolInput]:
-        return self._input_schema
+        if not self._remaining_artifacts:
+            return self._input_schema
+
+        ArtifactName = Enum("ArtifactName", {artifact: artifact for artifact in self._remaining_artifacts}, type=str)
+
+        class DynamicExtractorToolInput(ExtractorToolInput):
+            artifact_name: ArtifactName = Field(description=ARTIFACT_NAME_DESC)
+
+        return DynamicExtractorToolInput
 
 
 class DrainExtractorTool(ExtractorTool):
