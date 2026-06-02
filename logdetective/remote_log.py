@@ -66,7 +66,9 @@ class RemoteLog:
         return True
 
     async def get_url_content(self) -> str:
-        """Validate log url, check the content size from header, and return log text."""
+        """Validate log url, check content size (either using Content-Length, or,
+        if missing, during file reading), and return log text.
+        """
         if not self.validate_url():
             LOG.error("Invalid URL received ")
             raise RemoteLogRequestError(f"Invalid log URL: {self.url}")
@@ -79,25 +81,40 @@ class RemoteLog:
         except (aiohttp.ClientResponseError, aiohttp.ClientConnectorError) as ex:
             raise RemoteLogAccessError(f"We couldn't obtain the headers from {self.url}") from ex
         size_check: ContentSizeCheck = check_content_size(
-            head_response.headers, self._limit_bytes
+            head_response.headers, self._limit_bytes, require_header=False
         )
-        if not size_check.result:
+        if not size_check.proceed:
             if size_check.size_in_bytes is None:
-                if not size_check.value_present:
-                    raise RemoteLogHeaderError("Content-Length is missing")
-                raise RemoteLogHeaderError(
-                    f"Content-Length is invalid: `{size_check.size_in_bytes}`"
-                )
+                raise RemoteLogHeaderError("Content-Length header is invalid")
             raise RemoteLogTooLargeError(
                 f"Content-Length is over the limit: `{size_check.size_in_bytes}`"
             )
-        self.remote_log_size = size_check.size_in_bytes
-        # if size-check passes, we obtain the whole content
+        if size_check.size_in_bytes is None:
+            LOG.info(
+                "No Content-Length header for %s; enforcing size limit while reading", self.url
+            )
         try:
-            response = await self._http_session.get(self.url, raise_for_status=True)
+            async with self._http_session.get(self.url, raise_for_status=True) as response:
+                return await self._read_with_size_limit(response)
         except (aiohttp.ClientResponseError, aiohttp.ClientConnectorError) as ex:
             raise RemoteLogAccessError(f"We couldn't obtain the log from {self.url}") from ex
-        return await response.text()
+
+    async def _read_with_size_limit(self, response: aiohttp.ClientResponse) -> str:
+        """Stream response chunks, raising RemoteLogTooLargeError if the limit is exceeded."""
+        chunks: list[bytes] = []
+        total = 0
+        async for chunk in response.content.iter_chunked(65536):
+            total += len(chunk)
+            if total > self._limit_bytes:
+                self.remote_log_size = total
+                response.close()  # prevent aiohttp from draining the body on exit
+                raise RemoteLogTooLargeError(
+                    f"Content exceeds the limit of {self._limit_bytes} bytes while reading"
+                )
+            chunks.append(chunk)
+        self.remote_log_size = total
+        encoding = response.charset or "utf-8"
+        return b"".join(chunks).decode(encoding, errors="replace")
 
 
 async def retrieve_log_content(

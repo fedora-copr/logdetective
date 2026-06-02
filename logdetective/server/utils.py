@@ -97,11 +97,11 @@ def validate_request_size(request: Request) -> int:
     size_check: ContentSizeCheck = check_content_size(
         request.headers, SERVER_CONFIG.general.max_artifact_size
     )
-    if not (size_check.value_present and size_check.size_in_bytes is not None):
+    if size_check.size_in_bytes is None:
         raise HTTPException(
             status_code=411, detail="Content-Length is missing or invalid."
         )
-    if not size_check.result:
+    if not size_check.proceed:
         raise HTTPException(
             status_code=413,
             detail=(

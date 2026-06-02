@@ -2,6 +2,7 @@ import logging
 import os
 import re
 import subprocess as sp
+from collections.abc import Mapping
 from typing import (
     Iterator,
     List,
@@ -348,50 +349,48 @@ class ContentSizeCheck(NamedTuple):
     Aggregate requests content-size info for checks.
 
     Args:
-        result: the check is successful (content-size info is present within limits)
-        value_present: content-length info is present (value_present=False => result=False)
-        size_in_bytes: None if content-length missing or invalid
+        proceed: True if download should proceed; False to reject.
+        size_in_bytes: Parsed Content-Length value, or None if absent or invalid.
     """
 
-    result: bool
-    value_present: bool
+    proceed: bool
     size_in_bytes: int | None
 
 
-def check_content_size(headers: dict[str, str], size_limit: int) -> ContentSizeCheck:
+def check_content_size(
+    headers: Mapping,
+    size_limit: int,
+    require_header: bool = True,
+) -> ContentSizeCheck:
     """
     Validate that a request's content size doesn't exceed a maximum based on headers.
 
     Args:
-        headers: Dictionary of HTTP headers
+        headers: HTTP headers
+        size_limit: Maximum allowed size in bytes
+        require_header:
+            True(defualt): request with no Content-Length header is rejected.
+            False: request with an absent header is allowed (limit is then checked while reading).
 
     Returns:
-        ContentSizeCheck, If its `.result=False` => request should be rejected.
+        ContentSizeCheck.`.proceed=True` means safe to download. `.proceed=False` means reject.
+        `.size_in_bytes` is None when the header is absent or unparseable.
     """
-    header_name = "Content-Length"
-    content_length: str | int | None = headers.get(header_name) or headers.get(
-        header_name.lower()
-    )
+    content_length = headers.get("content-length")
 
     if content_length is None:
-        transfer_header = "Transfer-Encoding"
-        transfer_encoding = headers.get(transfer_header) or headers.get(
-            transfer_header.lower(), "None"
-        )
-        LOG.warning(
-            (
-                "No `Content-Length`. Transfer-Encoding: %s "
-                "Treating artifacts as over the maximum size."
-            ),
+        transfer_encoding = headers.get("transfer-encoding", "None")
+        LOG.info(
+            "No Content-Length header. Transfer-Encoding: %s",
             transfer_encoding,
         )
-        return ContentSizeCheck(result=False, value_present=False, size_in_bytes=None)
+        return ContentSizeCheck(proceed=not require_header, size_in_bytes=None)
 
     try:
         size = int(content_length)
     except (ValueError, TypeError):
         LOG.error("Invalid Content-Length header value: %s", content_length)
-        return ContentSizeCheck(result=False, value_present=True, size_in_bytes=None)
+        return ContentSizeCheck(proceed=False, size_in_bytes=None)
 
     is_valid = size <= size_limit
     if not is_valid:
@@ -402,7 +401,7 @@ def check_content_size(headers: dict[str, str], size_limit: int) -> ContentSizeC
             size_limit,
             size_limit / (1024 * 1024),
         )
-    return ContentSizeCheck(result=is_valid, value_present=True, size_in_bytes=size)
+    return ContentSizeCheck(proceed=is_valid, size_in_bytes=size)
 
 
 def mine_logs(log: str, extractors: list) -> List[Tuple[int, str]]:
