@@ -5,6 +5,9 @@ upstream inference_backend {
 }
 server {
     listen ${INFERENCE_PROXY_PORT};
+    proxy_connect_timeout 120s;
+    proxy_send_timeout 120s;
+    proxy_read_timeout 120s;
     location / {
         proxy_pass http://inference_backend;
         proxy_set_header Host $host;
