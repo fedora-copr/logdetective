@@ -1,10 +1,30 @@
-[tool.poetry]
+[project]
 name = "logdetective"
 version = "4.6.0"
 description = "Analyze logs with a template miner and an LLM to discover errors and suggest solutions."
-authors = ["Jiri Podivin <jpodivin@gmail.com>"]
+authors = [
+    { name="Jiri Podivin", email="jpodivin@gmail.com" }
+]
 license = "Apache-2.0"
 readme = "README.md"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Debuggers",
+    "Topic :: Internet :: Log Analysis"
+]
+requires-python = ">=3.11,<3.14"
+
+[project.urls]
+homepage = "https://github.com/fedora-copr/logdetective"
+issues = "https://github.com/fedora-copr/logdetective/issues"
+
+[tool.poetry]
 include = [
     "logdetective/drain3.ini",
     "logdetective/server/templates/gitlab_comment.md.j2",
@@ -17,24 +37,8 @@ include = [
 packages = [
     { include = "logdetective" }
 ]
-classifiers = [
-    "Development Status :: 5 - Production/Stable",
-    "Environment :: Console",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
-    "Natural Language :: English",
-    "Programming Language :: Python :: 3",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    "Topic :: Software Development :: Debuggers",
-    "Topic :: Internet :: Log Analysis"
-]
-
-[tool.poetry.urls]
-homepage = "https://github.com/fedora-copr/logdetective"
-issues = "https://github.com/fedora-copr/logdetective/issues"
 
 [tool.poetry.dependencies]
-python = "^3.11"
 llama-cpp-python = ">0.2.56,!=0.2.86,<1.0.0"
 drain3-improved = ">=0.10.0"
 huggingface-hub = ">=1.0.0,<2.0.0"
