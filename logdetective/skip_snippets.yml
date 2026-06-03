@@ -3,10 +3,54 @@
 # Patterns are to be specified as values of dictionary,
 # with each key being a descriptive name of the pattern.
 # Patterns themselves are evaluated as a regular expression.
+# This file is only an example, following patterns are derived from
+# behavior of Mock.
+# Users are encouraged to provide their own patterns.
+# NOTE: Matching uses re.match (anchored to start of string).
+# Use .* prefix for patterns that appear mid-string.
 # Make sure to avoid regular expressions that may be interpreted
 # as yaml syntax.
-# Example:
 
-# contains_capital_a: "^.*A.*"
-# starts_with_numeric: "^[0-9].*"
-child_exit_code_zero: "Child return code was: 0"
+# Successful child process exits
+child_exit_code_zero: ".*Child return code was: 0"
+
+# All DEBUG-level mock traces (file ops, mount, env, packages, nspawn)
+mock_debug: "^DEBUG "
+
+# All INFO-level mock traces (buildroot, backend, package manager)
+mock_info: "^INFO "
+
+# Mock informational lines from mock_output.log
+mock_info_colon: "^INFO: "
+
+# Mock lifecycle markers
+mock_lifecycle_start: "^Start[:(]"
+mock_lifecycle_finish: "^Finish[:(]"
+
+# Mock deprecation warnings (not the build failure)
+mock_deprecation: "^ERROR: Option .* has been deprecated"
+
+# Mock/Koji infrastructure wrappers (fail whenever any inner step fails, never diagnostic)
+mock_nspawn_command_failed: "^ERROR: Command failed:"
+koji_exception_wrapper: "^ERROR: Exception\\("
+
+# Mock version line
+mock_version: "^Mock Version:"
+
+# Test framework - non-failure results and boilerplate
+test_non_failure: ".*(PASSED|XFAIL|SKIPPED)\\s+\\["
+test_bracket_non_failure: "^\\[\\s+(PASSED|OK|RUN)"
+test_bracket_separator: "^\\[[-=]"
+pytest_section: "^=+\\s"
+
+# Build boilerplate
+rpm_build_header: "^RPM build (warnings|errors):"
+port_server: ".*[Pp]ort server"
+koji_buildroot: ".*koji\\.build\\.buildroot"
+
+# Package NVR lines and kernel version strings
+pkg_nvr: "^[a-z].*\\.(noarch|x86_64|i686|aarch64|ppc64le|s390x)$"
+kernel_version: "^\\d+\\.\\d+\\.\\d+"
+
+# Shell trace lines (single + and double ++)
+shell_trace: "^\\+\\+? "
