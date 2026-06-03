@@ -104,15 +104,18 @@ class ExtractorTool(Tool[ExtractorToolInput]):
 
         artifact = self.all_artifacts[input.artifact_name]
         raw_snippets = self.extractor(artifact)
+        current_snippets = []
         for line_number, text in raw_snippets:
-            self.extracted_snippets.append(
-                Snippet(
-                    text=text, line_number=line_number, source_file=input.artifact_name
-                )
+            new_snippet = Snippet(
+                text=text, line_number=line_number, source_file=input.artifact_name
             )
+            self.extracted_snippets.append(
+                new_snippet
+            )
+            current_snippets.append(new_snippet)
         return ExtractorToolOutput(
             source_artifact=input.artifact_name,
-            extracted_snippets=self.extracted_snippets,
+            extracted_snippets=current_snippets,
             remaining_artifacts=self._remaining_artifacts,
         )
 
