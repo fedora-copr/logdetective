@@ -1,0 +1,62 @@
+# Configuration for fedora-messaging
+amqp_url = "amqps://logdetective-packit:@rabbitmq.fedoraproject.org/%2Fpubsub"
+callback = "fedora_messaging.example:printer"
+passive_declares = true
+publish_exchange = "amq.topic"
+topic_prefix = "org.fedoraproject.prod"
+
+[tls]
+ca_cert = "/etc/fedora-messaging/cacert.pem"
+keyfile = "/etc/fedora-messaging/fedora-key.pem"
+certfile = "/etc/fedora-messaging/fedora-cert.pem"
+
+[client_properties]
+app = "Log Detective"
+app_url = "https://github.com/fedora-copr/logdetective-packit"
+app_contacts_email = "copr-team@redhat.com"
+
+# If the exchange or queue name  has a "." in it, use quotes as seen here.
+[exchanges."amq.topic"]
+type = "topic"
+durable = true
+auto_delete = false
+arguments = {}
+
+[qos]
+prefetch_size = 0
+prefetch_count = 25
+
+[log_config]
+version = 1
+disable_existing_loggers = false
+
+[log_config.formatters.simple]
+format = "[%(levelname)s %(name)s] %(message)s"
+
+[log_config.handlers.console]
+class = "logging.StreamHandler"
+formatter = "simple"
+stream = "ext://sys.stdout"
+
+[log_config.loggers.fedora_messaging]
+level = "INFO"
+propagate = false
+handlers = ["console"]
+
+# Twisted is the asynchronous framework that manages the TCP/TLS connection, as well
+# as the consumer event loop. When debugging you may want to lower this log level.
+[log_config.loggers.twisted]
+level = "DEBUG"
+propagate = false
+handlers = ["console"]
+
+# Pika is the underlying AMQP client library. When debugging you may want to
+# lower this log level.
+[log_config.loggers.pika]
+level = "DEBUG"
+propagate = false
+handlers = ["console"]
+
+[log_config.root]
+level = "DEBUG"
+handlers = ["console"]
