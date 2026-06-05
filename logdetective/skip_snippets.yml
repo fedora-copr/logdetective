@@ -15,13 +15,13 @@
 child_exit_code_zero: ".*Child return code was: 0"
 
 # All DEBUG-level mock traces (file ops, mount, env, packages, nspawn)
-mock_debug: "^DEBUG "
+# mock_debug: "^DEBUG "
 
 # All INFO-level mock traces (buildroot, backend, package manager)
-mock_info: "^INFO "
+# mock_info: "^INFO "
 
 # Mock informational lines from mock_output.log
-mock_info_colon: "^INFO: "
+# mock_info_colon: "^INFO: "
 
 # Mock lifecycle markers
 mock_lifecycle_start: "^Start[:(]"
