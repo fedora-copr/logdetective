@@ -16,22 +16,25 @@ services:
         condition: service_healthy
 
 
-  # 4 GPU vLLM inference using 8-bit quant of granite-4.0-tiny
+  # 4 GPU vLLM inference using gemma-4-E4B-it
   # requires the exact number of CUDA devices and accesss to Hugging Face
   # for pulling the model.
 
   # GPU 0 Instance
   inference-0: &inference-base
-    image: vllm/vllm-openai:v0.16.0
+    image: vllm/vllm-openai:v0.22.0
     command: >
-      fedora-copr/granite-4.0-h-tiny-quantized.w8a8
-      --gpu-memory-utilization 0.9
-      --max-model-len 65536
-      --kv-cache-dtype fp8
-      --max-num-seqs 64
-      --tool-call-parser granite
+      google/gemma-4-E4B-it
+      --gpu-memory-utilization 0.95
+      --max-model-len 31504
+      --tool-call-parser gemma4
+      --reasoning-parser gemma4
       --port ${INFERENCE_SERVER_PORT:-8100}
       --enable-auto-tool-choice
+      --enable-prefix-caching
+      --enable-chunked-prefill
+      --kv-cache-dtype auto
+      --chat-template examples/tool_chat_template_gemma4.jinja
     deploy:
       resources:
         reservations:
