@@ -8,7 +8,7 @@ inference:
   url: http://inference-server:8000/v1
   api_token: "XXX" # Must not be empty, even if the server doesn't require authentication
   api_timeout: 60.0 # Timeout for the LLM API client, how long should it wait for inference server response
-  model: "fedora-copr/granite-4.0-h-tiny-quantized.w8a8"
+  model: "google/gemma-4-E4B-it"
   # Role needs to be aligned with chat template
   system_role: system
   # How many attempts agent has to make a correct tool call
