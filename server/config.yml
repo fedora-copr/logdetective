@@ -3,7 +3,7 @@ log:
   level_file: "DEBUG"
   path: "log/logdetective.log"
 inference:
-  max_tokens: 10000 # maximum number of tokens must be a positive integer
+  max_tokens: 2000 # maximum number of tokens must be a positive integer
   log_probs: true
   url: http://inference-server:8000/v1
   api_token: "XXX" # Must not be empty, even if the server doesn't require authentication
