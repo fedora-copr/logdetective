@@ -74,6 +74,7 @@ services:
   packit-interface:
     image: quay.io/logdetective/packit:latest
     volumes:
+      - ./files/fedora_messaging_conf.toml:/etc/fedora-messaging/config.toml:ro,Z
       - ${FM_CERT_PATH:-./fedora_messaging_certs/logdetective-packit-cert.pem}:/etc/fedora-messaging/fedora-cert.pem:ro,Z
       - ${FM_KEY_PATH:-./fedora_messaging_certs/logdetective-packit-key.pem}:/etc/fedora-messaging/fedora-key.pem:ro,Z
     depends_on:
