@@ -1,7 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock
 import koji
 import pytest
-from beeai_framework.adapters.openai import OpenAIChatModel
+from beeai_framework.backend import ChatModel
 
 from logdetective.utils import mib_to_bytes
 from logdetective.server.models import APIResponse, Explanation
@@ -237,14 +237,14 @@ async def test_koji_analyze_koji_task(mocker, method, mock_analysis):
         mock_koji_instance_config.xmlrpc_url = "https://koji.fedoraproject.org/kojihub"
         mock_koji_instance_config.get_callbacks.return_value = set()
 
-        mock_chat_model = MagicMock(spec=OpenAIChatModel)
+        mock_chat_model = MagicMock(spec=ChatModel)
 
         response = await analyze_koji_task(
             task_id=EXAMPLE_TASK_ID,
             koji_instance_config=mock_koji_instance_config,
             koji_connection=mock_koji_conn,
             koji_callback_manager=KojiCallbackManager(),
-            openai_chat_model=mock_chat_model,
+            chat_model=mock_chat_model,
         )
 
         assert response is not None

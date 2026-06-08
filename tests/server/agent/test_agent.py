@@ -2,13 +2,13 @@ from unittest.mock import AsyncMock, patch, MagicMock
 
 import pytest
 from beeai_framework.tools.think import ThinkTool
-from beeai_framework.adapters.openai import OpenAIChatModel
+from beeai_framework.backend import ChatModel
 from beeai_framework.backend.errors import ChatModelError
 from litellm.exceptions import Timeout, RateLimitError
 
 from logdetective.server.agent.agent import analyze_artifacts
 from logdetective.server.agent.tools import DrainExtractorTool, CSGrepExtractorTool
-from logdetective.server.config import SERVER_CONFIG, get_openai_chat_model
+from logdetective.server.config import SERVER_CONFIG
 from logdetective.server.exceptions import (
     LogDetectiveInferenceError,
     LogDetectiveInferenceTimeout,
@@ -21,7 +21,7 @@ from logdetective.server.models import AgentResponse, Explanation
 def mock_agent_setup():
     """Fixture to setup common agent mocks for initialization tests."""
     mock_artifacts = {"build.log": "Error: compilation failed"}
-    mock_chat_model = MagicMock(spec=OpenAIChatModel)
+    mock_chat_model = MagicMock(spec=ChatModel)
 
     mock_agent_output = MagicMock()
     mock_agent_output.state.answer.text = "Mocked analysis result"

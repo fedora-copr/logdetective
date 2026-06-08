@@ -7,7 +7,7 @@ from beeai_framework.agents.requirement.requirements.conditional import (
 from beeai_framework.backend.errors import ChatModelError
 from beeai_framework.memory import UnconstrainedMemory
 from beeai_framework.tools.think import ThinkTool
-from beeai_framework.adapters.openai import OpenAIChatModel
+from beeai_framework.backend import ChatModel
 from beeai_framework.middleware.trajectory import GlobalTrajectoryMiddleware
 from litellm.exceptions import (
     Timeout as LiteLLMTimeout,
@@ -34,13 +34,13 @@ from logdetective.server.exceptions import (
 
 async def analyze_artifacts(
     artifacts: dict[str, str],
-    chat_model: OpenAIChatModel,
+    chat_model: ChatModel,
     build_metadata: Optional[BuildMetadata] = None
 ) -> APIResponse:
     """Analyze build artifacts using Log Detective agent.
 
     :artifacts: dictionary of build artifacts, each referenced by their file name
-    :chat_model: OpenAIChatModel providing inference to the agent
+    :chat_model: ChatModel providing inference to the agent
     :build_metadata: BuildMetadata structure, containing additional information
                      Full implementation in future release
     """
