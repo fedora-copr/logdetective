@@ -30,6 +30,7 @@ from logdetective.server.models import (
     GitLabInstanceConfig,
     JobHook,
     APIResponse,
+    BuildMetadata,
 )
 from logdetective.server.database.models import (
     AnalyzeRequestMetrics,
@@ -121,14 +122,27 @@ async def process_gitlab_job_event(
     metrics_id = await add_new_metrics(
         api_name=EndpointType.ANALYZE_GITLAB_JOB,
     )
+    build_metadata = BuildMetadata(
+        commentary=(
+            "The package was built in Koji, using Mock."
+            "Mock provides a temporary chroot for the build environment."
+            "This environment can't be directly modified by the packager."
+        )
+    )
+
     try:
         response = await analyze_artifacts(
-            artifacts={log_url: log_text}, chat_model=chat_model
+            artifacts={log_url: log_text},
+            chat_model=chat_model,
+            build_metadata=build_metadata,
         )
     except LogDetectiveInferenceError as exc:
         LOG.error(
             "%s during job %d in project %s: %s",
-            type(exc).__name__, job_hook.build_id, project.id, exc
+            type(exc).__name__,
+            job_hook.build_id,
+            project.id,
+            exc,
         )
         return
     finally:
@@ -337,8 +351,7 @@ async def check_artifacts_file_size(
         ) from ex
     LOG.debug("Checking content-length for %s", artifacts_path)
     size_check: ContentSizeCheck = check_content_size(
-        head_response.headers,
-        gitlab_cfg.max_artifact_size
+        head_response.headers, gitlab_cfg.max_artifact_size
     )
     LOG.debug(
         "URL: %s, content-length: %s, max length: %d",
@@ -372,7 +385,10 @@ async def comment_on_mr(  # pylint: disable=too-many-arguments disable=too-many-
 
     # Get the formatted short comment.
     short_comment = await generate_mr_comment(
-        job, log_url, response, full=False,
+        job,
+        log_url,
+        response,
+        full=False,
     )
 
     # Look up the merge request
@@ -394,7 +410,10 @@ async def comment_on_mr(  # pylint: disable=too-many-arguments disable=too-many-
     # notifications with a massive message. Gitlab doesn't send email for
     # comment edits.
     full_comment = await generate_mr_comment(
-        job, log_url, response, full=True,
+        job,
+        log_url,
+        response,
+        full=True,
     )
     note.body = full_comment
 
