@@ -1,7 +1,8 @@
 import os
 import logging
 import yaml
-from beeai_framework.adapters.openai import OpenAIChatModel
+from beeai_framework.backend import ChatModel
+from beeai_framework.backend.chat import ChatModelParameters
 
 from logdetective.utils import load_prompts, load_skip_snippet_patterns
 from logdetective.server.models import Config, InferenceConfig
@@ -53,21 +54,21 @@ def get_log(config: Config):
     return log
 
 
-def get_openai_chat_model(inference_config: InferenceConfig) -> OpenAIChatModel:
-    """Set up OpenAI chat model for Log Detective agent"""
-    chat_model = OpenAIChatModel(
-        model_id=inference_config.model,
-        api_key=inference_config.api_token,
-        base_url=inference_config.url,
+def get_chat_model(inference_config: InferenceConfig) -> ChatModel:
+    """Set up chat model for Log Detective agent"""
+    # Accept bare model names (e.g. "granite-4.0-h-tiny") as shorthand for "openai:<name>"
+    model_name = inference_config.model
+    if ":" not in model_name:
+        model_name = f"openai:{model_name}"
+    return ChatModel.from_name(
+        model_name,
+        ChatModelParameters(
+            temperature=inference_config.temperature,
+            max_tokens=inference_config.max_tokens,
+        ),
         tool_choice_support={"auto"},
-        settings={
-            "timeout": inference_config.api_timeout,
-        },
+        settings={"timeout": inference_config.api_timeout},
     )
-
-    chat_model.parameters.temperature = inference_config.temperature
-    chat_model.parameters.max_tokens = inference_config.max_tokens
-    return chat_model
 
 
 SERVER_CONFIG_PATH = os.environ.get("LOGDETECTIVE_SERVER_CONF", None)

@@ -5,13 +5,20 @@ log:
 inference:
   max_tokens: 2000 # maximum number of tokens must be a positive integer
   log_probs: true
-  url: http://inference-server:8000/v1
-  api_token: "XXX" # Must not be empty, even if the server doesn't require authentication
   api_timeout: 60.0 # Timeout for the LLM API client, how long should it wait for inference server response
-  model: "google/gemma-4-E4B-it"
+  # Model name examples:
+  # - "openai:gpt-4o"
+  # - "vertexai:gemini-2.0-flash"
+  # - "openai:fedora-copr/granite-4.0-h-tiny-quantized.w8a8" (OpenAI-compatible server)
+  # - "gemini:gemini-2.5-flash"
+  model: "openai:google/gemma-4-E4B-it"
+  # Note: Based on the provider, you need to supply the appropriate credentials via environment variables:
+  #   OpenAI / OpenAI-compatible: OPENAI_API_KEY, OPENAI_API_BASE (url)
+  #   Vertex AI: GOOGLE_VERTEX_PROJECT, GOOGLE_VERTEX_LOCATION, GOOGLE_APPLICATION_CREDENTIALS
+  #   Gemini: GEMINI_API_KEY
   # Role needs to be aligned with chat template
   system_role: system
-  # How many attempts agent has to make a correct tool call
+  # How many attempts agent has to make a correct tool call,
   # increase when working with smaller models
   total_max_retries: 10
   max_retries_per_step: 3

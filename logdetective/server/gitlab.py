@@ -10,7 +10,7 @@ import gitlab.v4.objects
 import jinja2
 import aiohttp
 import backoff
-from beeai_framework.adapters.openai import OpenAIChatModel
+from beeai_framework.backend import ChatModel
 
 from logdetective.utils import (
     sanitize_artifact,
@@ -53,7 +53,7 @@ async def process_gitlab_job_event(
     http_session: aiohttp.ClientSession,
     forge: Forge,
     job_hook: JobHook,
-    chat_model: OpenAIChatModel,
+    chat_model: ChatModel,
 ) -> APIResponse | None:
     """Handle a received job_event webhook from GitLab"""
     LOG.debug("Received webhook message from %s:\n%s", forge.value, job_hook)
