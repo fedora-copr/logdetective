@@ -16,7 +16,11 @@ from logdetective.server.database.models.exceptions import (
     KojiTaskNotAnalyzedError,
     KojiTaskAnalysisTimeoutError,
 )
-
+from logdetective.server.database.models.annotated_builds import (
+    AnnotatedArtifacts,
+    AnnotatedBuilds,
+    AnnotatedSnippets,
+)
 # pylint: disable=undefined-all-variable
 
 __all__ = [
@@ -30,4 +34,7 @@ __all__ = [
     KojiTaskNotFoundError.__name__,
     KojiTaskNotAnalyzedError.__name__,
     KojiTaskAnalysisTimeoutError.__name__,
+    AnnotatedArtifacts.__name__,
+    AnnotatedBuilds.__name__,
+    AnnotatedSnippets.__name__,
 ]
