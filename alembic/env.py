@@ -7,6 +7,8 @@ from sqlalchemy import pool
 from alembic import context
 
 from logdetective.server.database.base import get_pg_url, Base
+# This import needs to stay in order for revision generation to pick up current state
+from logdetective.server.database import models  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
