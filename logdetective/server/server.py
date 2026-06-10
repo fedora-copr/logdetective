@@ -172,7 +172,7 @@ async def lifespan(fapp: FastAPI):
     )
 
     # Ensure that the database is initialized.
-    await logdetective.server.database.base.init()
+    await logdetective.server.database.base.check()
 
     # Start the background task scheduler for collecting emojis, if applicable.
     # ConnectionManager.gitlab_connections is empty if gitlab.instances contains no entries
