@@ -14,8 +14,10 @@ RUN dnf install -y \
 RUN cd /tmp && \
 git clone --rev cab9da72c04353f143bb06b42ab70a403daac64a https://github.com/pgvector/pgvector.git
 
+# Flags have to be disabled, so that build doesn't use optimizations potentially
+# unavailable on other machines https://github.com/pgvector/pgvector/issues/130
 RUN cd /tmp/pgvector && \
-make && \
+make OPTFLAGS="" && \
 make install
 
 # Cleanup
