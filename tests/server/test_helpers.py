@@ -26,7 +26,7 @@ from logdetective.server.models import (
 )
 from logdetective.server import gitlab
 from logdetective.server.database import base
-from logdetective.server.database.base import init, destroy
+from logdetective.server.database.base import Base, destroy
 from logdetective.server.database.models import (
     AnalyzeRequestMetrics,
     EndpointType,
@@ -96,7 +96,8 @@ class DatabaseFactory:  # pylint: disable=too-few-public-methods
     @asynccontextmanager
     async def make_new_db(self):
         try:
-            await init()
+            async with self.engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
             yield self.SessionFactory
         finally:
             await destroy()

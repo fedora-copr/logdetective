@@ -1,5 +1,6 @@
 from os import getenv
 from contextlib import asynccontextmanager
+from sqlalchemy import text
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from logdetective import logger
@@ -54,11 +55,11 @@ async def transaction(commit: bool = False):
             await session.close()
 
 
-async def init():
-    """Init db"""
+async def check():
+    """Check database"""
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logger.debug("Database initialized")
+        await conn.execute(text("SELECT 1"))
+        logger.debug("Database checked")
 
 
 async def destroy():

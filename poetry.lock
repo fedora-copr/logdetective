@@ -2463,6 +2463,22 @@ files = [
 ]
 
 [[package]]
+name = "pgvector"
+version = "0.4.2"
+description = "pgvector support for Python"
+optional = true
+python-versions = ">=3.9"
+groups = ["main"]
+markers = "extra == \"server\" or extra == \"server-testing\""
+files = [
+    {file = "pgvector-0.4.2-py3-none-any.whl", hash = "sha256:549d45f7a18593783d5eec609ea1684a724ba8405c4cb182a0b2b08aeff04e08"},
+    {file = "pgvector-0.4.2.tar.gz", hash = "sha256:322cac0c1dc5d41c9ecf782bd9991b7966685dee3a00bc873631391ed949513a"},
+]
+
+[package.dependencies]
+numpy = "*"
+
+[[package]]
 name = "pillow"
 version = "12.2.0"
 description = "Python Imaging Library (fork)"
@@ -4416,11 +4432,11 @@ test = ["big-O", "jaraco.functools", "jaraco.itertools", "jaraco.test", "more_it
 type = ["pytest-mypy"]
 
 [extras]
-server = ["alembic", "asyncpg", "backoff", "fastapi", "fastembed", "gunicorn", "httpx", "koji", "python-gitlab", "sentry-sdk", "sqlalchemy", "starlette", "uvicorn"]
-server-testing = ["alembic", "asyncpg", "backoff", "fastapi", "fastembed", "gunicorn", "httpx", "koji", "pytest-mock", "python-gitlab", "responses", "sentry-sdk", "sqlalchemy", "starlette", "uvicorn"]
+server = ["alembic", "asyncpg", "backoff", "fastapi", "fastembed", "gunicorn", "httpx", "koji", "pgvector", "python-gitlab", "sentry-sdk", "sqlalchemy", "starlette", "uvicorn"]
+server-testing = ["alembic", "asyncpg", "backoff", "fastapi", "fastembed", "gunicorn", "httpx", "koji", "pgvector", "pytest-mock", "python-gitlab", "responses", "sentry-sdk", "sqlalchemy", "starlette", "uvicorn"]
 testing = ["aioresponses", "asciidoc", "flexmock", "pytest", "pytest-asyncio", "pytest-cov"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.14"
-content-hash = "b0c644140cde9eba3ab898623dff7b57d88ad9b3042d603bafda56e2358c4fc0"
+content-hash = "280e7673f65d5eb65d3c9d7abce60590c921687f2a206f8ba3e93b348cd9c4a4"
