@@ -20,7 +20,7 @@ from fastapi import (
 from fastapi.responses import Response as BasicResponse
 import aiohttp
 import sentry_sdk
-from beeai_framework.adapters.openai import OpenAIChatModel
+from beeai_framework.backend import ChatModel
 
 from logdetective.utils import sanitize_artifact
 from logdetective.server.exceptions import (
@@ -38,7 +38,7 @@ from logdetective.server.database.models.exceptions import (
 from logdetective.server.agent.agent import analyze_artifacts
 import logdetective.server.database.base
 
-from logdetective.server.config import SERVER_CONFIG, LOG, get_openai_chat_model
+from logdetective.server.config import SERVER_CONFIG, LOG, get_chat_model
 from logdetective.server.routes_gitlab import gitlab_router
 from logdetective.server.koji import (
     get_failed_log_from_task as get_failed_log_from_koji_task,
@@ -166,8 +166,8 @@ async def lifespan(fapp: FastAPI):
     # Koji callbacks
     fapp.state.koji_callback_manager = KojiCallbackManager()
 
-    # OpenAI chat model for agent
-    fapp.state.openai_chat_model = get_openai_chat_model(
+    # Chat model for agent
+    fapp.state.chat_model = get_chat_model(
         inference_config=SERVER_CONFIG.inference
     )
 
@@ -265,7 +265,7 @@ async def analyze(
     try:
         response = await analyze_artifacts(
             artifacts=artifacts,
-            chat_model=request.app.state.openai_chat_model,
+            chat_model=request.app.state.chat_model,
             build_metadata=payload.build_metadata
         )
     except LogDetectiveInferenceError as exc:
@@ -374,7 +374,7 @@ async def analyze_rpmbuild_koji(
             koji_instance_config,
             koji_connection,
             request.app.state.koji_callback_manager,
-            request.app.state.openai_chat_model,
+            request.app.state.chat_model,
         )
 
         # If a callback URL is provided, we need to add it to the callbacks
@@ -403,7 +403,7 @@ async def analyze_koji_task(
     koji_instance_config: KojiInstanceConfig,
     koji_connection: ClientSession,
     koji_callback_manager: KojiCallbackManager,
-    openai_chat_model: OpenAIChatModel,
+    chat_model: ChatModel,
 ):  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
     """Analyze a koji task and return the response"""
 
@@ -430,7 +430,7 @@ async def analyze_koji_task(
     )
     try:
         response = await analyze_artifacts(
-            {log_file_name: log_text}, chat_model=openai_chat_model
+            {log_file_name: log_text}, chat_model=chat_model
         )
     except LogDetectiveInferenceError as exc:
         # The empty task will sit with null response_id until analysis_timeout elapses,

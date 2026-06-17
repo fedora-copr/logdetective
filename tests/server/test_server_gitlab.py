@@ -12,7 +12,7 @@ from packaging.version import Version
 from pytest_mock import MockerFixture
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
-from beeai_framework.adapters.openai import OpenAIChatModel
+from beeai_framework.backend import ChatModel
 
 from logdetective.server.gitlab import (
     is_eligible_package,
@@ -292,7 +292,7 @@ async def test_process_gitlab_job_event(
         )
 
         # We need a chat model for the process_gitlab_job_event
-        mock_chat_model = MagicMock(spec=OpenAIChatModel)
+        mock_chat_model = MagicMock(spec=ChatModel)
 
         await process_gitlab_job_event(
             gitlab_cfg=gitlab_cfg,

@@ -219,16 +219,16 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
     """Model for inference configuration of logdetective server."""
 
     max_tokens: int = -1
-    url: str = ""
-    # OpenAI client library requires a string to be specified for API token
-    # even if it is not checked on the server side
-    api_token: str = "None"
     api_timeout: float = 30.0
-    model: str = "default-model"
+    # Format: "provider:model_id", e.g. "openai:gpt-4o", "vertexai:gemini-2.0-flash"
+    model: str = "openai:default-model"
     temperature: NonNegativeFloat = DEFAULT_TEMPERATURE
     system_role: str = SYSTEM_ROLE_DEFAULT
     total_max_retries: int = 10
     max_retries_per_step: int = 3
+    # Provider-specific settings passed to the beeai backend via the settings dict.
+    # Keys are beeai internal setting names (e.g. api_key, base_url, vertex_project, ...).
+    provider_settings: dict[str, str] = {}
 
 
 class ExtractorConfig(BaseModel):
