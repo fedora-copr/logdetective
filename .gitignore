@@ -10,6 +10,9 @@ __pycache__/
 /server/cert.pem
 fedora_messaging_certs/*.pem
 
+# Vertex credentials - placed in the root folder of the project
+/*.json
+
 # C extensions
 *.so
 

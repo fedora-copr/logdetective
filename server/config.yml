@@ -10,14 +10,22 @@ inference:
   # - "openai:gpt-4o"
   # - "openai:fedora-copr/granite-4.0-h-tiny-quantized.w8a8" (OpenAI-compatible server)
   # - "gemini:gemini-2.5-flash"
+  # - "vertexai:gemini-2.0-flash"
   model: "openai:google/gemma-4-E4B-it"
   # Provider credentials passed directly to the beeai backend.
   # Keys are beeai internal setting names (not env var names).
   # OpenAI / OpenAI-compatible: api_key, base_url
   # Gemini: api_key
+  # Vertex AI: vertex_project, vertex_location, vertex_credentials (path to JSON)
+  # Make sure only the listed fields are set and others are commented, otherwise the backend will fail to initialize.
   provider_settings:
     api_key: "api-key-placeholder"
     base_url: "http://inference-server:8000/v1"
+    # vertex_project: "log-detective-849436"
+    # vertex_location: "global"
+    # vertex_credentials: "/src/log-detective-vertex.json"
+    # See https://github.com/i-am-bee/beeai-framework/blob/main/python/beeai_framework/adapters/PROVIDER/backend/chat.py
+    # where PROVIDER is one of openai, vertexai, gemini
   # Role needs to be aligned with chat template
   system_role: system
   # How many attempts agent has to make a correct tool call,

@@ -124,6 +124,19 @@ certbot certonly --standalone -d logdetective01.fedorainfracloud.org
 Certificates need to be be placed into location specified by the `LOGDETECTIVE_CERTDIR`
 env var and the service should be restarted.
 
+## Using with Vertex AI
+
+To be able to use Log Detective with Vertex AI:
+1. You will need to have access to the Service account ADC (Application Default Credentials) JSON file
+    - To use our (Log Detective project) Vertex AI Service account credentials, you will need access to our Bitwarden vault.
+    - Alternatively, you can use Google Cloud Platform in order to generate a new credential file.
+2. Put the credentials JSON file into the project directory as `log-detective-vertex.json`. Without this file, container creation will fail.
+3. Update `server/config.yml`:
+    - Change `inference.model` to `vertexai:model-name`, such that `model-name` is a valid model provided by Vertex AI.
+    - Set the additional related config values in `server/config.yml` (follow the provided instructions, everything is set up so that you can just uncomment the 3 `GOOGLE_`* values).
+4. Uncomment the line in `docker-compose.yaml` which mounts the credentials JSON file.
+
+
 ## Querying statistics
 
 You can query requests, responses and emojis statistics via `metrics` endpoints.
