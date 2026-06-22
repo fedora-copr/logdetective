@@ -9,9 +9,23 @@ erDiagram
         integer id PK
         integer merge_request_job_id FK
         timestamp_with_time_zone request_received_at
-        double_precision response_certainty
         integer response_length
         timestamp_with_time_zone response_sent_at
+    }
+
+    annotated_builds {
+        bigint id PK
+        character_varying problem
+        character_varying solution
+    }
+
+    annotated_snippets {
+        character_varying annotation
+        bigint id PK
+        character_varying source_artifact_name
+        bigint source_build_id FK
+        character_varying text
+        vector text_embedding
     }
 
     comments {
@@ -48,5 +62,6 @@ erDiagram
 
     analyze_request_metrics }o--|| gitlab_merge_request_jobs : "merge_request_job_id"
     koji_task_analysis }o--|| analyze_request_metrics : "response_id"
+    annotated_snippets }o--|| annotated_builds : "source_build_id"
     comments }o--|| gitlab_merge_request_jobs : "merge_request_job_id"
     reactions }o--|| comments : "comment_id"
