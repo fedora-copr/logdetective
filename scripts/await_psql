@@ -4,11 +4,6 @@ source env_file
 
 export PGPASSWORD="${POSTGRESQL_PASSWORD}"
 
-# Find the alembic head revision: the one not referenced as any other migration's down_revision
-HEAD=$(grep -rh 'Revision ID:' alembic/versions/*.py | awk '{print $NF}' | while read rev; do
-  grep -rq "down_revision.*${rev}" alembic/versions/*.py || echo "$rev"
-done)
-
 echo "Waiting for PostgreSQL to accept connections..."
 while :
 do
@@ -16,12 +11,19 @@ do
   sleep 1
 done
 
-echo "Waiting for alembic migrations to reach head (${HEAD})..."
-while :
-do
-  current=$(psql -d "${POSTGRESQL_DATABASE}" -U "${POSTGRESQL_USER}" -h localhost -p 5432 -tAc "SELECT version_num FROM alembic_version" 2>/dev/null)
-  [ "$current" = "$HEAD" ] && break
-  sleep 2
-done
+if [ "$1" != "--skip-alembic" ]; then
+  # Find the alembic head revision: the one not referenced as any other migration's down_revision
+  HEAD=$(grep -rh 'Revision ID:' alembic/versions/*.py | awk '{print $NF}' | while read rev; do
+    grep -rq "down_revision.*${rev}" alembic/versions/*.py || echo "$rev"
+  done)
+
+  echo "Waiting for alembic migrations to reach head (${HEAD})..."
+  while :
+  do
+    current=$(psql -d "${POSTGRESQL_DATABASE}" -U "${POSTGRESQL_USER}" -h localhost -p 5432 -tAc "SELECT version_num FROM alembic_version" 2>/dev/null)
+    [ "$current" = "$HEAD" ] && break
+    sleep 2
+  done
+fi
 
 echo "Database is ready."
