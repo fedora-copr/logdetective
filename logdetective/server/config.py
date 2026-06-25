@@ -3,7 +3,7 @@ import logging
 import yaml
 from beeai_framework.backend import ChatModel
 from beeai_framework.backend.types import ChatModelParameters
-
+from beeai_framework.cache import SlidingCache
 from logdetective.utils import load_prompts, load_skip_snippet_patterns
 from logdetective.server.models import Config, InferenceConfig
 from logdetective.constants import PROMPT_PATH, PROMPT_CONF_PATH
@@ -63,6 +63,7 @@ def get_chat_model(inference_config: InferenceConfig) -> ChatModel:
             max_tokens=inference_config.max_tokens,
         ),
         tool_choice_support={"auto"},
+        cache=SlidingCache(inference_config.llm_call_cache_size),
         settings={
             **inference_config.provider_settings,
             "timeout": inference_config.api_timeout,

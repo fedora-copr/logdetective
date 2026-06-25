@@ -229,6 +229,8 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
     # Provider-specific settings passed to the beeai backend via the settings dict.
     # Keys are beeai internal setting names (e.g. api_key, base_url, vertex_project, ...).
     provider_settings: dict[str, str] = {}
+    # Harness cache settings
+    llm_call_cache_size: int = 35
 
 
 class ExtractorConfig(BaseModel):
