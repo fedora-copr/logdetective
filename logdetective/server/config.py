@@ -2,7 +2,7 @@ import os
 import logging
 import yaml
 from beeai_framework.backend import ChatModel
-from beeai_framework.backend.chat import ChatModelParameters
+from beeai_framework.backend.types import ChatModelParameters
 
 from logdetective.utils import load_prompts, load_skip_snippet_patterns
 from logdetective.server.models import Config, InferenceConfig
