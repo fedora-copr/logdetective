@@ -5,6 +5,7 @@ from beeai_framework.agents.requirement.requirements.conditional import (
     ConditionalRequirement,
 )
 from beeai_framework.backend.errors import ChatModelError
+from beeai_framework.cache import UnconstrainedCache
 from beeai_framework.memory import UnconstrainedMemory
 from beeai_framework.tools.think import ThinkTool
 from beeai_framework.backend import ChatModel
@@ -50,6 +51,7 @@ async def analyze_artifacts(
         extractor_config=SERVER_CONFIG.extractor,
         available_artifacts=artifacts,
         skip_snippets=SKIP_SNIPPETS_CONFIG,
+        options={"cache": UnconstrainedCache()}
     )
     csgrep_extractor = None
     python_tb_extractor = None
@@ -78,6 +80,7 @@ async def analyze_artifacts(
             extractor_config=SERVER_CONFIG.extractor,
             available_artifacts=artifacts,
             skip_snippets=SKIP_SNIPPETS_CONFIG,
+            options={"cache": UnconstrainedCache()}
         )
         tools.append(csgrep_extractor)
         requirements.append(
@@ -93,6 +96,7 @@ async def analyze_artifacts(
             extractor_config=SERVER_CONFIG.extractor,
             available_artifacts=artifacts,
             skip_snippets=SKIP_SNIPPETS_CONFIG,
+            options={"cache": UnconstrainedCache()}
         )
         tools.append(python_tb_extractor)
         requirements.append(
@@ -107,7 +111,12 @@ async def analyze_artifacts(
     # max_invocations are set at 5. Most snippets are not informative, and annotating them
     # provides no benefit.
     extractors = [tool for tool in tools if isinstance(tool, ExtractorTool)]
-    tools.append(SnippetAnalysisTool(extractors=extractors))
+    tools.append(
+        SnippetAnalysisTool(
+            extractors=extractors,
+            options={"cache": UnconstrainedCache()}
+        )
+    )
     requirements.append(
         ConditionalRequirement(
             SnippetAnalysisTool,
