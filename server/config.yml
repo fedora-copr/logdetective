@@ -32,6 +32,10 @@ inference:
   # increase when working with smaller models
   total_max_retries: 10
   max_retries_per_step: 3
+  # Retry settings for transient LLM API errors (timeouts, rate limits).
+  # Uses exponential backoff. Set retry_max_tries to 1 to disable.
+  # retry_max_tries: 3     # Maximum number of retry attempts
+  # retry_max_time: 120    # Maximum total backoff time in seconds
 extractor:
   max_clusters: 25
   verbose: false
