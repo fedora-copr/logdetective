@@ -231,6 +231,10 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
     provider_settings: dict[str, str] = {}
     # Harness cache settings
     llm_call_cache_size: int = 35
+    # Retry settings for transient LLM API errors (timeouts, rate limits).
+    # Uses exponential backoff. Set retry_max_tries to 1 to disable.
+    retry_max_tries: int = 3
+    retry_max_time: int = 120
 
 
 class ExtractorConfig(BaseModel):

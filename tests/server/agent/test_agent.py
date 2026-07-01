@@ -109,13 +109,14 @@ async def test_analyze_artifacts_inference_errors(mock_agent_setup, cause, expec
     mock_error.__cause__ = cause
 
     with patch("logdetective.server.agent.agent.RequirementAgent") as MockAgent:
-        mock_run_instance = MagicMock()
-        mock_run_instance.middleware = AsyncMock(
-            side_effect=mock_error
-        )
-        MockAgent.return_value.run.return_value = mock_run_instance
+        with patch("asyncio.sleep", new_callable=AsyncMock):
+            mock_run_instance = MagicMock()
+            mock_run_instance.middleware = AsyncMock(
+                side_effect=mock_error
+            )
+            MockAgent.return_value.run.return_value = mock_run_instance
 
-        with pytest.raises(LogDetectiveInferenceError) as exc_info:
-            await analyze_artifacts(mock_artifacts, mock_chat_model)
+            with pytest.raises(LogDetectiveInferenceError) as exc_info:
+                await analyze_artifacts(mock_artifacts, mock_chat_model)
 
     assert isinstance(exc_info.value, expected_exc)

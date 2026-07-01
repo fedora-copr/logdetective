@@ -1,5 +1,6 @@
 from typing import Optional
 
+import backoff
 from beeai_framework.agents.requirement import RequirementAgent
 from beeai_framework.agents.requirement.requirements.conditional import (
     ConditionalRequirement,
@@ -31,8 +32,17 @@ from logdetective.server.exceptions import (
     LogDetectiveInferenceError,
     LogDetectiveInferenceRateLimit,
 )
+from logdetective.server.utils import inference_retry_backoff, inference_retry_giveup
 
 
+@backoff.on_exception(
+    backoff.expo,
+    (LogDetectiveInferenceTimeout, LogDetectiveInferenceRateLimit),
+    max_tries=SERVER_CONFIG.inference.retry_max_tries,
+    max_time=SERVER_CONFIG.inference.retry_max_time,
+    on_backoff=inference_retry_backoff,
+    on_giveup=inference_retry_giveup,
+)
 async def analyze_artifacts(
     artifacts: dict[str, str],
     chat_model: ChatModel,

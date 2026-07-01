@@ -25,6 +25,27 @@ def connection_error_giveup(details: dict) -> None:
     raise LogDetectiveConnectionError() from details["exception"]
 
 
+def inference_retry_backoff(details: dict) -> None:
+    """Log when an LLM inference call is being retried."""
+    LOG.warning(
+        "LLM inference retry %d after %s (%.1fs elapsed): %s",
+        details["tries"],
+        type(details["exception"]).__name__,
+        details["elapsed"],
+        details["exception"],
+    )
+
+
+def inference_retry_giveup(details: dict) -> None:
+    """Log when all LLM inference retries are exhausted."""
+    LOG.error(
+        "LLM inference failed after %d retries (%.1fs elapsed): %s",
+        details["tries"],
+        details["elapsed"],
+        details["exception"],
+    )
+
+
 async def get_artifacts_from_payload(
     payload: AnalysisRequest,
     http_session: aiohttp.ClientSession,
