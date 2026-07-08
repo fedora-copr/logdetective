@@ -75,7 +75,7 @@ SERVER_CONFIG_PATH = os.environ.get("LOGDETECTIVE_SERVER_CONF", None)
 # The default location for skip patterns is in the same directory
 # as logdetective __init__.py file.
 SERVER_SKIP_PATTERNS_PATH = os.environ.get(
-    "LOGDETECIVE_SKIP_PATTERNS",
+    "LOGDETECTIVE_SKIP_PATTERNS",
     f"{os.path.dirname(logdetective.__file__)}/skip_snippets.yml",
 )
 
