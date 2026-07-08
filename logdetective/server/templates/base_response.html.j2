@@ -1,23 +1,21 @@
 <b>Log Detective report
     {% if project %}for {{ project }}{% endif %}
 </b>
-<p>
-    Analysis:
-    <br>
-    {{ explanation }}
-    <br>
-    <details>
-        <summary>Analysis details</summary>
-        <ul>
-            {% for snippet in snippets %}
-                <li>
-                    <b>Line {{ snippet.line_number }}:</b> <code>{{ snippet.text }}</code>
-                    {% if snippet.snippet_analysis %}{{ snippet.snippet_analysis }}{% endif %}
-                </li>
-            {% endfor %}
-        </ul>
-    </details>
-</p>
+<p>Analysis:</p>
+<br>
+{{ explanation }}
+<br>
+<details>
+    <summary>Analysis details</summary>
+    <ul>
+        {% for snippet in snippets %}
+            <li>
+                <b>Line {{ snippet.line_number }}:</b> <code>{{ snippet.text }}</code>
+                {% if snippet.snippet_analysis %}{{ snippet.snippet_analysis }}{% endif %}
+            </li>
+        {% endfor %}
+    </ul>
+</details>
 <br>
 <details>
     <summary>Help</summary>
