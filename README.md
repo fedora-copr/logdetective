@@ -8,7 +8,7 @@ A tool, service and RHEL process integration to analyze logs using a Large Langu
 
 Service explaining logs is available at: https://logdetective.com/explain
 
-Note: if you are looking for code of website logdetective.com it is in [github.com/fedora-copr/logdetective-website](https://github.com/fedora-copr/logdetective-website).
+*Note: code of the logdetective.com website is at [github.com/fedora-copr/logdetective-website](https://github.com/fedora-copr/logdetective-website).*
 
 
 # Server
