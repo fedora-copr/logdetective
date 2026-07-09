@@ -4,7 +4,7 @@
 
 [PyPI Releases]: https://pypi.org/project/logdetective/#history
 
-A tool, service and RHEL process integration to analyze logs using a Large Language Model (LLM) and a [Drain template miner](https://github.com/logpai/Drain3).
+A tool, service and RHEL process integration to analyze logs using a Large Language Model (LLM) and a [Drain template miner](https://github.com/jpodivin/Drain3-improved).
 
 Service explaining logs is available at: https://logdetective.com/explain
 
