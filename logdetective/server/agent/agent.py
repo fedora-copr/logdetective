@@ -191,4 +191,6 @@ async def analyze_artifacts(
         no_issue_found=structured_output.no_issue_found,
         snippets=all_snippets,
     )
+    if not SERVER_CONFIG.general.generate_solution:
+        response.solution = None
     return response
