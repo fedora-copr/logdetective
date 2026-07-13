@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# .coderabbit.yaml
+language: en
+early_access: false
+enable_free_tier: true
+reviews:
+  enabled: true
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  review_status: true
+  poem: false
+  collapse_walkthrough: true
+  sequence_diagrams: true
+  changed_files_summary: true
+  assess_linked_issues: true
+  suggested_labels: false
+  path_filters: []
+  in_progress_fortune: false
+  abort_on_close: true
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    auto_pause_after_reviewed_commits: 1
+    ignore_title_keywords:
+      - "DNM"
+      - "WIP"
+    drafts: false
+  tools:
+    languagetool:
+      enabled: true
+      language: en-US
+      configuration:
+        level: default
+    shellcheck:
+      enabled: true
+    ruff:
+      enabled: true
+    github-checks:
+      enabled: true
+      timeout_ms: 180000
+chat:
+  auto_reply: true
+  art: false
