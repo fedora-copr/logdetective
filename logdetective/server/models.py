@@ -364,6 +364,7 @@ class GeneralConfig(BaseModel):
     # max_artifact_size in config.yml is in MiBs, here (GeneralConfig class) is in bytes
     max_artifact_size: int = mib_to_bytes(DEFAULT_MAXIMUM_ARTIFACT_MIB)
     block_localhost_urls: bool = True
+    generate_solution: bool = True
 
     @field_validator("max_artifact_size", mode="before")
     @classmethod

@@ -14,7 +14,7 @@ from logdetective.server.exceptions import (
     LogDetectiveInferenceTimeout,
     LogDetectiveInferenceRateLimit,
 )
-from logdetective.server.models import AgentResponse, Explanation
+from logdetective.server.models import AgentResponse, Explanation, Solution
 
 
 @pytest.fixture
@@ -120,3 +120,44 @@ async def test_analyze_artifacts_inference_errors(mock_agent_setup, cause, expec
                 await analyze_artifacts(mock_artifacts, mock_chat_model)
 
     assert isinstance(exc_info.value, expected_exc)
+
+
+@pytest.mark.asyncio
+async def test_analyze_artifacts_solution_stripped_when_disabled(mock_agent_setup):
+    """Test that solution is None when generate_solution is False."""
+    mock_artifacts, mock_chat_model, mock_agent_output = mock_agent_setup
+    mock_agent_output.output_structured = AgentResponse(
+        explanation=Explanation(text="Mock explanation"),
+        solution=Solution(text="Mock solution"),
+    )
+
+    mock_run_chain = MagicMock()
+    mock_run_chain.middleware = AsyncMock(return_value=mock_agent_output)
+
+    with patch("logdetective.server.agent.agent.RequirementAgent") as MockAgent:
+        MockAgent.return_value.run.return_value = mock_run_chain
+
+        with patch.object(SERVER_CONFIG.general, "generate_solution", False):
+            response = await analyze_artifacts(mock_artifacts, mock_chat_model)
+            assert response.solution is None
+
+
+@pytest.mark.asyncio
+async def test_analyze_artifacts_solution_kept_when_enabled(mock_agent_setup):
+    """Test that solution is preserved when generate_solution is True."""
+    mock_artifacts, mock_chat_model, mock_agent_output = mock_agent_setup
+    mock_agent_output.output_structured = AgentResponse(
+        explanation=Explanation(text="Mock explanation"),
+        solution=Solution(text="Mock solution"),
+    )
+
+    mock_run_chain = MagicMock()
+    mock_run_chain.middleware = AsyncMock(return_value=mock_agent_output)
+
+    with patch("logdetective.server.agent.agent.RequirementAgent") as MockAgent:
+        MockAgent.return_value.run.return_value = mock_run_chain
+
+        with patch.object(SERVER_CONFIG.general, "generate_solution", True):
+            response = await analyze_artifacts(mock_artifacts, mock_chat_model)
+            assert response.solution is not None
+            assert response.solution.text == "Mock solution"

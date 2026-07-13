@@ -85,3 +85,6 @@ general:
   # default = 1 hour. Emoji feedback is collected only if `gitlab` config
   # contains some valid configuration entry.
   # collect_emojis_interval: 3600
+  # If true, the API response will contain a solution,
+  # if the agent is sure about the build failure root cause. (default=True)
+  # generate_solution: true
