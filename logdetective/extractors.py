@@ -205,7 +205,7 @@ class PythonTracebackExtractor(Extractor):
         LOG.info("Total %d python tracebacks messages", len(truncated_chunks))
         return truncated_chunks
 
-    def _truncate_long_traceback(self, snippet: tuple[int, str]) -> list[tuple[int, str]]:
+    def _truncate_long_traceback(self, snippet: tuple[int, str]) -> tuple[int, str]:
         """Shorten a snippet with text longer than `max_snippet_len`"""
         line_no, text = snippet
         if len(text) <= self.max_snippet_len:
