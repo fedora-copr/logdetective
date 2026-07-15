@@ -10,6 +10,7 @@ from fastapi import Request, HTTPException
 from logdetective.utils import (
     ContentSizeCheck,
     check_content_size,
+    sanitize_artifact,
 )
 from logdetective.server.config import LOG, SERVER_CONFIG
 from logdetective.server.exceptions import LogDetectiveConnectionError
@@ -91,7 +92,7 @@ async def get_artifacts_from_payload(
 
         elif isinstance(artifact, ArtifactFile):
             LOG.info("Handling artifact %s as raw string", artifact.name)
-            build_artifacts[artifact.name] = artifact.content
+            build_artifacts[artifact.name] = sanitize_artifact(artifact.content)
         else:
             raise ValueError(f"Invalid element type {type(artifact)}")
 
