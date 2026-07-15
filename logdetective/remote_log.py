@@ -15,6 +15,7 @@ from logdetective.utils import (
     ContentSizeCheck,
     check_content_size,
     mib_to_bytes,
+    sanitize_artifact,
 )
 
 LOG = logging.getLogger("logdetective")
@@ -95,7 +96,8 @@ class RemoteLog:
             )
         try:
             async with self._http_session.get(self.url, raise_for_status=True) as response:
-                return await self._read_with_size_limit(response)
+                artifact = await self._read_with_size_limit(response)
+                return sanitize_artifact(artifact)
         except (aiohttp.ClientResponseError, aiohttp.ClientConnectorError) as ex:
             raise RemoteLogAccessError(f"We couldn't obtain the log from {self.url}") from ex
 

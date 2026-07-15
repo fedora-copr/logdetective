@@ -16,7 +16,6 @@ from logdetective.server.exceptions import LogDetectiveConnectionError
 from logdetective.remote_log import RemoteLog
 from logdetective.exceptions import RemoteLogError
 from logdetective.server.models import AnalysisRequest, ArtifactFile, RemoteArtifactFile
-from logdetective.utils import sanitize_artifact
 
 
 def connection_error_giveup(details: dict) -> None:
@@ -50,17 +49,15 @@ async def get_artifacts_from_payload(
     payload: AnalysisRequest,
     http_session: aiohttp.ClientSession,
     request_size: int,
-) -> dict[str, str]:
+) -> dict[str, str | RemoteLog]:
     """Retrieve artifact contents based on the type of artifact.
-    Sanitize all artifacts.
     Raise ValueError on unsupported element types."""
-    build_artifacts: dict[str, str] = {}
+    build_artifacts: dict[str, str | RemoteLog] = {}
 
     total_payload_size: int = request_size
 
     for artifact in payload.files:
         if isinstance(artifact, RemoteArtifactFile):
-            LOG.info("Downloading artifact %s from %s", artifact.name, artifact.url)
             remaining_limit = (
                 SERVER_CONFIG.general.max_artifact_size - total_payload_size
             )
@@ -71,12 +68,26 @@ async def get_artifacts_from_payload(
             remote_log = RemoteLog(
                 str(artifact.url), http_session, limit_bytes=remaining_limit
             )
-            try:
-                log_text = await remote_log.get_url_content()
-            except RemoteLogError as ex:
-                raise HTTPException(status_code=ex.status_code, detail=f"{ex}") from ex
-            build_artifacts[artifact.name] = sanitize_artifact(log_text)
-            total_payload_size += remote_log.remote_log_size
+            if SERVER_CONFIG.general.delay_artifact_download:
+                LOG.info(
+                    "Delaying download of artifact %s from %s until requested",
+                    artifact.name,
+                    artifact.url
+                )
+                # Size is enforced per-file via limit_bytes when
+                # get_url_content() runs; total across deferred
+                # artifacts is accepted optimistically.
+                build_artifacts[artifact.name] = remote_log
+            else:
+                LOG.info("Downloading artifact %s from %s", artifact.name, artifact.url)
+                try:
+                    log_text = await remote_log.get_url_content()
+                except RemoteLogError as ex:
+                    raise HTTPException(
+                        status_code=ex.status_code, detail=f"{ex}"
+                    ) from ex
+                build_artifacts[artifact.name] = log_text
+                total_payload_size += remote_log.remote_log_size
 
         elif isinstance(artifact, ArtifactFile):
             LOG.info("Handling artifact %s as raw string", artifact.name)
@@ -84,7 +95,11 @@ async def get_artifacts_from_payload(
         else:
             raise ValueError(f"Invalid element type {type(artifact)}")
 
-    total_payload_len = sum(len(content) for _, content in build_artifacts.items())
+    total_payload_len = sum(
+        len(content)
+        for _, content in build_artifacts.items()
+        if isinstance(content, str)
+    )
     LOG.info(
         "Total artifact size from the obtained payload (in chars): %d "
         "Total payload size (in bytes): %d",

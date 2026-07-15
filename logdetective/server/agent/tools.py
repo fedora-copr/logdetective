@@ -9,6 +9,7 @@ from beeai_framework.tools.types import ToolOutput, ToolRunOptions
 from pydantic import BaseModel, Field
 import yaml
 
+from logdetective.exceptions import RemoteLogError
 from logdetective.extractors import (
     Extractor,
     DrainExtractor,
@@ -16,6 +17,7 @@ from logdetective.extractors import (
     PythonTracebackExtractor,
 )
 from logdetective.models import SkipSnippets
+from logdetective.remote_log import RemoteLog
 from logdetective.server.models import ExtractorConfig, Snippet, AnalyzedSnippet
 
 ARTIFACT_NAME_DESC = "The exact name of the artifact you want to extract information from."
@@ -65,14 +67,14 @@ class ExtractorTool(Tool[ExtractorToolInput]):
     )
     description_template: str
     extractor: Extractor
-    all_artifacts: dict[str, str]
+    all_artifacts: dict[str, str | RemoteLog]
 
     extracted_snippets: list[Snippet]
     _remaining_artifacts: set[str]
 
     def __init__(
         self,
-        all_artifacts: dict[str, str],
+        all_artifacts: dict[str, str | RemoteLog],
         schema: type[ExtractorToolInput] = ExtractorToolInput,
         options: dict[str, Any] | None = None,
     ) -> None:
@@ -100,9 +102,18 @@ class ExtractorTool(Tool[ExtractorToolInput]):
                 f"Requested artifact: {input.artifact_name} was already analyzed."
                 f"Only following artifacts are available: {self._remaining_artifacts}"
             )
-        self._remaining_artifacts.remove(input.artifact_name)
 
         artifact = self.all_artifacts[input.artifact_name]
+
+        # If the artifact isn't already in memory pull it
+        if isinstance(artifact, RemoteLog):
+            try:
+                artifact = await artifact.get_url_content()
+            except RemoteLogError as ex:
+                raise ToolError(f"Download of {input.artifact_name} failed.") from ex
+
+        self._remaining_artifacts.remove(input.artifact_name)
+
         raw_snippets = self.extractor(artifact)
         current_snippets = []
         for line_number, text in raw_snippets:
@@ -147,7 +158,7 @@ class DrainExtractorTool(ExtractorTool):
     def __init__(
         self,
         extractor_config: ExtractorConfig,
-        available_artifacts: dict[str, str],
+        available_artifacts: dict[str, str | RemoteLog],
         skip_snippets: Optional[SkipSnippets] = None,
         options: dict[str, Any] | None = None,
     ) -> None:
@@ -184,7 +195,7 @@ class CSGrepExtractorTool(ExtractorTool):
     def __init__(
         self,
         extractor_config: ExtractorConfig,
-        available_artifacts: dict[str, str],
+        available_artifacts: dict[str, str | RemoteLog],
         skip_snippets: Optional[SkipSnippets] = None,
         options: dict[str, Any] | None = None,
     ) -> None:
@@ -221,7 +232,7 @@ class PythonTracebackExtractorTool(ExtractorTool):
     def __init__(
         self,
         extractor_config: ExtractorConfig,
-        available_artifacts: dict[str, str],
+        available_artifacts: dict[str, str | RemoteLog],
         skip_snippets: Optional[SkipSnippets] = None,
         options: dict[str, Any] | None = None,
     ) -> None:

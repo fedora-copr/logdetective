@@ -17,6 +17,7 @@ from litellm.exceptions import (
 )
 from pydantic import ValidationError
 
+from logdetective.remote_log import RemoteLog
 from logdetective.server.config import PROMPT_CONFIG, SERVER_CONFIG, SKIP_SNIPPETS_CONFIG
 from logdetective.server.agent.tools import (
     ExtractorTool,
@@ -44,7 +45,7 @@ from logdetective.server.utils import inference_retry_backoff, inference_retry_g
     on_giveup=inference_retry_giveup,
 )
 async def analyze_artifacts(
-    artifacts: dict[str, str],
+    artifacts: dict[str, str | RemoteLog],
     chat_model: ChatModel,
     build_metadata: Optional[BuildMetadata] = None
 ) -> APIResponse:
