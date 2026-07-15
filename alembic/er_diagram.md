@@ -19,6 +19,7 @@ erDiagram
         bigint id PK
         character_varying problem
         character_varying solution
+        character_varying source_path UK
     }
 
     annotated_snippets {
@@ -28,6 +29,12 @@ erDiagram
         bigint source_build_id FK
         character_varying text
         vector text_embedding
+    }
+
+    annotation_updates {
+        date archive_date
+        integer file_count
+        bigint id PK
     }
 
     comments {
