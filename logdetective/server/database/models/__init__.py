@@ -19,6 +19,7 @@ from logdetective.server.database.models.exceptions import (
 from logdetective.server.database.models.annotated_builds import (
     AnnotatedBuilds,
     AnnotatedSnippets,
+    AnnotationUpdates,
 )
 # pylint: disable=undefined-all-variable
 
@@ -35,4 +36,5 @@ __all__ = [
     KojiTaskAnalysisTimeoutError.__name__,
     AnnotatedBuilds.__name__,
     AnnotatedSnippets.__name__,
+    AnnotationUpdates.__name__,
 ]
