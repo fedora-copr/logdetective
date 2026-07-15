@@ -137,11 +137,9 @@ async def test_get_log_from_payload_files_sanitization(
 
     assert len(artifacts) == 1
     assert "test.log" in artifacts
-    assert artifacts[payload.files[0].name] == dirty_log
 
-    for text in artifacts.values():
-        sanitized = sanitize_artifact(text)
-
+    for sanitized in artifacts.values():
+        assert isinstance(sanitized, str)
         assert sanitized != dirty_log
         assert redacted_value not in sanitized
         assert any(i in sanitized for i in ["FFFF", "ffff", "copr-team"])
