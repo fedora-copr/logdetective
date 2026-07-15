@@ -27,7 +27,7 @@ PROMPT_PATH = os.environ.get(
     f"{os.path.dirname(logdetective.__file__)}/prompts/",
 )
 
-# Vector size of BAAI/bge-small-en-v1.5
+EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
 EMBEDDING_VECTOR_SIZE = 384
 
 # Marker for snippet truncation
