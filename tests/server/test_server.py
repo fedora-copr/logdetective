@@ -147,35 +147,139 @@ async def test_get_log_from_payload_files_sanitization(
         assert any(i in sanitized for i in ["FFFF", "ffff", "copr-team"])
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "dirty_log, redacted_value",
+    [
+        ("RSA key 00112233AABBCCDD", "00112233AABBCCDD"),
+        ("pubkey-deadbeef-cafe0123", "deadbeef-cafe0123"),
+        ("Commited 2020 example@mail.com", "example@mail.com"),
+    ],
+)
+async def test_remote_log_get_url_content_sanitizes(dirty_log, redacted_value):
+    """RemoteLog.get_url_content returns sanitized content."""
+    url = "http://example.com/build.log"
+    mock_header = {"Content-Length": str(len(dirty_log))}
+    with aioresponses.aioresponses() as mock:
+        mock.head(url, status=200, headers=mock_header)
+        mock.get(url, status=200, body=dirty_log)
+        async with aiohttp.ClientSession() as http:
+            remote_log = RemoteLog(url, http)
+            result = await remote_log.get_url_content()
+
+    assert redacted_value not in result
+    assert result != dirty_log
+
+
 @pytest.mark.parametrize("request_size", [0, 10, 2000])
 @pytest.mark.asyncio
-async def test_get_log_from_payload_url_sanitization(request_size):
-    dirty_log = "This email should be sanitized: contact@someone.com"
+async def test_get_artifacts_delayed_download_stores_remote_log(
+    request_size, monkeypatch
+):
+    """When delay_artifact_download is True, remote artifacts are stored
+    as RemoteLog objects instead of downloaded strings."""
+    monkeypatch.setattr(SERVER_CONFIG.general, "delay_artifact_download", True)
+
     payload = AnalysisRequest(
         files=[
             RemoteArtifactFile(
-                name="mock_log.log", url=HttpUrl("http://path.to/file.log")
+                name="deferred.log", url=HttpUrl("http://path.to/deferred.log")
             )
         ]
     )
-    awaited_dirty_log = asyncio.Future()
-    awaited_dirty_log.set_result(dirty_log)
-    mock_remote_log = flexmock(RemoteLog)
 
     async with aiohttp.ClientSession() as session:
-        mock_remote_log.should_receive("__init__").with_args(
-            "http://path.to/file.log",
-            session,
-            limit_bytes=SERVER_CONFIG.general.max_artifact_size - request_size,
-        )
-        mock_remote_log.should_receive("get_url_content").and_return(awaited_dirty_log)
         artifacts = await get_artifacts_from_payload(
             payload, session, request_size=request_size
         )
 
     assert len(artifacts) == 1
-    assert "mock_log.log" in artifacts
+    assert "deferred.log" in artifacts
+    assert isinstance(artifacts["deferred.log"], RemoteLog)
 
-    assert artifacts["mock_log.log"] != dirty_log
-    assert "contact@someone.com" not in artifacts["mock_log.log"]
-    assert "copr-team@redhat.com" in artifacts["mock_log.log"]
+
+@pytest.mark.asyncio
+async def test_get_artifacts_delayed_download_mixed_types(monkeypatch):
+    """When delay_artifact_download is True, remote artifacts become RemoteLog
+    objects while inline ArtifactFile entries remain plain strings."""
+    monkeypatch.setattr(SERVER_CONFIG.general, "delay_artifact_download", True)
+
+    payload = AnalysisRequest(
+        files=[
+            RemoteArtifactFile(
+                name="remote.log", url=HttpUrl("http://path.to/remote.log")
+            ),
+            ArtifactFile(name="local.log", content=MOCK_LOG),
+        ]
+    )
+
+    async with aiohttp.ClientSession() as session:
+        artifacts = await get_artifacts_from_payload(
+            payload, session, request_size=0
+        )
+
+    assert isinstance(artifacts["remote.log"], RemoteLog)
+    assert isinstance(artifacts["local.log"], str)
+    assert artifacts["local.log"] == MOCK_LOG
+
+
+@pytest.mark.asyncio
+async def test_get_artifacts_delayed_download_no_http_call(monkeypatch):
+    """When delay_artifact_download is True, no HTTP requests are made
+    for remote artifacts during get_artifacts_from_payload."""
+    monkeypatch.setattr(SERVER_CONFIG.general, "delay_artifact_download", True)
+
+    payload = AnalysisRequest(
+        files=[
+            RemoteArtifactFile(
+                name="no_fetch.log", url=HttpUrl("http://path.to/no_fetch.log")
+            )
+        ]
+    )
+
+    async with aiohttp.ClientSession() as session:
+        mock_remote_log = flexmock(RemoteLog)
+        mock_remote_log.should_receive("get_url_content").never()
+
+        artifacts = await get_artifacts_from_payload(
+            payload, session, request_size=0
+        )
+
+    assert isinstance(artifacts["no_fetch.log"], RemoteLog)
+
+
+@pytest.mark.parametrize("request_size", [0, 10, 2000])
+@pytest.mark.asyncio
+async def test_get_artifacts_immediate_download_returns_string(
+    request_size, monkeypatch
+):
+    """When delay_artifact_download is False, remote artifacts are downloaded
+    immediately and stored as strings."""
+    monkeypatch.setattr(SERVER_CONFIG.general, "delay_artifact_download", False)
+
+    payload = AnalysisRequest(
+        files=[
+            RemoteArtifactFile(
+                name="immediate.log", url=HttpUrl("http://path.to/immediate.log")
+            )
+        ]
+    )
+
+    awaited_log = asyncio.Future()
+    awaited_log.set_result("downloaded content")
+    mock_remote_log = flexmock(RemoteLog)
+
+    async with aiohttp.ClientSession() as session:
+        mock_remote_log.should_receive("__init__").with_args(
+            "http://path.to/immediate.log",
+            session,
+            limit_bytes=SERVER_CONFIG.general.max_artifact_size - request_size,
+        )
+        mock_remote_log.should_receive("get_url_content").and_return(
+            awaited_log
+        ).once()
+        artifacts = await get_artifacts_from_payload(
+            payload, session, request_size=request_size
+        )
+
+    assert isinstance(artifacts["immediate.log"], str)
