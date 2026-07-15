@@ -481,3 +481,46 @@ class MetricResponse(BaseModel):
     """Requested metrics"""
 
     time_series: List[MetricTimeSeries]
+
+
+class ContributionSnippet(BaseModel):
+    """Annotated log snippet from the user contribution to logdetective.com."""
+    text: str = Field(min_length=1)
+    user_comment: str = Field(min_length=1)
+
+
+class ContributionLog(BaseModel):
+    """Log file entry containing annotated snippets."""
+    snippets: list[ContributionSnippet] = []
+
+    @field_validator("snippets", mode="before")
+    @classmethod
+    def filter_invalid_snippets(cls, v):
+        """Keep only well-formed snippet dicts; silently drop the rest."""
+        if not isinstance(v, list):
+            return []
+        return [
+            i for i in v if isinstance(i, dict) and i.get("text") and i.get("user_comment")
+        ]
+
+
+class ContributionBuild(BaseModel):
+    """User contribution from logdetective.com with annotated build failure and snippets."""
+    fail_reason: str = Field(min_length=1)
+    how_to_fix: str = Field(min_length=1)
+    logs: dict[str, ContributionLog]
+
+    @field_validator("logs", mode="before")
+    @classmethod
+    def filter_invalid_log_entries(cls, v):
+        """Keep only valid log entries; silently drop the rest."""
+        if not isinstance(v, dict):
+            raise ValueError("logs must be a dict")
+        return {k: entry for k, entry in v.items() if isinstance(entry, dict)}
+
+    @model_validator(mode="after")
+    def check_has_valid_snippets(self) -> "ContributionBuild":
+        """We need at least 1 valid snippet in a contribution to be able to look up anything."""
+        if sum(len(entry.snippets) for entry in self.logs.values()) == 0:
+            raise ValueError("no valid snippets found")
+        return self
