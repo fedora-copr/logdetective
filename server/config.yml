@@ -88,3 +88,5 @@ general:
   # If true, the API response will contain a solution,
   # if the agent is sure about the build failure root cause. (default=True)
   # generate_solution: true
+  # Enable lazy fetching of build artifacts
+  # delay_artifact_download: true
