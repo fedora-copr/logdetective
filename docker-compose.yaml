@@ -85,6 +85,29 @@ services:
       - "${PACKIT_INTERFACE_PORT:-8090}:${PACKIT_INTERFACE_PORT:-8090}"
     env_file: ./env_file
 
+  user-contributions-update:
+    image: quay.io/logdetective/server:latest
+    build:
+      context: .
+      dockerfile: ./Containerfile
+    env_file: ./env_file
+    environment:
+      - LOG_DIR=/var/log/logdetective
+    working_dir: /src
+    volumes:
+      - ./log:/var/log/logdetective:z
+    entrypoint:
+      - bash
+      - -c
+      - "python -m logdetective.server.user_contributions_update"
+    profiles:
+      - sync
+    deploy:
+      resources:
+        limits:
+          cpus: 2
+          memory: 2G
+
 volumes:
   database_data:
     driver: local
