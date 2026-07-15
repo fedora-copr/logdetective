@@ -365,6 +365,7 @@ class GeneralConfig(BaseModel):
     max_artifact_size: int = mib_to_bytes(DEFAULT_MAXIMUM_ARTIFACT_MIB)
     block_localhost_urls: bool = True
     generate_solution: bool = True
+    delay_artifact_download: bool = False
 
     @field_validator("max_artifact_size", mode="before")
     @classmethod
