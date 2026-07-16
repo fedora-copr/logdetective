@@ -152,7 +152,11 @@ async def analyze_artifacts(
 
     # Names of build artifacts are inserted into the template.
     if build_metadata:
-        agent_input = PROMPT_CONFIG.agent_start_prompt(artifacts=list(artifacts.keys()), commentary=build_metadata.commentary)
+        agent_input = PROMPT_CONFIG.agent_start_prompt(
+            artifacts=list(artifacts.keys()),
+            commentary=build_metadata.commentary,
+            infra_status=build_metadata.infra_status
+        )
     else:
         agent_input = PROMPT_CONFIG.agent_start_prompt(artifacts=list(artifacts.keys()))
 
