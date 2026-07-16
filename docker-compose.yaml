@@ -15,16 +15,13 @@ services:
       - inference-0
   # Base and developer deployments are using llama.cpp for improved portability
   inference-0:
-    image: quay.io/logdetective/inference:latest
-    build:
-      context: .
-      dockerfile: ./Containerfile.llama.cpp
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
     # make sure to match this hostname with inference->url in server/config.yml
     # llama.cpp requires valid chat template of your model in order to handle tool calls
     # in many cases, the best approach is to download one from the original model.
     # For example, the chat template for ibm-granite/granite-4.0-h-tiny is in the Hugging Face repo:
     # https://huggingface.co/ibm-granite/granite-4.0-h-tiny
-    command: "llama-server --host 0.0.0.0 --port ${INFERENCE_SERVER_PORT:-8100} --jinja --chat-template-file ${MODELS_PATH-./models}/chat_template.jinja"
+    command: "--host 0.0.0.0 --port ${INFERENCE_SERVER_PORT:-8100} --jinja --chat-template-file /models/chat_template.jinja"
     stdin_open: true
     tty: true
     env_file: ./env_file
