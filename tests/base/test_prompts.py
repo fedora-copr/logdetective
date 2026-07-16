@@ -63,3 +63,68 @@ def test_prompt_manager_agent_start_prompt_render_artifacts():
 
     for artifact in artifacts:
         assert artifact in agent_start_prompt
+
+
+def test_prompt_manager_agent_start_prompt_render_commentary():
+    """Test that prompt renders commentary if supplied"""
+
+    commentary = "COMMENT ABOUT BUILD"
+    artifacts = [
+        "build.log",
+    ]
+    prompt_manager = PromptManager(
+        os.path.join(os.path.dirname(logdetective.__file__), "prompts")
+    )
+
+    agent_start_prompt = prompt_manager.agent_start_prompt(
+        artifacts=artifacts, commentary=commentary
+    )
+
+    for artifact in artifacts:
+        assert artifact in agent_start_prompt
+
+    assert commentary in agent_start_prompt
+
+
+def test_prompt_manager_agent_start_prompt_render_infra_status():
+    """Test that prompt renders infra_status if supplied"""
+
+    infra_status = "INFRASTRUCTURE STATUS"
+    artifacts = [
+        "build.log",
+    ]
+    prompt_manager = PromptManager(
+        os.path.join(os.path.dirname(logdetective.__file__), "prompts")
+    )
+
+    agent_start_prompt = prompt_manager.agent_start_prompt(
+        artifacts=artifacts, infra_status=infra_status
+    )
+
+    for artifact in artifacts:
+        assert artifact in agent_start_prompt
+
+    assert infra_status in agent_start_prompt
+
+
+def test_prompt_manager_agent_start_prompt_render_supplementary():
+    """Test that prompt renders supplementary information if supplied"""
+
+    infra_status = "INFRASTRUCTURE STATUS"
+    commentary = "COMMENT ABOUT BUILD"
+    artifacts = [
+        "build.log",
+    ]
+    prompt_manager = PromptManager(
+        os.path.join(os.path.dirname(logdetective.__file__), "prompts")
+    )
+
+    agent_start_prompt = prompt_manager.agent_start_prompt(
+        artifacts=artifacts, infra_status=infra_status, commentary=commentary
+    )
+
+    for artifact in artifacts:
+        assert artifact in agent_start_prompt
+
+    assert infra_status in agent_start_prompt
+    assert commentary in agent_start_prompt

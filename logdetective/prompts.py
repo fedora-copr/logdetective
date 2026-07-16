@@ -7,6 +7,7 @@ from logdetective.models import PromptConfig
 
 class PromptManager:  # pylint: disable=too-many-instance-attributes
     """Manages prompts defined as jinja templates"""
+
     _tmp_env: Environment
 
     # Templates for system prompts
@@ -42,10 +43,16 @@ class PromptManager:  # pylint: disable=too-many-instance-attributes
         """Render message prompt from the template"""
         return self.default_message_template.render(snippets=snippets)
 
-    def agent_start_prompt(self, artifacts: list[str], commentary: Optional[str] = None) -> str:
+    def agent_start_prompt(
+        self,
+        artifacts: list[str],
+        commentary: Optional[str] = None,
+        infra_status: Optional[str] = None,
+    ) -> str:
         """Render agent start prompt"""
 
         return self._default_agent_start_prompt_template.render(
             artifacts=artifacts,
             commentary=commentary,
+            infra_status=infra_status,
         )
