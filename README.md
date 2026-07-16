@@ -17,7 +17,7 @@ For locally setting up the FastAPI server, you would need a postgresql and some 
 
 Log Detective has been built as inference agnostic service. The only requirement, is that the inference server must provide OpenAI API.
 
-We provide two example deployment configurations. The [development configuration](./docker-compose-dev.yaml) is intended for local testing of changes, and uses our own [llama.cpp server image](https://quay.io/repository/logdetective/inference).
+We provide two example deployment configurations. The [development configuration](./docker-compose-dev.yaml) is intended for local testing of changes, and uses own [llama.cpp server image](https://github.com/ggml-org/llama.cpp/pkgs/container/llama.cpp).
 
 The sample [production](./docker-compose-prod.yaml) configuration, uses 4 load balanced [vLLM](https://github.com/vllm-project/vllm) servers.
 
