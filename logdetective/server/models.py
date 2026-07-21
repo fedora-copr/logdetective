@@ -15,6 +15,7 @@ from logdetective.constants import (
     DEFAULT_TEMPERATURE,
     SYSTEM_ROLE_DEFAULT,
     DEFAULT_MAXIMUM_ARTIFACT_MIB,
+    MINIMUM_SNIPPET_TRUNCATION_LEN,
 )
 from logdetective.utils import check_csgrep, mib_to_bytes
 
@@ -240,7 +241,11 @@ class ExtractorConfig(BaseModel):
 
     max_clusters: int = 8
     verbose: bool = False
-    max_snippet_len: int = 2000
+    max_snippet_len: int = Field(
+        description="Maximum length of extracted snippets",
+        ge=MINIMUM_SNIPPET_TRUNCATION_LEN,
+        default=2000
+    )
     csgrep: bool = False
     csgrep_timeout: float = 1.0
     python_traceback: bool = False

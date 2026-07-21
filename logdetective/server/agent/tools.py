@@ -152,6 +152,7 @@ class DrainExtractorTool(ExtractorTool):
         "Use this tool at most once per artifact."
         "Extracts up to {max_clusters} snippets from a log file, using clustering Drain algorithm."
         "Maximum length of extracted snippet is {max_snippet_len}."
+        "Truncated snippets are marked with the `<truncated>` tag."
     )
     extractor: DrainExtractor
 
@@ -188,6 +189,7 @@ class CSGrepExtractorTool(ExtractorTool):
         "Extracts up to {max_clusters} snippets from a log file containing GCC traces, using csgrep tool."
         "Do not use on artifacts that don't contain traces from compiler."
         "Maximum length of extracted snippet is {max_snippet_len}."
+        "Truncated snippets are marked with the `<truncated>` tag."
     )
 
     extractor: CSGrepExtractor
@@ -226,6 +228,7 @@ class PythonTracebackExtractorTool(ExtractorTool):
         "Use on artifacts that contain Python output or test results. "
         "Do not use on artifacts that don't contain Python tracebacks. "
         "Maximum length of extracted snippet is {max_snippet_len}."
+        "Truncated snippets are marked with the `<truncated>` tag."
     )
     extractor: PythonTracebackExtractor
 

@@ -15,7 +15,7 @@ from logdetective.utils import (
     get_chunks,
     mib_to_bytes,
 )
-from logdetective.constants import DEFAULT_MAXIMUM_ARTIFACT_MIB, PROMPT_PATH
+from logdetective.constants import DEFAULT_MAXIMUM_ARTIFACT_MIB, PROMPT_PATH, TRUNCATED
 from logdetective.remote_log import RemoteLog
 from logdetective.exceptions import (
     RemoteLogAccessError,
@@ -274,18 +274,58 @@ def test_load_skip_snippet_patterns_invalid_syntax():
             load_skip_snippet_patterns("/there/is/nothing/to/read.yml")
 
 
-@pytest.mark.parametrize("max_chunk_len", [10, 20, 100])
+@pytest.mark.parametrize("max_chunk_len", [100, 120, 150])
 def test_get_chunks_max_length(simple_log, max_chunk_len):
-    """Test that maximum length of chunks is properly enforced
-    and that no text is lost"""
+    """Test that maximum length of chunks is properly enforced"""
     log = "".join(simple_log)
     chunks = list(get_chunks(log, max_chunk_len=max_chunk_len))
-    reconstructed_text = ""
+
+    # Number of chunks must be <= number of original lines
+    assert len(chunks) <= len(simple_log)
+
+    # All chunks must obey contraints and exist in the original text
     for c in chunks:
         assert len(c[1]) <= max_chunk_len
-        assert c[1] in log
-        reconstructed_text += c[1]
+        assert c[1][:-len(TRUNCATED)] in log
 
-    for _, line in enumerate(simple_log):
-        if len(line) > 0:
-            assert line.strip() in reconstructed_text
+    # All chunks must have unique lines
+    lines = set(c[0] for c in chunks)
+    assert len(lines) == len(chunks)
+
+    # Last chunk must not be empty
+    assert len(chunks[-1][1]) > 0
+
+
+@pytest.mark.parametrize("max_chunk_len", [20, 50, 70])
+def test_get_chunks_raises_on_too_short(simple_log, max_chunk_len):
+
+    log = "".join(simple_log)
+    with pytest.raises(ValueError):
+        list(get_chunks(log, max_chunk_len=max_chunk_len))
+
+
+def test_empty_log_creates_no_chunks():
+    log = ""
+    chunks = list(get_chunks(log))
+
+    assert len(chunks) == 0
+
+
+def test_leading_whitespace_chunks(simple_log):
+
+    log = " ".join(simple_log)
+
+    chunks = list(get_chunks(log))
+
+    # Number of chunks must be <= number of original lines
+    assert len(chunks) <= len(simple_log)
+
+    for chunk in chunks[1:]:
+        assert chunk[1].startswith(" ")
+
+    # All chunks must have unique lines
+    lines = set(c[0] for c in chunks)
+    assert len(lines) == len(chunks)
+
+    # Last chunk must not be empty
+    assert len(chunks[-1][1]) > 0
