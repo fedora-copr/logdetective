@@ -21,7 +21,7 @@ from llama_cpp import (
     CreateChatCompletionResponse,
     CreateChatCompletionStreamResponse,
 )
-from logdetective.constants import SNIPPET_DELIMITER
+from logdetective.constants import SNIPPET_DELIMITER, TRUNCATED, MINIMUM_SNIPPET_TRUNCATION_LEN
 from logdetective.models import PromptConfig, SkipSnippets
 from logdetective.prompts import PromptManager
 
@@ -92,6 +92,8 @@ def get_chunks(
     """Split log into chunks according to heuristic
     based on whitespace and backslash presence.
     """
+    if max_chunk_len < MINIMUM_SNIPPET_TRUNCATION_LEN:
+        raise ValueError(f"Snippets must be at least {MINIMUM_SNIPPET_TRUNCATION_LEN} chars long")
     lines = text.splitlines()
 
     # Chunk we will be yielding
@@ -108,18 +110,20 @@ def get_chunks(
             original_line = i
             chunk = line
         else:
-            chunk += "\n" + line
+            # If the chunk was truncated, we'll start building a new one
+            if not chunk:
+                original_line = i
+                chunk = line
+            else:
+                chunk += "\n" + line
         if len(chunk) > max_chunk_len:
-            # If the chunk is too long, keep splitting into smaller chunks
-            # until we reach manageable size
-            while len(chunk) > max_chunk_len:
-                remainder = chunk[max_chunk_len:]
-                chunk = chunk[:max_chunk_len]
-                yield (original_line, chunk)
-                chunk = remainder
-
+            # If the chunk is too long, truncate and add <truncated> tag
+            chunk = chunk[:max(max_chunk_len - len(TRUNCATED), 0)] + TRUNCATED
+            yield (original_line, chunk)
+            chunk = ""
     # if we still have some text left over
-    yield (original_line, chunk)
+    if chunk:
+        yield (original_line, chunk)
 
 
 def initialize_model(

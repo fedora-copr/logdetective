@@ -7,6 +7,7 @@ from drain3.template_miner import TemplateMiner
 from drain3.template_miner_config import TemplateMinerConfig
 from pydantic import ValidationError
 
+from logdetective.constants import TRUNCATED
 from logdetective.utils import get_chunks, filter_snippet_patterns
 from logdetective.models import SkipSnippets, CSGrepOutput
 
@@ -186,7 +187,7 @@ class PythonTracebackExtractor(Extractor):
         "During handling of the above exception, another exception occurred:",
         "The above exception was the direct cause of the following exception:",
     )
-    _TRUNCATE_STR = "\n...<truncated>...\n"
+    _TRUNCATE_STR = f"\n...{TRUNCATED}...\n"
 
     def __call__(self, log: str) -> list[Tuple[int, str]]:
         lines = log.splitlines()

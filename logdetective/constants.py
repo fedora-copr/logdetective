@@ -29,3 +29,9 @@ PROMPT_PATH = os.environ.get(
 
 # Vector size of BAAI/bge-small-en-v1.5
 EMBEDDING_VECTOR_SIZE = 384
+
+# Marker for snippet truncation
+TRUNCATED = "<truncated>"
+
+# Minimum length of a snippet
+MINIMUM_SNIPPET_TRUNCATION_LEN = 100
