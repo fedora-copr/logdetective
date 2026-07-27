@@ -7,8 +7,13 @@ from beeai_framework.backend.errors import ChatModelError
 from litellm.exceptions import Timeout, RateLimitError
 
 from logdetective.server.agent.agent import analyze_artifacts
-from logdetective.server.agent.tools import DrainExtractorTool, CSGrepExtractorTool
-from logdetective.server.config import SERVER_CONFIG
+from logdetective.server.agent.tools import (
+    AnnotatedSnippetLookupTool,
+    DrainExtractorTool,
+    CSGrepExtractorTool,
+)
+from logdetective.server.config import SERVER_CONFIG, load_embedding_model
+from logdetective.server.database.models.annotated_builds import AnnotatedSnippets
 from logdetective.server.exceptions import (
     LogDetectiveInferenceError,
     LogDetectiveInferenceTimeout,
@@ -161,3 +166,46 @@ async def test_analyze_artifacts_solution_kept_when_enabled(mock_agent_setup):
             response = await analyze_artifacts(mock_artifacts, mock_chat_model)
             assert response.solution is not None
             assert response.solution.text == "Mock solution"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("config_option", "snippet_count", "expecting_lookup_tool"),
+    [
+        (True, 10, True),
+        (False, 10, False),
+        (True, 0, False),
+    ],
+    ids=("everything-set-up", "config-option-off", "db-not-populated"),
+)
+async def test_analyze_artifacts_lookup_tool_included(
+    mock_agent_setup,
+    config_option: bool,
+    snippet_count: int,
+    expecting_lookup_tool: bool,
+):
+    """AnnotatedSnippetLookupTool is enabled only if the flag is on and the table has data."""
+    mock_artifacts, mock_chat_model, mock_agent_output = mock_agent_setup
+    with patch("logdetective.server.agent.agent.RequirementAgent") as MockAgent:
+        mock_run_instance = MagicMock()
+        mock_run_instance.middleware = AsyncMock(return_value=mock_agent_output)
+        MockAgent.return_value.run.return_value = mock_run_instance
+
+        with (
+            patch.object(SERVER_CONFIG.general, "annotation_lookup_tool", config_option),
+            patch.object(SERVER_CONFIG.general, "max_annotations", 3),
+            patch("logdetective.server.config.TextEmbedding", MagicMock()),
+            patch.object(
+                AnnotatedSnippets, "get_count", new_callable=AsyncMock, return_value=snippet_count
+            ),
+        ):
+            model_instance = load_embedding_model(SERVER_CONFIG)
+            with patch(
+                "logdetective.server.agent.agent.EMBEDDING_MODEL_INSTANCE", model_instance
+            ):
+                await analyze_artifacts(mock_artifacts, mock_chat_model)
+
+        _, kwargs = MockAgent.call_args
+        tools = kwargs.get("tools", [])
+        is_tool_included = any(isinstance(t, AnnotatedSnippetLookupTool) for t in tools)
+        assert is_tool_included == expecting_lookup_tool
