@@ -91,3 +91,7 @@ general:
   # Enable lazy fetching of build artifacts
   # delay_artifact_download: true
   agent_timeout: 600  # Timeout on agent execution
+  # Enable DB lookup of annotated snippets (requires populated annotated_snippets table)
+  # annotation_lookup_tool: true
+  # Upper limit for returned similar annotated snippets
+  # max_annotations: 3

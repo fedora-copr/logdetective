@@ -3,10 +3,11 @@ import logging
 import yaml
 from beeai_framework.backend import ChatModel
 from beeai_framework.backend.types import ChatModelParameters
+from fastembed import TextEmbedding
 
 from logdetective.utils import load_prompts, load_skip_snippet_patterns
 from logdetective.server.models import Config, InferenceConfig
-from logdetective.constants import PROMPT_PATH, PROMPT_CONF_PATH
+from logdetective.constants import PROMPT_PATH, PROMPT_CONF_PATH, EMBEDDING_MODEL
 import logdetective
 
 
@@ -70,6 +71,17 @@ def get_chat_model(inference_config: InferenceConfig) -> ChatModel:
     )
 
 
+def load_embedding_model(config: Config) -> TextEmbedding | None:
+    """Load embedding model, if DB lookup is configured."""
+    if config.general.annotation_lookup_tool:
+        try:
+            return TextEmbedding(EMBEDDING_MODEL)
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            LOG.exception("Embedding model load failed: %s", str(exc))
+            return None
+    return None
+
+
 SERVER_CONFIG_PATH = os.environ.get("LOGDETECTIVE_SERVER_CONF", None)
 
 # The default location for skip patterns is in the same directory
@@ -86,3 +98,5 @@ PROMPT_CONFIG = load_prompts(
 SKIP_SNIPPETS_CONFIG = load_skip_snippet_patterns(SERVER_SKIP_PATTERNS_PATH)
 
 LOG = get_log(SERVER_CONFIG)
+
+EMBEDDING_MODEL_INSTANCE = load_embedding_model(SERVER_CONFIG)
