@@ -1,10 +1,11 @@
 from enum import Enum
 from unittest.mock import AsyncMock, patch, MagicMock
+import numpy as np
 import pytest
 
 from beeai_framework.context import RunContext, RunInstance
 from beeai_framework.emitter import Emitter
-from beeai_framework.tools.errors import ToolError
+from beeai_framework.tools.errors import ToolError, ToolInputValidationError
 from logdetective.exceptions import (
     RemoteLogAccessError,
     RemoteLogRequestError,
@@ -12,6 +13,8 @@ from logdetective.exceptions import (
 )
 from logdetective.remote_log import RemoteLog
 from logdetective.server.agent.tools import (
+    AnnotatedSnippetLookupTool,
+    AnnotatedSnippetLookupToolInput,
     DrainExtractorTool,
     ExtractorTool,
     ExtractorToolInput,
@@ -19,7 +22,11 @@ from logdetective.server.agent.tools import (
     SnippetAnalysisToolInput,
     SnippetAnalysisToolOutput,
 )
+from logdetective.constants import EMBEDDING_VECTOR_SIZE
+from logdetective.server.database.models.annotated_builds import AnnotatedBuilds, AnnotatedSnippets
 from logdetective.server.models import ExtractorConfig, Snippet, AnalyzedSnippet
+
+ZERO_EMBEDDING = np.zeros(EMBEDDING_VECTOR_SIZE, dtype=np.float32)
 
 
 class MockRunInstance(RunInstance):
@@ -63,7 +70,6 @@ async def test_snippet_analysis_tool_init():
 @pytest.mark.asyncio
 async def test_snippet_analysis_nonexistent_source_file():
     """ToolInputValidationError when source_file is not in any extractor's available_artifacts."""
-    from beeai_framework.tools.errors import ToolInputValidationError
 
     source_file = "build.log"
     extractors: list[ExtractorTool] = [
@@ -86,7 +92,6 @@ async def test_snippet_analysis_nonexistent_source_file():
 @pytest.mark.asyncio
 async def test_snippet_analysis_wrong_line_number():
     """ToolError when source_file exists but no snippet matches the line_number."""
-    from beeai_framework.tools.errors import ToolError
 
     source_file = "build.log"
     artifact_content = "extracted text"
@@ -170,7 +175,6 @@ async def test_snippet_analysis_multiple_extractors():
 @pytest.mark.asyncio
 async def test_snippet_analysis_already_analyzed():
     """ToolInputValidationError when attempting to analyze a snippet that was already analyzed."""
-    from beeai_framework.tools.errors import ToolInputValidationError
 
     source_file = "build.log"
     artifact_content = "extracted text"
@@ -201,7 +205,6 @@ async def test_snippet_analysis_already_analyzed():
 @pytest.mark.asyncio
 async def test_snippet_analysis_no_extracted_snippets():
     """ToolError when source_file is valid but no snippets have been extracted yet."""
-    from beeai_framework.tools.errors import ToolError
 
     source_file = "build.log"
     extractors: list[ExtractorTool] = [
@@ -371,3 +374,95 @@ async def test_extractor_tool_remote_log_failure_raises_tool_error(remote_error)
         )
 
     assert exc_info.value.__cause__ is remote_error
+
+
+@pytest.mark.asyncio
+async def test_annotated_snippet_lookup_success():
+    """Returns populated results when DB returns matching rows."""
+
+    mock_build = MagicMock(spec=AnnotatedBuilds)
+    mock_build.problem = "missing dependency"
+    mock_build.solution = "install the package"
+
+    mock_row = MagicMock(spec=AnnotatedSnippets)
+    mock_row.text = "error: cannot find -lssl"
+    mock_row.annotation = "linker error due to missing openssl"
+    mock_row.source_artifact_name = "build.log"
+    mock_row.source_build = mock_build
+
+    mock_embedding = MagicMock()
+    mock_embedding.tolist.return_value = ZERO_EMBEDDING
+
+    with patch.object(
+        AnnotatedSnippets,
+        "get_by_snippet_embedding",
+        new_callable=AsyncMock,
+        return_value=[mock_row]
+    ), patch(
+        "logdetective.server.agent.tools.EMBEDDING_MODEL_INSTANCE"
+    ) as mock_embed_model:
+        mock_embed_model.embed.return_value = [mock_embedding]
+        tool = AnnotatedSnippetLookupTool()
+        result = await tool._run(
+            input=AnnotatedSnippetLookupToolInput(snippet="linker error", top_k=1),
+            context=RunContext(instance=MockRunInstance(), signal=None),
+            options=None,
+        )
+
+    assert not result.is_empty()
+    assert len(result.results) == 1
+    r = result.results[0]
+    assert r.snippet_text == "error: cannot find -lssl"
+    assert r.annotation == "linker error due to missing openssl"
+    assert r.source_artifact_name == "build.log"
+    assert r.build_problem == "missing dependency"
+    assert r.build_solution == "install the package"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("embed_side_effect", "db_effect", "expected_err"),
+    [
+        (RuntimeError("model load failed"), None, "Embedding creation failed"),
+        (None, RuntimeError("connection refused"), "Database lookup failed"),
+        (None, None, None),
+    ],
+    ids=("embedding-model-failure", "database-lookup-failure", "empty-list-returned")
+)
+async def test_annotated_snippet_lookup_fail(
+    embed_side_effect: RuntimeError | None,
+    db_effect: RuntimeError | None,
+    expected_err: str | None,
+) -> None:
+    """Test various annotated_snippet_lookup tool call fail cases."""
+
+    mock_embedding = MagicMock()
+    mock_embedding.tolist.return_value = ZERO_EMBEDDING
+
+    with patch.object(
+        AnnotatedSnippets,
+        "get_by_snippet_embedding",
+        new_callable=AsyncMock,
+        side_effect=db_effect,
+        return_value=[],
+    ), patch(
+        "logdetective.server.agent.tools.EMBEDDING_MODEL_INSTANCE"
+    ) as mock_embed_model:
+        mock_embed_model.embed.side_effect = embed_side_effect
+        mock_embed_model.embed.return_value = [mock_embedding]
+        tool = AnnotatedSnippetLookupTool()
+        if expected_err:
+            with pytest.raises(ToolError, match=expected_err):
+                await tool._run(
+                    input=AnnotatedSnippetLookupToolInput(snippet="some snippet", top_k=1),
+                    context=RunContext(instance=MockRunInstance(), signal=None),
+                    options=None,
+                )
+        else:
+            tool_output = await tool._run(
+                input=AnnotatedSnippetLookupToolInput(snippet="nothing here", top_k=1),
+                context=RunContext(instance=MockRunInstance(), signal=None),
+                options=None,
+            )
+            assert tool_output.is_empty()
+            assert tool_output.results == []
