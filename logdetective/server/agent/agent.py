@@ -21,14 +21,21 @@ from litellm.exceptions import (
 from pydantic import ValidationError
 
 from logdetective.remote_log import RemoteLog
-from logdetective.server.config import PROMPT_CONFIG, SERVER_CONFIG, SKIP_SNIPPETS_CONFIG
+from logdetective.server.config import (
+    PROMPT_CONFIG,
+    SERVER_CONFIG,
+    SKIP_SNIPPETS_CONFIG,
+    EMBEDDING_MODEL_INSTANCE,
+)
 from logdetective.server.agent.tools import (
     ExtractorTool,
     DrainExtractorTool,
     CSGrepExtractorTool,
     PythonTracebackExtractorTool,
     SnippetAnalysisTool,
+    AnnotatedSnippetLookupTool,
 )
+from logdetective.server.database.models.annotated_builds import AnnotatedSnippets
 from logdetective.server.models import APIResponse, BuildMetadata, AgentResponse
 from logdetective.server.exceptions import (
     LogDetectiveAgentResponseFailure,
@@ -121,6 +128,19 @@ async def analyze_artifacts(
                 max_invocations=len(artifacts),
             )
         )
+
+    if EMBEDDING_MODEL_INSTANCE and await AnnotatedSnippets.get_count() > 0:
+        snippet_lookup_tool = AnnotatedSnippetLookupTool(
+            options={"cache": UnconstrainedCache()},
+        )
+        tools.append(snippet_lookup_tool)
+        snippet_lookup_options = ConditionalRequirement(
+            AnnotatedSnippetLookupTool,
+            consecutive_allowed=True,
+            only_after=ExtractorTool,
+            max_invocations=5,
+        )
+        requirements.append(snippet_lookup_options)
 
     # Add snippet analysis tool, link all extractors and condition it to run after them
     # max_invocations are set at 5. Most snippets are not informative, and annotating them
