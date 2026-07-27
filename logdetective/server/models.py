@@ -373,6 +373,8 @@ class GeneralConfig(BaseModel):
     delay_artifact_download: bool = False
     # Timeout for execution of analysis in seconds
     agent_timeout: int = 600
+    annotation_lookup_tool: bool = False
+    max_annotations: int = 3
 
     @field_validator("max_artifact_size", mode="before")
     @classmethod
