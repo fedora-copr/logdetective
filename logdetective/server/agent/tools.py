@@ -6,6 +6,7 @@ from beeai_framework.emitter.emitter import Emitter
 from beeai_framework.tools import Tool
 from beeai_framework.tools.errors import ToolInputValidationError, ToolError
 from beeai_framework.tools.types import ToolOutput, ToolRunOptions
+from fastembed import TextEmbedding
 from pydantic import BaseModel, Field
 import yaml
 
@@ -19,6 +20,8 @@ from logdetective.extractors import (
 from logdetective.models import SkipSnippets
 from logdetective.remote_log import RemoteLog
 from logdetective.server.models import ExtractorConfig, Snippet, AnalyzedSnippet
+from logdetective.server.config import EMBEDDING_MODEL_INSTANCE, SERVER_CONFIG
+from logdetective.server.database.models.annotated_builds import AnnotatedSnippets
 
 ARTIFACT_NAME_DESC = "The exact name of the artifact you want to extract information from."
 
@@ -349,3 +352,109 @@ class SnippetAnalysisTool(
     @property
     def input_schema(self) -> type[SnippetAnalysisToolInput]:
         return SnippetAnalysisToolInput
+
+
+class AnnotatedSnippetLookupToolInput(BaseModel):
+    snippet: str = Field(
+        description="Log snippet or key phrase to search for in annotated examples"
+    )
+    top_k: int = Field(
+        default=1,
+        le=SERVER_CONFIG.general.max_annotations,
+        ge=1,
+        description=(
+            "Number of similar annotated examples to retrieve "
+            f"(1 to {SERVER_CONFIG.general.max_annotations})."
+        ),
+    )
+
+
+class AnnotatedSnippetResult(BaseModel):
+    snippet_text: str
+    annotation: str
+    source_artifact_name: str
+    build_problem: str
+    build_solution: str
+
+
+class AnnotatedSnippetLookupToolOutput(ToolOutput, BaseModel):
+    results: list[AnnotatedSnippetResult]
+
+    def get_text_content(self) -> str:
+        return yaml.safe_dump(
+            self.model_dump(
+                exclude_defaults=True,
+                exclude_none=True,
+                exclude_computed_fields=True,
+                exclude_unset=True,
+                mode="json",
+            ),
+            allow_unicode=True,
+            default_flow_style=False,
+        )
+
+    def is_empty(self) -> bool:
+        return not self.results
+
+
+class AnnotatedSnippetLookupTool(
+    Tool[AnnotatedSnippetLookupToolInput, ToolRunOptions, AnnotatedSnippetLookupToolOutput]
+):
+    name: str = "annotated_snippet_lookup"
+    description: str = (
+        "Search the database of annotated log snippets for examples similar to a given "
+        "snippet or key phrase. Returns matching snippets with their annotations and the "
+        "associated build problem and solution. Use after extraction to look up known failures."
+    )
+
+    _embedding_model: TextEmbedding
+
+    def __init__(
+        self,
+        options: dict[str, Any] | None = None
+    ) -> None:
+        super().__init__(options)
+        self._embedding_model = EMBEDDING_MODEL_INSTANCE
+
+    def _create_emitter(self) -> Emitter:
+        return Emitter.root().child(
+            namespace=["tool", "annotated_snippet_lookup"], creator=self
+        )
+
+    async def _run(
+        self,
+        input: AnnotatedSnippetLookupToolInput,
+        options: ToolRunOptions | None,
+        context: RunContext,
+    ) -> AnnotatedSnippetLookupToolOutput:
+        if not input.snippet.strip():
+            return AnnotatedSnippetLookupToolOutput(results=[])
+
+        try:
+            embedding = list(self._embedding_model.embed([input.snippet]))[0].tolist()
+        except Exception as exc:
+            raise ToolError(f"Embedding creation failed: {exc}") from exc
+
+        try:
+            rows = await AnnotatedSnippets.get_by_snippet_embedding(
+                embedding,
+                top_k=input.top_k,
+            )
+        except Exception as exc:
+            raise ToolError(f"Database lookup failed: {exc}") from exc
+
+        results = [
+            AnnotatedSnippetResult(
+                snippet_text=row.text,
+                annotation=row.annotation,
+                source_artifact_name=row.source_artifact_name,
+                build_problem=row.source_build.problem,
+                build_solution=row.source_build.solution,
+            )
+            for row in rows
+        ]
+        return AnnotatedSnippetLookupToolOutput(results=results)
+
+    @property
+    def input_schema(self) -> type[AnnotatedSnippetLookupToolInput]:
+        return AnnotatedSnippetLookupToolInput
