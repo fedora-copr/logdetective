@@ -62,3 +62,8 @@ class LogDetectiveInferenceTimeout(LogDetectiveInferenceError):
 class LogDetectiveInferenceRateLimit(LogDetectiveInferenceError):
     """Inference service (temporarily) unavailable. Try again later."""
     http_status_code = 503
+
+
+class LogDetectiveAgentTimeoutError(LogDetectiveException):
+    """Agent didn't complete analysis on time"""
+    http_status_code = 504
