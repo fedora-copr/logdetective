@@ -90,3 +90,4 @@ general:
   # generate_solution: true
   # Enable lazy fetching of build artifacts
   # delay_artifact_download: true
+  agent_timeout: 600  # Timeout on agent execution

@@ -371,6 +371,8 @@ class GeneralConfig(BaseModel):
     block_localhost_urls: bool = True
     generate_solution: bool = True
     delay_artifact_download: bool = False
+    # Timeout for execution of analysis in seconds
+    agent_timeout: int = 600
 
     @field_validator("max_artifact_size", mode="before")
     @classmethod

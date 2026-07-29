@@ -7,10 +7,13 @@ from beeai_framework.agents.requirement.requirements.conditional import (
 )
 from beeai_framework.backend.errors import ChatModelError
 from beeai_framework.cache import UnconstrainedCache
+from beeai_framework.errors import AbortError
 from beeai_framework.memory import UnconstrainedMemory
 from beeai_framework.tools.think import ThinkTool
 from beeai_framework.backend import ChatModel
 from beeai_framework.middleware.trajectory import GlobalTrajectoryMiddleware
+from beeai_framework.utils.cancellation import AbortSignal
+
 from litellm.exceptions import (
     Timeout as LiteLLMTimeout,
     RateLimitError as LiteLLMRateLimit
@@ -29,6 +32,7 @@ from logdetective.server.agent.tools import (
 from logdetective.server.models import APIResponse, BuildMetadata, AgentResponse
 from logdetective.server.exceptions import (
     LogDetectiveAgentResponseFailure,
+    LogDetectiveAgentTimeoutError,
     LogDetectiveInferenceTimeout,
     LogDetectiveInferenceError,
     LogDetectiveInferenceRateLimit,
@@ -165,7 +169,8 @@ async def analyze_artifacts(
             agent_input,
             max_retries_per_step=SERVER_CONFIG.inference.max_retries_per_step,
             total_max_retries=SERVER_CONFIG.inference.total_max_retries,
-            expected_output=AgentResponse
+            expected_output=AgentResponse,
+            signal=AbortSignal.timeout(SERVER_CONFIG.general.agent_timeout),
         ).middleware(middleware)
     except ChatModelError as exc:
         cause = exc.__cause__
@@ -174,6 +179,8 @@ async def analyze_artifacts(
         if isinstance(cause, LiteLLMRateLimit):
             raise LogDetectiveInferenceRateLimit(str(cause)) from exc
         raise LogDetectiveInferenceError(exc.message) from exc
+    except AbortError as exc:
+        raise LogDetectiveAgentTimeoutError(exc.message) from exc
 
     if not raw_output.output_structured:
         raise LogDetectiveAgentResponseFailure
