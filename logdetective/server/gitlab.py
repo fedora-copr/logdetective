@@ -341,7 +341,7 @@ async def check_artifacts_file_size(
             raise_for_status=True,
         )
     except aiohttp.ClientResponseError as ex:
-        if ex.code == 404:
+        if ex.status == 404:
             raise LogDetectiveArtifactsMissingError(
                 f"Requested artifacts from job {job.id} in project "
                 f"{job.project_id} are not available."
