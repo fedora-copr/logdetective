@@ -39,7 +39,7 @@ def test_filter_snippet_patterns():
     that match the provided skip patterns.
     """
     skip_snippets = SkipSnippets(
-        data={"dummy filter": ".*test.*"},
+        data={"dummy filter": {"pattern": ".*test.*"}},
     )
     extractor = Extractor(skip_snippets=skip_snippets)
     chunks = [
@@ -50,6 +50,53 @@ def test_filter_snippet_patterns():
     filtered_chunks = extractor.filter_snippet_patterns(chunks)
     assert len(filtered_chunks) == 1
     assert filtered_chunks[0] == (2, "This is another line.")
+
+
+def test_filter_snippet_patterns_per_file():
+    skip_snippets = SkipSnippets(
+        data={
+            "mock_output_specific": {
+                "pattern": "INFO:",
+                "files": ["mock_output.log"],
+            },
+            "build_log_specific": {
+                "pattern": ".*Child return code was: 0",
+                "files": ["build.log"],
+            },
+            "applied_everywhere": {
+                "pattern": ".* OK "
+            },
+        }
+    )
+    extractor = Extractor(skip_snippets=skip_snippets)
+    mock_chunks = [
+        (1, "INFO: We want to skip this line in mock_output only"),
+        (2, "Skip this in build log only: Child return code was: 0"),
+        (3, "Build log passed - OK - this line is not interesting and is skipped everywhere."),
+        (4, "this line is interesting and contains the explanation")
+    ]
+
+    build_chunks = [
+        (1, "INFO: We want to skip this line in mock_output only"),
+        (2, "Skip this in build log only: Child return code was: 0"),
+        (3, "Build log passed - OK - this line is not interesting and is skipped everywhere."),
+    ]
+
+    filtered_mock_chunks = extractor.filter_snippet_patterns(mock_chunks, "mock_output.log")
+    filtered_build_chunks = extractor.filter_snippet_patterns(build_chunks, "build.log")
+
+    assert len(filtered_mock_chunks) == 2
+    assert filtered_mock_chunks[0] == (
+        2, "Skip this in build log only: Child return code was: 0"
+    )
+    assert filtered_mock_chunks[1] == (
+        4, "this line is interesting and contains the explanation"
+    )
+
+    assert len(filtered_build_chunks) == 1
+    assert filtered_build_chunks[0] == (
+        1, "INFO: We want to skip this line in mock_output only"
+    )
 
 
 # --- Tests for DrainExtractor ---
@@ -318,7 +365,7 @@ def test_python_tb_max_snippet_len():
 
 def test_python_tb_skip_patterns():
     """Skip pattern matching removes tracebacks whose text matches the pattern."""
-    skip = SkipSnippets(data={"skip_file_not_found": ".*FileNotFoundError.*"})
+    skip = SkipSnippets(data={"skip_file_not_found": {"pattern": ".*FileNotFoundError.*"}})
     extractor = PythonTracebackExtractor(skip_snippets=skip)
     results = extractor(SIMPLE_TRACEBACK_LOG)
 

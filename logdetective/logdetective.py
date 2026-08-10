@@ -88,7 +88,7 @@ def setup_args():
     parser.add_argument(
         "--skip-snippets",
         type=str,
-        default=f"{os.path.dirname(__file__)}/skip_snippets.yml",
+        default=f"{os.path.dirname(__file__)}/skip_snippets.toml",
         help="Path to patterns for skipping snippets.",
     )
     parser.add_argument(
@@ -169,7 +169,12 @@ async def run():  # pylint: disable=too-many-statements,too-many-locals,too-many
             # file does not exist
             LOG.error(e)
             sys.exit(4)
-    log_summary = mine_logs(log=sanitize_artifact(log), extractors=extractors)
+
+    log_summary = mine_logs(
+        log=sanitize_artifact(log),
+        extractors=extractors,
+        filename=os.path.basename(args.file),
+    )
     LOG.info("Analyzing the text")
 
     log_summary = format_snippets(log_summary)

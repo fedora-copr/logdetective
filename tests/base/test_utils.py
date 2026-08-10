@@ -196,15 +196,27 @@ def test_snippet_filtering():
 
     skip_snippets = SkipSnippets(test_filter_patterns)
     for snippet in test_snippets_filtering:
-        assert (
-            filter_snippet_patterns(snippet[0], skip_snippets=skip_snippets) == snippet[1]
-        )
+        result = filter_snippet_patterns(snippet[0], skip_snippets=skip_snippets)
+        assert result == snippet[1]
+
+
+def _to_toml(patterns: dict) -> bytes:
+    """Serialize a patterns dict to TOML bytes for use in tests."""
+    lines = []
+    for name, entry in patterns.items():
+        lines.append(f"[{name}]")
+        lines.append(f"pattern = '{entry['pattern']}'")
+        if "files" in entry:
+            files_str = ", ".join(f"'{f}'" for f in entry["files"])
+            lines.append(f"files = [{files_str}]")
+        lines.append("")
+    return "\n".join(lines).encode()
 
 
 def test_load_skip_snippet_patterns_wrong_path():
     """Test behavior for case when the path doesn't lead to a any file."""
 
-    default_skip_pattern = load_skip_snippet_patterns("/there/is/nothing/to/read.yml")
+    default_skip_pattern = load_skip_snippet_patterns("/there/is/nothing/to/read.toml")
 
     assert default_skip_pattern is None
 
@@ -218,8 +230,8 @@ def test_load_skip_snippet_patterns_no_path():
 def test_load_skip_snippet_patterns_empty_file():
     """Test behavior for case when the file exists but is empty."""
 
-    with mock.patch("logdetective.utils.open", mock.mock_open(read_data="")):
-        result = load_skip_snippet_patterns("/valid/but/empty.yml")
+    with mock.patch("logdetective.utils.open", mock.mock_open(read_data=b"")):
+        result = load_skip_snippet_patterns("/valid/but/empty.toml")
 
     assert result is None
 
@@ -229,14 +241,9 @@ def test_load_skip_snippet_patterns_only_comments():
 
     with mock.patch(
         "logdetective.utils.open",
-        mock.mock_open(
-            read_data=(
-                "# commented out stuff\n"
-                "# contains_capital_a: \"^.*A.*\""
-            ),
-        ),
+        mock.mock_open(read_data=b"# commented out stuff\n# no patterns here\n"),
     ):
-        result = load_skip_snippet_patterns("/valid/but/empty.yml")
+        result = load_skip_snippet_patterns("/valid/but/empty.toml")
 
     assert result is None
 
@@ -246,32 +253,73 @@ def test_load_skip_snippet_patterns_correct_path():
     All patterns must be parsed successfully and match
     those from original source."""
 
-    test_skip_snippet_data = ""
-
-    for key, value in test_filter_patterns.items():
-        test_skip_snippet_data += f'{key}: "{value}"\n'
-
     with mock.patch(
-        "logdetective.utils.open", mock.mock_open(read_data=test_skip_snippet_data)
+        "logdetective.utils.open", mock.mock_open(read_data=_to_toml(test_filter_patterns))
     ):
-        prompts_config = load_skip_snippet_patterns("/valid/filters.yml")
+        prompts_config = load_skip_snippet_patterns("/valid/filters.toml")
 
     assert isinstance(prompts_config, SkipSnippets)
-
     assert len(prompts_config.snippet_patterns) == len(test_filter_patterns)
 
 
 def test_load_skip_snippet_patterns_invalid_syntax():
-    """Test behavior for case when the syntax of patterns
-    is incorrect. This must trigger an error."""
+    """Test behavior for case when the pattern is not a valid regular expression."""
 
-    test_skip_snippet_data = "this_is_not_a_regex: $**.^.*\n"
+    test_skip_snippet_data = b"[bad_regex]\npattern = '$**.^.*'\n"
 
     with mock.patch(
         "logdetective.utils.open", mock.mock_open(read_data=test_skip_snippet_data)
     ):
         with pytest.raises(ValueError, match="Invalid pattern"):
-            load_skip_snippet_patterns("/there/is/nothing/to/read.yml")
+            load_skip_snippet_patterns("/valid/filters.toml")
+
+
+def test_load_skip_snippet_patterns_missing_pattern_key():
+    """Test behavior when an entry is missing the required 'pattern' key."""
+
+    test_skip_snippet_data = b"[bad_entry]\nnot_pattern = 'just_a_string'\n"
+
+    with mock.patch(
+        "logdetective.utils.open", mock.mock_open(read_data=test_skip_snippet_data)
+    ):
+        with pytest.raises(ValueError, match="must be a mapping"):
+            load_skip_snippet_patterns("/valid/filters.toml")
+
+
+def test_snippet_filtering_file_scoped():
+    """File-scoped patterns apply only to exact filename matches."""
+    skip_snippets = SkipSnippets({
+        "global_pattern": {"pattern": "^GLOBAL"},
+        "scoped_pattern": {"pattern": "^SCOPED", "files": ["backend.log", "app.log"]},
+    })
+
+    # Global pattern fires regardless of filename
+    assert filter_snippet_patterns("GLOBAL line", "build.log", skip_snippets) is True
+    assert filter_snippet_patterns("GLOBAL line", "other.log", skip_snippets) is True
+
+    # Scoped pattern fires only for exact filename matches
+    assert filter_snippet_patterns("SCOPED line", "build.log", skip_snippets) is False
+    assert filter_snippet_patterns("SCOPED line", "backend.log", skip_snippets) is True
+    assert filter_snippet_patterns("SCOPED line", "app.log", skip_snippets) is True
+    assert filter_snippet_patterns("SCOPED line", "unknown.log", skip_snippets) is False
+
+
+def test_get_patterns_for_file_exact_matching():
+    """get_patterns_for_file uses exact filename matching."""
+    skip_snippets = SkipSnippets({
+        "a": {"pattern": "^A", "files": ["backend.log", "app.log"]},
+        "b": {"pattern": "^B", "files": ["build.log"]},
+        "c": {"pattern": "^C"},
+    })
+
+    patterns_build = skip_snippets.get_patterns_for_file("build.log")
+    assert set(patterns_build) == {"b", "c"}
+
+    patterns_backend = skip_snippets.get_patterns_for_file("backend.log")
+    assert set(patterns_backend) == {"a", "c"}
+
+    patterns_unknown = skip_snippets.get_patterns_for_file("unknown.txt")
+    assert set(patterns_unknown) == {"c"}
 
 
 @pytest.mark.parametrize("max_chunk_len", [100, 120, 150])
