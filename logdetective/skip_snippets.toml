@@ -1,0 +1,95 @@
+# This file holds patterns you want to skip during log parsing.
+# By default, no patterns are supplied.
+#
+# Each entry is a TOML table with the following fields:
+#
+#   [pattern_name]
+#   pattern = 'regex'       # required; single-quoted = no escaping needed
+#   files = ['exact.log']   # optional; if absent the pattern applies to every file
+#
+# 'pattern' is a regular expression evaluated with re.match (anchored to the
+# start of the string). Use .* prefix for patterns that appear mid-string.
+#
+# 'files' is a list of exact log filenames (not paths, not globs).
+# When omitted the pattern applies to every log file processed.
+#
+# Use single-quoted strings for patterns — TOML literal strings treat the
+# content verbatim, so backslashes and special characters never need escaping.
+#
+# This file is only an example; following patterns are derived from behavior
+# of Mock. Users are encouraged to provide their own patterns.
+
+# Successful child process exits
+[child_exit_code_zero]
+pattern = '.*Child return code was: 0'
+
+# Mock lifecycle markers
+[mock_lifecycle_start]
+pattern = '^Start[:(]'
+
+[mock_lifecycle_finish]
+pattern = '^Finish[:(]'
+
+# All DEBUG-level mock traces (file ops, mount, env, packages, nspawn)
+[mock_debug]
+pattern = '^DEBUG '
+files = ['mock_output.log']
+
+# All INFO-level mock traces (buildroot, backend, package manager)
+[mock_info]
+pattern = '^INFO '
+files = ['mock_output.log']
+
+# Mock informational lines from mock_output.log
+[mock_info_colon]
+pattern = '^INFO: '
+files = ['mock_output.log']
+
+# Mock deprecation warnings (not the build failure)
+[mock_deprecation]
+pattern = '^ERROR: Option .* has been deprecated'
+
+# Mock/Koji infrastructure wrappers (fail whenever any inner step fails, never diagnostic)
+[mock_nspawn_command_failed]
+pattern = '^ERROR: Command failed:'
+
+[koji_exception_wrapper]
+pattern = '^ERROR: Exception\('
+
+# Mock version line
+[mock_version]
+pattern = '^Mock Version:'
+
+# Test framework - non-failure results and boilerplate
+[test_non_failure]
+pattern = '.*(PASSED|XFAIL|SKIPPED)\s+\['
+
+[test_bracket_non_failure]
+pattern = '^\[\s+(PASSED|OK|RUN)'
+
+[test_bracket_separator]
+pattern = '^\[[-=]'
+
+[pytest_section]
+pattern = '^=+\s'
+
+# Build boilerplate
+[rpm_build_header]
+pattern = '^RPM build (warnings|errors):'
+
+[port_server]
+pattern = '.*[Pp]ort server'
+
+[koji_buildroot]
+pattern = '.*koji\.build\.buildroot'
+
+# Package NVR lines and kernel version strings
+[pkg_nvr]
+pattern = '^[a-z].*\.(noarch|x86_64|i686|aarch64|ppc64le|s390x)$'
+
+[kernel_version]
+pattern = '^\d+\.\d+\.\d+'
+
+# Shell trace lines (single + and double ++)
+[shell_trace]
+pattern = '^\+\+? '
