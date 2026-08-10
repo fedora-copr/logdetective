@@ -26,10 +26,10 @@ test_snippets = [
 
 # For testing snippet filtering
 test_filter_patterns = {
-    "starts_one_or_two": "^[12]",
-    "starts_with_capital_a": "^A",
-    "contains_c": ".*c.*",
-    "contains_x_followed_by_y": "x.*y",
+    "starts_one_or_two": {"pattern": "^[12]"},
+    "starts_with_capital_a": {"pattern": "^A"},
+    "contains_c": {"pattern": ".*c.*"},
+    "contains_x_followed_by_y": {"pattern": "x.*y"},
 }
 # Following must be kept in sync with `test_filter_patterns`
 # bool values of tuples must equal to output of the `filter_snippet_patterns`

@@ -117,7 +117,8 @@ class ExtractorTool(Tool[ExtractorToolInput]):
 
         self._remaining_artifacts.remove(input.artifact_name)
 
-        raw_snippets = self.extractor(artifact)
+        raw_snippets = self.extractor(artifact, filename=input.artifact_name)
+
         current_snippets = []
         for line_number, text in raw_snippets:
             new_snippet = Snippet(

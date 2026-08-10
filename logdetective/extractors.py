@@ -30,11 +30,11 @@ class Extractor:
         if self.verbose:
             LOG.setLevel(logging.DEBUG)
 
-    def __call__(self, log: str) -> list[Tuple[int, str]]:
+    def __call__(self, log: str, filename: str | None = None) -> list[Tuple[int, str]]:
         raise NotImplementedError
 
     def filter_snippet_patterns(
-        self, chunks: list[tuple[int, str]]
+        self, chunks: list[tuple[int, str]], filename: Optional[str] = None
     ) -> list[tuple[int, str]]:
         """Keep only chunks that don't match any of the excluded patterns"""
         if not self.skip_snippets or not self.skip_snippets.snippet_patterns:
@@ -42,7 +42,7 @@ class Extractor:
         chunks = [
             (_, chunk)
             for _, chunk in chunks
-            if not filter_snippet_patterns(chunk, self.skip_snippets)
+            if not filter_snippet_patterns(chunk, filename, self.skip_snippets)
         ]
         return chunks
 
@@ -66,11 +66,11 @@ class DrainExtractor(Extractor):
         config.drain_max_clusters = max_clusters
         self.miner = TemplateMiner(config=config)
 
-    def __call__(self, log: str) -> list[Tuple[int, str]]:
+    def __call__(self, log: str, filename: str | None = None) -> list[Tuple[int, str]]:
         # Create chunks
         chunks = list(get_chunks(log, self.max_snippet_len))
 
-        chunks = self.filter_snippet_patterns(chunks)
+        chunks = self.filter_snippet_patterns(chunks, filename)
 
         # First pass to create clusters
         self._create_clusters(chunks=chunks)
@@ -119,7 +119,7 @@ class CSGrepExtractor(DrainExtractor):
         super().__init__(verbose, skip_snippets, max_snippet_len, max_clusters)
         self.csgrep_timeout = csgrep_timeout
 
-    def __call__(self, log: str) -> list[Tuple[int, str]]:
+    def __call__(self, log: str, filename: str | None = None) -> list[Tuple[int, str]]:
         """Extract error messages from log using csgrep"""
         chunks = []
         try:
@@ -171,7 +171,7 @@ class CSGrepExtractor(DrainExtractor):
             for d in report.defects if d.events  # skipping potential 0-event defects
         ]
 
-        chunks = self.filter_snippet_patterns(chunks)
+        chunks = self.filter_snippet_patterns(chunks, filename)
         LOG.info("Total %d messages extracted with csgrep", len(chunks))
         self._create_clusters(chunks=chunks)
         snippets = self._extract_messages(chunks=chunks)
@@ -189,7 +189,7 @@ class PythonTracebackExtractor(Extractor):
     )
     _TRUNCATE_STR = f"\n...{TRUNCATED}...\n"
 
-    def __call__(self, log: str) -> list[Tuple[int, str]]:
+    def __call__(self, log: str, filename: str | None = None) -> list[Tuple[int, str]]:
         lines = log.splitlines()
         chunks = []
         current_idx = 0
@@ -201,7 +201,7 @@ class PythonTracebackExtractor(Extractor):
                 current_idx = next_idx
             else:
                 current_idx += 1
-        filtered_chunks = self.filter_snippet_patterns(chunks)
+        filtered_chunks = self.filter_snippet_patterns(chunks, filename)
         truncated_chunks = list(map(self._truncate_long_traceback, filtered_chunks))
         LOG.info("Total %d python tracebacks messages", len(truncated_chunks))
         return truncated_chunks

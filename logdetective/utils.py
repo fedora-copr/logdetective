@@ -13,6 +13,8 @@ from typing import (
     NamedTuple,
 )
 
+import tomllib
+
 import numpy as np
 import yaml
 
@@ -292,13 +294,14 @@ def prompt_to_messages(
 
 def filter_snippet_patterns(
     snippet: str,
-    skip_snippets: Optional[SkipSnippets] = None
+    filename: str | None = None,
+    skip_snippets: Optional[SkipSnippets] = None,
 ) -> bool:
-    """Try to match snippet agains provided patterns to determine if we should
+    """Try to match snippet against provided patterns to determine if we should
     filter it out or not."""
     if not skip_snippets:
         return False
-    for key, pattern in skip_snippets.snippet_patterns.items():
+    for key, pattern in skip_snippets.get_patterns_for_file(filename).items():
         if pattern.match(snippet):
             LOG.debug("Snippet `%s` has matched against skip pattern %s", snippet, key)
             return True
@@ -310,19 +313,17 @@ def load_skip_snippet_patterns(path: str | None) -> SkipSnippets | None:
     """Load dictionary of snippet patterns we want to skip."""
     if path:
         try:
-            with open(path, "r") as file:
-                return SkipSnippets(yaml.safe_load(file))
+            with open(path, "rb") as file:
+                data = tomllib.load(file)
+            if not data:
+                LOG.warning("Skip pattern file `%s` is empty, no skip patterns loaded", path)
+                return None
+            return SkipSnippets(data)
         except FileNotFoundError:
             LOG.error(
                 "Couldn't open file with snippet skip patterns `%s`",
                 path,
                 stack_info=True,
-            )
-        except (TypeError, AttributeError) as exc:
-            LOG.warning(
-                "Skip pattern file `%s` is empty, no skip patterns loaded: %s",
-                path,
-                exc,
             )
     return None
 
@@ -408,7 +409,7 @@ def check_content_size(
     return ContentSizeCheck(proceed=is_valid, size_in_bytes=size)
 
 
-def mine_logs(log: str, extractors: list) -> List[Tuple[int, str]]:
+def mine_logs(log: str, extractors: list, filename: str) -> List[Tuple[int, str]]:
     """Extract snippets from log text using extractors provided.
     Each extractor is applied in turn on original log.
     Depending on characteristics of extractors used, there may be
@@ -419,7 +420,7 @@ def mine_logs(log: str, extractors: list) -> List[Tuple[int, str]]:
     LOG.info("Getting summary")
 
     for extractor in extractors:
-        log_summary.extend(extractor(log))
+        log_summary.extend(extractor(log, filename=filename))
 
     ratio = len("\n".join([text for _, text in log_summary])) / len(log)
     LOG.debug("Log summary: \n %s", log_summary)
