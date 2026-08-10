@@ -26,6 +26,7 @@ COPY ./files /src/files
 COPY ./server /src/server
 COPY ./pyproject.toml /src/pyproject.toml
 COPY ./README.md /src/README.md
+COPY ./LICENSE /src/LICENSE
 
 COPY ./files/Current-IT-Root-CAs.pem /etc/pki/ca-trust/source/anchors/
 RUN update-ca-trust
