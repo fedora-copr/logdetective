@@ -359,14 +359,10 @@ def create_zip_archive(files_to_add: dict[str, str]) -> bytes:
 def mock_artifact_download(mocker: MockerFixture, zip_content: bytes):
     """Mocks the asyncio.to_thread call that simulates the artifact download."""
 
-    async def dummy_coro():
-        pass
-
-    def mock_side_effect(func, *args, **kwargs):
+    async def mock_side_effect(func, *args, **kwargs):
         action = kwargs.get("action")
         if action and callable(action):
             action(zip_content)
-        return dummy_coro()
 
     mocker.patch("asyncio.to_thread", side_effect=mock_side_effect)
 
