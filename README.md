@@ -186,20 +186,27 @@ Example:
 ## Skip Snippets
 
 Certain log chunks may not contribute to the analysis of the problem under any circumstances.
-User can specify regular expressions, matching such log chunks, along with simple description,
-using Skip Snippets feature.
+Users can specify regular expressions matching such chunks using the Skip Snippets feature.
 
-Patterns to be skipped must be defined yaml file as a dictionary, where key is a description
-and value is a regular expression. For example:
+Patterns are defined in a TOML file. Each entry is a TOML table with a required `pattern` key
+(a regular expression) and an optional `files` key listing exact filenames the pattern applies to.
+When `files` is omitted the pattern applies to every log file processed.
 
-```yaml
-child_exit_code_zero: "Child return code was: 0"
+Use single-quoted TOML strings for patterns — they are taken verbatim with no escape processing,
+so backslashes and other special characters work as-is.
+
+```toml
+# applies to every file
+[child_exit_code_zero]
+pattern = '.*Child return code was: 0'
+
+# applies only to backend.log and app.log
+[skip_debug_messages]
+pattern = '^DEBUG:.*'
+files = ['backend.log', 'app.log']
 ```
 
-Special care must be taken not to write a regular expression which may match
-too many chunks, or which may be evaluated as data structure by the yaml parser.
-
-Example of a valid pattern definition file: `logdetective/skip_snippets.yml`,
+Example of a valid pattern definition file: `logdetective/skip_snippets.toml`,
 can be used as a starting point and is used as a default if no other definition is provided.
 
 

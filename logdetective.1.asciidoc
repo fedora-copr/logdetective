@@ -57,15 +57,19 @@ logdetective - Analyze and summarize log files using LLM and Drain templates
   Temperature for inference. Higher temperature leads to more creative and variable outputs. (default 0.0)
 
 *--skip-snippets* *SNIPPETS_FILE*::
-  Path to patterns for skipping snippets. User can specify regular expressions matching log chunks (which may not contribute to the analysis of the problem), along with simple description. Patterns to be skipped must be defined in a `yaml` file as a dictionary, where key is a description and value is a regex.
+  Path to patterns for skipping snippets. User can specify regular expressions matching log chunks which do not contribute to the analysis. Patterns must be defined in a TOML file where each entry is a table with a `pattern` key (regex) and an optional `files` key listing exact filenames the pattern applies to. When `files` is omitted the pattern applies to every log file. Use single-quoted TOML strings for patterns to avoid any escaping issues.
   +
   Examples:
 
-    contains_capital_a: "^.*A.*"
+    [contains_capital_a]
+    pattern = '^.*A.*'
 
-    starts_with_numeric: "^[0-9].*"
+    [child_exit_code_zero]
+    pattern = '.*Child return code was: 0'
 
-    child_exit_code_zero: "Child return code was: 0"
+    [skip_debug_lines]
+    pattern = '^DEBUG:.*'
+    files = ['backend.log', 'app.log']
 
 *--csgrep*::
   Use `csgrep` to process the log before analysis. When working with logs containing messages from GCC, it can be beneficial to employ additional extractor based on `csgrep` tool, to ensure that the messages are kept intact. Since `csgrep` is not available as a Python package, it must be installed separately, with a package manager or from https://github.com/csutils/csdiff.
