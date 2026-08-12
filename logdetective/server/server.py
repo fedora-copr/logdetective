@@ -456,7 +456,12 @@ async def analyze_koji_task(
 
 async def send_koji_callback(callback: str, task_id: int):
     """Send a callback to the specified URL with the task ID and log file name."""
-    async with aiohttp.ClientSession() as session:
+    connector = None
+    if SERVER_CONFIG.general.block_localhost_urls:
+        connector = aiohttp.TCPConnector(
+            resolver=SSRFProtectedResolver()
+        )
+    async with aiohttp.ClientSession(connector=connector) as session:
         async with session.post(callback, json={"task_id": task_id}):
             pass
 
