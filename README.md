@@ -287,7 +287,7 @@ To analyze a log file, run the script with the following command with:
 - `--prompts-config PROMPTS` (default `logdetective/prompts.yml`): Path to prompt configuration file.
 - `--prompt-templates TEMPLATE_DIR` (default `logdetective/prompts`): Path to prompt template directory. Prompts must be valid Jinja templates, and system prompts must include field `system_time`.
 - `--temperature NUM` (default `0.0`): Temperature for inference. Higher temperatures lead to more creative, random responses.
-- `--skip-snippets SNIPPETS` (default `logdetective/skip_snippets.yml`): Path to patterns for skipping snippets.
+- `--skip-snippets SNIPPETS` (default `logdetective/skip_snippets.toml`): Path to patterns for skipping snippets.
 - `--csgrep`: Use `csgrep` to process the log. Requires `csgrep` to be installed separately.
 - `--mib_limit NUMBER` Limits the size (in MiB) of request (if submitting raw files) or file (if submitting via URL) for analyze endpoints (default 50). Logs or requests exceeding this will be rejected.
 
