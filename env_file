@@ -35,7 +35,7 @@ LOGDETECTIVE_PROMPT_TEMPLATES="/src/logdetective/prompts"
 # llama.cpp inference server will look for `LLAMA_ARG_MODEL` in this location
 MODELS_PATH="./models"
 # Path to patterns to be skipped during processing
-LOGDETECTIVE_SKIP_PATTERNS="/src/logdetective/skip_snippets.yml"
+LOGDETECTIVE_SKIP_PATTERNS="/src/logdetective/skip_snippets.toml"
 
 # Database
 POSTGRESQL_USER=logdetective
