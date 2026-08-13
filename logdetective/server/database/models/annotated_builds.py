@@ -1,7 +1,6 @@
 from datetime import date
 from typing import Optional, Sequence
 
-import backoff
 from pgvector.sqlalchemy import VECTOR
 from sqlalchemy import (
     BigInteger,
@@ -16,6 +15,13 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship, joinedload
 from sqlalchemy.exc import OperationalError
+from tenacity import (
+    retry,
+    wait_exponential_jitter,
+    stop_after_attempt,
+    retry_if_exception_type,
+)
+
 from logdetective.constants import EMBEDDING_VECTOR_SIZE
 from logdetective.server.database.base import Base, transaction, DB_MAX_RETRIES
 
@@ -84,7 +90,11 @@ class AnnotatedSnippets(Base):
             return snippets
 
     @classmethod
-    @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
+    @retry(
+        wait=wait_exponential_jitter(),
+        retry=retry_if_exception_type(OperationalError),
+        stop=stop_after_attempt(DB_MAX_RETRIES),
+    )
     async def create(
         cls,
         text: str,
@@ -133,7 +143,11 @@ class AnnotatedBuilds(Base):
     )
 
     @classmethod
-    @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
+    @retry(
+        wait=wait_exponential_jitter(),
+        retry=retry_if_exception_type(OperationalError),
+        stop=stop_after_attempt(DB_MAX_RETRIES),
+    )
     async def create(
         cls,
         problem: str,
@@ -179,7 +193,11 @@ class AnnotationUpdates(Base):
             return result.scalar_one_or_none()
 
     @classmethod
-    @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
+    @retry(
+        wait=wait_exponential_jitter(),
+        retry=retry_if_exception_type(OperationalError),
+        stop=stop_after_attempt(DB_MAX_RETRIES),
+    )
     async def add_update_record(cls, file_count: int, archive_date: date) -> int:
         """Record a completed sync run."""
         async with transaction(commit=True) as session:

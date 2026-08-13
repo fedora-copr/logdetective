@@ -231,7 +231,7 @@ class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attribute
     # Keys are beeai internal setting names (e.g. api_key, base_url, vertex_project, ...).
     provider_settings: dict[str, str] = {}
     # Retry settings for transient LLM API errors (timeouts, rate limits).
-    # Uses exponential backoff. Set retry_max_tries to 1 to disable.
+    # Uses exponential backoff (with jitter). Set retry_max_tries to 1 to disable.
     retry_max_tries: int = 3
     retry_max_time: int = 120
 

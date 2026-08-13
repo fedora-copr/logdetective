@@ -3,9 +3,13 @@ from typing import Optional
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, select
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
 from sqlalchemy.exc import OperationalError
-import backoff
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential_jitter,
+)
 
 from logdetective.server.config import SERVER_CONFIG
 from logdetective.server.compressors import LLMResponseCompressor
@@ -49,7 +53,11 @@ class KojiTaskAnalysis(Base):
     )
 
     @classmethod
-    @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
+    @retry(
+        wait=wait_exponential_jitter(),
+        retry=retry_if_exception_type(OperationalError),
+        stop=stop_after_attempt(DB_MAX_RETRIES),
+    )
     async def create_or_restart(
         cls, koji_instance: str, task_id: int, log_file_name: str
     ):
@@ -77,7 +85,11 @@ class KojiTaskAnalysis(Base):
             await session.flush()
 
     @classmethod
-    @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
+    @retry(
+        wait=wait_exponential_jitter(),
+        retry=retry_if_exception_type(OperationalError),
+        stop=stop_after_attempt(DB_MAX_RETRIES),
+    )
     async def add_response(cls, task_id: int, metric_id: int):
         """Add a response to a koji task analysis"""
         query = select(cls).filter(cls.task_id == task_id)
@@ -105,7 +117,11 @@ class KojiTaskAnalysis(Base):
             await session.flush()
 
     @classmethod
-    @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
+    @retry(
+        wait=wait_exponential_jitter(),
+        retry=retry_if_exception_type(OperationalError),
+        stop=stop_after_attempt(DB_MAX_RETRIES),
+    )
     async def get_response_by_task_id(cls, task_id: int) -> KojiResponse:
         """Get a koji task analysis by task id"""
         query = select(cls).filter(cls.task_id == task_id)

@@ -9,8 +9,13 @@ import gitlab.v4
 import gitlab.v4.objects
 import jinja2
 import aiohttp
-import backoff
 from beeai_framework.backend import ChatModel
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_before_delay,
+    wait_exponential_jitter,
+)
 
 from logdetective.utils import (
     sanitize_artifact,
@@ -194,8 +199,11 @@ def is_eligible_package(project_name: str):
     return True
 
 
-@backoff.on_exception(
-    backoff.expo, ConnectionResetError, max_time=60, on_giveup=connection_error_giveup
+@retry(
+    stop=stop_before_delay(60),
+    wait=wait_exponential_jitter(),
+    retry=retry_if_exception_type(ConnectionResetError),
+    retry_error_callback=connection_error_giveup,
 )
 async def retrieve_and_preprocess_koji_logs(
     gitlab_cfg: GitLabInstanceConfig,

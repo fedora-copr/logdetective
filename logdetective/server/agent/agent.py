@@ -1,6 +1,5 @@
 from typing import Optional
 
-import backoff
 from beeai_framework.agents.requirement import RequirementAgent
 from beeai_framework.agents.requirement.requirements.conditional import (
     ConditionalRequirement,
@@ -13,6 +12,15 @@ from beeai_framework.tools.think import ThinkTool
 from beeai_framework.backend import ChatModel
 from beeai_framework.middleware.trajectory import GlobalTrajectoryMiddleware
 from beeai_framework.utils.cancellation import AbortSignal
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    stop_any,
+    stop_before_delay,
+    wait_exponential_jitter,
+
+)
 
 from litellm.exceptions import (
     Timeout as LiteLLMTimeout,
@@ -47,13 +55,18 @@ from logdetective.server.exceptions import (
 from logdetective.server.utils import inference_retry_backoff, inference_retry_giveup
 
 
-@backoff.on_exception(
-    backoff.expo,
-    (LogDetectiveInferenceTimeout, LogDetectiveInferenceRateLimit),
-    max_tries=SERVER_CONFIG.inference.retry_max_tries,
-    max_time=SERVER_CONFIG.inference.retry_max_time,
-    on_backoff=inference_retry_backoff,
-    on_giveup=inference_retry_giveup,
+@retry(
+    stop=stop_any(
+        stop_after_attempt(SERVER_CONFIG.inference.retry_max_tries),
+        stop_before_delay(SERVER_CONFIG.inference.retry_max_time)
+    ),
+    wait=wait_exponential_jitter(),
+    retry=retry_if_exception_type((
+        LogDetectiveInferenceTimeout,
+        LogDetectiveInferenceRateLimit
+    )),
+    before_sleep=inference_retry_backoff,
+    retry_error_callback=inference_retry_giveup,
 )
 async def analyze_artifacts(
     artifacts: dict[str, str | RemoteLog],
