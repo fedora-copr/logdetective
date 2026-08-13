@@ -1,5 +1,7 @@
 """Tests for LLM inference retry-with-backoff behavior."""
 
+from unittest.mock import patch
+
 import pytest
 from tenacity import (
     retry,
@@ -8,6 +10,7 @@ from tenacity import (
     stop_after_attempt,
     stop_any,
     stop_before_delay,
+    wait_fixed,
     wait_exponential_jitter,
 )
 
@@ -18,6 +21,38 @@ from logdetective.server.exceptions import (
 )
 from logdetective.server.models import InferenceConfig
 from logdetective.server.utils import inference_retry_backoff, inference_retry_giveup
+
+
+@pytest.mark.asyncio
+async def test_stop_before_delay_exceeds_threshold():
+    """Check that tenacity's stop_before_delay behavior works as expected."""
+    current_time = 0.0
+    call_count = 0
+
+    async def fake_sleep(seconds):
+        nonlocal current_time
+        current_time += seconds
+
+    @retry(
+        stop=stop_before_delay(5),
+        wait=wait_fixed(2),
+        retry=retry_if_exception_type(ValueError),
+        retry_error_callback=lambda _: "given_up",
+    )
+    async def retryable():
+        nonlocal call_count
+        call_count += 1
+        raise ValueError("error")
+
+    with (
+        patch("asyncio.sleep", side_effect=fake_sleep),
+        patch("time.monotonic", side_effect=lambda: current_time)
+    ):
+        result = await retryable()
+
+    assert result == "given_up"
+    assert call_count == 3  # only the calls at 0s, 2s, 4s happen
+    assert int(current_time) == 4  # timer does not get updated after the last call
 
 
 @pytest.mark.asyncio
