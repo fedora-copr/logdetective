@@ -1,7 +1,15 @@
 """Tests for LLM inference retry-with-backoff behavior."""
 
 import pytest
-import backoff
+from tenacity import (
+    retry,
+    RetryCallState,
+    retry_if_exception_type,
+    stop_after_attempt,
+    stop_any,
+    stop_before_delay,
+    wait_exponential_jitter,
+)
 
 from logdetective.server.exceptions import (
     LogDetectiveInferenceError,
@@ -17,13 +25,15 @@ async def test_retry_on_timeout_succeeds():
     """Transient timeout on first call, success on second."""
     call_count = 0
 
-    @backoff.on_exception(
-        backoff.expo,
-        (LogDetectiveInferenceTimeout, LogDetectiveInferenceRateLimit),
-        max_tries=3,
-        max_time=60,
-        on_backoff=inference_retry_backoff,
-        on_giveup=inference_retry_giveup,
+    @retry(
+        stop=stop_any(stop_after_attempt(3), stop_before_delay(60)),
+        wait=wait_exponential_jitter(),
+        retry=retry_if_exception_type((
+            LogDetectiveInferenceTimeout,
+            LogDetectiveInferenceRateLimit,
+        )),
+        before_sleep=inference_retry_backoff,
+        retry_error_callback=inference_retry_giveup,
     )
     async def retryable():
         nonlocal call_count
@@ -42,13 +52,15 @@ async def test_retry_on_rate_limit_succeeds():
     """Transient rate limit on first call, success on second."""
     call_count = 0
 
-    @backoff.on_exception(
-        backoff.expo,
-        (LogDetectiveInferenceTimeout, LogDetectiveInferenceRateLimit),
-        max_tries=3,
-        max_time=60,
-        on_backoff=inference_retry_backoff,
-        on_giveup=inference_retry_giveup,
+    @retry(
+        stop=stop_any(stop_after_attempt(3), stop_before_delay(60)),
+        wait=wait_exponential_jitter(),
+        retry=retry_if_exception_type((
+            LogDetectiveInferenceTimeout,
+            LogDetectiveInferenceRateLimit,
+        )),
+        before_sleep=inference_retry_backoff,
+        retry_error_callback=inference_retry_giveup,
     )
     async def retryable():
         nonlocal call_count
@@ -67,13 +79,15 @@ async def test_no_retry_on_permanent_error():
     """LogDetectiveInferenceError propagates immediately without retry."""
     call_count = 0
 
-    @backoff.on_exception(
-        backoff.expo,
-        (LogDetectiveInferenceTimeout, LogDetectiveInferenceRateLimit),
-        max_tries=3,
-        max_time=60,
-        on_backoff=inference_retry_backoff,
-        on_giveup=inference_retry_giveup,
+    @retry(
+        stop=stop_any(stop_after_attempt(3), stop_before_delay(60)),
+        wait=wait_exponential_jitter(),
+        retry=retry_if_exception_type((
+            LogDetectiveInferenceTimeout,
+            LogDetectiveInferenceRateLimit,
+        )),
+        before_sleep=inference_retry_backoff,
+        retry_error_callback=inference_retry_giveup,
     )
     async def retryable():
         nonlocal call_count
@@ -87,16 +101,18 @@ async def test_no_retry_on_permanent_error():
 
 @pytest.mark.asyncio
 async def test_retry_exhaustion_raises():
-    """All retries exhausted — exception propagates."""
+    """All retries exhausted - exception propagates."""
     call_count = 0
 
-    @backoff.on_exception(
-        backoff.expo,
-        (LogDetectiveInferenceTimeout, LogDetectiveInferenceRateLimit),
-        max_tries=3,
-        max_time=60,
-        on_backoff=inference_retry_backoff,
-        on_giveup=inference_retry_giveup,
+    @retry(
+        stop=stop_any(stop_after_attempt(3), stop_before_delay(60)),
+        wait=wait_exponential_jitter(),
+        retry=retry_if_exception_type((
+            LogDetectiveInferenceTimeout,
+            LogDetectiveInferenceRateLimit,
+        )),
+        before_sleep=inference_retry_backoff,
+        retry_error_callback=inference_retry_giveup,
     )
     async def retryable():
         nonlocal call_count
@@ -111,19 +127,19 @@ async def test_retry_exhaustion_raises():
 @pytest.mark.asyncio
 async def test_backoff_handler_called():
     """inference_retry_backoff is called when a retry occurs."""
-    backoff_calls = []
+    backoff_calls: list[int] = []
     call_count = 0
 
-    def tracking_backoff(details):
-        backoff_calls.append(details)
-        inference_retry_backoff(details)
+    def tracking_backoff(retry_state: RetryCallState):
+        # retry state is modified during following backoffs
+        backoff_calls.append(retry_state.attempt_number)
+        inference_retry_backoff(retry_state)
 
-    @backoff.on_exception(
-        backoff.expo,
-        (LogDetectiveInferenceTimeout,),
-        max_tries=2,
-        max_time=60,
-        on_backoff=tracking_backoff,
+    @retry(
+        stop=stop_any(stop_after_attempt(2), stop_before_delay(60)),
+        wait=wait_exponential_jitter(),
+        retry=retry_if_exception_type(LogDetectiveInferenceTimeout),
+        before_sleep=tracking_backoff,
     )
     async def retryable():
         nonlocal call_count
@@ -134,24 +150,23 @@ async def test_backoff_handler_called():
 
     await retryable()
     assert len(backoff_calls) == 1
-    assert backoff_calls[0]["tries"] == 1
+    assert backoff_calls[0] == 1
 
 
 @pytest.mark.asyncio
 async def test_giveup_handler_called():
     """inference_retry_giveup is called when retries are exhausted."""
-    giveup_calls = []
+    giveup_calls: list[RetryCallState] = []
 
-    def tracking_giveup(details):
-        giveup_calls.append(details)
-        inference_retry_giveup(details)
+    def tracking_giveup(retry_state: RetryCallState):
+        giveup_calls.append(retry_state)
+        inference_retry_giveup(retry_state)
 
-    @backoff.on_exception(
-        backoff.expo,
-        (LogDetectiveInferenceTimeout,),
-        max_tries=2,
-        max_time=60,
-        on_giveup=tracking_giveup,
+    @retry(
+        stop=stop_any(stop_after_attempt(2), stop_before_delay(60)),
+        wait=wait_exponential_jitter(),
+        retry=retry_if_exception_type(LogDetectiveInferenceTimeout),
+        retry_error_callback=tracking_giveup,
     )
     async def retryable():
         raise LogDetectiveInferenceTimeout("timeout")
@@ -159,7 +174,7 @@ async def test_giveup_handler_called():
     with pytest.raises(LogDetectiveInferenceTimeout):
         await retryable()
     assert len(giveup_calls) == 1
-    assert giveup_calls[0]["tries"] == 2
+    assert giveup_calls[0].attempt_number == 2
 
 
 def test_config_defaults():

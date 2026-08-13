@@ -2,8 +2,11 @@ import asyncio
 import re
 from typing import Any, Callable
 
-import backoff
 import koji
+from tenacity import (
+    retry, retry_if_exception_type, stop_before_delay, wait_exponential_jitter
+)
+
 from logdetective.server.exceptions import (
     KojiInvalidTaskID,
     LogDetectiveConnectionError,
@@ -17,11 +20,11 @@ from logdetective.server.utils import connection_error_giveup
 FAILURE_LOG_REGEX = re.compile(r"(\w*\.log)")
 
 
-@backoff.on_exception(
-    backoff.expo,
-    koji.GenericError,
-    max_time=60,
-    on_giveup=connection_error_giveup,
+@retry(
+    stop=stop_before_delay(60),
+    wait=wait_exponential_jitter(),
+    retry=retry_if_exception_type(koji.GenericError),
+    retry_error_callback=connection_error_giveup,
 )
 async def call_koji(func: Callable, *args, **kwargs) -> Any:
     """

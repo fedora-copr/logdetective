@@ -3,7 +3,12 @@ import enum
 import datetime
 from typing import Optional, List, Self, Tuple, TYPE_CHECKING
 
-import backoff
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential_jitter,
+)
 
 from sqlalchemy import (
     Integer,
@@ -90,7 +95,11 @@ class AnalyzeRequestMetrics(Base):
     )
 
     @classmethod
-    @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
+    @retry(
+        wait=wait_exponential_jitter(),
+        retry=retry_if_exception_type(OperationalError),
+        stop=stop_after_attempt(DB_MAX_RETRIES),
+    )
     async def create(
         cls,
         endpoint: EndpointType,
@@ -108,7 +117,11 @@ class AnalyzeRequestMetrics(Base):
             return metrics.id
 
     @classmethod
-    @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
+    @retry(
+        wait=wait_exponential_jitter(),
+        retry=retry_if_exception_type(OperationalError),
+        stop=stop_after_attempt(DB_MAX_RETRIES),
+    )
     async def update(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
         cls,
         id_: int,
@@ -130,7 +143,11 @@ class AnalyzeRequestMetrics(Base):
             session.add(metrics)
 
     @classmethod
-    @backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
+    @retry(
+        wait=wait_exponential_jitter(),
+        retry=retry_if_exception_type(OperationalError),
+        stop=stop_after_attempt(DB_MAX_RETRIES),
+    )
     async def get_metric_by_id(
         cls,
         id_: int,

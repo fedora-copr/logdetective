@@ -11,8 +11,13 @@ from datetime import date
 from typing import AsyncIterator, Iterator
 
 import aiohttp
-import backoff
 from sqlalchemy import delete
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    wait_exponential_jitter,
+    stop_after_attempt,
+)
 
 from logdetective.server.database.base import (
     transaction,
@@ -87,10 +92,15 @@ def sanitize_for_pg(prefix: str, value: str) -> str:
     return value
 
 
-@backoff.on_exception(
-    backoff.expo,
-    (aiohttp.ClientConnectionError, aiohttp.ServerTimeoutError, TimeoutError),
-    max_tries=3,
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential_jitter(),
+    retry=retry_if_exception_type((
+        aiohttp.ClientConnectionError,
+        aiohttp.ServerTimeoutError,
+        TimeoutError,
+    )),
+    reraise=True,
 )
 async def _download_to_spool(
     spool: tempfile.SpooledTemporaryFile, url: str, params: dict[str, str],

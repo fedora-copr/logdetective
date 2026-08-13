@@ -6,6 +6,7 @@ from importlib.metadata import version
 import aiohttp
 from aiohttp.abc import ResolveResult
 from fastapi import Request, HTTPException
+from tenacity import RetryCallState
 
 from logdetective.utils import (
     ContentSizeCheck,
@@ -19,31 +20,38 @@ from logdetective.exceptions import RemoteLogError
 from logdetective.server.models import AnalysisRequest, ArtifactFile, RemoteArtifactFile
 
 
-def connection_error_giveup(details: dict) -> None:
+def connection_error_giveup(retry_state: RetryCallState) -> None:
     """Too many connection errors, give up."""
-    LOG.error("Too many connection errors, giving up. %s", details["exception"])
-    raise LogDetectiveConnectionError() from details["exception"]
+    exception = retry_state.outcome.exception()
+    LOG.error(
+        "Too many connection errors, giving up. %s",
+        exception,
+    )
+    raise LogDetectiveConnectionError() from exception
 
 
-def inference_retry_backoff(details: dict) -> None:
+def inference_retry_backoff(retry_state: RetryCallState) -> None:
     """Log when an LLM inference call is being retried."""
+    exception = retry_state.outcome.exception()
     LOG.warning(
         "LLM inference retry %d after %s (%.1fs elapsed): %s",
-        details["tries"],
-        type(details["exception"]).__name__,
-        details["elapsed"],
-        details["exception"],
+        retry_state.attempt_number,
+        exception.__class__.__name__,
+        retry_state.seconds_since_start,
+        exception,
     )
 
 
-def inference_retry_giveup(details: dict) -> None:
+def inference_retry_giveup(retry_state: RetryCallState) -> None:
     """Log when all LLM inference retries are exhausted."""
+    exception = retry_state.outcome.exception()
     LOG.error(
         "LLM inference failed after %d retries (%.1fs elapsed): %s",
-        details["tries"],
-        details["elapsed"],
-        details["exception"],
+        retry_state.attempt_number,
+        retry_state.seconds_since_start,
+        exception,
     )
+    raise exception
 
 
 async def get_artifacts_from_payload(

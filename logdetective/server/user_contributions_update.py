@@ -43,7 +43,12 @@ import sys
 from datetime import date
 from typing import Iterator, Optional, Tuple
 
-import backoff
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential_jitter,
+)
 import numpy as np
 from fastembed import TextEmbedding
 from pydantic import ValidationError
@@ -81,7 +86,11 @@ LOG_FILE = os.path.join(LOG_DIR, "user_contributions_update.log")
 
 
 # pylint: disable=too-many-locals
-@backoff.on_exception(backoff.expo, OperationalError, max_tries=DB_MAX_RETRIES)
+@retry(
+    wait=wait_exponential_jitter(),
+    retry=retry_if_exception_type(OperationalError),
+    stop=stop_after_attempt(DB_MAX_RETRIES),
+)
 async def insert_contributions(
     builds: list[ValidatedBuild],
     embeddings: list[np.ndarray],
