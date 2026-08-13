@@ -6,7 +6,14 @@ from importlib.metadata import version
 import aiohttp
 from aiohttp.abc import ResolveResult
 from fastapi import Request, HTTPException
-from tenacity import RetryCallState
+from sqlalchemy.exc import OperationalError
+from tenacity import (
+    retry,
+    RetryCallState,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential_jitter,
+)
 
 from logdetective.utils import (
     ContentSizeCheck,
@@ -14,10 +21,19 @@ from logdetective.utils import (
     sanitize_artifact,
 )
 from logdetective.server.config import LOG, SERVER_CONFIG
+from logdetective.server.database.base import DB_MAX_RETRIES
 from logdetective.server.exceptions import LogDetectiveConnectionError
 from logdetective.remote_log import RemoteLog
 from logdetective.exceptions import RemoteLogError
 from logdetective.server.models import AnalysisRequest, ArtifactFile, RemoteArtifactFile
+
+
+retry_database_error = retry(
+    stop=stop_after_attempt(DB_MAX_RETRIES),
+    wait=wait_exponential_jitter(),
+    retry=retry_if_exception_type(OperationalError),
+    reraise=True,
+)
 
 
 def connection_error_giveup(retry_state: RetryCallState) -> None:

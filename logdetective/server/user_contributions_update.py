@@ -43,23 +43,13 @@ import sys
 from datetime import date
 from typing import Iterator, Optional, Tuple
 
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential_jitter,
-)
 import numpy as np
 from fastembed import TextEmbedding
 from pydantic import ValidationError
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.exc import OperationalError
 
 from logdetective.constants import EMBEDDING_MODEL
-from logdetective.server.database.base import (
-    transaction,
-    DB_MAX_RETRIES,
-)
+from logdetective.server.database.base import transaction
 from logdetective.server.database.models.annotated_builds import (
     AnnotatedBuilds,
     AnnotatedSnippets,
@@ -75,6 +65,7 @@ from logdetective.server.user_contributions_helpers import (
     reset_tables,
     fetch_and_parse,
 )
+from logdetective.server.utils import retry_database_error
 
 logger = logging.getLogger(__name__)
 
@@ -86,11 +77,7 @@ LOG_FILE = os.path.join(LOG_DIR, "user_contributions_update.log")
 
 
 # pylint: disable=too-many-locals
-@retry(
-    wait=wait_exponential_jitter(),
-    retry=retry_if_exception_type(OperationalError),
-    stop=stop_after_attempt(DB_MAX_RETRIES),
-)
+@retry_database_error
 async def insert_contributions(
     builds: list[ValidatedBuild],
     embeddings: list[np.ndarray],

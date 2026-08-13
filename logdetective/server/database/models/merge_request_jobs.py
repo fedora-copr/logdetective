@@ -15,15 +15,9 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.engine import Row
-from sqlalchemy.exc import OperationalError
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential_jitter,
-)
 
-from logdetective.server.database.base import Base, transaction, DB_MAX_RETRIES
+from logdetective.server.database.base import Base, transaction
+from logdetective.server.utils import retry_database_error
 
 
 if TYPE_CHECKING:
@@ -87,11 +81,7 @@ class GitlabMergeRequestJobs(Base):
     )
 
     @classmethod
-    @retry(
-        wait=wait_exponential_jitter(),
-        retry=retry_if_exception_type(OperationalError),
-        stop=stop_after_attempt(DB_MAX_RETRIES),
-    )
+    @retry_database_error
     async def create(
         cls,
         forge: Forge,
@@ -242,11 +232,7 @@ class Comments(Base):
     reactions: Mapped[list["Reactions"]] = relationship("Reactions", back_populates="comment")
 
     @classmethod
-    @retry(
-        wait=wait_exponential_jitter(),
-        retry=retry_if_exception_type(OperationalError),
-        stop=stop_after_attempt(DB_MAX_RETRIES),
-    )
+    @retry_database_error
     async def create(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
         cls,
         forge: Forge,
@@ -467,11 +453,7 @@ class Reactions(Base):
     comment: Mapped["Comments"] = relationship("Comments", back_populates="reactions")
 
     @classmethod
-    @retry(
-        wait=wait_exponential_jitter(),
-        retry=retry_if_exception_type(OperationalError),
-        stop=stop_after_attempt(DB_MAX_RETRIES),
-    )
+    @retry_database_error
     async def create_or_update(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
         cls,
         forge: Forge,
@@ -593,11 +575,7 @@ class Reactions(Base):
             return reaction
 
     @classmethod
-    @retry(
-        wait=wait_exponential_jitter(),
-        retry=retry_if_exception_type(OperationalError),
-        stop=stop_after_attempt(DB_MAX_RETRIES),
-    )
+    @retry_database_error
     async def delete(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
         cls,
         forge: Forge,
