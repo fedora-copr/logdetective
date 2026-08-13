@@ -14,16 +14,10 @@ from sqlalchemy import (
     Index,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship, joinedload
-from sqlalchemy.exc import OperationalError
-from tenacity import (
-    retry,
-    wait_exponential_jitter,
-    stop_after_attempt,
-    retry_if_exception_type,
-)
 
 from logdetective.constants import EMBEDDING_VECTOR_SIZE
-from logdetective.server.database.base import Base, transaction, DB_MAX_RETRIES
+from logdetective.server.database.base import Base, transaction
+from logdetective.server.utils import retry_database_error
 
 
 class AnnotatedSnippets(Base):
@@ -90,11 +84,7 @@ class AnnotatedSnippets(Base):
             return snippets
 
     @classmethod
-    @retry(
-        wait=wait_exponential_jitter(),
-        retry=retry_if_exception_type(OperationalError),
-        stop=stop_after_attempt(DB_MAX_RETRIES),
-    )
+    @retry_database_error
     async def create(
         cls,
         text: str,
@@ -143,11 +133,7 @@ class AnnotatedBuilds(Base):
     )
 
     @classmethod
-    @retry(
-        wait=wait_exponential_jitter(),
-        retry=retry_if_exception_type(OperationalError),
-        stop=stop_after_attempt(DB_MAX_RETRIES),
-    )
+    @retry_database_error
     async def create(
         cls,
         problem: str,
@@ -193,11 +179,7 @@ class AnnotationUpdates(Base):
             return result.scalar_one_or_none()
 
     @classmethod
-    @retry(
-        wait=wait_exponential_jitter(),
-        retry=retry_if_exception_type(OperationalError),
-        stop=stop_after_attempt(DB_MAX_RETRIES),
-    )
+    @retry_database_error
     async def add_update_record(cls, file_count: int, archive_date: date) -> int:
         """Record a completed sync run."""
         async with transaction(commit=True) as session:

@@ -3,13 +3,6 @@ import enum
 import datetime
 from typing import Optional, List, Self, Tuple, TYPE_CHECKING
 
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential_jitter,
-)
-
 from sqlalchemy import (
     Integer,
     DateTime,
@@ -21,13 +14,13 @@ from sqlalchemy import (
     LargeBinary,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship, aliased
-from sqlalchemy.exc import OperationalError
 
-from logdetective.server.database.base import Base, transaction, DB_MAX_RETRIES
+from logdetective.server.database.base import Base, transaction
 from logdetective.server.database.models.merge_request_jobs import (
     GitlabMergeRequestJobs,
     Forge,
 )
+from logdetective.server.utils import retry_database_error
 
 
 if TYPE_CHECKING:
@@ -95,11 +88,7 @@ class AnalyzeRequestMetrics(Base):
     )
 
     @classmethod
-    @retry(
-        wait=wait_exponential_jitter(),
-        retry=retry_if_exception_type(OperationalError),
-        stop=stop_after_attempt(DB_MAX_RETRIES),
-    )
+    @retry_database_error
     async def create(
         cls,
         endpoint: EndpointType,
@@ -117,11 +106,7 @@ class AnalyzeRequestMetrics(Base):
             return metrics.id
 
     @classmethod
-    @retry(
-        wait=wait_exponential_jitter(),
-        retry=retry_if_exception_type(OperationalError),
-        stop=stop_after_attempt(DB_MAX_RETRIES),
-    )
+    @retry_database_error
     async def update(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
         cls,
         id_: int,
@@ -143,11 +128,7 @@ class AnalyzeRequestMetrics(Base):
             session.add(metrics)
 
     @classmethod
-    @retry(
-        wait=wait_exponential_jitter(),
-        retry=retry_if_exception_type(OperationalError),
-        stop=stop_after_attempt(DB_MAX_RETRIES),
-    )
+    @retry_database_error
     async def get_metric_by_id(
         cls,
         id_: int,
