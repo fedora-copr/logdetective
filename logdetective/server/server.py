@@ -218,7 +218,7 @@ def requires_token_when_set(authorization: Annotated[str | None, Header()] = Non
             ) from ex
         if token == API_TOKEN:
             return
-        LOG.info("Provided token '%s' does not match expected value.", token)
+        LOG.info("Provided token does not match expected value.")
         raise HTTPException(status_code=401, detail=f"Token '{token}' not valid.")
     LOG.error("No authorization header provided but LOGDETECTIVE_TOKEN env var is set")
     raise HTTPException(status_code=401, detail="No token provided.")
@@ -351,7 +351,7 @@ async def analyze_rpmbuild_koji(
     # it will just proceed.
     if koji_instance_config.tokens and x_koji_token not in koji_instance_config.tokens:
         # (Unauthorized) error.
-        return BasicResponse(x_koji_token, status_code=401)
+        return BasicResponse(status_code=401)
 
     # Check if we already have a response for this task
     try:
