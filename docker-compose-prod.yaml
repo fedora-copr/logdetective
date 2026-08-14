@@ -103,6 +103,8 @@ services:
     extends:
       file: docker-compose.yaml
       service: user-contributions-update
+    profiles:
+      - sync
 
 volumes:
   database_data:
