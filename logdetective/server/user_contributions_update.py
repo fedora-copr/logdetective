@@ -74,6 +74,7 @@ DOWNLOAD_URL = "https://logdetective.com/download"
 MAX_ARCHIVE_AGE_DAYS = 90
 LOG_DIR = os.getenv("LOG_DIR", "/var/log/logdetective")
 LOG_FILE = os.path.join(LOG_DIR, "user_contributions_update.log")
+THREAD_COUNT = int(os.getenv("USER_CONTRIBUTION_UPDATE_THREADS", "4"))
 
 
 # pylint: disable=too-many-locals
@@ -250,7 +251,7 @@ async def run_update(url: str, dry_run: bool = False, reset: bool = False) -> No
     embedding_model = None
     if not dry_run:
         logger.info("Loading embedding model: %s", EMBEDDING_MODEL)
-        embedding_model = TextEmbedding(EMBEDDING_MODEL)
+        embedding_model = TextEmbedding(EMBEDDING_MODEL, threads=THREAD_COUNT)
 
     if reset:
         date_since = None

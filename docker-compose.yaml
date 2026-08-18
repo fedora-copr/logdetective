@@ -93,6 +93,7 @@ services:
     env_file: ./env_file
     environment:
       - LOG_DIR=/var/log/logdetective
+      - USER_CONTRIBUTION_UPDATE_THREADS=4
     working_dir: /src
     volumes:
       - ./log:/var/log/logdetective:z
