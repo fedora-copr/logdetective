@@ -95,3 +95,7 @@ general:
   # annotation_lookup_tool: true
   # Upper limit for returned similar annotated snippets
   # max_annotations: 3
+  # ONNXRuntime intra/inter-op thread count for the embedding model.
+  # A new model instance is loaded per gunicorn worker process, so keep this low (depending on how many cores/threads are available)
+  # to avoid exhausting the host's thread/process limit.
+  embedding_model_threads: 4

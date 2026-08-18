@@ -75,7 +75,10 @@ def load_embedding_model(config: Config) -> TextEmbedding | None:
     """Load embedding model, if DB lookup is configured."""
     if config.general.annotation_lookup_tool:
         try:
-            return TextEmbedding(EMBEDDING_MODEL)
+            return TextEmbedding(
+                EMBEDDING_MODEL,
+                threads=config.general.embedding_model_threads,
+            )
         except Exception as exc:  # pylint: disable=broad-exception-caught
             LOG.exception("Embedding model load failed: %s", str(exc))
             return None

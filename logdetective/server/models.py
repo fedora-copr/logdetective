@@ -6,6 +6,7 @@ from pydantic import (
     model_validator,
     field_validator,
     NonNegativeFloat,
+    PositiveInt,
     HttpUrl,
     ConfigDict,
 )
@@ -375,6 +376,10 @@ class GeneralConfig(BaseModel):
     agent_timeout: int = 600
     annotation_lookup_tool: bool = False
     max_annotations: int = 3
+    # Limits onnxruntime intra/inter-op threads per embedding model instance.
+    # Each gunicorn worker loads its own model, so with many workers this
+    # must stay low to avoid exhausting the process/thread limit.
+    embedding_model_threads: PositiveInt = 4
 
     @field_validator("max_artifact_size", mode="before")
     @classmethod
