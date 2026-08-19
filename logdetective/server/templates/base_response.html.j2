@@ -1,17 +1,17 @@
 <b>Log Detective report
-    {% if project %}for {{ project }}{% endif %}
+    {% if project %}for {{ project | e }}{% endif %}
 </b>
 <p>Analysis:</p>
 <br>
-{{ explanation }}
+{{ explanation | e }}
 <br>
 <details>
     <summary>Analysis details</summary>
     <ul>
         {% for snippet in snippets %}
             <li>
-                <b>Line {{ snippet.line_number }}:</b> <code>{{ snippet.text }}</code>
-                {% if snippet.snippet_analysis %}{{ snippet.snippet_analysis }}{% endif %}
+                <b>Line {{ snippet.line_number | e }}:</b> <code>{{ snippet.text | e  }}</code>
+                {% if snippet.snippet_analysis %}{{ snippet.snippet_analysis | e }}{% endif %}
             </li>
         {% endfor %}
     </ul>
