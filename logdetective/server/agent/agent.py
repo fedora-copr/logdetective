@@ -1,3 +1,4 @@
+import re
 from typing import Optional
 
 from beeai_framework.agents.requirement import RequirementAgent
@@ -30,6 +31,7 @@ from pydantic import ValidationError
 
 from logdetective.remote_log import RemoteLog
 from logdetective.server.config import (
+    LOG,
     PROMPT_CONFIG,
     SERVER_CONFIG,
     SKIP_SNIPPETS_CONFIG,
@@ -189,6 +191,16 @@ async def analyze_artifacts(
 
     # Names of build artifacts are inserted into the template.
     if build_metadata:
+
+        # check for closing xml tags - possible prompt injection by early closing
+        xml_closing_tag = re.compile(r"</[^<]+>", re.DOTALL)
+        if build_metadata.commentary and re.match(xml_closing_tag, build_metadata.commentary):
+            LOG.warning("Suspicious commentary field - contains xml tags - rejecting")
+            build_metadata.commentary = None
+        if build_metadata.infra_status and re.match(xml_closing_tag, build_metadata.infra_status):
+            LOG.warning("Suspicious infra_status field - contains xml tags - rejecting")
+            build_metadata.infra_status = None
+
         agent_input = PROMPT_CONFIG.agent_start_prompt(
             artifacts=list(artifacts.keys()),
             commentary=build_metadata.commentary,
