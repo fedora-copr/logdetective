@@ -496,7 +496,7 @@ async def generate_mr_comment(
     # Locate and load the comment template
     script_path = Path(__file__).resolve().parent
     template_path = Path(script_path, "templates")
-    jinja_env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_path))
+    jinja_env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_path), autoescape=True)
 
     if full:
         tpl = jinja_env.get_template("gitlab_full_comment.md.j2")
