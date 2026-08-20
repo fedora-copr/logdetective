@@ -7,11 +7,11 @@ name: Container Image Build and Publish
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "ld_v5" ]
     # Publish semver tags as releases.
     tags: [ 'v*.*.*' ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "ld_v5" ]
   workflow_dispatch:
 env:
   REGISTRY: quay.io

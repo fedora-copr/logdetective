@@ -2,7 +2,7 @@ name: Build Manpage
 on:
   push:
   pull_request:
-    branches: [main]
+    branches: [ main, ld_v5]
 permissions: {}
 jobs:
   build_manpage:
