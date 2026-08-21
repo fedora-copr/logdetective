@@ -93,7 +93,7 @@ class ExtractorTool(Tool[ExtractorToolInput]):
         options: ToolRunOptions | None,
         context: RunContext,
     ) -> ExtractorToolOutput:
-        """Extract snippets from selected build artifact."""
+        """Extract snippets from selected artifact."""
 
         if input.artifact_name not in self.all_artifacts:
             raise ToolInputValidationError(
