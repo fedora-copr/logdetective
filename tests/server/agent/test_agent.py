@@ -31,7 +31,8 @@ def mock_agent_setup():
     mock_agent_output = MagicMock()
     mock_agent_output.state.answer.text = "Mocked analysis result"
     mock_agent_output.output_structured = AgentResponse(
-        explanation=Explanation(text="Mock explanation"))
+        explanation=Explanation(text="Mock explanation")
+    )
     return mock_artifacts, mock_chat_model, mock_agent_output
 
 
@@ -103,12 +104,23 @@ async def test_analyze_artifacts_execution_flow(mock_agent_setup):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("cause, expected_exc", [
-    (Timeout("timed out", "model-mock", "provider-mock"), LogDetectiveInferenceTimeout),
-    (RateLimitError("rate limited", "model-mock", "provider-mock"), LogDetectiveInferenceRateLimit),
-    (ChatModelError(), LogDetectiveInferenceError),
-])
-async def test_analyze_artifacts_inference_errors(mock_agent_setup, cause, expected_exc):
+@pytest.mark.parametrize(
+    "cause, expected_exc",
+    [
+        (
+            Timeout("timed out", "model-mock", "provider-mock"),
+            LogDetectiveInferenceTimeout,
+        ),
+        (
+            RateLimitError("rate limited", "model-mock", "provider-mock"),
+            LogDetectiveInferenceRateLimit,
+        ),
+        (ChatModelError(), LogDetectiveInferenceError),
+    ],
+)
+async def test_analyze_artifacts_inference_errors(
+    mock_agent_setup, cause, expected_exc
+):
     mock_artifacts, mock_chat_model, _ = mock_agent_setup
     mock_error = ChatModelError("model error")
     mock_error.__cause__ = cause
@@ -116,9 +128,7 @@ async def test_analyze_artifacts_inference_errors(mock_agent_setup, cause, expec
     with patch("logdetective.server.agent.agent.RequirementAgent") as MockAgent:
         with patch("asyncio.sleep", new_callable=AsyncMock):
             mock_run_instance = MagicMock()
-            mock_run_instance.middleware = AsyncMock(
-                side_effect=mock_error
-            )
+            mock_run_instance.middleware = AsyncMock(side_effect=mock_error)
             MockAgent.return_value.run.return_value = mock_run_instance
 
             with pytest.raises(LogDetectiveInferenceError) as exc_info:
@@ -192,16 +202,28 @@ async def test_analyze_artifacts_lookup_tool_included(
         MockAgent.return_value.run.return_value = mock_run_instance
 
         with (
-            patch.object(SERVER_CONFIG.general, "annotation_lookup_tool", config_option),
+            patch.object(
+                SERVER_CONFIG.general, "annotation_lookup_tool", config_option
+            ),
             patch.object(SERVER_CONFIG.general, "max_annotations", 3),
             patch("logdetective.server.config.TextEmbedding", MagicMock()),
             patch.object(
-                AnnotatedSnippets, "get_count", new_callable=AsyncMock, return_value=snippet_count
+                AnnotatedSnippets,
+                "get_count",
+                new_callable=AsyncMock,
+                return_value=snippet_count,
             ),
         ):
             model_instance = load_embedding_model(SERVER_CONFIG)
-            with patch(
-                "logdetective.server.agent.agent.EMBEDDING_MODEL_INSTANCE", model_instance
+            with (
+                patch(
+                    "logdetective.server.agent.agent.EMBEDDING_MODEL_INSTANCE",
+                    model_instance,
+                ),
+                patch(
+                    "logdetective.server.agent.tools.EMBEDDING_MODEL_INSTANCE",
+                    model_instance,
+                ),
             ):
                 await analyze_artifacts(mock_artifacts, mock_chat_model)
 

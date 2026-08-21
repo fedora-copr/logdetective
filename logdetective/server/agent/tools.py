@@ -421,6 +421,8 @@ class AnnotatedSnippetLookupTool(
         options: dict[str, Any] | None = None
     ) -> None:
         super().__init__(options)
+        if EMBEDDING_MODEL_INSTANCE is None:
+            raise RuntimeError("The tool can not be initialized without a loaded embedding model.")
         self._embedding_model = EMBEDDING_MODEL_INSTANCE
 
     def _create_emitter(self) -> Emitter:
