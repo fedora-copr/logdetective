@@ -48,6 +48,28 @@ from logdetective.server.utils import connection_error_giveup
 
 MR_REGEX = re.compile(r"refs/merge-requests/(\d+)/.*$")
 FAILURE_LOG_REGEX = re.compile(r"(\w*\.log)")
+ZIP_ENTRY_CHUNK_SIZE = 65536
+
+
+def read_zip_entry_chunked(
+    zip_file: zipfile.ZipFile, filename: str, limit_bytes: int
+) -> bytes:
+    """Read a zip entry in chunks, aborting if size exceeds limit_bytes."""
+    chunks = []
+    total = 0
+    with zip_file.open(filename) as entry:
+        while True:
+            chunk = entry.read(ZIP_ENTRY_CHUNK_SIZE)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > limit_bytes:
+                raise LogsTooLargeError(
+                    f"Decompressed content of {filename} exceeds "
+                    f"the limit of {limit_bytes} bytes"
+                )
+            chunks.append(chunk)
+    return b"".join(chunks)
 
 
 # pylint: disable=too-many-locals, too-many-arguments, \
@@ -110,7 +132,7 @@ async def process_gitlab_job_event(
     LOG.debug("Retrieving log artifacts")
     # Retrieve the build logs from the merge request artifacts and preprocess them
     try:
-        log_url, preprocessed_log = await retrieve_and_preprocess_koji_logs(
+        log_url, log_text = await retrieve_and_preprocess_koji_logs(
             gitlab_cfg, job, http_session
         )
     except (
@@ -122,7 +144,6 @@ async def process_gitlab_job_event(
         return
 
     # Submit log to Log Detective and await the results.
-    log_text = preprocessed_log.read().decode(encoding="utf-8")
     log_text = sanitize_artifact(log_text)
     metrics_id = await add_new_metrics(
         api_name=EndpointType.ANALYZE_GITLAB_JOB,
@@ -150,8 +171,6 @@ async def process_gitlab_job_event(
             exc,
         )
         return
-    finally:
-        preprocessed_log.close()
 
     await update_metrics(metrics_id, response)
 
@@ -215,9 +234,8 @@ async def retrieve_and_preprocess_koji_logs(
     This function will retrieve the build logs and do some minimal
     preprocessing to determine which log is relevant for analysis.
 
-    returns: The URL pointing to the selected log file and an open, file-like
-    object containing the log contents to be sent for processing by Log
-    Detective. The calling function is responsible for closing this object."""
+    returns: The URL pointing to the selected log file and
+    the log contents to be sent for processing by Log Detective."""
 
     # Make sure the file isn't too large to process.
     if not await check_artifacts_file_size(gitlab_cfg, job, http_session):
@@ -226,47 +244,50 @@ async def retrieve_and_preprocess_koji_logs(
         )
 
     # Create a temporary file to store the downloaded log zipfile.
-    # This will be automatically deleted when the last reference into it
-    # (returned by this function) is closed.
-    tempfile = TemporaryFile(mode="w+b")
-    await asyncio.to_thread(job.artifacts, streamed=True, action=tempfile.write)
-    tempfile.seek(0)
+    with TemporaryFile(mode="w+b") as tempfile:
+        await asyncio.to_thread(job.artifacts, streamed=True, action=tempfile.write)
+        tempfile.seek(0)
 
-    failed_arches = {}
-    artifacts_zip = zipfile.ZipFile(tempfile, mode="r")  # pylint: disable=consider-using-with
-    for zipinfo in artifacts_zip.infolist():
-        if zipinfo.filename.endswith("task_failed.log"):
-            # The koji logs store this file in two places: 1) in the
-            # directory with the failed architecture and 2) in the parent
-            # directory. Most of the time, we want to ignore the one in the
-            # parent directory, since the rest of the information is in the
-            # specific task directory. However, there are some situations
-            # where non-build failures (such as "Target build already exists")
-            # may be presented only at the top level.
-            # The paths look like `kojilogs/noarch-XXXXXX/task_failed.log`
-            # or `kojilogs/noarch-XXXXXX/x86_64-XXXXXX/task_failed.log`
-            # We prefix "toplevel" with '~' so that later when we sort the
-            # keys to see if there are any unrecognized arches, it will always
-            # sort last.
-            path = PurePath(zipinfo.filename)
-            if len(path.parts) <= 3:
-                failed_arches["~toplevel"] = path
-                continue
+        failed_arches: dict[str, PurePath] = {}
+        with zipfile.ZipFile(tempfile, mode="r") as artifacts_zip:
+            size_sum = 0
+            for zipinfo in artifacts_zip.infolist():
+                if not zipinfo.filename.endswith("task_failed.log"):
+                    continue
+                # The koji logs store this file in two places: 1) in the
+                # directory with the failed architecture and 2) in the parent
+                # directory. Most of the time, we want to ignore the one in the
+                # parent directory, since the rest of the information is in the
+                # specific task directory. However, there are some situations
+                # where non-build failures (such as "Target build already exists")
+                # may be presented only at the top level.
+                # The paths look like `kojilogs/noarch-XXXXXX/task_failed.log`
+                # or `kojilogs/noarch-XXXXXX/x86_64-XXXXXX/task_failed.log`
+                # We prefix "toplevel" with '~' so that later when we sort the
+                # keys to see if there are any unrecognized arches, it will always
+                # sort last.
+                path = PurePath(zipinfo.filename)
+                if len(path.parts) <= 3:
+                    failed_arches["~toplevel"] = path
+                    continue
 
-            # Extract the architecture from the immediate parent path
-            architecture = path.parent.parts[-1].split("-")[0]
+                # Extract the architecture from the immediate parent path
+                architecture = path.parent.parts[-1].split("-")[0]
 
-            # Open this file and read which log failed.
-            # The string in this log has the format
-            # `see <log> for more information`.
-            # Note: it may sometimes say
-            # `see build.log or root.log for more information`, but in
-            # that situation, we only want to handle build.log (for now),
-            # which means accepting only the first match for the regular
-            # expression.
-            with artifacts_zip.open(zipinfo.filename) as task_failed_log:
-                contents = task_failed_log.read().decode("utf-8")
-                match = FAILURE_LOG_REGEX.search(contents)
+                # Open this file and read which log failed.
+                # The string in this log has the format
+                # `see <log> for more information`.
+                # Note: it may sometimes say
+                # `see build.log or root.log for more information`, but in
+                # that situation, we only want to handle build.log (for now),
+                # which means accepting only the first match for the regular
+                # expression.
+                contents = read_zip_entry_chunked(
+                    artifacts_zip, zipinfo.filename, gitlab_cfg.max_artifact_size - size_sum
+                )
+                size_sum += len(contents)
+                decoded_contents = contents.decode("utf-8")
+                match = FAILURE_LOG_REGEX.search(decoded_contents)
                 if match:
                     failure_log_name = match.group(1)
                     failed_arches[architecture] = PurePath(
@@ -281,41 +302,44 @@ async def retrieve_and_preprocess_koji_logs(
                     # relevant information
                     failed_arches[architecture] = path
 
-    if not failed_arches:
-        # No failed task found in the sub-tasks.
-        raise FileNotFoundError("Could not detect failed architecture.")
+            if not failed_arches:
+                # No failed task found in the sub-tasks.
+                raise FileNotFoundError("Could not detect failed architecture.")
 
-    # We only want to handle one arch, so we'll check them in order of
-    # "most to least likely for the maintainer to have access to hardware"
-    # This means: x86_64 > aarch64 > riscv > ppc64le > s390x
-    if "x86_64" in failed_arches:
-        failed_arch = "x86_64"
-    elif "aarch64" in failed_arches:
-        failed_arch = "aarch64"
-    elif "riscv" in failed_arches:
-        failed_arch = "riscv"
-    elif "ppc64le" in failed_arches:
-        failed_arch = "ppc64le"
-    elif "s390x" in failed_arches:
-        failed_arch = "s390x"
-    elif "noarch" in failed_arches:
-        # May have failed during BuildSRPMFromSCM phase
-        failed_arch = "noarch"
-    else:
-        # We have one or more architectures that we don't know about? Just
-        # pick the first alphabetically. If the issue was a Koji error
-        # rather than a build failure, this will fall back to ~toplevel as
-        # the lowest-sorting possibility.
-        failed_arch = sorted(list(failed_arches.keys()))[0]
+            # We only want to handle one arch, so we'll check them in order of
+            # "most to least likely for the maintainer to have access to hardware"
+            # This means: x86_64 > aarch64 > riscv > ppc64le > s390x
+            if "x86_64" in failed_arches:
+                failed_arch = "x86_64"
+            elif "aarch64" in failed_arches:
+                failed_arch = "aarch64"
+            elif "riscv" in failed_arches:
+                failed_arch = "riscv"
+            elif "ppc64le" in failed_arches:
+                failed_arch = "ppc64le"
+            elif "s390x" in failed_arches:
+                failed_arch = "s390x"
+            elif "noarch" in failed_arches:
+                # May have failed during BuildSRPMFromSCM phase
+                failed_arch = "noarch"
+            else:
+                # We have one or more architectures that we don't know about? Just
+                # pick the first alphabetically. If the issue was a Koji error
+                # rather than a build failure, this will fall back to ~toplevel as
+                # the lowest-sorting possibility.
+                failed_arch = sorted(list(failed_arches.keys()))[0]
 
-    LOG.debug("Failed architecture: %s", failed_arch)
+            LOG.debug("Failed architecture: %s", failed_arch)
 
-    log_path = failed_arches[failed_arch].as_posix()
-    log_url = f"{gitlab_cfg.url}/{gitlab_cfg.api_path}/projects/{job.project_id}/jobs/{job.id}/artifacts/{log_path}"  # pylint: disable=line-too-long
-    LOG.debug("Returning contents of %s%s", gitlab_cfg.url, log_url)
+            log_path = failed_arches[failed_arch].as_posix()
+            log_url = f"{gitlab_cfg.url}/{gitlab_cfg.api_path}/projects/{job.project_id}/jobs/{job.id}/artifacts/{log_path}"  # pylint: disable=line-too-long
+            LOG.debug("Returning contents of %s%s", gitlab_cfg.url, log_url)
 
-    # Return the log as a file-like object with .read() function
-    return log_url, artifacts_zip.open(log_path)
+            log_content = read_zip_entry_chunked(
+                artifacts_zip, log_path, gitlab_cfg.max_artifact_size - size_sum
+            ).decode("utf-8")
+
+        return log_url, log_content
 
 
 async def check_artifacts_file_size(

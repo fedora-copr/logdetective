@@ -360,10 +360,9 @@ async def test_regression_unknown_arch_logs(mocker: MockerFixture):
     project = gitlab_connection.projects.get(23665037)
     job = project.jobs.get(10226618670)
     mock_session = mocker.Mock()
-    url, open_file = await retrieve_and_preprocess_koji_logs(
+    url, _ = await retrieve_and_preprocess_koji_logs(
         gitlab_cfg=gitlab_cfg, job=job, http_session=mock_session
     )
-    open_file.close()
 
     assert "task_failed.log" not in url
     assert "build.log" in url
@@ -388,12 +387,12 @@ async def test_fallback_to_task_failed_log_if_no_match(
 
     mock_session = mocker.AsyncMock()
 
-    log_url, log_file = await retrieve_and_preprocess_koji_logs(
+    log_url, log_text = await retrieve_and_preprocess_koji_logs(
         gitlab_cfg=gitlab_cfg, job=mock_job, http_session=mock_session
     )
 
     assert "artifacts/kojilogs/x86_64-build/task_failed.log" in log_url
-    assert log_file.read().decode("utf-8") == log_content
+    assert log_text == log_content
     assert log_url.startswith(gitlab_cfg.url)
 
 
@@ -439,6 +438,37 @@ async def test_raises_logs_too_large_error(mocker: MockerFixture, gitlab_cfg, mo
 
     # Ensure we didn't attempt to download the file
     mock_to_thread.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "limit", (512, 1024 + 2), ids=("single-file-size", "cumulative-size")
+)
+@pytest.mark.asyncio
+async def test_raises_logs_too_large_error_decompression(
+    mocker: MockerFixture, gitlab_cfg, mock_job, limit,
+):
+    """
+    Tests that LogsTooLargeError is raised if the archive is small, but the decompressed content
+    is too big, either one file by itself, or multiple files accumulate over the limit.
+    """
+    # repetitive payload compresses well, passing the initial Content-Length check
+    files = {
+        "kojilogs/noarch-build/x86_64-build/task_failed.log": "see build.log",
+        "kojilogs/noarch-build/x86_64-build/build.log": "A" * 1024,
+    }
+    zip_content = create_zip_archive(files)
+    mock_artifact_download(mocker, zip_content)
+    mocker.patch(
+        "logdetective.server.gitlab.check_artifacts_file_size", return_value=True
+    )
+    gitlab_cfg.max_artifact_size = limit
+
+    mock_session = mocker.AsyncMock()
+
+    with pytest.raises(LogsTooLargeError, match="exceeds the limit"):
+        await retrieve_and_preprocess_koji_logs(
+            gitlab_cfg=gitlab_cfg, job=mock_job, http_session=mock_session
+        )
 
 
 @pytest.mark.asyncio
@@ -528,12 +558,12 @@ async def test_architecture_prioritization(mocker: MockerFixture, gitlab_cfg, mo
     )
     mock_session = mocker.AsyncMock()
 
-    log_url, log_file = await retrieve_and_preprocess_koji_logs(
+    log_url, log_text = await retrieve_and_preprocess_koji_logs(
         gitlab_cfg=gitlab_cfg, job=mock_job, http_session=mock_session
     )
 
     assert "x86_64-build/root.log" in log_url
-    assert log_file.read().decode("utf-8") == "x86_64 failure"
+    assert log_text == "x86_64 failure"
 
 
 @pytest.mark.asyncio
@@ -552,12 +582,12 @@ async def test_toplevel_failure_fallback(mocker: MockerFixture, gitlab_cfg, mock
     )
     mock_session = mocker.AsyncMock()
 
-    log_url, log_file = await retrieve_and_preprocess_koji_logs(
+    log_url, log_text = await retrieve_and_preprocess_koji_logs(
         gitlab_cfg=gitlab_cfg, job=mock_job, http_session=mock_session
     )
 
     assert "kojilogs/noarch-build/task_failed.log" in log_url
-    assert log_file.read().decode("utf-8") == "Target build already exists"
+    assert log_text == "Target build already exists"
 
 
 @pytest.mark.asyncio
@@ -581,10 +611,10 @@ async def test_unrecognized_architecture_handling(
     )
     mock_session = mocker.AsyncMock()
 
-    log_url, log_file = await retrieve_and_preprocess_koji_logs(
+    log_url, log_text = await retrieve_and_preprocess_koji_logs(
         gitlab_cfg=gitlab_cfg, job=mock_job, http_session=mock_session
     )
 
     # Should pick 'a-arch' as it comes first alphabetically
     assert "a-arch-build/build.log" in log_url
-    assert log_file.read().decode("utf-8") == "a-arch failure"
+    assert log_text == "a-arch failure"
