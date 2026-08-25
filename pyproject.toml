@@ -27,9 +27,7 @@ keywords = [
     "LLM",
 ]
 dependencies = [
-    "llama-cpp-python >0.2.56,!=0.2.86,<1.0.0",
     "drain3-improved >=0.10.0",
-    "huggingface-hub >=1.0.0,<2.0.0",
     "numpy >=1.26.0",
     "pydantic >=2.8.2,<3.0.0",
     "pyyaml >=6.0.1,<7.0.0",
@@ -47,9 +45,9 @@ issues = "https://github.com/fedora-copr/logdetective/issues"
 [tool.poetry]
 include = [
     "logdetective/drain3.ini",
-    "logdetective/server/templates/gitlab_comment.md.j2",
+    "logdetective/server/templates/gitlab_short_comment.md.j2",
+    "logdetective/server/templates/gitlab_full_comment.md.j2",
     "logdetective/prompts.yml",
-    "logdetective.1.asciidoc",
     "logdetective/prompts/agent_start_prompt.j2",
     "logdetective/prompts/message_template.j2",
     "logdetective/prompts/system_prompt.j2",
@@ -102,15 +100,11 @@ testing = [
     "flexmock",
     "pytest-cov",
     "pytest-mock",
-    "asciidoc>=10.2.1,<11.0.0",
 ]
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
-
-[project.scripts]
-logdetective = 'logdetective.logdetective:main'
 
 [tool.pylint]
 disable = [
