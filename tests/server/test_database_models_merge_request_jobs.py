@@ -6,7 +6,7 @@ from tests.server.test_helpers import (
     DatabaseFactory,
 )
 
-from logdetective.server.database.models import (
+from logdetective.database.models import (
     Forge,
     GitlabMergeRequestJobs,
     Comments,

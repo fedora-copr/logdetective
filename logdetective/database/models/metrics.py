@@ -15,12 +15,12 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship, aliased
 
-from logdetective.server.database.base import Base, transaction
-from logdetective.server.database.models.merge_request_jobs import (
+from logdetective.database.base import Base, transaction
+from logdetective.database.models.merge_request_jobs import (
     GitlabMergeRequestJobs,
     Forge,
 )
-from logdetective.server.utils import retry_database_error
+from logdetective.utils import retry_database_error
 
 
 if TYPE_CHECKING:

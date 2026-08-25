@@ -6,17 +6,17 @@ from functools import wraps
 
 import numpy
 
-from logdetective.server.config import LOG
-from logdetective.server.compressors import (
+from logdetective.config import LOG
+from logdetective.compressors import (
     LLMResponseCompressor,
 )
-from logdetective.server.models import (
+from logdetective.models import (
     TimePeriod,
     MetricTimeSeries,
     APIResponse,
     Explanation,
 )
-from logdetective.server.database.models import EndpointType, AnalyzeRequestMetrics, Reactions
+from logdetective.database.models import EndpointType, AnalyzeRequestMetrics, Reactions
 
 
 async def add_new_metrics(

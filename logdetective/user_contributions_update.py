@@ -23,9 +23,9 @@ How it works:
   - --dry-run does everything except the database insertion/deletion.
 
 Usage:
-  python -m logdetective.server.user_contributions_update
-  python -m logdetective.server.user_contributions_update --dry-run
-  python -m logdetective.server.user_contributions_update --reset
+  python -m logdetective.user_contributions_update
+  python -m logdetective.user_contributions_update --dry-run
+  python -m logdetective.user_contributions_update --reset
 
     Expected to run as a monthly cronjob (in an OC cluster/compose).
 
@@ -49,14 +49,14 @@ from pydantic import ValidationError
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from logdetective.constants import EMBEDDING_MODEL
-from logdetective.server.database.base import transaction
-from logdetective.server.database.models.annotated_builds import (
+from logdetective.database.base import transaction
+from logdetective.database.models.annotated_builds import (
     AnnotatedBuilds,
     AnnotatedSnippets,
     AnnotationUpdates,
 )
-from logdetective.server.models import ContributionBuild
-from logdetective.server.user_contributions_helpers import (
+from logdetective.models import ContributionBuild
+from logdetective.user_contributions_helpers import (
     CurrentUpdateStats,
     ValidatedBuild,
     sanitize_for_pg,
@@ -65,7 +65,7 @@ from logdetective.server.user_contributions_helpers import (
     reset_tables,
     fetch_and_parse,
 )
-from logdetective.server.utils import retry_database_error
+from logdetective.utils import retry_database_error
 
 logger = logging.getLogger(__name__)
 

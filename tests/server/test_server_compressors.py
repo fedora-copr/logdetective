@@ -1,10 +1,10 @@
 import pytest
 
-from logdetective.server.models import (
+from logdetective.models import (
     APIResponse,
     Explanation,
 )
-from logdetective.server.compressors import LLMResponseCompressor
+from logdetective.compressors import LLMResponseCompressor
 
 
 @pytest.mark.asyncio

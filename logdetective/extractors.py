@@ -7,11 +7,9 @@ from drain3.template_miner import TemplateMiner
 from drain3.template_miner_config import TemplateMinerConfig
 from pydantic import ValidationError
 
+from logdetective.config import LOG
 from logdetective.constants import TRUNCATED, MINIMUM_SNIPPET_TRUNCATION_LEN
 from logdetective.models import SkipSnippets, CSGrepOutput
-
-
-LOG = logging.getLogger("logdetective")
 
 
 class Extractor:

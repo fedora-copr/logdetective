@@ -7,14 +7,14 @@ from responses import _recorder
 from sqlalchemy import select
 import pytest
 
-from logdetective.server.models import TimePeriod
-from logdetective.server.database.models import (
+from logdetective.models import TimePeriod
+from logdetective.database.models import (
     GitlabMergeRequestJobs,
     Comments,
     Reactions,
     Forge,
 )
-from logdetective.server.emoji import collect_emojis, collect_emojis_for_mr
+from logdetective.emoji import collect_emojis, collect_emojis_for_mr
 
 from tests.server.test_helpers import (
     DatabaseFactory,

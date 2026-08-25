@@ -6,9 +6,9 @@ import pytest
 import aiohttp
 import aioresponses
 
-from logdetective.server.database.models import AnalyzeRequestMetrics, EndpointType
-from logdetective.server.models import Explanation, TimePeriod, MetricTimeSeries
-from logdetective.server.metric import (
+from logdetective.database.models import AnalyzeRequestMetrics, EndpointType
+from logdetective.models import Explanation, TimePeriod, MetricTimeSeries
+from logdetective.metric import (
     track_request,
     create_time_series_arrays,
     requests_per_time,

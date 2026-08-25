@@ -22,29 +22,29 @@ from logdetective.utils import (
     ContentSizeCheck,
     check_content_size,
 )
-from logdetective.server.config import SERVER_CONFIG, LOG
-from logdetective.server.exceptions import (
+from logdetective.config import SERVER_CONFIG, LOG
+from logdetective.exceptions import (
     LogsTooLargeError,
     LogDetectiveConnectionError,
     LogDetectiveArtifactsMissingError,
     LogDetectiveInferenceError,
 )
-from logdetective.server.agent.agent import analyze_artifacts
-from logdetective.server.metric import add_new_metrics, update_metrics
-from logdetective.server.models import (
+from logdetective.agent.agent import analyze_artifacts
+from logdetective.metric import add_new_metrics, update_metrics
+from logdetective.models import (
     GitLabInstanceConfig,
     JobHook,
     APIResponse,
     BuildMetadata,
 )
-from logdetective.server.database.models import (
+from logdetective.database.models import (
     AnalyzeRequestMetrics,
     Comments,
     EndpointType,
     Forge,
     GitlabMergeRequestJobs,
 )
-from logdetective.server.utils import connection_error_giveup
+from logdetective.utils import connection_error_giveup
 
 MR_REGEX = re.compile(r"refs/merge-requests/(\d+)/.*$")
 FAILURE_LOG_REGEX = re.compile(r"(\w*\.log)")

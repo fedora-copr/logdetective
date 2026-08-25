@@ -16,8 +16,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship, joinedload
 
 from logdetective.constants import EMBEDDING_VECTOR_SIZE
-from logdetective.server.database.base import Base, transaction
-from logdetective.server.utils import retry_database_error
+from logdetective.database.base import Base, transaction
+from logdetective.utils import retry_database_error
 
 
 class AnnotatedSnippets(Base):

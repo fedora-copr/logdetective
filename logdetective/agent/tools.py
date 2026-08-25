@@ -19,9 +19,10 @@ from logdetective.extractors import (
 )
 from logdetective.models import SkipSnippets
 from logdetective.remote_log import RemoteLog
-from logdetective.server.models import ExtractorConfig, Snippet, AnalyzedSnippet
-from logdetective.server.config import EMBEDDING_MODEL_INSTANCE, SERVER_CONFIG
-from logdetective.server.database.models.annotated_builds import AnnotatedSnippets
+from logdetective.models import ExtractorConfig, Snippet, AnalyzedSnippet
+from logdetective.config import EMBEDDING_MODEL_INSTANCE, SERVER_CONFIG
+from logdetective.database.models.annotated_builds import AnnotatedSnippets
+
 
 ARTIFACT_NAME_DESC = "The exact name of the artifact you want to extract information from."
 

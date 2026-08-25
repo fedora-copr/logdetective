@@ -1,11 +1,9 @@
 import datetime
-from unittest.mock import patch
-
+from unittest.mock import patch, MagicMock
 import pytest
 import yaml
 from pydantic import ValidationError
-
-from logdetective.server.models import (
+from logdetective.models import (
     TimePeriod,
     Config,
     ExtractorConfig,
@@ -63,19 +61,16 @@ def test_initialization_with_custom_data():
     """Tests that ExtractorConfig correctly uses custom values from a provided
     data dictionary and instantiates all relevant extractors.
     """
-
-    mocker.patch(
-        "logdetective.server.models.sp.run",
-        return_value=mocker.MagicMock(returncode=0, stderr="")
-    )
-
     custom_data = {
         "max_clusters": 15,
         "verbose": True,
         "max_snippet_len": 500,
         "csgrep": True,
     }
-    with patch("logdetective.server.models.check_csgrep", return_value=True):
+    with patch(
+        "logdetective.models.sp.run",
+        return_value=MagicMock(returncode=0, stderr="")
+    ):
         config = ExtractorConfig.model_validate(custom_data)
 
     assert config.max_clusters == 15

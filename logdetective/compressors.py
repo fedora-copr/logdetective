@@ -2,7 +2,7 @@ import io
 import zipfile
 
 from typing import Dict
-from logdetective.server.models import (
+from logdetective.models import (
     APIResponse,
     AnalyzedSnippet,
     Explanation,

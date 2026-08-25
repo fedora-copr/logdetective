@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from logdetective.constants import EMBEDDING_VECTOR_SIZE
-from logdetective.server.database.models.annotated_builds import (
+from logdetective.database.models.annotated_builds import (
     AnnotatedBuilds,
     AnnotatedSnippets,
     AnnotationUpdates,

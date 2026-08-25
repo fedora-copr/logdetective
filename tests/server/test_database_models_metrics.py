@@ -8,7 +8,7 @@ from tests.server.test_helpers import (
     PopulateDatabase,
 )
 
-from logdetective.server.database.models import (
+from logdetective.database.models import (
     AnalyzeRequestMetrics,
     EndpointType,
     Forge,
