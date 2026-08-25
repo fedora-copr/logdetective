@@ -1,22 +1,22 @@
-from logdetective.server.database.models.merge_request_jobs import (
+from logdetective.database.models.merge_request_jobs import (
     Forge,
     GitlabMergeRequestJobs,
     Comments,
     Reactions,
 )
-from logdetective.server.database.models.koji import (
+from logdetective.database.models.koji import (
     KojiTaskAnalysis,
 )
-from logdetective.server.database.models.metrics import (
+from logdetective.database.models.metrics import (
     AnalyzeRequestMetrics,
     EndpointType,
 )
-from logdetective.server.database.models.exceptions import (
+from logdetective.database.models.exceptions import (
     KojiTaskNotFoundError,
     KojiTaskNotAnalyzedError,
     KojiTaskAnalysisTimeoutError,
 )
-from logdetective.server.database.models.annotated_builds import (
+from logdetective.database.models.annotated_builds import (
     AnnotatedBuilds,
     AnnotatedSnippets,
     AnnotationUpdates,

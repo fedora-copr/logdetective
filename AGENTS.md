@@ -2,7 +2,7 @@
 
 An LLM-powered build log analyzer for Fedora/RHEL ecosystems.
 Operates as a FastAPI server launched via gunicorn.
-Uses BeeAI agent framework with tool-calling LLMs via LiteLLM - `logdetective.server.server`
+Uses BeeAI agent framework with tool-calling LLMs via LiteLLM - `logdetective.server`
 
 Container images are published to `quay.io/logdetective/` after each release.
 Production uses either vLLM with GPU inference, or Gemini / VertexAI.
@@ -47,7 +47,7 @@ For CUDA GPU acceleration, uncomment the device lines in `docker-compose-dev.yam
 
 # Formatting conventions
 
-- Logging via `logging.getLogger("logdetective")`, initialized in `logdetective/__init__.py` or `LOG` constant initialized via `get_log()` in `logdetective/server/config.py` for server (using options in `server/config.yml`).
+- Logging via `logging.getLogger("logdetective")`, initialized in `logdetective/__init__.py` or `LOG` constant initialized via `get_log()` in `logdetective/config.py` for server (using options in `server/config.yml`).
 - Linting enforced by: Pylint config in `pyproject.toml` and `.pylintrc.tests`, flake8 and ruff config in `tox.ini`
 - Pre-commit hooks: trailing-whitespace, end-of-file-fixer, check-yaml, check-added-large-files, flake8
 
@@ -60,13 +60,12 @@ For CUDA GPU acceleration, uncomment the device lines in `docker-compose-dev.yam
 
 # Package layout
 
-- `logdetective/` - Core: extractors, prompt management, utilities
+- `logdetective/` - FastAPI app, config, routes, GitLab/Koji integrations, extractors, prompt management, utilities
 - `logdetective/prompts/` - Prompt templates for logdetective
-- `logdetective/server/` - FastAPI app, config, routes, GitLab/Koji integrations
-- `logdetective/server/agent/` - BeeAI agent and tool definitions (Drain, csgrep, traceback, snippet analysis)
-- `logdetective/server/database/` - SQLAlchemy async engine, session factory, transaction helpers
-- `logdetective/server/database/models/` - ORM models (metrics, merge requests, koji, annotated builds with pgvector)
-- `logdetective/server/templates/` - Jinja2 response templates (HTML, GitLab markdown)
+- `logdetective/agent/` - BeeAI agent and tool definitions (Drain, csgrep, traceback, snippet analysis)
+- `logdetective/database/` - SQLAlchemy async engine, session factory, transaction helpers
+- `logdetective/database/models/` - ORM models (metrics, merge requests, koji, annotated builds with pgvector)
+- `logdetective/templates/` - Jinja2 response templates (HTML, GitLab markdown)
 - `alembic/versions/` - Database migration scripts
 - `server/` - Deployment configs (gunicorn, nginx templates, server config YAML)
 - `tests/base/` - Tests for core package (no DB)

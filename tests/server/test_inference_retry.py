@@ -14,13 +14,13 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
-from logdetective.server.exceptions import (
+from logdetective.exceptions import (
     LogDetectiveInferenceError,
     LogDetectiveInferenceTimeout,
     LogDetectiveInferenceRateLimit,
 )
-from logdetective.server.models import InferenceConfig
-from logdetective.server.utils import inference_retry_backoff, inference_retry_giveup
+from logdetective.models import InferenceConfig
+from logdetective.utils import inference_retry_backoff, inference_retry_giveup
 
 
 @pytest.mark.asyncio

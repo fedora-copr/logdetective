@@ -12,7 +12,7 @@ from logdetective.exceptions import (
     RemoteLogTooLargeError,
 )
 from logdetective.remote_log import RemoteLog
-from logdetective.server.agent.tools import (
+from logdetective.agent.tools import (
     AnnotatedSnippetLookupTool,
     AnnotatedSnippetLookupToolInput,
     DrainExtractorTool,
@@ -23,8 +23,8 @@ from logdetective.server.agent.tools import (
     SnippetAnalysisToolOutput,
 )
 from logdetective.constants import EMBEDDING_VECTOR_SIZE
-from logdetective.server.database.models.annotated_builds import AnnotatedBuilds, AnnotatedSnippets
-from logdetective.server.models import ExtractorConfig, Snippet, AnalyzedSnippet
+from logdetective.database.models.annotated_builds import AnnotatedBuilds, AnnotatedSnippets
+from logdetective.models import ExtractorConfig, Snippet, AnalyzedSnippet
 
 ZERO_EMBEDDING = np.zeros(EMBEDDING_VECTOR_SIZE, dtype=np.float32)
 
@@ -399,7 +399,7 @@ async def test_annotated_snippet_lookup_success():
         new_callable=AsyncMock,
         return_value=[mock_row]
     ), patch(
-        "logdetective.server.agent.tools.EMBEDDING_MODEL_INSTANCE"
+        "logdetective.agent.tools.EMBEDDING_MODEL_INSTANCE"
     ) as mock_embed_model:
         mock_embed_model.embed.return_value = [mock_embedding]
         tool = AnnotatedSnippetLookupTool()
@@ -446,7 +446,7 @@ async def test_annotated_snippet_lookup_fail(
         side_effect=db_effect,
         return_value=[],
     ), patch(
-        "logdetective.server.agent.tools.EMBEDDING_MODEL_INSTANCE"
+        "logdetective.agent.tools.EMBEDDING_MODEL_INSTANCE"
     ) as mock_embed_model:
         mock_embed_model.embed.side_effect = embed_side_effect
         mock_embed_model.embed.return_value = [mock_embedding]

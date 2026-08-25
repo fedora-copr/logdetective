@@ -203,10 +203,9 @@ typing-extensions = {version = ">=4.2", markers = "python_version < \"3.13\""}
 name = "alembic"
 version = "1.18.4"
 description = "A database migration tool for SQLAlchemy."
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "alembic-1.18.4-py3-none-any.whl", hash = "sha256:a5ed4adcf6d8a4cb575f3d759f071b03cd6e5c7618eb796cb52497be25bfe19a"},
     {file = "alembic-1.18.4.tar.gz", hash = "sha256:cb6e1fd84b6174ab8dbb2329f86d631ba9559dd78df550b57804d607672cedbc"},
@@ -267,10 +266,9 @@ trio = ["trio (>=0.32.0)"]
 name = "asyncpg"
 version = "0.31.0"
 description = "An asyncio PostgreSQL driver"
-optional = true
+optional = false
 python-versions = ">=3.9.0"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "asyncpg-0.31.0-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:831712dd3cf117eec68575a9b50da711893fd63ebe277fc155ecae1c6c9f0f61"},
     {file = "asyncpg-0.31.0-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:0b17c89312c2f4ccea222a3a6571f7df65d4ba2c0e803339bfc7bed46a96d3be"},
@@ -418,10 +416,10 @@ files = [
 name = "cffi"
 version = "2.0.0"
 description = "Foreign Function Interface for Python calling C code."
-optional = true
+optional = false
 python-versions = ">=3.9"
 groups = ["main"]
-markers = "platform_python_implementation != \"PyPy\" and (extra == \"server\" or extra == \"server-testing\")"
+markers = "platform_python_implementation != \"PyPy\""
 files = [
     {file = "cffi-2.0.0-cp310-cp310-macosx_10_13_x86_64.whl", hash = "sha256:0cf2d91ecc3fcc0625c2c530fe004f82c110405f101548512cce44322fa8ac44"},
     {file = "cffi-2.0.0-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:f73b96c41e3b2adedc34a7356e64c8eb96e03a3782b535e043a986276ce12a49"},
@@ -685,7 +683,7 @@ description = "Cross-platform colored terminal text."
 optional = false
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,!=3.6.*,>=2.7"
 groups = ["main"]
-markers = "sys_platform == \"win32\" and (extra == \"server\" or extra == \"server-testing\" or extra == \"testing\") or platform_system == \"Windows\""
+markers = "platform_system == \"Windows\" or sys_platform == \"win32\""
 files = [
     {file = "colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6"},
     {file = "colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44"},
@@ -815,10 +813,9 @@ toml = ["tomli ; python_full_version <= \"3.11.0a6\""]
 name = "cryptography"
 version = "50.0.0"
 description = "cryptography is a package which provides cryptographic recipes and primitives to Python developers."
-optional = true
+optional = false
 python-versions = "!=3.9.0,!=3.9.1,>=3.9"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "cryptography-50.0.0-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:031e2d5dd4bb9caa3ca9c82e5a197fd8ae680232cee62603d1a813f3f07e3d03"},
     {file = "cryptography-50.0.0-cp311-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:fd9192b7b70c573d7f214eb1ae35e00d359f6f5e4b27c7e21e30de1fc6204645"},
@@ -878,10 +875,9 @@ ssh = ["bcrypt (>=3.1.5)"]
 name = "decorator"
 version = "5.2.1"
 description = "Decorators for Humans"
-optional = true
+optional = false
 python-versions = ">=3.8"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "decorator-5.2.1-py3-none-any.whl", hash = "sha256:d316bb415a2d9e2d2b3abcc4084c6502fc09240e292cd76a76afc106a1c8e04a"},
     {file = "decorator-5.2.1.tar.gz", hash = "sha256:65f266143752f734b0a7cc83c46f4618af75b8c5911b00ccb61d0ac9b6da0360"},
@@ -891,10 +887,9 @@ files = [
 name = "defusedxml"
 version = "0.7.1"
 description = "XML bomb protection for Python stdlib modules"
-optional = true
+optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "defusedxml-0.7.1-py2.py3-none-any.whl", hash = "sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61"},
     {file = "defusedxml-0.7.1.tar.gz", hash = "sha256:1bb3032db185915b62d7c6209c5a8792be6a32ab2fedacc84e01b52c51aa3e69"},
@@ -934,10 +929,9 @@ files = [
 name = "docstring-parser"
 version = "0.18.0"
 description = "Parse Python docstrings in reST, Google and Numpydoc format"
-optional = true
+optional = false
 python-versions = ">=3.8"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "docstring_parser-0.18.0-py3-none-any.whl", hash = "sha256:b3fcbed555c47d8479be0796ef7e19c2670d428d72e96da63f3a40122860374b"},
     {file = "docstring_parser-0.18.0.tar.gz", hash = "sha256:292510982205c12b1248696f44959db3cdd1740237a968ea1e2e7a900eeb2015"},
@@ -973,10 +967,9 @@ valkey = ["valkey (>=6.1.1)"]
 name = "fastapi"
 version = "0.135.3"
 description = "FastAPI framework, high performance, easy to learn, fast to code, ready for production"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "fastapi-0.135.3-py3-none-any.whl", hash = "sha256:9b0f590c813acd13d0ab43dd8494138eb58e484bfac405db1f3187cfc5810d98"},
     {file = "fastapi-0.135.3.tar.gz", hash = "sha256:bd6d7caf1a2bdd8d676843cdcd2287729572a1ef524fc4d65c17ae002a1be654"},
@@ -998,10 +991,9 @@ standard-no-fastapi-cloud-cli = ["email-validator (>=2.0.0)", "fastapi-cli[stand
 name = "fastembed"
 version = "0.8.0"
 description = "Fast, light, accurate library built for retrieval embedding generation"
-optional = true
+optional = false
 python-versions = ">=3.10.0"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "fastembed-0.8.0-py3-none-any.whl", hash = "sha256:40bee672657574a1009e35ec50030a55f2b426842cb011845379817641bbbbd0"},
     {file = "fastembed-0.8.0.tar.gz", hash = "sha256:75966edfa8b006ee78514c726bd7f6a50721dadc89305279052be9db72fd53e8"},
@@ -1133,10 +1125,9 @@ files = [
 name = "flatbuffers"
 version = "25.12.19"
 description = "The FlatBuffers serialization format for Python"
-optional = true
+optional = false
 python-versions = "*"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "flatbuffers-25.12.19-py2.py3-none-any.whl", hash = "sha256:7634f50c427838bb021c2d66a3d1168e9d199b0607e6329399f04846d42e20b4"},
 ]
@@ -1338,10 +1329,9 @@ tqdm = ["tqdm"]
 name = "google-api-core"
 version = "2.31.0"
 description = "Google API client core library"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "google_api_core-2.31.0-py3-none-any.whl", hash = "sha256:ef79fb3784c71cbac89cbd03301ba0c8fb8ad2aa95d7f9204dd9628f7adf59ab"},
     {file = "google_api_core-2.31.0.tar.gz", hash = "sha256:2be84ee0f584c48e6bde1b36766e23348b361fb7e55e56135fc76ce1c397f9c2"},
@@ -1367,10 +1357,9 @@ grpc = ["grpcio (>=1.41.0,<2.0.0)", "grpcio (>=1.49.1,<2.0.0) ; python_version >
 name = "google-auth"
 version = "2.55.0"
 description = "Google Authentication Library"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "google_auth-2.55.0-py3-none-any.whl", hash = "sha256:a17cef9dedf98c4ebae2fb0c48c8f75952c877cbc2efe09f329ef16c2783d88a"},
     {file = "google_auth-2.55.0.tar.gz", hash = "sha256:fcd3a130f575fa36403d38774af1c64a4fbfbca09215f0589d2372b5119697cb"},
@@ -1398,10 +1387,9 @@ urllib3 = ["packaging", "urllib3"]
 name = "google-cloud-aiplatform"
 version = "1.158.0"
 description = "Vertex AI API client library"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "google_cloud_aiplatform-1.158.0-py2.py3-none-any.whl", hash = "sha256:8ed07f866fe9a49c31f0ba9fc8049c5cd5b47ff7f833ca3d9d8ce480f871d715"},
     {file = "google_cloud_aiplatform-1.158.0.tar.gz", hash = "sha256:85b6bedc3823824617db1ea83e07fa07f00681d7ab63c42cdc584066a844737b"},
@@ -1459,10 +1447,9 @@ xai = ["tensorflow (>=2.3.0,<3.0.0) ; python_version < \"3.13\""]
 name = "google-cloud-bigquery"
 version = "3.42.0"
 description = "Google BigQuery API client library"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "google_cloud_bigquery-3.42.0-py3-none-any.whl", hash = "sha256:9df6a73043363cad17000c29591ed829be5f630ec30b85b29bc29062ab8b19a4"},
     {file = "google_cloud_bigquery-3.42.0.tar.gz", hash = "sha256:4491a75f82d905101e75b690ca4c6791984bf4f50653706747537b05baa90213"},
@@ -1493,10 +1480,9 @@ tqdm = ["tqdm (>=4.23.4,<5.0.0)"]
 name = "google-cloud-core"
 version = "2.6.0"
 description = "Google Cloud API client core library"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "google_cloud_core-2.6.0-py3-none-any.whl", hash = "sha256:6d63ac8e5eca6d9e4319d0a1e2265fadcd7f1049904378caecfa01cf52dd869e"},
     {file = "google_cloud_core-2.6.0.tar.gz", hash = "sha256:e76149739f90fac1fc6757c09f47eaccb3145b54adbd7759b0f7c4b235f46c83"},
@@ -1513,10 +1499,9 @@ grpc = ["grpcio (>=1.47.0,<2.0.0) ; python_version < \"3.14\"", "grpcio (>=1.75.
 name = "google-cloud-resource-manager"
 version = "1.17.0"
 description = "Google Cloud Resource Manager API client library"
-optional = true
+optional = false
 python-versions = ">=3.9"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "google_cloud_resource_manager-1.17.0-py3-none-any.whl", hash = "sha256:e479baf4b014a57f298e01b8279e3290b032e3476d69c8e5e1427af8f82739a5"},
     {file = "google_cloud_resource_manager-1.17.0.tar.gz", hash = "sha256:0f486b62e2c58ff992a3a50fa0f4a96eef7750aa6c971bb373398ccb91828660"},
@@ -1537,10 +1522,9 @@ protobuf = ">=4.25.8,<8.0.0"
 name = "google-cloud-storage"
 version = "3.12.0"
 description = "Google Cloud Storage API client library"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "google_cloud_storage-3.12.0-py3-none-any.whl", hash = "sha256:3880773754ddf7c27567b04e2a4d193950b6b99429f37b9097d873686e95b09c"},
     {file = "google_cloud_storage-3.12.0.tar.gz", hash = "sha256:03ae9847c6babb368f35f054126b8a08cbc0e3266efb990eb17b9926a45cf3be"},
@@ -1564,10 +1548,9 @@ tracing = ["opentelemetry-api (>=1.1.0,<2.0.0)"]
 name = "google-crc32c"
 version = "1.8.0"
 description = "A python wrapper of the C library 'Google CRC32C'"
-optional = true
+optional = false
 python-versions = ">=3.9"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "google_crc32c-1.8.0-cp310-cp310-macosx_12_0_arm64.whl", hash = "sha256:0470b8c3d73b5f4e3300165498e4cf25221c7eb37f1159e221d1825b6df8a7ff"},
     {file = "google_crc32c-1.8.0-cp310-cp310-macosx_12_0_x86_64.whl", hash = "sha256:119fcd90c57c89f30040b47c211acee231b25a45d225e3225294386f5d258288"},
@@ -1608,10 +1591,9 @@ files = [
 name = "google-genai"
 version = "2.8.0"
 description = "GenAI Python SDK"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "google_genai-2.8.0-py3-none-any.whl", hash = "sha256:4da0a223a100f4b37f609a68b835e3326ab0fa313314dc0fd9d34e76ee293844"},
     {file = "google_genai-2.8.0.tar.gz", hash = "sha256:37a9b3cb127d763e7f4ca47452ae3562c87728773bd1b149f7b559c239da2bc1"},
@@ -1638,10 +1620,9 @@ pyopenssl = ["pyopenssl"]
 name = "google-resumable-media"
 version = "2.10.0"
 description = "Utilities for Google Media Downloads and Resumable Uploads"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "google_resumable_media-2.10.0-py3-none-any.whl", hash = "sha256:88152884bee37b2bf36a0ab81ad8c7fd12212c9803dd981d77c1b35b02d34e7c"},
     {file = "google_resumable_media-2.10.0.tar.gz", hash = "sha256:e324bc9d0fdae4c52a08ae90456edc4e71ece858399e1217ac0eb3a51d6bc6ee"},
@@ -1658,10 +1639,9 @@ requests = ["requests (>=2.18.0,<3.0.0)"]
 name = "googleapis-common-protos"
 version = "1.75.0"
 description = "Common protobufs used in Google APIs"
-optional = true
+optional = false
 python-versions = ">=3.9"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "googleapis_common_protos-1.75.0-py3-none-any.whl", hash = "sha256:961ed60399c457ceb0ee8f285a84c870aabc9c6a832b9d37bb281b5bebde43ed"},
     {file = "googleapis_common_protos-1.75.0.tar.gz", hash = "sha256:53a062ff3c32552fbd62c11fe23768b78e4ddf0494d5e5fd97d3f4689c75fbbd"},
@@ -1678,10 +1658,10 @@ grpc = ["grpcio (>=1.44.0,<2.0.0)"]
 name = "greenlet"
 version = "3.4.0"
 description = "Lightweight in-process concurrent programming"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "(platform_machine == \"aarch64\" or platform_machine == \"ppc64le\" or platform_machine == \"x86_64\" or platform_machine == \"amd64\" or platform_machine == \"AMD64\" or platform_machine == \"win32\" or platform_machine == \"WIN32\") and (extra == \"server\" or extra == \"server-testing\")"
+markers = "platform_machine == \"aarch64\" or platform_machine == \"ppc64le\" or platform_machine == \"x86_64\" or platform_machine == \"amd64\" or platform_machine == \"AMD64\" or platform_machine == \"win32\" or platform_machine == \"WIN32\""
 files = [
     {file = "greenlet-3.4.0-cp310-cp310-macosx_11_0_universal2.whl", hash = "sha256:d18eae9a7fb0f499efcd146b8c9750a2e1f6e0e93b5a382b3481875354a430e6"},
     {file = "greenlet-3.4.0-cp310-cp310-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:636d2f95c309e35f650e421c23297d5011716be15d966e6328b367c9fc513a82"},
@@ -1752,10 +1732,9 @@ test = ["objgraph", "psutil", "setuptools"]
 name = "grpc-google-iam-v1"
 version = "0.14.4"
 description = "IAM API client library"
-optional = true
+optional = false
 python-versions = ">=3.9"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "grpc_google_iam_v1-0.14.4-py3-none-any.whl", hash = "sha256:412facc320fcbd94034b4df3d557662051d4d8adfa86e0ddb4dca70a3f739964"},
     {file = "grpc_google_iam_v1-0.14.4.tar.gz", hash = "sha256:392b3796947ed6334e61171d9ab06bf7eb357f554e5fc7556ad7aab6d0e17038"},
@@ -1770,10 +1749,9 @@ protobuf = ">=4.25.8,<8.0.0"
 name = "grpcio"
 version = "1.81.1"
 description = "HTTP/2-based RPC framework"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "grpcio-1.81.1-cp310-cp310-linux_armv7l.whl", hash = "sha256:6f9a0c9c1cc15c112d1c053064fd032b64917062292c3d70aea280e02ae10b77"},
     {file = "grpcio-1.81.1-cp310-cp310-macosx_11_0_universal2.whl", hash = "sha256:69ef28e54fc85397f91b8c19592b8ef3d81952080366914823bd8572a2958120"},
@@ -1838,10 +1816,9 @@ protobuf = ["grpcio-tools (>=1.81.1)"]
 name = "grpcio-status"
 version = "1.81.1"
 description = "Status proto mapping for gRPC"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "grpcio_status-1.81.1-py3-none-any.whl", hash = "sha256:08072fa9995f4a95c647fc6f4f85e2411573d00087bcabdf30f260114338f232"},
     {file = "grpcio_status-1.81.1.tar.gz", hash = "sha256:9389a03e746017b10f0630c064289201458f3ce01f5d7ef4b0bebc1ef6cf82ad"},
@@ -1856,10 +1833,9 @@ protobuf = ">=6.33.5,<8.0.0"
 name = "gssapi"
 version = "1.11.1"
 description = "Python GSSAPI Wrapper"
-optional = true
+optional = false
 python-versions = ">=3.9"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "gssapi-1.11.1-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:126352502e15dc42f786a4635e5fb4dc8ae4bbc89354e85ab094c478a9e49beb"},
     {file = "gssapi-1.11.1-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:25b3bcf75a0dd5638f02f939a9c40d1c907682ccca69ea1d05ea81ad58ea1022"},
@@ -1887,10 +1863,9 @@ decorator = "*"
 name = "gunicorn"
 version = "25.3.0"
 description = "WSGI HTTP Server for UNIX"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "gunicorn-25.3.0-py3-none-any.whl", hash = "sha256:cacea387dab08cd6776501621c295a904fe8e3b7aae9a1a3cbb26f4e7ed54660"},
     {file = "gunicorn-25.3.0.tar.gz", hash = "sha256:f74e1b2f9f76f6cd1ca01198968bd2dd65830edc24b6e8e4d78de8320e2fe889"},
@@ -2311,10 +2286,9 @@ referencing = ">=0.31.0"
 name = "koji"
 version = "1.36.0"
 description = "Koji is a system for building and tracking RPMS. The base package contains shared libraries and the command-line interface."
-optional = true
+optional = false
 python-versions = ">=2.7"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "koji-1.36.0-py2-none-any.whl", hash = "sha256:26226f4be87c5eac094b3ec12d7bc2fe9f5c3898a38a11c2f995596cf83f9596"},
     {file = "koji-1.36.0-py3-none-any.whl", hash = "sha256:7aeb7932731106e489cd61c471b689aeb80c16583d5eded46f4566696fd5a157"},
@@ -2387,10 +2361,9 @@ utils = ["numpydoc (>=1.8.0,<2.0)"]
 name = "loguru"
 version = "0.7.3"
 description = "Python logging made (stupidly) simple"
-optional = true
+optional = false
 python-versions = "<4.0,>=3.5"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "loguru-0.7.3-py3-none-any.whl", hash = "sha256:31a33c10c8e1e10422bfd431aeb5d351c7cf7fa671e3c4df004162264b28220c"},
     {file = "loguru-0.7.3.tar.gz", hash = "sha256:19480589e77d47b8d85b2c827ad95d49bf31b0dcde16593892eb51dd18706eb6"},
@@ -2407,10 +2380,9 @@ dev = ["Sphinx (==8.1.3) ; python_version >= \"3.11\"", "build (==1.2.2) ; pytho
 name = "mako"
 version = "1.3.12"
 description = "A super-fast templating language that borrows the best ideas from the existing templating languages."
-optional = true
+optional = false
 python-versions = ">=3.8"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "mako-1.3.12-py3-none-any.whl", hash = "sha256:8f61569480282dbf557145ce441e4ba888be453c30989f879f0d652e39f53ea9"},
     {file = "mako-1.3.12.tar.gz", hash = "sha256:9f778e93289bd410bb35daadeb4fc66d95a746f0b75777b942088b7fd7af550a"},
@@ -2563,10 +2535,9 @@ files = [
 name = "mmh3"
 version = "5.2.1"
 description = "Python extension for MurmurHash (MurmurHash3), a set of fast and robust hash functions."
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "mmh3-5.2.1-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:5d87a3584093e1a89987e3d36d82c98d9621b2cb944e22a420aa1401e096758f"},
     {file = "mmh3-5.2.1-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:30e4d2084df019880d55f6f7bea35328d9b464ebee090baa372c096dc77556fb"},
@@ -2927,10 +2898,9 @@ files = [
 name = "onnxruntime"
 version = "1.26.0"
 description = "ONNX Runtime is a runtime accelerator for Machine Learning models"
-optional = true
+optional = false
 python-versions = ">=3.11"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "onnxruntime-1.26.0-cp311-cp311-macosx_14_0_arm64.whl", hash = "sha256:ee1109ef4ef27cad90e823399e61e03b3c6c7bfe0fb820b4baf3678c15be8b3c"},
     {file = "onnxruntime-1.26.0-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:35c7c7b0ac2e02001d28fab6c9fc24e9abc5e6faa35e6e19c63cecf1406ba89f"},
@@ -3014,10 +2984,9 @@ files = [
 name = "pgvector"
 version = "0.4.2"
 description = "pgvector support for Python"
-optional = true
+optional = false
 python-versions = ">=3.9"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "pgvector-0.4.2-py3-none-any.whl", hash = "sha256:549d45f7a18593783d5eec609ea1684a724ba8405c4cb182a0b2b08aeff04e08"},
     {file = "pgvector-0.4.2.tar.gz", hash = "sha256:322cac0c1dc5d41c9ecf782bd9991b7966685dee3a00bc873631391ed949513a"},
@@ -3030,10 +2999,9 @@ numpy = "*"
 name = "pillow"
 version = "12.3.0"
 description = "Python Imaging Library (fork)"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "pillow-12.3.0-cp310-cp310-macosx_10_10_x86_64.whl", hash = "sha256:6c0016e7b354317c4e9e525b937ac8596c38d2d232b419529b9cd7a1cd46e39a"},
     {file = "pillow-12.3.0-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:bcc33feacfaefce60c12fd500a277533bdc02b10a19f7f6d348763d8140bbba7"},
@@ -3285,10 +3253,9 @@ files = [
 name = "proto-plus"
 version = "1.28.0"
 description = "Beautiful, Pythonic protocol buffers"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "proto_plus-1.28.0-py3-none-any.whl", hash = "sha256:a630604310899e73c59ec302e5765c058d412b2f090b9c79c8822589f14955b8"},
     {file = "proto_plus-1.28.0.tar.gz", hash = "sha256:38e5696342835b08fc116f30a25665b29531cda9d5d5643e9b81fc312385abd9"},
@@ -3304,10 +3271,9 @@ testing = ["google-api-core (>=1.31.5)"]
 name = "protobuf"
 version = "6.33.6"
 description = ""
-optional = true
+optional = false
 python-versions = ">=3.9"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "protobuf-6.33.6-cp310-abi3-win32.whl", hash = "sha256:7d29d9b65f8afef196f8334e80d6bc1d5d4adedb449971fefd3723824e6e77d3"},
     {file = "protobuf-6.33.6-cp310-abi3-win_amd64.whl", hash = "sha256:0cd27b587afca21b7cfa59a74dcbd48a50f0a6400cfb59391340ad729d91d326"},
@@ -3325,10 +3291,9 @@ files = [
 name = "py-rust-stemmers"
 version = "0.1.5"
 description = "Fast and parallel snowball stemmer"
-optional = true
+optional = false
 python-versions = "*"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "py_rust_stemmers-0.1.5-cp310-cp310-macosx_10_12_x86_64.whl", hash = "sha256:bfbd9034ae00419ff2154e33b8f5b4c4d99d1f9271f31ed059e5c7e9fa005844"},
     {file = "py_rust_stemmers-0.1.5-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:c7162ae66df2bb0fc39b350c24a049f5f5151c03c046092ba095c2141ec223a2"},
@@ -3401,10 +3366,9 @@ files = [
 name = "pyasn1"
 version = "0.6.4"
 description = "Pure-Python implementation of ASN.1 types and DER/BER/CER codecs (X.208)"
-optional = true
+optional = false
 python-versions = ">=3.8"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "pyasn1-0.6.4-py3-none-any.whl", hash = "sha256:deda9277cfd454080ec40b207fb6df82206a3a2688735233cdcd8d3d565f088b"},
     {file = "pyasn1-0.6.4.tar.gz", hash = "sha256:9c447d8431c947fe4c8febc4ed9e760bc29011a5b01e5c74b67025bd9fb8ce81"},
@@ -3414,10 +3378,9 @@ files = [
 name = "pyasn1-modules"
 version = "0.4.2"
 description = "A collection of ASN.1-based protocols modules"
-optional = true
+optional = false
 python-versions = ">=3.8"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "pyasn1_modules-0.4.2-py3-none-any.whl", hash = "sha256:29253a9207ce32b64c3ac6600edc75368f98473906e8fd1043bd6b5b1de2c14a"},
     {file = "pyasn1_modules-0.4.2.tar.gz", hash = "sha256:677091de870a80aae844b1ca6134f54652fa2c8c5a52aa396440ac3106e941e6"},
@@ -3430,10 +3393,10 @@ pyasn1 = ">=0.6.1,<0.7.0"
 name = "pycparser"
 version = "3.0"
 description = "C parser in Python"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "platform_python_implementation != \"PyPy\" and implementation_name != \"PyPy\" and (extra == \"server\" or extra == \"server-testing\")"
+markers = "implementation_name != \"PyPy\" and platform_python_implementation != \"PyPy\""
 files = [
     {file = "pycparser-3.0-py3-none-any.whl", hash = "sha256:b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992"},
     {file = "pycparser-3.0.tar.gz", hash = "sha256:600f49d217304a5902ac3c37e1281c9fe94e4d0489de643a9504c5cdfdfc6b29"},
@@ -3638,10 +3601,9 @@ windows-terminal = ["colorama (>=0.4.6)"]
 name = "pyopenssl"
 version = "26.4.0"
 description = "Python wrapper module around the OpenSSL library"
-optional = true
+optional = false
 python-versions = ">=3.9"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "pyopenssl-26.4.0-py3-none-any.whl", hash = "sha256:f0eb0cb2d581d3ad2b9c489468485e7f2ab6727d08401bcf9d824c3caddf3c1c"},
     {file = "pyopenssl-26.4.0.tar.gz", hash = "sha256:28dfcce0162b9211413e26dfbfdf1d24317fbeba18fc93c12400a1856b2a0bc7"},
@@ -3743,10 +3705,9 @@ dev = ["pre-commit", "pytest-asyncio", "tox"]
 name = "python-dateutil"
 version = "2.9.0.post0"
 description = "Extensions to the standard Python datetime module"
-optional = true
+optional = false
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,>=2.7"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "python-dateutil-2.9.0.post0.tar.gz", hash = "sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3"},
     {file = "python_dateutil-2.9.0.post0-py2.py3-none-any.whl", hash = "sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427"},
@@ -3774,10 +3735,9 @@ cli = ["click (>=5.0)"]
 name = "python-gitlab"
 version = "8.2.0"
 description = "The python wrapper for the GitLab REST and GraphQL APIs."
-optional = true
+optional = false
 python-versions = ">=3.10.0"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "python_gitlab-8.2.0-py3-none-any.whl", hash = "sha256:884618d4d60beadb21bb0c5f0cca46e70c6e501784f136bf0b6f85f5bc15ce62"},
     {file = "python_gitlab-8.2.0.tar.gz", hash = "sha256:de874dc538db6dceb48929f4c8fb55d6064dd19cb3ffdad1100190f835c5b674"},
@@ -4042,10 +4002,9 @@ use-chardet-on-py3 = ["chardet (>=3.0.2,<8)"]
 name = "requests-gssapi"
 version = "1.4.0"
 description = "A GSSAPI authentication handler for python-requests"
-optional = true
+optional = false
 python-versions = ">=3.8"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "requests_gssapi-1.4.0-py3-none-any.whl", hash = "sha256:146a1d1e74d7ca0b9d21af0f8d2d1ca259e9228ff57fbbf23f92e25217da4520"},
     {file = "requests_gssapi-1.4.0.tar.gz", hash = "sha256:ba27eb329f4840d965bc8fa5d360c627c74349efa6156ca501ad89afc6a134f4"},
@@ -4062,10 +4021,9 @@ dev = ["black (==24.2.0)", "isort (==5.13.2)", "pytest", "tox (>=4.0.0)"]
 name = "requests-toolbelt"
 version = "1.0.0"
 description = "A utility belt for advanced users of python-requests"
-optional = true
+optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "requests-toolbelt-1.0.0.tar.gz", hash = "sha256:7681a0a3d047012b5bdc0ee37d7f8f07ebe76ab08caeccfc3921ce23c88d5bc6"},
     {file = "requests_toolbelt-1.0.0-py2.py3-none-any.whl", hash = "sha256:cccfdd665f0a24fcf4726e690f65639d272bb0637b9b92dfd91a5568ccf6bd06"},
@@ -4244,10 +4202,9 @@ files = [
 name = "sentry-sdk"
 version = "2.58.0"
 description = "Python client for Sentry (https://sentry.io)"
-optional = true
+optional = false
 python-versions = ">=3.6"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "sentry_sdk-2.58.0-py2.py3-none-any.whl", hash = "sha256:688d1c704ddecf382ea3326f21a67453d4caa95592d722b7c780a36a9d23109e"},
     {file = "sentry_sdk-2.58.0.tar.gz", hash = "sha256:c1144d947352d54e5b7daa63596d9f848adf684989c06c4f5a659f0c85a18f6f"},
@@ -4322,10 +4279,9 @@ files = [
 name = "six"
 version = "1.17.0"
 description = "Python 2 and 3 compatibility utilities"
-optional = true
+optional = false
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,>=2.7"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274"},
     {file = "six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81"},
@@ -4347,10 +4303,9 @@ files = [
 name = "sqlalchemy"
 version = "2.0.49"
 description = "Database Abstraction Library"
-optional = true
+optional = false
 python-versions = ">=3.7"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "sqlalchemy-2.0.49-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:42e8804962f9e6f4be2cbaedc0c3718f08f60a16910fa3d86da5a1e3b1bfe60f"},
     {file = "sqlalchemy-2.0.49-cp310-cp310-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:cc992c6ed024c8c3c592c5fc9846a03dd68a425674900c70122c77ea16c5fb0b"},
@@ -4450,10 +4405,9 @@ sqlcipher = ["sqlcipher3_binary"]
 name = "starlette"
 version = "1.3.1"
 description = "The little ASGI library that shines."
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "starlette-1.3.1-py3-none-any.whl", hash = "sha256:c7372aae11c3c3f26a42df7bd626cec2f47d03483d261d369516a615a53714c6"},
     {file = "starlette-1.3.1.tar.gz", hash = "sha256:05d0213193f2fbaae60e2ecb593b4add4262ad4e46536b54abe36f11a71724e0"},
@@ -4470,10 +4424,9 @@ full = ["httpx (>=0.27.0,<0.29.0)", "httpx2 (>=2.0.0)", "itsdangerous", "jinja2"
 name = "tenacity"
 version = "9.1.4"
 description = "Retry code until it succeeds"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "tenacity-9.1.4-py3-none-any.whl", hash = "sha256:6095a360c919085f28c6527de529e76a06ad89b23659fa881ae0649b867a9d55"},
     {file = "tenacity-9.1.4.tar.gz", hash = "sha256:adb31d4c263f2bd041081ab33b498309a57c77f9acf2db65aadf0898179cf93a"},
@@ -4688,10 +4641,9 @@ zstd = ["backports-zstd (>=1.0.0) ; python_version < \"3.14\""]
 name = "uvicorn"
 version = "0.44.0"
 description = "The lightning-fast ASGI server."
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "uvicorn-0.44.0-py3-none-any.whl", hash = "sha256:ce937c99a2cc70279556967274414c087888e8cec9f9c94644dfca11bd3ced89"},
     {file = "uvicorn-0.44.0.tar.gz", hash = "sha256:6c942071b68f07e178264b9152f1f16dfac5da85880c4ce06366a96d70d4f31e"},
@@ -4708,10 +4660,9 @@ standard = ["colorama (>=0.4) ; sys_platform == \"win32\"", "httptools (>=0.6.3)
 name = "websockets"
 version = "16.0"
 description = "An implementation of the WebSocket Protocol (RFC 6455 & 7692)"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"server\" or extra == \"server-testing\""
 files = [
     {file = "websockets-16.0-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:04cdd5d2d1dacbad0a7bf36ccbcd3ccd5a30ee188f2560b7a62a30d14107b31a"},
     {file = "websockets-16.0-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:8ff32bb86522a9e5e31439a58addbb0166f0204d64066fb955265c4e214160f0"},
@@ -4780,10 +4731,10 @@ files = [
 name = "win32-setctime"
 version = "1.2.0"
 description = "A small Python utility to set file creation time on Windows"
-optional = true
+optional = false
 python-versions = ">=3.5"
 groups = ["main"]
-markers = "sys_platform == \"win32\" and (extra == \"server\" or extra == \"server-testing\")"
+markers = "sys_platform == \"win32\""
 files = [
     {file = "win32_setctime-1.2.0-py3-none-any.whl", hash = "sha256:95d644c4e708aba81dc3704a116d8cbc974d70b3bdb8be1d150e36be6e9d1390"},
     {file = "win32_setctime-1.2.0.tar.gz", hash = "sha256:ae1fdf948f5640aae05c511ade119313fb6a30d7eabe25fef9764dca5873c4c0"},
@@ -5059,11 +5010,10 @@ test = ["big-O", "jaraco.functools", "jaraco.itertools", "jaraco.test", "more_it
 type = ["pytest-mypy (>=1.0.1) ; platform_python_implementation != \"PyPy\""]
 
 [extras]
-server = ["alembic", "asyncpg", "fastapi", "fastembed", "google-cloud-aiplatform", "gunicorn", "httpx", "koji", "pgvector", "python-gitlab", "sentry-sdk", "sqlalchemy", "starlette", "tenacity", "uvicorn"]
 server-testing = ["alembic", "asyncpg", "fastapi", "fastembed", "google-cloud-aiplatform", "gunicorn", "httpx", "koji", "pgvector", "pytest-mock", "python-gitlab", "responses", "sentry-sdk", "sqlalchemy", "starlette", "tenacity", "uvicorn"]
 testing = ["aioresponses", "flexmock", "pytest", "pytest-asyncio", "pytest-cov", "pytest-mock"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.14"
-content-hash = "681946cdccaef9708ba905a4dc7121ef571112305d047dd4e24a48ea8006d8cb"
+content-hash = "ee5dc267a0648c8ecbca4761935b9869fcf11017828f626a99c883c4fb63af18"

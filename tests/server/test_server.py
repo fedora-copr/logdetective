@@ -9,14 +9,14 @@ from pydantic import HttpUrl
 import gitlab
 from flexmock import flexmock
 
-from logdetective.server.config import load_server_config, SERVER_CONFIG
+from logdetective.config import load_server_config, SERVER_CONFIG
 from logdetective.remote_log import RemoteLog
-from logdetective.server.server import (
+from logdetective.server import (
     ConnectionManager,
     get_artifacts_from_payload,
     KojiCallbackManager,
 )
-from logdetective.server.models import (
+from logdetective.models import (
     AnalysisRequest,
     ArtifactFile,
     RemoteArtifactFile,

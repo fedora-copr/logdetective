@@ -9,11 +9,11 @@ from fastapi import (
 from fastapi.responses import Response as BasicResponse
 from gitlab import Gitlab
 
-from logdetective.server.config import SERVER_CONFIG, LOG
-from logdetective.server.database.models import Forge
-from logdetective.server.emoji import collect_emojis_for_mr
-from logdetective.server.gitlab import process_gitlab_job_event
-from logdetective.server.models import (
+from logdetective.config import SERVER_CONFIG, LOG
+from logdetective.database.models import Forge
+from logdetective.emoji import collect_emojis_for_mr
+from logdetective.gitlab import process_gitlab_job_event
+from logdetective.models import (
     EmojiHook,
     JobHook,
 )
