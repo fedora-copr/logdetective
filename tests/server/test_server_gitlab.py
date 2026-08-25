@@ -1,6 +1,6 @@
 import os
 import io
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import MagicMock, AsyncMock, patch
 import zipfile
 import pytest
 import pytest_asyncio
@@ -9,7 +9,6 @@ import responses
 import aioresponses
 from gitlab import Gitlab
 from packaging.version import Version
-from pytest_mock import MockerFixture
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from beeai_framework.backend import ChatModel
@@ -252,17 +251,18 @@ async def mock_job_hook():
 
 
 @pytest.fixture
-def mock_analysis(mocker, request):
+def mock_analysis(request):
     """Fixture to mock analyze_artifacts directly at the server level."""
     message = getattr(request, "param", "This is a mock message")
     mock_response = APIResponse(
         explanation=Explanation(text=message),
         snippets=[]
     )
-    return mocker.patch(
+    with patch(
         "logdetective.server.gitlab.analyze_artifacts",
         AsyncMock(return_value=mock_response)
-    )
+    ) as mock:
+        yield mock
 
 
 @pytest.mark.parametrize(
@@ -274,7 +274,6 @@ def mock_analysis(mocker, request):
 )
 @pytest.mark.asyncio
 async def test_process_gitlab_job_event(
-    mocker,
     mock_config,
     mock_job_hook,
     mock_analysis,
@@ -288,7 +287,7 @@ async def test_process_gitlab_job_event(
             url="https://gitlab.com/",
         )
         mock_http_session = create_mock_client_response(
-            mocker, content_length=gitlab_cfg.max_artifact_size
+            content_length=gitlab_cfg.max_artifact_size
         )
 
         # We need a chat model for the process_gitlab_job_event
@@ -342,7 +341,7 @@ async def test_is_eligible_package(mock_config):
 # To test this, comment out the @pytest.mark.skip decorator
 @pytest.mark.skip(reason="Requires real network access and a valid token")
 @pytest.mark.asyncio
-async def test_regression_unknown_arch_logs(mocker: MockerFixture):
+async def test_regression_unknown_arch_logs():
     gl_token = os.environ.get("LD_GITLAB_TOKEN", None)
     data = {
         "name": "Live Network Test Instance",
@@ -359,7 +358,7 @@ async def test_regression_unknown_arch_logs(mocker: MockerFixture):
 
     project = gitlab_connection.projects.get(23665037)
     job = project.jobs.get(10226618670)
-    mock_session = mocker.Mock()
+    mock_session = AsyncMock()
     url, _ = await retrieve_and_preprocess_koji_logs(
         gitlab_cfg=gitlab_cfg, job=job, http_session=mock_session
     )
@@ -370,9 +369,7 @@ async def test_regression_unknown_arch_logs(mocker: MockerFixture):
 
 
 @pytest.mark.asyncio
-async def test_fallback_to_task_failed_log_if_no_match(
-    mocker: MockerFixture, gitlab_cfg, mock_job
-):
+async def test_fallback_to_task_failed_log_if_no_match(gitlab_cfg, mock_job):
     """
     Tests that if task_failed.log doesn't mention a specific log,
     it returns the task_failed.log itself.
@@ -380,16 +377,15 @@ async def test_fallback_to_task_failed_log_if_no_match(
     log_content = "A generic failure occurred. Check Koji for details."
     files = {"kojilogs/x86_64-build/task_failed.log": log_content}
     zip_content = create_zip_archive(files)
-    mock_artifact_download(mocker, zip_content)
-    mocker.patch(
-        "logdetective.server.gitlab.check_artifacts_file_size", return_value=True
-    )
 
-    mock_session = mocker.AsyncMock()
-
-    log_url, log_text = await retrieve_and_preprocess_koji_logs(
-        gitlab_cfg=gitlab_cfg, job=mock_job, http_session=mock_session
-    )
+    with (
+        mock_artifact_download(zip_content),
+        patch("logdetective.server.gitlab.check_artifacts_file_size", return_value=True),
+    ):
+        mock_session = AsyncMock()
+        log_url, log_text = await retrieve_and_preprocess_koji_logs(
+            gitlab_cfg=gitlab_cfg, job=mock_job, http_session=mock_session
+        )
 
     assert "artifacts/kojilogs/x86_64-build/task_failed.log" in log_url
     assert log_text == log_content
@@ -397,56 +393,49 @@ async def test_fallback_to_task_failed_log_if_no_match(
 
 
 @pytest.mark.asyncio
-async def test_raises_file_not_found_on_no_failures(
-    mocker: MockerFixture, gitlab_cfg, mock_job
-):
+async def test_raises_file_not_found_on_no_failures(gitlab_cfg, mock_job):
     """
     Tests that FileNotFoundError is raised if no task_failed.log is found.
     """
     files = {"kojilogs/x86_64-build/build.log": "This build was successful."}
     zip_content = create_zip_archive(files)
-    mock_artifact_download(mocker, zip_content)
-    mocker.patch(
-        "logdetective.server.gitlab.check_artifacts_file_size", return_value=True
-    )
-
-    mock_session = mocker.AsyncMock()
-
-    with pytest.raises(
-        FileNotFoundError, match="Could not detect failed architecture."
+    with (
+        mock_artifact_download(zip_content),
+        patch("logdetective.server.gitlab.check_artifacts_file_size", return_value=True),
     ):
-        await retrieve_and_preprocess_koji_logs(
-            gitlab_cfg=gitlab_cfg, job=mock_job, http_session=mock_session
-        )
+        mock_session = AsyncMock()
+        with pytest.raises(
+            FileNotFoundError, match="Could not detect failed architecture."
+        ):
+            await retrieve_and_preprocess_koji_logs(
+                gitlab_cfg=gitlab_cfg, job=mock_job, http_session=mock_session
+            )
 
 
 @pytest.mark.asyncio
-async def test_raises_logs_too_large_error(mocker: MockerFixture, gitlab_cfg, mock_job):
+async def test_raises_logs_too_large_error(gitlab_cfg, mock_job):
     """
     Tests that LogsTooLargeError is raised if check_artifacts_file_size returns False.
     """
-    mocker.patch(
-        "logdetective.server.gitlab.check_artifacts_file_size", return_value=False
-    )
-    mock_to_thread = mocker.patch("asyncio.to_thread")
-    mock_session = mocker.AsyncMock()
+    with (
+        patch("logdetective.server.gitlab.check_artifacts_file_size", return_value=False),
+        patch("asyncio.to_thread") as mock_to_thread,
+    ):
+        mock_session = AsyncMock()
+        with pytest.raises(LogsTooLargeError):
+            await retrieve_and_preprocess_koji_logs(
+                gitlab_cfg=gitlab_cfg, job=mock_job, http_session=mock_session
+            )
 
-    with pytest.raises(LogsTooLargeError):
-        await retrieve_and_preprocess_koji_logs(
-            gitlab_cfg=gitlab_cfg, job=mock_job, http_session=mock_session
-        )
-
-    # Ensure we didn't attempt to download the file
-    mock_to_thread.assert_not_called()
+        # Ensure we didn't attempt to download the file
+        mock_to_thread.assert_not_called()
 
 
 @pytest.mark.parametrize(
     "limit", (512, 1024 + 2), ids=("single-file-size", "cumulative-size")
 )
 @pytest.mark.asyncio
-async def test_raises_logs_too_large_error_decompression(
-    mocker: MockerFixture, gitlab_cfg, mock_job, limit,
-):
+async def test_raises_logs_too_large_error_decompression(gitlab_cfg, mock_job, limit):
     """
     Tests that LogsTooLargeError is raised if the archive is small, but the decompressed content
     is too big, either one file by itself, or multiple files accumulate over the limit.
@@ -457,26 +446,24 @@ async def test_raises_logs_too_large_error_decompression(
         "kojilogs/noarch-build/x86_64-build/build.log": "A" * 1024,
     }
     zip_content = create_zip_archive(files)
-    mock_artifact_download(mocker, zip_content)
-    mocker.patch(
-        "logdetective.server.gitlab.check_artifacts_file_size", return_value=True
-    )
-    gitlab_cfg.max_artifact_size = limit
-
-    mock_session = mocker.AsyncMock()
-
-    with pytest.raises(LogsTooLargeError, match="exceeds the limit"):
-        await retrieve_and_preprocess_koji_logs(
-            gitlab_cfg=gitlab_cfg, job=mock_job, http_session=mock_session
-        )
+    with (
+        mock_artifact_download(zip_content),
+        patch("logdetective.server.gitlab.check_artifacts_file_size", return_value=True),
+    ):
+        gitlab_cfg.max_artifact_size = limit
+        mock_session = AsyncMock()
+        with pytest.raises(LogsTooLargeError, match="exceeds the limit"):
+            await retrieve_and_preprocess_koji_logs(
+                gitlab_cfg=gitlab_cfg, job=mock_job, http_session=mock_session
+            )
 
 
 @pytest.mark.asyncio
-async def test_check_artifacts_file_size(mocker: MockerFixture, gitlab_cfg, mock_job):
+async def test_check_artifacts_file_size(gitlab_cfg, mock_job):
     """Test check_artifacts_file_size in case the file doesn't exceed the limit."""
     # Test case where artifact size is within the limit
     mock_session_ok = create_mock_client_response(
-        mocker, content_length=gitlab_cfg.max_artifact_size
+        content_length=gitlab_cfg.max_artifact_size
     )
 
     result_ok = await check_artifacts_file_size(
@@ -487,12 +474,10 @@ async def test_check_artifacts_file_size(mocker: MockerFixture, gitlab_cfg, mock
 
 
 @pytest.mark.asyncio
-async def test_check_artifacts_file_size_too_large(
-    mocker: MockerFixture, gitlab_cfg, mock_job
-):
+async def test_check_artifacts_file_size_too_large(gitlab_cfg, mock_job):
     """Test check_artifacts_file_size in case the file exceeds the limit."""
     mock_session_large = create_mock_client_response(
-        mocker, content_length=gitlab_cfg.max_artifact_size + 1
+        content_length=gitlab_cfg.max_artifact_size + 1
     )
 
     result_large = await check_artifacts_file_size(
@@ -502,12 +487,10 @@ async def test_check_artifacts_file_size_too_large(
 
 
 @pytest.mark.asyncio
-async def test_check_artifacts_file_no_content_length(
-    mocker: MockerFixture, gitlab_cfg, mock_job
-):
+async def test_check_artifacts_file_no_content_length(gitlab_cfg, mock_job):
     """Test check_artifacts_file_size evaluates to `False`
     if no content-length header is provided."""
-    mock_session_large = create_mock_client_response(mocker)
+    mock_session_large = create_mock_client_response()
 
     result_large = await check_artifacts_file_size(
         gitlab_cfg=gitlab_cfg, job=mock_job, http_session=mock_session_large
@@ -516,17 +499,15 @@ async def test_check_artifacts_file_no_content_length(
 
 
 @pytest.mark.asyncio
-async def test_check_artifacts_file_size_handles_http_error(
-    mocker: MockerFixture, gitlab_cfg, mock_job
-):
+async def test_check_artifacts_file_size_handles_http_error(gitlab_cfg, mock_job):
     """Test that check_artifacts_file_size raises an HTTPException if the HEAD
     request fails.
     """
-    mock_session = create_mock_client_response(mocker, 4096)
+    mock_session = create_mock_client_response(content_length=4096)
     # Configure the mock to raise a ClientResponseError, which is what aiohttp does on 4xx/5xx
     mock_session.head.side_effect = aiohttp.ClientResponseError(
-        request_info=mocker.Mock(),
-        history=mocker.Mock(),
+        request_info=MagicMock(),
+        history=MagicMock(),
         status=404,
         message="Not Found",
     )
@@ -540,7 +521,7 @@ async def test_check_artifacts_file_size_handles_http_error(
 
 
 @pytest.mark.asyncio
-async def test_architecture_prioritization(mocker: MockerFixture, gitlab_cfg, mock_job):
+async def test_architecture_prioritization(gitlab_cfg, mock_job):
     """Test that the correct architecture is chosen when multiple have failed.
     x86_64 should be preferred over aarch64.
     """
@@ -552,22 +533,21 @@ async def test_architecture_prioritization(mocker: MockerFixture, gitlab_cfg, mo
         "kojilogs/aarch64-build/x86_64-build/root.log": "x86_64 failure",
     }
     zip_content = create_zip_archive(files)
-    mock_artifact_download(mocker, zip_content)
-    mocker.patch(
-        "logdetective.server.gitlab.check_artifacts_file_size", return_value=True
-    )
-    mock_session = mocker.AsyncMock()
-
-    log_url, log_text = await retrieve_and_preprocess_koji_logs(
-        gitlab_cfg=gitlab_cfg, job=mock_job, http_session=mock_session
-    )
+    with (
+        mock_artifact_download(zip_content),
+        patch("logdetective.server.gitlab.check_artifacts_file_size", return_value=True),
+    ):
+        mock_session = AsyncMock()
+        log_url, log_text = await retrieve_and_preprocess_koji_logs(
+            gitlab_cfg=gitlab_cfg, job=mock_job, http_session=mock_session
+        )
 
     assert "x86_64-build/root.log" in log_url
     assert log_text == "x86_64 failure"
 
 
 @pytest.mark.asyncio
-async def test_toplevel_failure_fallback(mocker: MockerFixture, gitlab_cfg, mock_job):
+async def test_toplevel_failure_fallback(gitlab_cfg, mock_job):
     """Test that a top-level failure is handled correctly when no specific
     architecture has failed.
     """
@@ -576,24 +556,21 @@ async def test_toplevel_failure_fallback(mocker: MockerFixture, gitlab_cfg, mock
         "kojilogs/noarch-build/x86_64-build/build.log": "this one didn't fail",
     }
     zip_content = create_zip_archive(files)
-    mock_artifact_download(mocker, zip_content)
-    mocker.patch(
-        "logdetective.server.gitlab.check_artifacts_file_size", return_value=True
-    )
-    mock_session = mocker.AsyncMock()
-
-    log_url, log_text = await retrieve_and_preprocess_koji_logs(
-        gitlab_cfg=gitlab_cfg, job=mock_job, http_session=mock_session
-    )
+    with (
+        mock_artifact_download(zip_content),
+        patch("logdetective.server.gitlab.check_artifacts_file_size", return_value=True),
+    ):
+        mock_session = AsyncMock()
+        log_url, log_text = await retrieve_and_preprocess_koji_logs(
+            gitlab_cfg=gitlab_cfg, job=mock_job, http_session=mock_session
+        )
 
     assert "kojilogs/noarch-build/task_failed.log" in log_url
     assert log_text == "Target build already exists"
 
 
 @pytest.mark.asyncio
-async def test_unrecognized_architecture_handling(
-    mocker: MockerFixture, gitlab_cfg, mock_job
-):
+async def test_unrecognized_architecture_handling(gitlab_cfg, mock_job):
     """Test that if only unrecognized architectures have failed, one is
     chosen alphabetically.
     """
@@ -605,15 +582,14 @@ async def test_unrecognized_architecture_handling(
         "kojilogs/noarch-build/b-arch-build/build.log": "b-arch failure",
     }
     zip_content = create_zip_archive(files)
-    mock_artifact_download(mocker, zip_content)
-    mocker.patch(
-        "logdetective.server.gitlab.check_artifacts_file_size", return_value=True
-    )
-    mock_session = mocker.AsyncMock()
-
-    log_url, log_text = await retrieve_and_preprocess_koji_logs(
-        gitlab_cfg=gitlab_cfg, job=mock_job, http_session=mock_session
-    )
+    with (
+        mock_artifact_download(zip_content),
+        patch("logdetective.server.gitlab.check_artifacts_file_size", return_value=True),
+    ):
+        mock_session = AsyncMock()
+        log_url, log_text = await retrieve_and_preprocess_koji_logs(
+            gitlab_cfg=gitlab_cfg, job=mock_job, http_session=mock_session
+        )
 
     # Should pick 'a-arch' as it comes first alphabetically
     assert "a-arch-build/build.log" in log_url

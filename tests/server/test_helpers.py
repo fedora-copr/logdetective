@@ -1,16 +1,15 @@
 import datetime
 import io
 from itertools import cycle, count
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
+from types import SimpleNamespace
 from typing import Optional, AsyncGenerator
 import zipfile
-from unittest.mock import AsyncMock
+from unittest.mock import MagicMock, AsyncMock, patch
 
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from flexmock import flexmock
-from pytest_mock import MockerFixture
 
 from openai.types.chat.chat_completion import Choice, ChatCompletion
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
@@ -91,7 +90,10 @@ class DatabaseFactory:  # pylint: disable=too-few-public-methods
             self.get_pg_test_url(), connect_args={"command_timeout": 10}, pool_pre_ping=True
         )
         self.SessionFactory = async_sessionmaker(autoflush=True, bind=self.engine)
-        flexmock(base, engine=self.engine, SessionFactory=self.SessionFactory)
+        self._engine_patch = patch.object(base, "engine", self.engine)
+        self._session_patch = patch.object(base, "SessionFactory", self.SessionFactory)
+        self._engine_patch.start()
+        self._session_patch.start()
 
     @asynccontextmanager
     async def make_new_db(self):
@@ -100,7 +102,11 @@ class DatabaseFactory:  # pylint: disable=too-few-public-methods
                 await conn.run_sync(Base.metadata.create_all)
             yield self.SessionFactory
         finally:
-            await destroy()
+            try:
+                await destroy()
+            finally:
+                self._engine_patch.stop()
+                self._session_patch.stop()
 
 
 class PopulateDatabase:  # pylint: disable=too-few-public-methods
@@ -286,13 +292,13 @@ def build_log_request(request):
 
 @pytest.fixture
 def build_log_url():
-    return {"payload": flexmock(url="https://example.com/logs/123", files=None)}
+    return {"payload": SimpleNamespace(url="https://example.com/logs/123", files=None)}
 
 
 @pytest.fixture
 def build_log_two_files():
     return {
-        "payload": flexmock(
+        "payload": SimpleNamespace(
             url=None,
             files=[
                 ArtifactFile(name="builder-live.log", content=MOCK_LOG),
@@ -305,7 +311,7 @@ def build_log_two_files():
 @pytest.fixture
 def build_log_one_file():
     return {
-        "payload": flexmock(
+        "payload": SimpleNamespace(
             url=None,
             files=[
                 ArtifactFile(name="build.log", content=MOCK_LOG)
@@ -315,19 +321,18 @@ def build_log_one_file():
 
 
 @pytest.fixture
-def mock_AnalyzeRequestMetrics(mocker: MockerFixture):
-    mock_create = mocker.patch(
-        "logdetective.server.database.models.AnalyzeRequestMetrics.create",
-        new_callable=AsyncMock,
-        return_value=1,
-    )
-
-    mock_update = mocker.patch(
-        "logdetective.server.database.models.AnalyzeRequestMetrics.update",
-        new_callable=AsyncMock,
-    )
-
-    return {"mock_create": mock_create, "mock_update": mock_update}
+def mock_AnalyzeRequestMetrics():
+    with (
+        patch(
+            "logdetective.server.database.models.AnalyzeRequestMetrics.create",
+            new_callable=AsyncMock,
+            return_value=1,
+        ) as mock_create, patch(
+            "logdetective.server.database.models.AnalyzeRequestMetrics.update",
+            new_callable=AsyncMock,
+        ) as mock_update,
+    ):
+        yield {"mock_create": mock_create, "mock_update": mock_update}
 
 
 class MockGitlabJob:
@@ -356,7 +361,8 @@ def create_zip_archive(files_to_add: dict[str, str]) -> bytes:
     return zip_buffer.read()
 
 
-def mock_artifact_download(mocker: MockerFixture, zip_content: bytes):
+@contextmanager
+def mock_artifact_download(zip_content: bytes):
     """Mocks the asyncio.to_thread call that simulates the artifact download."""
 
     async def mock_side_effect(func, *args, **kwargs):
@@ -364,7 +370,8 @@ def mock_artifact_download(mocker: MockerFixture, zip_content: bytes):
         if action and callable(action):
             action(zip_content)
 
-    mocker.patch("asyncio.to_thread", side_effect=mock_side_effect)
+    with patch("asyncio.to_thread", side_effect=mock_side_effect) as mock_to_thread:
+        yield mock_to_thread
 
 
 @pytest.fixture
@@ -387,13 +394,11 @@ def mock_job() -> MockGitlabJob:
     return MockGitlabJob(project_id=42, job_id=101)
 
 
-def create_mock_koji_session(
-    mocker, task_id, method, arch="x86_64", list_task_output=True
-):
+def create_mock_koji_session(task_id, method, arch="x86_64", list_task_output=True):
     """Mock koji session. Returns responses to `getTaskOutput`, `listTaskOutput`
     and `downloadTaskOutput` methods. If `list_task_output` is set to `False`
     will instead return `None` for the `listTaskOutput`."""
-    mock_session = mocker.Mock()
+    mock_session = MagicMock()
 
     mock_session.getTaskInfo.return_value = {
         "id": task_id,
@@ -423,16 +428,16 @@ def create_mock_koji_session(
     return mock_session
 
 
-def create_mock_client_response(mocker, content_length: int | None = None):
+def create_mock_client_response(content_length: int | None = None):
     """Creates a mock aiohttp.ClientSession that can be awaited."""
     # This is the mock response object that head() will eventually return.
-    mock_response = mocker.Mock()
+    mock_response = MagicMock()
     mock_response.headers = {}
     if content_length:
         mock_response.headers["content-length"] = str(content_length)
 
     # This is the mock for the session object itself.
-    mock_session = mocker.MagicMock()
+    mock_session = MagicMock()
     # We configure its `head` method to be an async function (coroutine)
     # that returns our mock response.
     mock_session.head = AsyncMock(return_value=mock_response)
@@ -464,6 +469,5 @@ def mock_config():
             },
         }
     )
-    flexmock(gitlab).should_receive("SERVER_CONFIG").and_return(server_config)
-
-    return {"server_config": server_config}
+    with patch.object(gitlab, "SERVER_CONFIG", server_config):
+        yield {"server_config": server_config}
