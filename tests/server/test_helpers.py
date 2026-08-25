@@ -18,16 +18,16 @@ from openai.resources.chat.completions import AsyncCompletions
 
 import koji
 
-from logdetective.server.models import (
+from logdetective.models import (
     ArtifactFile,
     APIResponse,
     Explanation,
     Config,
 )
-from logdetective.server import gitlab
-from logdetective.server.database import base
-from logdetective.server.database.base import Base, destroy
-from logdetective.server.database.models import (
+from logdetective import gitlab
+from logdetective.database import base
+from logdetective.database.base import Base, destroy
+from logdetective.database.models import (
     AnalyzeRequestMetrics,
     EndpointType,
     GitlabMergeRequestJobs,
@@ -35,8 +35,8 @@ from logdetective.server.database.models import (
     Reactions,
     Forge,
 )
-from logdetective.server.compressors import LLMResponseCompressor
-from logdetective.server.models import GitLabInstanceConfig
+from logdetective.compressors import LLMResponseCompressor
+from logdetective.models import GitLabInstanceConfig
 
 
 MOCK_LOG = """
@@ -317,13 +317,13 @@ def build_log_one_file():
 @pytest.fixture
 def mock_AnalyzeRequestMetrics(mocker: MockerFixture):
     mock_create = mocker.patch(
-        "logdetective.server.database.models.AnalyzeRequestMetrics.create",
+        "logdetective.database.models.AnalyzeRequestMetrics.create",
         new_callable=AsyncMock,
         return_value=1,
     )
 
     mock_update = mocker.patch(
-        "logdetective.server.database.models.AnalyzeRequestMetrics.update",
+        "logdetective.database.models.AnalyzeRequestMetrics.update",
         new_callable=AsyncMock,
     )
 

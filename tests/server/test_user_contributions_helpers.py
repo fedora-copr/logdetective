@@ -15,7 +15,7 @@ import pytest
 from pydantic import ValidationError
 
 from logdetective.constants import EMBEDDING_VECTOR_SIZE
-from logdetective.server.models import ContributionBuild
+from logdetective.models import ContributionBuild
 
 
 # test fixtures for test_user_contributions_update.py
@@ -151,8 +151,8 @@ def _frozen_date_patches(frozen_date):
     """Patch date.today() in both modules so tests are time-agnostic."""
     kwargs = {"today": lambda: frozen_date, "fromisoformat": date.fromisoformat}
     return [
-        patch("logdetective.server.user_contributions_update.date", **kwargs),
-        patch("logdetective.server.user_contributions_helpers.date", **kwargs),
+        patch("logdetective.user_contributions_update.date", **kwargs),
+        patch("logdetective.user_contributions_helpers.date", **kwargs),
     ]
 
 
@@ -166,11 +166,11 @@ def mock_network_and_embeddings(mock_dl, frozen_date):
     """
     stack = contextlib.ExitStack()
     stack.enter_context(patch(
-        "logdetective.server.user_contributions_helpers._download_to_spool",
+        "logdetective.user_contributions_helpers._download_to_spool",
         side_effect=mock_dl,
     ))
     stack.enter_context(patch(
-        "logdetective.server.user_contributions_update.TextEmbedding",
+        "logdetective.user_contributions_update.TextEmbedding",
         return_value=type("M", (), {
             "embed": lambda self, texts, **kw: iter(
                 [ZERO_EMBEDDING] * len(texts)
@@ -192,7 +192,7 @@ def mock_network_only(mock_dl, frozen_date):
     """
     stack = contextlib.ExitStack()
     stack.enter_context(patch(
-        "logdetective.server.user_contributions_helpers._download_to_spool",
+        "logdetective.user_contributions_helpers._download_to_spool",
         side_effect=mock_dl,
     ))
     for p in _frozen_date_patches(frozen_date):

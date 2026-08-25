@@ -1,8 +1,6 @@
-import pytest
-
 from fastapi.responses import Response as BasicResponse
 
-from logdetective.server.utils import (
+from logdetective.utils import (
     get_version,
 )
 

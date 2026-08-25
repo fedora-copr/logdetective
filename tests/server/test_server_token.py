@@ -1,7 +1,7 @@
 import pytest
 from fastapi import HTTPException
-import logdetective.server.server
-from logdetective.server.server import requires_token_when_set
+import logdetective.server
+from logdetective.server import requires_token_when_set
 
 
 INVALID_HEADER = "Bearer:SOMETHING"
@@ -12,7 +12,7 @@ API_TOKEN = "sometoken"
 
 @pytest.fixture
 def set_token(monkeypatch):
-    monkeypatch.setattr(logdetective.server.server, "API_TOKEN", API_TOKEN)
+    monkeypatch.setattr(logdetective.server, "API_TOKEN", API_TOKEN)
 
 
 def test_unset_token():

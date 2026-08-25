@@ -99,7 +99,7 @@ services:
     entrypoint:
       - bash
       - -c
-      - "python -m logdetective.server.user_contributions_update"
+      - "python -m logdetective.user_contributions_update"
     profiles:
       - sync
     deploy:

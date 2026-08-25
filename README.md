@@ -86,7 +86,7 @@ LLM should be aware of this fact and factor it into its responses.
 
 ## Generate a new database revision with alembic
 
-Modify the database models (`logdetective/server/database/models/`).
+Modify the database models (`logdetective/database/models/`).
 
 Generate a new database revision with the command:
 

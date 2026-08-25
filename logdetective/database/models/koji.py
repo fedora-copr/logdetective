@@ -4,18 +4,18 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, select
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from logdetective.server.config import SERVER_CONFIG
-from logdetective.server.compressors import LLMResponseCompressor
-from logdetective.server.database.models.metrics import AnalyzeRequestMetrics
-from logdetective.server.database.base import Base, transaction
-from logdetective.server.database.models.exceptions import (
+from logdetective.config import SERVER_CONFIG
+from logdetective.compressors import LLMResponseCompressor
+from logdetective.database.models.metrics import AnalyzeRequestMetrics
+from logdetective.database.base import Base, transaction
+from logdetective.database.models.exceptions import (
     KojiTaskNotFoundError,
     KojiTaskNotAnalyzedError,
     KojiTaskAnalysisTimeoutError,
     AnalyzeRequestMetricsNotFoundError,
 )
-from logdetective.server.models import KojiResponse
-from logdetective.server.utils import retry_database_error
+from logdetective.models import KojiResponse
+from logdetective.utils import retry_database_error
 
 
 class KojiTaskAnalysis(Base):

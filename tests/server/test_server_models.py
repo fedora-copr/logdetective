@@ -4,7 +4,7 @@ from pytest_mock import MockerFixture
 import yaml
 
 from pydantic import ValidationError
-from logdetective.server.models import (
+from logdetective.models import (
     TimePeriod,
     Config,
     ExtractorConfig,
@@ -64,7 +64,7 @@ def test_initialization_with_custom_data(mocker: MockerFixture):
     """
 
     mocker.patch(
-        "logdetective.server.models.sp.run",
+        "logdetective.models.sp.run",
         return_value=mocker.MagicMock(returncode=0, stderr="")
     )
 

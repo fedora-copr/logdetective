@@ -6,20 +6,20 @@ from beeai_framework.backend import ChatModel
 from beeai_framework.backend.errors import ChatModelError
 from litellm.exceptions import Timeout, RateLimitError
 
-from logdetective.server.agent.agent import analyze_artifacts
-from logdetective.server.agent.tools import (
+from logdetective.agent.agent import analyze_artifacts
+from logdetective.agent.tools import (
     AnnotatedSnippetLookupTool,
     DrainExtractorTool,
     CSGrepExtractorTool,
 )
-from logdetective.server.config import SERVER_CONFIG, load_embedding_model
-from logdetective.server.database.models.annotated_builds import AnnotatedSnippets
-from logdetective.server.exceptions import (
+from logdetective.config import SERVER_CONFIG, load_embedding_model
+from logdetective.database.models.annotated_builds import AnnotatedSnippets
+from logdetective.exceptions import (
     LogDetectiveInferenceError,
     LogDetectiveInferenceTimeout,
     LogDetectiveInferenceRateLimit,
 )
-from logdetective.server.models import AgentResponse, Explanation, Solution
+from logdetective.models import AgentResponse, Explanation, Solution
 
 
 @pytest.fixture
@@ -40,7 +40,7 @@ async def test_analyze_artifacts_init_default(mock_agent_setup):
     """Test default initialization (CSGrep disabled)."""
     mock_artifacts, mock_chat_model, mock_agent_output = mock_agent_setup
 
-    with patch("logdetective.server.agent.agent.RequirementAgent") as MockAgent:
+    with patch("logdetective.agent.agent.RequirementAgent") as MockAgent:
         mock_run_instance = MagicMock()
         mock_run_instance.middleware = AsyncMock(return_value=mock_agent_output)
         MockAgent.return_value.run.return_value = mock_run_instance
@@ -61,7 +61,7 @@ async def test_analyze_artifacts_init_with_csgrep(mock_agent_setup):
     """Test initialization when CSGrep is enabled."""
     mock_artifacts, mock_chat_model, mock_agent_output = mock_agent_setup
 
-    with patch("logdetective.server.agent.agent.RequirementAgent") as MockAgent:
+    with patch("logdetective.agent.agent.RequirementAgent") as MockAgent:
         mock_run_instance = MagicMock()
         mock_run_instance.middleware = AsyncMock(return_value=mock_agent_output)
         MockAgent.return_value.run.return_value = mock_run_instance
@@ -89,7 +89,7 @@ async def test_analyze_artifacts_execution_flow(mock_agent_setup):
     mock_run_chain = MagicMock()
     mock_run_chain.middleware = AsyncMock(return_value=mock_agent_output)
 
-    with patch("logdetective.server.agent.agent.RequirementAgent") as MockAgent:
+    with patch("logdetective.agent.agent.RequirementAgent") as MockAgent:
         mock_agent_instance = MockAgent.return_value
         mock_agent_instance.run.return_value = mock_run_chain
 
@@ -113,7 +113,7 @@ async def test_analyze_artifacts_inference_errors(mock_agent_setup, cause, expec
     mock_error = ChatModelError("model error")
     mock_error.__cause__ = cause
 
-    with patch("logdetective.server.agent.agent.RequirementAgent") as MockAgent:
+    with patch("logdetective.agent.agent.RequirementAgent") as MockAgent:
         with patch("asyncio.sleep", new_callable=AsyncMock):
             mock_run_instance = MagicMock()
             mock_run_instance.middleware = AsyncMock(
@@ -139,7 +139,7 @@ async def test_analyze_artifacts_solution_stripped_when_disabled(mock_agent_setu
     mock_run_chain = MagicMock()
     mock_run_chain.middleware = AsyncMock(return_value=mock_agent_output)
 
-    with patch("logdetective.server.agent.agent.RequirementAgent") as MockAgent:
+    with patch("logdetective.agent.agent.RequirementAgent") as MockAgent:
         MockAgent.return_value.run.return_value = mock_run_chain
 
         with patch.object(SERVER_CONFIG.general, "generate_solution", False):
@@ -159,7 +159,7 @@ async def test_analyze_artifacts_solution_kept_when_enabled(mock_agent_setup):
     mock_run_chain = MagicMock()
     mock_run_chain.middleware = AsyncMock(return_value=mock_agent_output)
 
-    with patch("logdetective.server.agent.agent.RequirementAgent") as MockAgent:
+    with patch("logdetective.agent.agent.RequirementAgent") as MockAgent:
         MockAgent.return_value.run.return_value = mock_run_chain
 
         with patch.object(SERVER_CONFIG.general, "generate_solution", True):
@@ -186,7 +186,7 @@ async def test_analyze_artifacts_lookup_tool_included(
 ):
     """AnnotatedSnippetLookupTool is enabled only if the flag is on and the table has data."""
     mock_artifacts, mock_chat_model, mock_agent_output = mock_agent_setup
-    with patch("logdetective.server.agent.agent.RequirementAgent") as MockAgent:
+    with patch("logdetective.agent.agent.RequirementAgent") as MockAgent:
         mock_run_instance = MagicMock()
         mock_run_instance.middleware = AsyncMock(return_value=mock_agent_output)
         MockAgent.return_value.run.return_value = mock_run_instance
@@ -194,14 +194,14 @@ async def test_analyze_artifacts_lookup_tool_included(
         with (
             patch.object(SERVER_CONFIG.general, "annotation_lookup_tool", config_option),
             patch.object(SERVER_CONFIG.general, "max_annotations", 3),
-            patch("logdetective.server.config.TextEmbedding", MagicMock()),
+            patch("logdetective.config.TextEmbedding", MagicMock()),
             patch.object(
                 AnnotatedSnippets, "get_count", new_callable=AsyncMock, return_value=snippet_count
             ),
         ):
             model_instance = load_embedding_model(SERVER_CONFIG)
             with patch(
-                "logdetective.server.agent.agent.EMBEDDING_MODEL_INSTANCE", model_instance
+                "logdetective.agent.agent.EMBEDDING_MODEL_INSTANCE", model_instance
             ):
                 await analyze_artifacts(mock_artifacts, mock_chat_model)
 

@@ -1,13 +1,13 @@
 import os
 import logging
+import tomllib
 import yaml
 from beeai_framework.backend import ChatModel
 from beeai_framework.backend.types import ChatModelParameters
 from fastembed import TextEmbedding
 
-from logdetective.utils import load_skip_snippet_patterns
-from logdetective.server.models import Config, InferenceConfig
 from logdetective.constants import PROMPT_PATH, EMBEDDING_MODEL
+from logdetective.models import Config, InferenceConfig, SkipSnippets
 import logdetective
 from logdetective.prompts import PromptManager
 
@@ -83,6 +83,26 @@ def load_embedding_model(config: Config) -> TextEmbedding | None:
     return None
 
 
+def load_skip_snippet_patterns(path: str | None) -> SkipSnippets | None:
+    """Load dictionary of snippet patterns we want to skip."""
+    if not path:
+        return None
+    try:
+        with open(path, "rb") as file:
+            data = tomllib.load(file)
+        if not data:
+            LOG.warning("Skip pattern file `%s` is empty, no skip patterns loaded", path)
+            return None
+        return SkipSnippets(snippet_patterns=data)
+    except FileNotFoundError:
+        LOG.error(
+            "Couldn't open file with snippet skip patterns `%s`",
+            path,
+            stack_info=True,
+        )
+    return None
+
+
 SERVER_CONFIG_PATH = os.environ.get("LOGDETECTIVE_SERVER_CONF", None)
 
 # The default location for skip patterns is in the same directory
@@ -97,5 +117,6 @@ PROMPT_CONFIG = PromptManager(PROMPT_PATH, prompt_config=SERVER_CONFIG.prompts)
 SKIP_SNIPPETS_CONFIG = load_skip_snippet_patterns(SERVER_SKIP_PATTERNS_PATH)
 
 LOG = get_log(SERVER_CONFIG)
+
 
 EMBEDDING_MODEL_INSTANCE = load_embedding_model(SERVER_CONFIG)

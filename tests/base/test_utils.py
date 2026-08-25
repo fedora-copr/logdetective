@@ -5,7 +5,7 @@ import aioresponses
 import pytest
 from pydantic import ValidationError
 
-from logdetective.utils import load_skip_snippet_patterns
+from logdetective.config import load_skip_snippet_patterns
 from logdetective.constants import DEFAULT_MAXIMUM_ARTIFACT_MIB
 from logdetective.exceptions import (
     RemoteLogAccessError,
@@ -19,7 +19,6 @@ from logdetective.remote_log import RemoteLog
 from tests.base.test_helpers import (
     test_filter_patterns,
     test_snippets_filtering,
-    simple_log,
 )
 
 
@@ -143,7 +142,7 @@ def test_load_skip_snippet_patterns_no_path():
 def test_load_skip_snippet_patterns_empty_file():
     """Test behavior for case when the file exists but is empty."""
 
-    with mock.patch("logdetective.utils.open", mock.mock_open(read_data=b"")):
+    with mock.patch("logdetective.config.open", mock.mock_open(read_data=b"")):
         result = load_skip_snippet_patterns("/valid/but/empty.toml")
 
     assert result is None
@@ -153,7 +152,7 @@ def test_load_skip_snippet_patterns_only_comments():
     """Test behavior for case when the file is functionally empty (only comments)."""
 
     with mock.patch(
-        "logdetective.utils.open",
+        "logdetective.config.open",
         mock.mock_open(read_data=b"# commented out stuff\n# no patterns here\n"),
     ):
         result = load_skip_snippet_patterns("/valid/but/empty.toml")
@@ -167,7 +166,7 @@ def test_load_skip_snippet_patterns_correct_path():
     those from original source."""
 
     with mock.patch(
-        "logdetective.utils.open", mock.mock_open(read_data=_to_toml(test_filter_patterns))
+        "logdetective.config.open", mock.mock_open(read_data=_to_toml(test_filter_patterns))
     ):
         prompts_config = load_skip_snippet_patterns("/valid/filters.toml")
 
@@ -181,7 +180,7 @@ def test_load_skip_snippet_patterns_invalid_syntax():
     test_skip_snippet_data = b"[bad_regex]\npattern = '$**.^.*'\n"
 
     with mock.patch(
-        "logdetective.utils.open", mock.mock_open(read_data=test_skip_snippet_data)
+        "logdetective.config.open", mock.mock_open(read_data=test_skip_snippet_data)
     ):
         with pytest.raises(ValidationError, match="regular expression"):
             load_skip_snippet_patterns("/valid/filters.toml")
@@ -193,7 +192,7 @@ def test_load_skip_snippet_patterns_missing_pattern_key():
     test_skip_snippet_data = b"[bad_entry]\nnot_pattern = 'just_a_string'\n"
 
     with mock.patch(
-        "logdetective.utils.open", mock.mock_open(read_data=test_skip_snippet_data)
+        "logdetective.config.open", mock.mock_open(read_data=test_skip_snippet_data)
     ):
         with pytest.raises(ValidationError):
             load_skip_snippet_patterns("/valid/filters.toml")

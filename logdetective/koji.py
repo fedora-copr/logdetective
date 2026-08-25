@@ -7,7 +7,7 @@ from tenacity import (
     retry, retry_if_exception_type, stop_before_delay, wait_exponential_jitter
 )
 
-from logdetective.server.exceptions import (
+from logdetective.exceptions import (
     KojiInvalidTaskID,
     LogDetectiveConnectionError,
     LogsMissingError,
@@ -15,7 +15,7 @@ from logdetective.server.exceptions import (
     UnknownTaskType,
     InvalidKojiTaskResultResponse,
 )
-from logdetective.server.utils import connection_error_giveup
+from logdetective.utils import connection_error_giveup
 
 FAILURE_LOG_REGEX = re.compile(r"(\w*\.log)")
 

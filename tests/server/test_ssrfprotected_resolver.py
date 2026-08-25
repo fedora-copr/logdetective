@@ -2,7 +2,7 @@ from unittest.mock import patch
 import socket
 import pytest
 from requests import exceptions
-from logdetective.server.utils import SSRFProtectedResolver
+from logdetective.utils import SSRFProtectedResolver
 
 
 @pytest.mark.asyncio
