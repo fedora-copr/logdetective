@@ -56,7 +56,7 @@ For CUDA GPU acceleration, uncomment the device lines in `docker-compose-dev.yam
 
 - Split into `tests/base` (utilities used in both CLI and server) and `tests/server`.
 - Async tests use `@pytest.mark.asyncio` decorator
-- Mocking: `unittest.mock` or `flexmock` for object mocking/patching, `aioresponses` for async HTTP
+- Mocking: `unittest.mock` for object mocking/patching, `aioresponses` for async HTTP
 - Some test data fixtures (related to gitlab) live in `tests/server/data/` as YAML files
 
 # Package layout

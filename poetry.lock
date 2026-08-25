@@ -1167,19 +1167,6 @@ files = [
 ]
 
 [[package]]
-name = "flexmock"
-version = "0.12.2"
-description = "flexmock is a testing library for Python that makes it easy to create mocks, stubs and fakes."
-optional = true
-python-versions = "<4.0.0,>=3.8.0"
-groups = ["main"]
-markers = "extra == \"testing\""
-files = [
-    {file = "flexmock-0.12.2-py3-none-any.whl", hash = "sha256:46c5c125548af8f8906f3199efaca6d35cfee0a7ddc77cd8135f69376c3b3e23"},
-    {file = "flexmock-0.12.2.tar.gz", hash = "sha256:435c661c3b35477575eb9150428a1cfd7c62cb992aa7887567c3357aebc9aca1"},
-]
-
-[[package]]
 name = "frozenlist"
 version = "1.8.0"
 description = "A list-like structure which implements collections.abc.MutableSequence"
@@ -2113,7 +2100,7 @@ description = "brain-dead simple config-ini parsing"
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"server-testing\" or extra == \"testing\""
+markers = "extra == \"testing\""
 files = [
     {file = "iniconfig-2.3.0-py3-none-any.whl", hash = "sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12"},
     {file = "iniconfig-2.3.0.tar.gz", hash = "sha256:c76315c77db068650d49c5b56314774a7804df16fee4402c1f19d6d15d8c4730"},
@@ -3187,7 +3174,7 @@ description = "plugin and hook calling mechanisms for python"
 optional = true
 python-versions = ">=3.9"
 groups = ["main"]
-markers = "extra == \"server-testing\" or extra == \"testing\""
+markers = "extra == \"testing\""
 files = [
     {file = "pluggy-1.6.0-py3-none-any.whl", hash = "sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746"},
     {file = "pluggy-1.6.0.tar.gz", hash = "sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3"},
@@ -3710,7 +3697,7 @@ description = "pytest: simple powerful testing with Python"
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"server-testing\" or extra == \"testing\""
+markers = "extra == \"testing\""
 files = [
     {file = "pytest-9.0.3-py3-none-any.whl", hash = "sha256:2c5efc453d45394fdd706ade797c0a81091eccd1d6e4bccfcd476e2b8e0ab5d9"},
     {file = "pytest-9.0.3.tar.gz", hash = "sha256:b86ada508af81d19edeb213c681b1d48246c1a91d304c6c81a427674c17eb91c"},
@@ -3767,25 +3754,6 @@ pytest = ">=7"
 
 [package.extras]
 testing = ["process-tests", "pytest-xdist", "virtualenv"]
-
-[[package]]
-name = "pytest-mock"
-version = "3.15.1"
-description = "Thin-wrapper around the mock package for easier use with pytest"
-optional = true
-python-versions = ">=3.9"
-groups = ["main"]
-markers = "extra == \"server-testing\" or extra == \"testing\""
-files = [
-    {file = "pytest_mock-3.15.1-py3-none-any.whl", hash = "sha256:0a25e2eb88fe5168d535041d09a4529a188176ae608a6d249ee65abc0949630d"},
-    {file = "pytest_mock-3.15.1.tar.gz", hash = "sha256:1849a238f6f396da19762269de72cb1814ab44416fa73a8686deac10b0d87a0f"},
-]
-
-[package.dependencies]
-pytest = ">=6.2.5"
-
-[package.extras]
-dev = ["pre-commit", "pytest-asyncio", "tox"]
 
 [[package]]
 name = "python-dateutil"
@@ -5108,10 +5076,10 @@ type = ["pytest-mypy (>=1.0.1) ; platform_python_implementation != \"PyPy\""]
 
 [extras]
 server = ["alembic", "asyncpg", "fastapi", "fastembed", "google-cloud-aiplatform", "gunicorn", "httpx", "koji", "pgvector", "python-gitlab", "sentry-sdk", "sqlalchemy", "starlette", "tenacity", "uvicorn"]
-server-testing = ["alembic", "asyncpg", "fastapi", "fastembed", "google-cloud-aiplatform", "gunicorn", "httpx", "koji", "pgvector", "pytest-mock", "python-gitlab", "responses", "sentry-sdk", "sqlalchemy", "starlette", "tenacity", "uvicorn"]
-testing = ["aioresponses", "asciidoc", "flexmock", "pytest", "pytest-asyncio", "pytest-cov", "pytest-mock"]
+server-testing = ["alembic", "asyncpg", "fastapi", "fastembed", "google-cloud-aiplatform", "gunicorn", "httpx", "koji", "pgvector", "python-gitlab", "responses", "sentry-sdk", "sqlalchemy", "starlette", "tenacity", "uvicorn"]
+testing = ["aioresponses", "asciidoc", "pytest", "pytest-asyncio", "pytest-cov"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.14"
-content-hash = "c9f85f4b73acf0e0e33712aac660fd66016de7c980e0cf2ade7e81fc40a190ff"
+content-hash = "e0c383ce5ad46bd72355b999bb79f67a810dedeeb47f475c16be307c40b75089"

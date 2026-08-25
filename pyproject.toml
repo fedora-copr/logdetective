@@ -92,16 +92,13 @@ server-testing = [
     "fastembed>=0.8.0",
     "pgvector>=0.4.2",
     "google-cloud-aiplatform>=1.158.0",
-    "pytest-mock",
     "responses",
 ]
 testing = [
     "pytest",
     "pytest-asyncio",
     "aioresponses",
-    "flexmock",
     "pytest-cov",
-    "pytest-mock",
     "asciidoc>=10.2.1,<11.0.0",
 ]
 
