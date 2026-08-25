@@ -13,19 +13,19 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from beeai_framework.backend import ChatModel
 
-from logdetective.server.gitlab import (
+from logdetective.gitlab import (
     is_eligible_package,
     retrieve_and_preprocess_koji_logs,
     check_artifacts_file_size,
 )
-from logdetective.server.gitlab import process_gitlab_job_event
-from logdetective.server.models import JobHook, GitLabInstanceConfig, APIResponse, Explanation
-from logdetective.server.database.models import (
+from logdetective.gitlab import process_gitlab_job_event
+from logdetective.models import JobHook, GitLabInstanceConfig, APIResponse, Explanation
+from logdetective.database.models import (
     AnalyzeRequestMetrics,
     Forge,
     GitlabMergeRequestJobs,
 )
-from logdetective.server.exceptions import LogsTooLargeError, LogDetectiveArtifactsMissingError
+from logdetective.exceptions import LogsTooLargeError, LogDetectiveArtifactsMissingError
 
 from tests.server.test_helpers import (
     DatabaseFactory,
@@ -259,7 +259,7 @@ def mock_analysis(request):
         snippets=[]
     )
     with patch(
-        "logdetective.server.gitlab.analyze_artifacts",
+        "logdetective.gitlab.analyze_artifacts",
         AsyncMock(return_value=mock_response)
     ) as mock:
         yield mock
@@ -380,7 +380,7 @@ async def test_fallback_to_task_failed_log_if_no_match(gitlab_cfg, mock_job):
 
     with (
         mock_artifact_download(zip_content),
-        patch("logdetective.server.gitlab.check_artifacts_file_size", return_value=True),
+        patch("logdetective.gitlab.check_artifacts_file_size", return_value=True),
     ):
         mock_session = AsyncMock()
         log_url, log_text = await retrieve_and_preprocess_koji_logs(
@@ -401,7 +401,7 @@ async def test_raises_file_not_found_on_no_failures(gitlab_cfg, mock_job):
     zip_content = create_zip_archive(files)
     with (
         mock_artifact_download(zip_content),
-        patch("logdetective.server.gitlab.check_artifacts_file_size", return_value=True),
+        patch("logdetective.gitlab.check_artifacts_file_size", return_value=True),
     ):
         mock_session = AsyncMock()
         with pytest.raises(
@@ -418,7 +418,7 @@ async def test_raises_logs_too_large_error(gitlab_cfg, mock_job):
     Tests that LogsTooLargeError is raised if check_artifacts_file_size returns False.
     """
     with (
-        patch("logdetective.server.gitlab.check_artifacts_file_size", return_value=False),
+        patch("logdetective.gitlab.check_artifacts_file_size", return_value=False),
         patch("asyncio.to_thread") as mock_to_thread,
     ):
         mock_session = AsyncMock()
@@ -448,7 +448,7 @@ async def test_raises_logs_too_large_error_decompression(gitlab_cfg, mock_job, l
     zip_content = create_zip_archive(files)
     with (
         mock_artifact_download(zip_content),
-        patch("logdetective.server.gitlab.check_artifacts_file_size", return_value=True),
+        patch("logdetective.gitlab.check_artifacts_file_size", return_value=True),
     ):
         gitlab_cfg.max_artifact_size = limit
         mock_session = AsyncMock()
@@ -535,7 +535,7 @@ async def test_architecture_prioritization(gitlab_cfg, mock_job):
     zip_content = create_zip_archive(files)
     with (
         mock_artifact_download(zip_content),
-        patch("logdetective.server.gitlab.check_artifacts_file_size", return_value=True),
+        patch("logdetective.gitlab.check_artifacts_file_size", return_value=True),
     ):
         mock_session = AsyncMock()
         log_url, log_text = await retrieve_and_preprocess_koji_logs(
@@ -558,7 +558,7 @@ async def test_toplevel_failure_fallback(gitlab_cfg, mock_job):
     zip_content = create_zip_archive(files)
     with (
         mock_artifact_download(zip_content),
-        patch("logdetective.server.gitlab.check_artifacts_file_size", return_value=True),
+        patch("logdetective.gitlab.check_artifacts_file_size", return_value=True),
     ):
         mock_session = AsyncMock()
         log_url, log_text = await retrieve_and_preprocess_koji_logs(
@@ -584,7 +584,7 @@ async def test_unrecognized_architecture_handling(gitlab_cfg, mock_job):
     zip_content = create_zip_archive(files)
     with (
         mock_artifact_download(zip_content),
-        patch("logdetective.server.gitlab.check_artifacts_file_size", return_value=True),
+        patch("logdetective.gitlab.check_artifacts_file_size", return_value=True),
     ):
         mock_session = AsyncMock()
         log_url, log_text = await retrieve_and_preprocess_koji_logs(

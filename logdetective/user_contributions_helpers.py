@@ -19,15 +19,15 @@ from tenacity import (
     stop_after_attempt,
 )
 
-from logdetective.server.database.base import (
+from logdetective.database.base import (
     transaction,
 )
-from logdetective.server.database.models.annotated_builds import (
+from logdetective.database.models.annotated_builds import (
     AnnotatedBuilds,
     AnnotatedSnippets,
     AnnotationUpdates,
 )
-from logdetective.server.models import ContributionBuild
+from logdetective.models import ContributionBuild
 
 logger = logging.getLogger(__name__)
 

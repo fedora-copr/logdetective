@@ -3,10 +3,10 @@ import koji
 import pytest
 from beeai_framework.backend import ChatModel
 
-from logdetective.server.models import APIResponse, Explanation
-from logdetective.server.server import analyze_koji_task, KojiCallbackManager
-from logdetective.server.exceptions import LogsTooLargeError, LogsMissingError
-from logdetective.server.koji import (
+from logdetective.models import APIResponse, Explanation
+from logdetective.server import analyze_koji_task, KojiCallbackManager
+from logdetective.exceptions import LogsTooLargeError, LogsMissingError
+from logdetective.koji import (
     get_failed_subtask_info,
     get_failed_log_from_task,
 )
@@ -213,7 +213,7 @@ def mock_analysis(request):
         snippets=None
     )
     with patch(
-        "logdetective.server.server.analyze_artifacts",
+        "logdetective.server.analyze_artifacts",
         AsyncMock(return_value=mock_response)
     ) as mock:
         yield mock

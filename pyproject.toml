@@ -35,27 +35,6 @@ dependencies = [
     # Protection against supply chain compromise https://docs.litellm.ai/blog/security-update-march-2026
     "litellm !=1.82.7,!=1.82.8",
     "beeai-framework >=0.1.81",
-]
-requires-python = ">=3.11,<3.14"
-
-[project.urls]
-homepage = "https://github.com/fedora-copr/logdetective"
-issues = "https://github.com/fedora-copr/logdetective/issues"
-
-[tool.poetry]
-include = [
-    "logdetective/drain3.ini",
-    "logdetective/server/templates/gitlab_short_comment.md.j2",
-    "logdetective/server/templates/gitlab_full_comment.md.j2",
-    "logdetective/prompts/agent_start_prompt.j2",
-    "logdetective/prompts/system_prompt.j2",
-]
-packages = [
-    { include = "logdetective" }
-]
-
-[project.optional-dependencies]
-server = [
     "fastapi>=0.111.1,<1.0.0",
     "sqlalchemy>=2.0.36,<3.0.0",
     "alembic>=1.13.3,<2.0.0",
@@ -72,6 +51,27 @@ server = [
     "pgvector>=0.4.2",
     "google-cloud-aiplatform>=1.158.0",
 ]
+requires-python = ">=3.11,<3.14"
+
+[project.urls]
+homepage = "https://github.com/fedora-copr/logdetective"
+issues = "https://github.com/fedora-copr/logdetective/issues"
+
+[tool.poetry]
+include = [
+    "logdetective/drain3.ini",
+    "logdetective/templates/gitlab_short_comment.md.j2",
+    "logdetective/templates/gitlab_full_comment.md.j2",
+    "logdetective/prompts.yml",
+    "logdetective/prompts/agent_start_prompt.j2",
+    "logdetective/prompts/message_template.j2",
+    "logdetective/prompts/system_prompt.j2",
+]
+packages = [
+    { include = "logdetective" }
+]
+
+[project.optional-dependencies]
 server-testing = [
     "fastapi>=0.111.1,<1.0.0",
     "sqlalchemy>=2.0.36,<3.0.0",

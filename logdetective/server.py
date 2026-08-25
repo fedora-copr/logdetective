@@ -22,30 +22,36 @@ import aiohttp
 import sentry_sdk
 from beeai_framework.backend import ChatModel
 
-from logdetective.server.exceptions import (
+from logdetective.exceptions import (
     KojiInvalidTaskID,
     LogDetectiveInferenceError,
+    RemoteLogError,
 )
-from logdetective.exceptions import RemoteLogError
 from logdetective.remote_log import RemoteLog
-from logdetective.utils import ContentSizeCheck, check_content_size, sanitize_artifact
+from logdetective.utils import (
+    ContentSizeCheck,
+    check_content_size,
+    sanitize_artifact,
+    get_version,
+    SSRFProtectedResolver,
+)
 
-from logdetective.server.database.models.koji import KojiTaskAnalysis
-from logdetective.server.database.models.exceptions import (
+from logdetective.database.models.koji import KojiTaskAnalysis
+from logdetective.database.models.exceptions import (
     KojiTaskAnalysisTimeoutError,
     KojiTaskNotAnalyzedError,
     KojiTaskNotFoundError,
 )
 
-from logdetective.server.agent.agent import analyze_artifacts
-import logdetective.server.database.base
+from logdetective.agent.agent import analyze_artifacts
+import logdetective.database.base
 
-from logdetective.server.config import SERVER_CONFIG, LOG, get_chat_model
-from logdetective.server.routes_gitlab import gitlab_router
-from logdetective.server.koji import (
+from logdetective.config import SERVER_CONFIG, LOG, get_chat_model
+from logdetective.routes_gitlab import gitlab_router
+from logdetective.koji import (
     get_failed_log_from_task as get_failed_log_from_koji_task,
 )
-from logdetective.server.metric import (
+from logdetective.metric import (
     track_request,
     add_new_metrics,
     update_metrics,
@@ -53,7 +59,7 @@ from logdetective.server.metric import (
     average_time_per_responses,
     emojis_per_time,
 )
-from logdetective.server.models import (
+from logdetective.models import (
     ArtifactFile,
     RemoteArtifactFile,
     AnalysisRequest,
@@ -64,12 +70,8 @@ from logdetective.server.models import (
     TimePeriod,
     MetricResponse,
 )
-from logdetective.server.database.models import EndpointType
-from logdetective.server.emoji import collect_emojis
-from logdetective.server.utils import (
-    get_version,
-    SSRFProtectedResolver,
-)
+from logdetective.database.models import EndpointType
+from logdetective.emoji import collect_emojis
 
 
 LOG_SOURCE_REQUEST_TIMEOUT = os.environ.get("LOG_SOURCE_REQUEST_TIMEOUT", 60)
@@ -174,7 +176,7 @@ async def lifespan(fapp: FastAPI):
     )
 
     # Ensure that the database is initialized.
-    await logdetective.server.database.base.check()
+    await logdetective.database.base.check()
 
     # Start the background task scheduler for collecting emojis, if applicable.
     # ConnectionManager.gitlab_connections is empty if gitlab.instances contains no entries

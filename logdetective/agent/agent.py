@@ -30,14 +30,14 @@ from litellm.exceptions import (
 from pydantic import ValidationError
 
 from logdetective.remote_log import RemoteLog
-from logdetective.server.config import (
-    LOG,
+from logdetective.config import (
     PROMPT_CONFIG,
     SERVER_CONFIG,
     SKIP_SNIPPETS_CONFIG,
     EMBEDDING_MODEL_INSTANCE,
+    LOG,
 )
-from logdetective.server.agent.tools import (
+from logdetective.agent.tools import (
     ExtractorTool,
     DrainExtractorTool,
     CSGrepExtractorTool,
@@ -45,16 +45,16 @@ from logdetective.server.agent.tools import (
     SnippetAnalysisTool,
     AnnotatedSnippetLookupTool,
 )
-from logdetective.server.database.models.annotated_builds import AnnotatedSnippets
-from logdetective.server.models import APIResponse, BuildMetadata, AgentResponse
-from logdetective.server.exceptions import (
+from logdetective.database.models.annotated_builds import AnnotatedSnippets
+from logdetective.models import APIResponse, BuildMetadata, AgentResponse
+from logdetective.exceptions import (
     LogDetectiveAgentResponseFailure,
     LogDetectiveAgentTimeoutError,
     LogDetectiveInferenceTimeout,
     LogDetectiveInferenceError,
     LogDetectiveInferenceRateLimit,
 )
-from logdetective.server.utils import inference_retry_backoff, inference_retry_giveup
+from logdetective.utils import inference_retry_backoff, inference_retry_giveup
 
 
 @retry(

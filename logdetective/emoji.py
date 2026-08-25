@@ -5,14 +5,14 @@ from collections import Counter
 
 import gitlab
 
-from logdetective.server.models import TimePeriod
-from logdetective.server.database.models import (
+from logdetective.models import TimePeriod
+from logdetective.database.models import (
     Comments,
     Reactions,
     GitlabMergeRequestJobs,
     Forge,
 )
-from logdetective.server.config import LOG
+from logdetective.config import LOG
 
 
 async def collect_emojis(gitlab_conn: gitlab.Gitlab, period: TimePeriod):

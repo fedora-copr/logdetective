@@ -7,9 +7,9 @@ from fastembed import TextEmbedding
 from sqlalchemy import select
 
 from logdetective.constants import EMBEDDING_MODEL, EMBEDDING_VECTOR_SIZE
-from logdetective.server.database.base import transaction
-from logdetective.server.user_contributions_update import run_update
-from logdetective.server.database.models.annotated_builds import (
+from logdetective.database.base import transaction
+from logdetective.user_contributions_update import run_update
+from logdetective.database.models.annotated_builds import (
     AnnotatedBuilds,
     AnnotatedSnippets,
     AnnotationUpdates,

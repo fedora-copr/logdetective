@@ -1,9 +1,9 @@
 import os
-import logging
 from urllib.parse import urlparse
 
 import aiohttp
 
+from logdetective.config import LOG
 from logdetective.constants import DEFAULT_MAXIMUM_ARTIFACT_MIB
 from logdetective.exceptions import (
     RemoteLogRequestError,
@@ -16,8 +16,6 @@ from logdetective.utils import (
     check_content_size,
     sanitize_artifact,
 )
-
-LOG = logging.getLogger("logdetective")
 
 
 class RemoteLog:
