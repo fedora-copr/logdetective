@@ -5,10 +5,6 @@ in case other values are not specified.
 import os
 import logdetective
 
-# pylint: disable=line-too-long
-DEFAULT_ADVISOR = "fedora-copr/granite-3.2-8b-instruct-GGUF"
-
-SNIPPET_DELIMITER = "================"
 
 DEFAULT_TEMPERATURE = 0.0
 
