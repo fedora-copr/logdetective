@@ -1,6 +1,5 @@
 require:
 - python3-pytest
-- python3-flexmock
 - python3-pytest-asyncio
 - python3-aioresponses
 - python3-responses
