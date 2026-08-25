@@ -264,19 +264,6 @@ typing_extensions = {version = ">=4.5", markers = "python_version < \"3.13\""}
 trio = ["trio (>=0.32.0)"]
 
 [[package]]
-name = "asciidoc"
-version = "10.2.1"
-description = "AsciiDoc is a text document format for writing things."
-optional = true
-python-versions = ">=3.5.0"
-groups = ["main"]
-markers = "extra == \"testing\""
-files = [
-    {file = "asciidoc-10.2.1-py2.py3-none-any.whl", hash = "sha256:3f277a636b617c9ce7e0b87bcaea51f144500e9a5c8a6488421ee24594850d40"},
-    {file = "asciidoc-10.2.1.tar.gz", hash = "sha256:d9f13c285981b3c7eb660d02ca0a2779981e88d48105de81bb40445e60dddb83"},
-]
-
-[[package]]
 name = "asyncpg"
 version = "0.31.0"
 description = "An asyncio PostgreSQL driver"
@@ -930,18 +917,6 @@ wrapt = ">=1.10,<3"
 
 [package.extras]
 dev = ["PyTest", "PyTest-Cov", "bump2version (<1)", "setuptools ; python_version >= \"3.12\"", "tox"]
-
-[[package]]
-name = "diskcache"
-version = "5.6.3"
-description = "Disk Cache -- Disk and file backed persistent cache."
-optional = false
-python-versions = ">=3"
-groups = ["main"]
-files = [
-    {file = "diskcache-5.6.3-py3-none-any.whl", hash = "sha256:5e31b2d5fbad117cc363ebaf6b689474db18a1f6438bc82358b024abd4c2ca19"},
-    {file = "diskcache-5.6.3.tar.gz", hash = "sha256:2c3a3fa2743d8535d832ec61c2054a1641f41775aa7c556758a109941e33e4fc"},
-]
 
 [[package]]
 name = "distro"
@@ -2407,29 +2382,6 @@ saml = ["python3-saml (>=1.16.0,<2.0)"]
 semantic-router = ["aurelio-sdk (>=0.0.19,<1.0) ; python_full_version < \"3.14.0\"", "semantic-router (>=0.1.15,<1.0) ; python_full_version < \"3.14.0\""]
 stt-nvidia-riva = ["audioread (>=3.0.1)", "numpy (>=1.26.0)", "nvidia-riva-client (>=2.15.0)", "soundfile (>=0.12.1)"]
 utils = ["numpydoc (>=1.8.0,<2.0)"]
-
-[[package]]
-name = "llama-cpp-python"
-version = "0.3.34"
-description = "Python bindings for the llama.cpp library"
-optional = false
-python-versions = ">=3.8"
-groups = ["main"]
-files = [
-    {file = "llama_cpp_python-0.3.34.tar.gz", hash = "sha256:d849d286d808284f1d3ec1bd6875572430d29d1f9574a010232caa4e9cef0e35"},
-]
-
-[package.dependencies]
-diskcache = ">=5.6.1"
-jinja2 = ">=2.11.3"
-numpy = ">=1.20.0"
-typing-extensions = ">=4.5.0"
-
-[package.extras]
-all = ["llama_cpp_python[dev,server,test]"]
-dev = ["httpx (>=0.24.1)", "mkdocs (>=1.4.3)", "mkdocs-material (>=9.1.18)", "mkdocstrings[python] (>=0.22.0)", "pytest (>=7.4.0)", "ruff (>=0.15.7)", "twine (>=4.0.2)"]
-server = ["PyYAML (>=5.1)", "fastapi (>=0.100.0)", "pydantic-settings (>=2.0.1)", "sse-starlette (>=1.6.1)", "starlette-context (>=0.3.6,<0.4)", "uvicorn (>=0.22.0)"]
-test = ["fastapi (>=0.100.0)", "httpx (>=0.24.1)", "huggingface-hub (>=0.23.0)", "pydantic-settings (>=2.0.1)", "pytest (>=7.4.0)", "scipy (>=1.10)", "sse-starlette (>=1.6.1)", "starlette-context (>=0.3.6,<0.4)"]
 
 [[package]]
 name = "loguru"
@@ -5109,9 +5061,9 @@ type = ["pytest-mypy (>=1.0.1) ; platform_python_implementation != \"PyPy\""]
 [extras]
 server = ["alembic", "asyncpg", "fastapi", "fastembed", "google-cloud-aiplatform", "gunicorn", "httpx", "koji", "pgvector", "python-gitlab", "sentry-sdk", "sqlalchemy", "starlette", "tenacity", "uvicorn"]
 server-testing = ["alembic", "asyncpg", "fastapi", "fastembed", "google-cloud-aiplatform", "gunicorn", "httpx", "koji", "pgvector", "pytest-mock", "python-gitlab", "responses", "sentry-sdk", "sqlalchemy", "starlette", "tenacity", "uvicorn"]
-testing = ["aioresponses", "asciidoc", "flexmock", "pytest", "pytest-asyncio", "pytest-cov", "pytest-mock"]
+testing = ["aioresponses", "flexmock", "pytest", "pytest-asyncio", "pytest-cov", "pytest-mock"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.14"
-content-hash = "c9f85f4b73acf0e0e33712aac660fd66016de7c980e0cf2ade7e81fc40a190ff"
+content-hash = "681946cdccaef9708ba905a4dc7121ef571112305d047dd4e24a48ea8006d8cb"

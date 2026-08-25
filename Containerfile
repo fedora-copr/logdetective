@@ -13,12 +13,6 @@ RUN dnf install -y \
 
 RUN mkdir /src
 
-# uncomment below if you need to download the model, otherwise just bindmount your local
-# models inside the container
-# RUN pip3 install huggingface_hub[cli] \
-#     && mkdir /models \
-#     && huggingface-cli download ibm-granite/granite-4.0-h-tiny-GGUF granite-4.0-h-tiny-Q8_0.gguf --local-dir /models --local-dir-use-symlinks False
-
 COPY ./logdetective/ /src/logdetective/
 COPY ./alembic.ini /src/alembic.ini
 COPY ./alembic /src/alembic

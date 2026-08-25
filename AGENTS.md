@@ -1,12 +1,11 @@
 # Log Detective
 
-An LLM-powered build log analyzer for Fedora/RHEL ecosystems. Operates in two modes:
-- CLI tool using local llama.cpp inference - `logdetective.logdetective:main`
-- FastAPI server launched via gunicorn using BeeAI agent framework with tool-calling LLMs via LiteLLM - `logdetective.server.server`
+An LLM-powered build log analyzer for Fedora/RHEL ecosystems.
+Operates as a FastAPI server launched via gunicorn.
+Uses BeeAI agent framework with tool-calling LLMs via LiteLLM - `logdetective.server.server`
 
 Container images are published to `quay.io/logdetective/` after each release.
 Production uses either vLLM with GPU inference, or Gemini / VertexAI.
-Base/dev uses llama.cpp.
 
 # Prerequisites
 
@@ -36,7 +35,7 @@ For CUDA GPU acceleration, uncomment the device lines in `docker-compose-dev.yam
 
 # Testing
 
-- Core/CLI tests: `tox -e pytest_base`
+- Core tests: `tox -e pytest_base`
 - Server tests: `tox -e pytest_server` - require podman; run on Postgres + pgvector (see `Container.database`)
 - CI runs on GitHub Actions which run tox: pytest (base + server), and all linters (`tox -e lint,style,ruff,djlint`)
 
@@ -48,20 +47,20 @@ For CUDA GPU acceleration, uncomment the device lines in `docker-compose-dev.yam
 
 # Formatting conventions
 
-- Logging via `logging.getLogger("logdetective")`, initialized in `logdetective/__init__.py` for CLI tool, or `LOG` constant initialized via `get_log()` in `logdetective/server/config.py` for server (using options in `server/config.yml`).
+- Logging via `logging.getLogger("logdetective")`, initialized in `logdetective/__init__.py` or `LOG` constant initialized via `get_log()` in `logdetective/server/config.py` for server (using options in `server/config.yml`).
 - Linting enforced by: Pylint config in `pyproject.toml` and `.pylintrc.tests`, flake8 and ruff config in `tox.ini`
 - Pre-commit hooks: trailing-whitespace, end-of-file-fixer, check-yaml, check-added-large-files, flake8
 
 # Test conventions
 
-- Split into `tests/base` (utilities used in both CLI and server) and `tests/server`.
+- Split into `tests/base` (utilities) and `tests/server`.
 - Async tests use `@pytest.mark.asyncio` decorator
 - Mocking: `unittest.mock` or `flexmock` for object mocking/patching, `aioresponses` for async HTTP
 - Some test data fixtures (related to gitlab) live in `tests/server/data/` as YAML files
 
 # Package layout
 
-- `logdetective/` - Core: CLI entry point, extractors, prompt management, utilities
+- `logdetective/` - Core: extractors, prompt management, utilities
 - `logdetective/prompts/` - Prompt templates for logdetective
 - `logdetective/server/` - FastAPI app, config, routes, GitLab/Koji integrations
 - `logdetective/server/agent/` - BeeAI agent and tool definitions (Drain, csgrep, traceback, snippet analysis)
@@ -80,6 +79,4 @@ When making functionality changes, check whether these need updating:
 - `AGENTS.md` - this file
 - `THREAT_MODEL.md` - security assets, entry points, threats
 - `README.md` - general usage, installation, configuration overview
-- `logdetective.1.asciidoc` - man page; covers all CLI flags defined in `logdetective/logdetective.py:setup_args()`; rebuild with `tox -e manpage`
-- `logdetective/logdetective.py:setup_args()` - argparse help strings shown by `logdetective --help`; keep in sync with the man page
 - `alembic/er_diagram.md` - Mermaid ER diagram; regenerate with `make generate-db-diagram` after schema changes (alembic revisions)

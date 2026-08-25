@@ -4,11 +4,15 @@
 
 [PyPI Releases]: https://pypi.org/project/logdetective/#history
 
-A tool, service and RHEL process integration to analyze logs using a Large Language Model (LLM) and a [Drain template miner](https://github.com/jpodivin/Drain3-improved).
+A tool, service and RHEL process integration to analyze logs using Large Language Model (LLM) and a [Drain template miner](https://github.com/jpodivin/Drain3-improved) within [BeeAI agentic framework](https://github.com/i-am-bee/beeai-framework).
 
 Service explaining logs is available at: https://logdetective.com/explain
 
 *Note: code of the logdetective.com website is at [github.com/fedora-copr/logdetective-website](https://github.com/fedora-copr/logdetective-website).*
+
+Note: Log Detective used to be developed as both a CLI tool and a FastAPI server.
+The CLI tool is now deprecated and has been removed from this repository since 5.0 release.
+Please keep in mind that there still might be traces and references to it.
 
 
 # Server
@@ -136,7 +140,6 @@ To be able to use Log Detective with Vertex AI:
     - Set the additional related config values in `server/config.yml` (follow the provided instructions, everything is set up so that you can just uncomment the 3 `GOOGLE_`* values).
 4. Uncomment the line in `docker-compose.yaml` which mounts the credentials JSON file.
 
-
 ## Querying statistics
 
 You can query requests, responses and emojis statistics via `metrics` endpoints.
@@ -164,7 +167,7 @@ curl "http://localhost:8080/metrics/analyze-gitlab/emojis?days=5"
 
 ## System Prompts
 
-Prompts are defined as Jinja templates and placed in location specified by `--prompt-templates` option of the CLI utility, or `LOGDETECTIVE_PROMPT_TEMPLATES` environment variable of the container service. With further, optional, configuration in the `prompts.yml` configuration file.
+Prompts are defined as Jinja templates and placed in location specified `LOGDETECTIVE_PROMPT_TEMPLATES` environment variable of the container service. With further, optional, configuration in the `prompts.yml` configuration file.
 
 All system prompt templates must include place for `system_time` variable.
 
@@ -209,7 +212,6 @@ files = ['backend.log', 'app.log']
 Example of a valid pattern definition file: `logdetective/skip_snippets.toml`,
 can be used as a starting point and is used as a default if no other definition is provided.
 
-
 ## Extracting snippets with csgrep
 
 When working with logs containing messages from GCC, it can be beneficial to employ
@@ -223,7 +225,6 @@ The binary is available as part of `csdiff` package on Fedora.
 dnf install csdiff
 ```
 
-When working with CLI Log Detective, the csgrep extractor can be activated using option `--csgrep`.
 While in server mode, the `csgrep` field in `extractor` config needs to be set to `true`.
 
 ```yaml
@@ -235,90 +236,104 @@ but `csgrep` is not present in the $PATH.
 
 The container images are built with `csdiff` installed.
 
-# Command Line Tool
+## Real Example
 
-## Installation
+Log Detective can work with any logs, though we optimize it for RPM build logs.
+The following output is a response for the `/analyze` endpoint.
 
-**Fedora 41+**
+The analyzed build: https://koji.fedoraproject.org/koji/taskinfo?taskID=149750933
 
-```sh
-dnf install logdetective
-```
-
-**From Pypi repository**
-
-The logdetective project is published on the [Pypi repository](https://pypi.org/project/logdetective/). The `pip` tool can be used for installation.
-
-First, ensure that the necessary dependencies for the `llama-cpp-python` project are installed. For Fedora, install `gcc-c++`:
+You can get similar output by running this on your local compose:
 
 ```sh
-dnf install gcc-c++
+curl --header "Content-Type: application/json" --request POST \
+     --data '{
+        "files": [
+            {
+                "name": "root.log",
+                "url": "https://kojipkgs.fedoraproject.org//work/tasks/933/149750933/root.log"
+            },
+            {
+                "name": "mock_output.log",
+                "content": "https://kojipkgs.fedoraproject.org//work/tasks/933/149750933/mock_output.log"
+            },
+            {
+                "name": "build.log",
+                "content": "https://kojipkgs.fedoraproject.org//work/tasks/933/149750933/build.log"
+            }
+        ],
+        "build_metadata": {
+            "specfile": null,
+            "last_patch": null,
+            "commentary": "Logs are from a Koji build.\nKoji builds use mock chroots; build.log contains build output,\nroot.log has dependency resolution and mock setup.",
+            "infra_status": null
+        }
+     }' \
+     http://localhost:8080/analyze
 ```
 
-Then, install the `logdetective` project using pip:
+Note that only a handful of snippets were selected from the original response for demonstration purposes:
 
-```sh
-pip install logdetective
+```json
+{
+  "explanation": {
+    "text": "The build failed during the compilation phase of `emacs-with-editor` because the build process could not find a required load file, specifically `cond-let`, while compiling `with-editor.el` (build.log, line 104). This indicates a missing dependency or an incomplete build environment setup for Emacs Lisp components."
+  },
+  "no_issue_found": false,
+  "snippets": [
+    {
+      "line_number": 585,
+      "source_file": "root.log",
+      "text": "DEBUG util.py:535:  Warning: skipped OpenPGP checks for 124 packages from repository: build"
+    },
+    {
+      "line_number": 5276,
+      "source_file": "root.log",
+      "text": "DEBUG util.py:535:  Package \"emacs-1:31.1-2.fc46.ppc64le\" is already installed."
+    },
+    {
+      "line_number": 3,
+      "source_file": "mock_output.log",
+      "text": "INFO: mock.py version 6.8 starting (python version = 3.14.7, NVR = mock-6.8-1.fc44), args: /usr/libexec/mock/mock -r koji/f46-build-70856970-6688917 --new-chroot --init"
+    },
+    {
+      "line_number": 275,
+      "source_file": "mock_output.log",
+      "text": "INFO: Buildroot is handled by package management installed into bootstrap:\n  rpm-6.1.0-1.fc46.ppc64le\n  rpm-sequoia-1.10.2-5.fc45.ppc64le\n  dnf5-5.4.3.0-2.fc46.ppc64le\n  dnf5-plugins-5.4.3.0-2.fc46.ppc64le"
+    },
+    {
+      "line_number": 287,
+      "source_file": "mock_output.log",
+      "text": "ERROR: Exception(/var/tmp/koji/tasks/933/149750933/local/work/tasks/907/149750907/emacs-with-editor-3.5.4-1.fc46.src.rpm) Config(f46-build-70856970-6688917) 3 minutes 59 seconds"
+    },
+    {
+      "line_number": 289,
+      "source_file": "mock_output.log",
+      "text": "ERROR: Command failed: \n # /usr/bin/systemd-nspawn -q -M ee22ca6a19f040769a6c490430569274 -D /var/lib/mock/f46-build-70856970-6688917/root -a -u mockbuild --capability=cap_ipc_lock --capability=cap_mac_admin --bind=/dev/btrfs-control --bind=/dev/mapper/control --bind=/dev/fuse --bind=/dev/loop-control --bind=/dev/loop0 --bind=/dev/loop1 --bind=/dev/loop2 --bind=/dev/loop3 --bind=/dev/loop4 --bind=/dev/loop5 --bind=/dev/loop6 --bind=/dev/loop7 --bind=/dev/loop8 --bind=/dev/loop9 --bind=/dev/loop10 --bind=/dev/loop11 --resolv-conf=off --console=pipe --setenv=TERM=vt100 --setenv=SHELL=/bin/bash --setenv=HOME=/builddir --setenv=HOSTNAME=mock --setenv=PATH=/usr/bin:/bin:/usr/sbin:/sbin '--setenv=PROMPT_COMMAND=printf \"\\033]0;<mock-chroot>\\007\"' '--setenv=PS1=<mock-chroot> \\s-\\v\\$ ' --setenv=LANG=C.UTF-8 bash --login -c '/usr/bin/rpmbuild -bb --noclean --target noarch --nodeps /builddir/build/SPECS/emacs-with-editor.spec'"
+    },
+    {
+      "line_number": 118,
+      "source_file": "build.log",
+      "text": "Cannot find a locale compatible with document strings translations"
+    },
+    {
+      "line_number": 133,
+      "source_file": "build.log",
+      "text": "RPM build errors:"
+    },
+    {
+      "line_number": 134,
+      "source_file": "build.log",
+      "text": "error: Bad exit status from /var/tmp/rpm-tmp.Us2T6p (%build)\n    Bad exit status from /var/tmp/rpm-tmp.Us2T6p (%build)"
+    }
+  ],
+  "solution": {
+    "text": "Ensure that all necessary Emacs Lisp development dependencies, including any required libraries that provide `cond-let`, are correctly installed and available in the build environment before running the build process."
+  }
+}
 ```
 
-**Local repository install**
-
-Clone this repository and install with pip:
-
-```sh
-pip install .
-```
-
-## Usage
-
-To analyze a log file, run the script with the following command with:
-
-**Required arguments:**
-- `file`: The path or URL of the log file to be analyzed.
-
-**Optional arguments:**
-- `-M, --model MODEL_NAME` (default: "fedora-copr/granite-3.2-8b-instruct-GGUF"): The path or Hugging space name of the language model for analysis. For models from Hugging Face, write them as `namespace/repo_name`. As we are using LLama.cpp we want this to be in the `gguf` format. If the model is already on your machine it will skip the download.
-- `-F | --filename-suffix SUFFIX` (default `Q4_K.gguf`): You can specify which suffix of the model file to use. This option is applied when specifying model (from the different quantizations) using the Hugging Face repository.
-- `-C | --n-clusters N` (default 8): Number of clusters for Drain to organize log chunks into. This only makes sense when you are summarizing with Drain.
-- `-n, --no-stream`: Print the full response at once, instead of token-by-token.
-- `-v, --verbose`: Increase output verbosity. Can be used multiple times (-v, -vv, -vvv) for different debug levels.
-- `-q, --quiet`: Suppress all output except the explanation.
-- `--prompts PROMPTS` (DEPRECATED, replaced by `--prompts-config`) Path to prompt configuration file.
-- `--prompts-config PROMPTS` (default `logdetective/prompts.yml`): Path to prompt configuration file.
-- `--prompt-templates TEMPLATE_DIR` (default `logdetective/prompts`): Path to prompt template directory. Prompts must be valid Jinja templates, and system prompts must include field `system_time`.
-- `--temperature NUM` (default `0.0`): Temperature for inference. Higher temperatures lead to more creative, random responses.
-- `--skip-snippets SNIPPETS` (default `logdetective/skip_snippets.toml`): Path to patterns for skipping snippets.
-- `--csgrep`: Use `csgrep` to process the log. Requires `csgrep` to be installed separately.
-- `--mib_limit NUMBER` Limits the size (in MiB) of request (if submitting raw files) or file (if submitting via URL) for analyze endpoints (default 50). Logs or requests exceeding this will be rejected.
-
-**Examples:**
-
-Analyzing a log via URL or stored locally:
-
-```sh
-logdetective https://example.com/logs.txt
-logdetective ./data/logs.txt
-```
-
-Examples of using different models. Note the use of `--filename-suffix` (or `-F`) option, useful for models that were quantized:
-
-```sh
-logdetective https://example.com/logs.txt --model QuantFactory/Meta-Llama-3-8B-Instruct-GGUF --filename-suffix Q5_K_S.gguf
-logdetective https://kojipkgs.fedoraproject.org//work/tasks/3367/131313367/build.log --model 'fedora-copr/granite-3.2-8b-instruct-GGUF' -F Q4_K_M.gguf
-```
-Example of altered prompts:
-
-```sh
-cp -r ~/.local/lib/python3.13/site-packages/logdetective/prompts ~/my-prompts
-vi ~/my-prompts/system_prompt.j2 # edit the system prompt there to better fit your needs
-logdetective https://kojipkgs.fedoraproject.org//work/tasks/3367/131313367/build.log --prompt-templates ~/my-prompts
-```
-
-Note that streaming with some models (notably Meta-Llama-3) is broken and can be worked around by `no-stream` option:
-
-```sh
-logdetective https://example.com/logs.txt --model QuantFactory/Meta-Llama-3-8B-Instruct-GGUF --filename-suffix Q5_K_M.gguf --no-stream
-```
+The most significant field for diagnosis is `explanation`.
 
 ## Choice of LLM
 
@@ -331,69 +346,6 @@ When deployed as a server, Log Detective uses `/chat/completions` API as defined
 Configuration field `system_role` can be used to set role name for APIs with non-standard roles.
 However, proper function of Log Detective can not be guaranteed in such cases.
 
-## Real Example
-
-Log Detective can work with any logs, though we optimize it for RPM build logs.
-
-We're going to analyze a failed build of a python-based library that happened in Fedora Koji buildsystem:
-```
-$ logdetective https://kojipkgs.fedoraproject.org//work/tasks/8157/117788157/build.log
-Explanation:
-[Child return code was: 0] : The rpm build process executed successfully without any errors until the 'check' phase.
-
-[wamp/test/test_wamp_component_aio.py::test_asyncio_component] : Pytest found
-two tests marked with '@pytest.mark.asyncio' but they are not async functions.
-This warning can be ignored unless the tests are intended to be run
-asynchronously.
-
-[wamp/test/test_wamp_component_aio.py::test_asyncio_component_404] : Another
-Pytest warning for the same issue as test_asyncio_component.
-
-[-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html] :
-This line is not related to the error, but it is a reminder to refer to Pytest
-documentation for handling warnings.
-
-[=========================== short test summary info
-============================] : This section shows the summary of tests that
-were executed. It shows the number of tests passed, failed, skipped,
-deselected, and warnings.
-
-[FAILED wamp/test/test_wamp_cryptosign.py::TestSigVectors::test_vectors] : A
-failed test is reported with the name of the test file, the name of the test
-method, and the name of the test case that failed. In this case,
-TestSigVectors::test_vectors failed.
-
-[FAILED
-websocket/test/test_websocket_protocol.py::WebSocketClientProtocolTests::test_auto_ping]
-: Another failed test is reported with the same format as the previous test. In
-this case, it is WebSocketClientProtocolTests::test_auto_ping that failed.
-
-[FAILED websocket/test/test_websocket_protocol.py::WebSocketServerProtocolTests::test_interpolate_server_status_template]
-: A third failed test is reported with the same format as the previous tests.
-In this case, it is
-WebSocketServerProtocolTests::test_interpolate_server_status_template that
-failed.
-
-[FAILED websocket/test/test_websocket_protocol.py::WebSocketServerProtocolTests::test_sendClose_reason_with_no_code]
-: Another failed test is reported. This time it is
-WebSocketServerProtocolTests::test_sendClose_reason_with_no_code.
-
-[FAILED websocket/test/test_websocket_protocol.py::WebSocketServerProtocolTests::test_sendClose_str_reason]
-: Another failed test is reported with the same test file and test method name,
-but a different test case name: test_sendClose_str_reason.
-
-[==== 13 failed, 195 passed, 64 skipped, 13 deselected, 2 warnings in 6.55s
-=====] : This is the summary of all tests that were executed, including the
-number of tests that passed, failed, were skipped, deselected, or produced
-warnings. In this case, there were 13 failed tests among a total of 211 tests.
-
-[error: Bad exit status from /var/tmp/rpm-tmp.8C0L25 (%check)] : An error
-message is reported indicating that the 'check' phase of the rpm build process
-failed with a bad exit status.
-```
-
-The most significant lines of a logfile wrapped in `[ ] : ` and followed by textual explanation of the log text done by local LLM.
-
 
 # Contributing
 
@@ -403,6 +355,7 @@ For larger code changes, please consult us first by creating an issue.
 We are always looking for more annotated snippets that will increase the quality of Log Detective's results. You can contribute on our [website](https://logdetective.com/).
 
 Please use pre-commit to ensure that your code meets basic linting requirements.
+
 
 # Tests
 
@@ -489,31 +442,6 @@ podman-compose -f docker-compose-dev.yaml up server
 ```
 
 - Run Visual Stdio Code debug configuration named *Python Debug: Remote Attach*
-
-## Visual Studio Code CLI debugging
-
-When debugging the CLI application, the `./scripts/debug_runner.py` script can be used
-as a stand in for stump script created during package installation.
-
-Using `launch.json`, or similar alternative, arguments can be specified for testing.
-
-Example:
-
-```json
-{
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": "Python: Debug Installed Module",
-            "type": "debugpy",
-            "request": "launch",
-            "console": "integratedTerminal",
-            "program": "${workspaceFolder}/scripts/debug_runner.py",
-            "args": [<URL_OF_A_LOG>]
-        }
-    ]
-}
-```
 
 ## License
 
