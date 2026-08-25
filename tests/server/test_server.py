@@ -1,5 +1,6 @@
-from pathlib import Path
 import asyncio
+from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 import aiohttp
 import aioresponses
@@ -7,7 +8,6 @@ import pytest
 from pydantic import HttpUrl
 
 import gitlab
-from flexmock import flexmock
 
 from logdetective.server.config import SERVER_CONFIG
 from logdetective.remote_log import RemoteLog
@@ -235,13 +235,12 @@ async def test_get_artifacts_delayed_download_no_http_call(monkeypatch):
         ]
     )
 
-    async with aiohttp.ClientSession() as session:
-        mock_remote_log = flexmock(RemoteLog)
-        mock_remote_log.should_receive("get_url_content").never()
-
-        artifacts = await get_artifacts_from_payload(
-            payload, session, request_size=0
-        )
+    with patch.object(RemoteLog, "get_url_content", new_callable=AsyncMock) as mock_get_content:
+        async with aiohttp.ClientSession() as session:
+            artifacts = await get_artifacts_from_payload(
+                payload, session, request_size=0
+            )
+            mock_get_content.assert_not_called()
 
     assert isinstance(artifacts["no_fetch.log"], RemoteLog)
 
@@ -263,21 +262,21 @@ async def test_get_artifacts_immediate_download_returns_string(
         ]
     )
 
-    awaited_log = asyncio.Future()
-    awaited_log.set_result("downloaded content")
-    mock_remote_log = flexmock(RemoteLog)
+    with (
+        patch.object(RemoteLog, "__init__", return_value=None) as mock_init,
+        patch.object(
+            RemoteLog, "get_url_content", new_callable=AsyncMock, return_value="downloaded content"
+        ) as mock_url_content,
+    ):
+        async with aiohttp.ClientSession() as session:
+            artifacts = await get_artifacts_from_payload(
+                payload, session, request_size=request_size
+            )
+            mock_init.assert_called_with(
+                "http://path.to/immediate.log",
+                session,
+                limit_bytes=SERVER_CONFIG.general.max_artifact_size - request_size,
+            )
+            mock_url_content.assert_called_once()
 
-    async with aiohttp.ClientSession() as session:
-        mock_remote_log.should_receive("__init__").with_args(
-            "http://path.to/immediate.log",
-            session,
-            limit_bytes=SERVER_CONFIG.general.max_artifact_size - request_size,
-        )
-        mock_remote_log.should_receive("get_url_content").and_return(
-            awaited_log
-        ).once()
-        artifacts = await get_artifacts_from_payload(
-            payload, session, request_size=request_size
-        )
-
-    assert isinstance(artifacts["immediate.log"], str)
+        assert isinstance(artifacts["immediate.log"], str)

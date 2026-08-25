@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 import koji
 import pytest
 from beeai_framework.backend import ChatModel
@@ -23,9 +23,9 @@ from tests.server.test_helpers import (
 
 @pytest.mark.parametrize("arch", ARCHES)
 @pytest.mark.asyncio
-async def test_koji_get_failed_subtask_info(mocker, arch):
+async def test_koji_get_failed_subtask_info(arch):
     # Mock the Koji session
-    mock_session = mocker.Mock()
+    mock_session = MagicMock()
 
     # Mock the parent task info
     mock_session.getTaskInfo.return_value = {
@@ -67,11 +67,11 @@ async def test_koji_get_failed_subtask_info(mocker, arch):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("method", SIMPLE_METHODS)
 @pytest.mark.parametrize("taskid,arch", SUBTASK_ARCHES)
-async def test_koji_get_failed_subtask_info_arches(mocker, taskid, arch, method):
+async def test_koji_get_failed_subtask_info_arches(taskid, arch, method):
     """Test retrieval of substasks for tasks of type `buildArch` or `buildSRPMFromSCM`.
     These should be returned directly, without going trough architectures."""
     # Mock the Koji session
-    mock_session = mocker.Mock()
+    mock_session = MagicMock()
 
     mock_session.getTaskInfo.return_value = {
         "state": koji.TASK_STATES["FAILED"],
@@ -95,9 +95,9 @@ async def test_koji_get_failed_subtask_info_arches(mocker, taskid, arch, method)
 
 @pytest.mark.parametrize("method", SIMPLE_METHODS)
 @pytest.mark.asyncio
-async def test_koji_get_failed_subtask_from_canceledtask(mocker, method):
+async def test_koji_get_failed_subtask_from_canceledtask(method):
     # Mock the Koji session
-    mock_session = mocker.Mock()
+    mock_session = MagicMock()
 
     # Mock the parent task info
     mock_session.getTaskInfo.return_value = {
@@ -143,11 +143,11 @@ async def test_koji_get_failed_subtask_from_canceledtask(mocker, method):
 
 @pytest.mark.parametrize("method", SIMPLE_METHODS)
 @pytest.mark.asyncio
-async def test_koji_get_failed_log_from_task(mocker, method):
+async def test_koji_get_failed_log_from_task(method):
     task_id = EXAMPLE_TASK_ID
 
     # Mock the Koji session
-    mock_session = create_mock_koji_session(mocker, task_id, method)
+    mock_session = create_mock_koji_session(task_id, method)
 
     # Test getting log from a failed task
     log_file, log_contents = await get_failed_log_from_task(
@@ -167,12 +167,12 @@ async def test_koji_get_failed_log_from_task(mocker, method):
 
 @pytest.mark.parametrize("method", SIMPLE_METHODS)
 @pytest.mark.asyncio
-async def test_koji_get_failed_log_from_task_logs_too_large(mocker, method):
+async def test_koji_get_failed_log_from_task_logs_too_large(method):
     """Test that attempt to download log larger than a limit raises an exception."""
     task_id = EXAMPLE_TASK_ID
 
     # Mock the Koji session
-    mock_session = create_mock_koji_session(mocker, task_id, method)
+    mock_session = create_mock_koji_session(task_id, method)
 
     # Test getting a log that is too large
     with pytest.raises(LogsTooLargeError):
@@ -187,14 +187,12 @@ async def test_koji_get_failed_log_from_task_logs_too_large(mocker, method):
 
 @pytest.mark.parametrize("method", SIMPLE_METHODS)
 @pytest.mark.asyncio
-async def test_koji_get_failed_log_from_task_log_missing(mocker, method):
+async def test_koji_get_failed_log_from_task_log_missing(method):
     """Test that attempt to download log larger than a limit raises an exception."""
     task_id = EXAMPLE_TASK_ID
 
     # Mock the Koji session
-    mock_session = create_mock_koji_session(
-        mocker, task_id, method, list_task_output=False
-    )
+    mock_session = create_mock_koji_session(task_id, method, list_task_output=False)
 
     # Test getting a log that is too large
     with pytest.raises(LogsMissingError):
@@ -208,17 +206,18 @@ async def test_koji_get_failed_log_from_task_log_missing(mocker, method):
 
 
 @pytest.fixture
-def mock_analysis(mocker, request):
+def mock_analysis(request):
     """Fixture to mock analyze_artifacts directly at the server level."""
     message = getattr(request, "param", "This is a mock message")
     mock_response = APIResponse(
         explanation=Explanation(text=message),
         snippets=None
     )
-    return mocker.patch(
+    with patch(
         "logdetective.server.server.analyze_artifacts",
         AsyncMock(return_value=mock_response)
-    )
+    ) as mock:
+        yield mock
 
 
 @pytest.mark.parametrize(
@@ -226,11 +225,11 @@ def mock_analysis(mocker, request):
 )
 @pytest.mark.parametrize("method", SIMPLE_METHODS)
 @pytest.mark.asyncio
-async def test_koji_analyze_koji_task(mocker, method, mock_analysis):
+async def test_koji_analyze_koji_task(method, mock_analysis):
     async with DatabaseFactory().make_new_db() as _:
         # Mock the KojiInstanceConfig
-        mock_koji_instance_config = mocker.Mock()
-        mock_koji_conn = create_mock_koji_session(mocker, EXAMPLE_TASK_ID, method)
+        mock_koji_instance_config = MagicMock()
+        mock_koji_conn = create_mock_koji_session(EXAMPLE_TASK_ID, method)
         mock_koji_instance_config.get_connection.return_value = mock_koji_conn
         mock_koji_instance_config.max_artifact_size = mib_to_bytes(1)
         mock_koji_instance_config.name = "fedora"

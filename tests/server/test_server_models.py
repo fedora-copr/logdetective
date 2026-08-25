@@ -1,9 +1,10 @@
 import datetime
-import pytest
-from pytest_mock import MockerFixture
-import yaml
+from unittest.mock import patch
 
+import pytest
+import yaml
 from pydantic import ValidationError
+
 from logdetective.server.models import (
     TimePeriod,
     Config,
@@ -11,8 +12,6 @@ from logdetective.server.models import (
     ArtifactFile,
     AnalysisRequest,
 )
-from logdetective.constants import DEFAULT_MAXIMUM_ARTIFACT_MIB
-from logdetective.utils import mib_to_bytes
 
 
 def test_TimePeriod():
@@ -60,19 +59,18 @@ def test_default_initialization_and_configuration():
     assert not config.python_traceback
 
 
-def test_initialization_with_custom_data(mocker: MockerFixture):
+def test_initialization_with_custom_data():
     """Tests that ExtractorConfig correctly uses custom values from a provided
     data dictionary and instantiates all relevant extractors.
     """
-    mocker.patch("logdetective.server.models.check_csgrep", return_value=True)
-
     custom_data = {
         "max_clusters": 15,
         "verbose": True,
         "max_snippet_len": 500,
         "csgrep": True,
     }
-    config = ExtractorConfig.model_validate(custom_data)
+    with patch("logdetective.server.models.check_csgrep", return_value=True):
+        config = ExtractorConfig.model_validate(custom_data)
 
     assert config.max_clusters == 15
     assert config.verbose is True

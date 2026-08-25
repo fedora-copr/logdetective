@@ -1,11 +1,10 @@
 import datetime
 from typing import Callable
+from types import SimpleNamespace
 
 import pytest
 import aiohttp
 import aioresponses
-
-from flexmock import flexmock
 
 from logdetective.server.database.models import AnalyzeRequestMetrics, EndpointType
 from logdetective.server.models import Explanation, TimePeriod, MetricTimeSeries
@@ -38,10 +37,10 @@ from tests.server.test_helpers import (
 @pytest.mark.parametrize(
     "response",
     [
-        flexmock(
+        SimpleNamespace(
             explanation=Explanation(text="abc")
         ),
-        flexmock(),  # mimic StreamResponse
+        SimpleNamespace(),  # mimic StreamResponse
     ],
 )
 @pytest.mark.asyncio
