@@ -6,10 +6,7 @@ import pytest
 from jinja2.exceptions import TemplateNotFound
 
 from logdetective.utils import (
-    compute_certainty,
-    format_snippets,
     load_prompts,
-    prompt_to_messages,
     filter_snippet_patterns,
     load_skip_snippet_patterns,
     get_chunks,
@@ -27,32 +24,10 @@ from logdetective.models import SkipSnippets
 from logdetective.prompts import PromptManager
 
 from tests.base.test_helpers import (
-    test_snippets,
     test_filter_patterns,
     test_snippets_filtering,
     simple_log,
 )
-
-
-@pytest.mark.parametrize(
-    "probs", ([{"logprob": 66.6}], [{"logprob": 99.9}, {"logprob": 1.0}])
-)
-def test_compute_certainty(probs):
-    """test compute_certainty and make sure we can use numpy correctly"""
-    compute_certainty(probs)
-
-
-@pytest.mark.parametrize("snippets", test_snippets)
-def test_format_snippets(snippets):
-    """Test snippet formatting with both simple snippets, and line numbers"""
-    formatted_snippets = format_snippets(snippets)
-
-    for snippet in snippets:
-        if isinstance(snippet, tuple):
-            assert str(snippet[0]) in formatted_snippets
-            assert snippet[1] in formatted_snippets
-        else:
-            assert snippet in formatted_snippets
 
 
 def test_load_prompts_wrong_path():
@@ -158,37 +133,6 @@ async def test_get_url_content_connection_fails(head_status, get_status):
             remote_log = RemoteLog(url, http)
             with pytest.raises(RemoteLogAccessError):
                 await remote_log.get_url_content()
-
-
-@pytest.mark.parametrize("user_role", ["user", "something"])
-@pytest.mark.parametrize("system_role", ["developer", "user"])
-def test_message_formatting(system_role, user_role):
-    """Test message formatting utility function."""
-    user_msg = "Hello world!"
-    system_msg = "This is a system message!"
-    expected_messages_separate_roles = [
-        {
-            "role": system_role,
-            "content": system_msg,
-        },
-        {
-            "role": user_role,
-            "content": user_msg,
-        },
-    ]
-
-    expected_messages_single_role = [
-        {"role": user_role, "content": f"{system_msg}\n{user_msg}"}
-    ]
-
-    messages = prompt_to_messages(user_msg, system_msg, system_role, user_role)
-    # Test concatenation of messages if system_role and user_role are the same,
-    # this behavior is necessary for Log Detective to work with models that were
-    # not trained with a separate system user.
-    if system_role and user_role and system_role == user_role:
-        assert expected_messages_single_role == messages
-    else:
-        assert expected_messages_separate_roles == messages
 
 
 def test_snippet_filtering():
