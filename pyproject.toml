@@ -72,7 +72,7 @@ packages = [
 ]
 
 [project.optional-dependencies]
-server-testing = [
+testing = [
     "fastapi>=0.111.1,<1.0.0",
     "sqlalchemy>=2.0.36,<3.0.0",
     "alembic>=1.13.3,<2.0.0",
@@ -88,10 +88,7 @@ server-testing = [
     "fastembed>=0.8.0",
     "pgvector>=0.4.2",
     "google-cloud-aiplatform>=1.158.0",
-    "pytest-mock",
     "responses",
-]
-testing = [
     "pytest",
     "pytest-asyncio",
     "aioresponses",

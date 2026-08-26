@@ -2,7 +2,7 @@ import pytest
 
 from sqlalchemy.exc import IntegrityError
 
-from tests.server.test_helpers import (
+from tests.test_helpers import (
     DatabaseFactory,
 )
 

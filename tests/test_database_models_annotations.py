@@ -11,7 +11,7 @@ from logdetective.database.models.annotated_builds import (
     AnnotatedSnippets,
     AnnotationUpdates,
 )
-from tests.server.test_helpers import DatabaseFactory
+from tests.test_helpers import DatabaseFactory
 
 
 ZERO_EMBEDDING = np.zeros(EMBEDDING_VECTOR_SIZE, dtype=np.float32).tolist()

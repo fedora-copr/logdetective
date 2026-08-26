@@ -21,7 +21,7 @@ Production uses either vLLM with GPU inference, or Gemini / VertexAI.
 - Tox orchestrates test environments (tox base_python is 3.13.).
 
 To install full superset of dependencies in a single resolution pass, use:
-`poetry install --extras "server server-testing testing"`
+`poetry install --extras "testing"`
 
 Tox environments use two separate `poetry install` calls.
 Combined form is more stable for interactive development.
@@ -35,9 +35,8 @@ For CUDA GPU acceleration, uncomment the device lines in `docker-compose-dev.yam
 
 # Testing
 
-- Core tests: `tox -e pytest_base`
-- Server tests: `tox -e pytest_server` - require podman; run on Postgres + pgvector (see `Container.database`)
-- CI runs on GitHub Actions which run tox: pytest (base + server), and all linters (`tox -e lint,style,ruff,djlint`)
+- `tox -e pytest` - requires podman; runs on Postgres + pgvector (see `Container.database`)
+- CI runs on GitHub Actions which run `tox -e pytest` + `tox -e lint,style,ruff,djlint`
 
 # Data modeling conventions
 
@@ -53,10 +52,9 @@ For CUDA GPU acceleration, uncomment the device lines in `docker-compose-dev.yam
 
 # Test conventions
 
-- Split into `tests/base` (utilities) and `tests/server`.
 - Async tests use `@pytest.mark.asyncio` decorator
 - Mocking: `unittest.mock` or `flexmock` for object mocking/patching, `aioresponses` for async HTTP
-- Some test data fixtures (related to gitlab) live in `tests/server/data/` as YAML files
+- Some test data fixtures (related to gitlab) live in `tests/data/` as YAML files
 
 # Package layout
 
@@ -68,8 +66,7 @@ For CUDA GPU acceleration, uncomment the device lines in `docker-compose-dev.yam
 - `logdetective/templates/` - Jinja2 response templates (HTML, GitLab markdown)
 - `alembic/versions/` - Database migration scripts
 - `server/` - Deployment configs (gunicorn, nginx templates, server config YAML)
-- `tests/base/` - Tests for core package (no DB)
-- `tests/server/` - Tests for server package (requires PostgreSQL)
+- `tests/` - Tests for utilities and server (requires PostgreSQL)
 
 # Documentation
 

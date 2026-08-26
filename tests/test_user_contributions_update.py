@@ -14,8 +14,8 @@ from logdetective.database.models.annotated_builds import (
     AnnotatedSnippets,
     AnnotationUpdates,
 )
-from tests.server.test_helpers import DatabaseFactory
-from tests.server.test_user_contributions_helpers import (
+from tests.test_helpers import DatabaseFactory
+from tests.test_user_contributions_helpers import (
     ZERO_EMBEDDING,
     CONTRIBUTION_VALID,
     CONTRIBUTION_SECOND,

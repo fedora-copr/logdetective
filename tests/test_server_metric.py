@@ -18,7 +18,7 @@ from logdetective.metric import (
     TimeDefinition
 )
 
-from tests.server.test_helpers import (
+from tests.test_helpers import (
     build_log_request,
     build_log_url,
     build_log_one_file,

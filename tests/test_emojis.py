@@ -16,7 +16,7 @@ from logdetective.database.models import (
 )
 from logdetective.emoji import collect_emojis, collect_emojis_for_mr
 
-from tests.server.test_helpers import (
+from tests.test_helpers import (
     DatabaseFactory,
 )
 
@@ -26,11 +26,11 @@ gitlab_conn = gitlab.Gitlab(
     url="https://gitlab.com/", private_token=os.environ.get("LOGDETECTIVE_TOKEN")
 )
 
-COLLECT_EMOJIS_RESPONSES = "tests/server/data/test_collect_emojis.yaml"
-COLLECT_EMOJIS_FOR_MR_RESPONSES = "tests/server/data/test_collect_emojis_for_mr.yaml"
-EMOJI_REMOVED_RESPONSES = "tests/server/data/test_emoji_removed.yaml"
+COLLECT_EMOJIS_RESPONSES = "tests/data/test_collect_emojis.yaml"
+COLLECT_EMOJIS_FOR_MR_RESPONSES = "tests/data/test_collect_emojis_for_mr.yaml"
+EMOJI_REMOVED_RESPONSES = "tests/data/test_emoji_removed.yaml"
 COLLECT_EMOJIS_RESPONSES_WITH_404 = (
-    "tests/server/data/test_collect_emojis_with_404.yaml"
+    "tests/data/test_collect_emojis_with_404.yaml"
 )
 
 

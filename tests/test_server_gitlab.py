@@ -28,7 +28,7 @@ from logdetective.database.models import (
 )
 from logdetective.exceptions import LogsTooLargeError, LogDetectiveArtifactsMissingError
 
-from tests.server.test_helpers import (
+from tests.test_helpers import (
     DatabaseFactory,
     create_zip_archive,
     mock_artifact_download,
