@@ -1,15 +1,16 @@
 import os
 import logging
 import subprocess as sp
-from typing import Optional, Tuple
+from typing import Generator, Optional, Tuple
 
 from drain3.template_miner import TemplateMiner
 from drain3.template_miner_config import TemplateMinerConfig
 from pydantic import ValidationError
 
-from logdetective.constants import TRUNCATED
-from logdetective.utils import get_chunks, filter_snippet_patterns
+from logdetective.constants import TRUNCATED, MINIMUM_SNIPPET_TRUNCATION_LEN
 from logdetective.models import SkipSnippets, CSGrepOutput
+from logdetective.utils import filter_snippet_patterns
+
 
 LOG = logging.getLogger("logdetective")
 
@@ -66,9 +67,69 @@ class DrainExtractor(Extractor):
         config.drain_max_clusters = max_clusters
         self.miner = TemplateMiner(config=config)
 
+    @staticmethod
+    def _new_message(text: str) -> bool:
+        """Set of heuristics for determining whether or not
+        does the current chunk of log text continue on next line.
+
+        Following rules are checked, in order:
+        * is the first character is whitespace
+        * is the first character backslash '|'
+        """
+        conditionals = [
+            lambda string: string[0].isspace(),
+            lambda string: string[0] == "|",
+        ]
+
+        for c in conditionals:
+            y = c(text)
+            if y:
+                return False
+
+        return True
+
+    def _get_chunks(self, text: str) -> Generator[Tuple[int, str], None, None]:
+        """Split log into chunks according to heuristic
+        based on whitespace and backslash presence.
+        """
+        if self.max_snippet_len < MINIMUM_SNIPPET_TRUNCATION_LEN:
+            raise ValueError(
+                f"Snippets must be at least {MINIMUM_SNIPPET_TRUNCATION_LEN} chars long"
+            )
+        lines = text.splitlines()
+
+        # Chunk we will be yielding
+        chunk = ""
+        # Number of line where the message started
+        original_line = 1
+        for i, line in enumerate(lines, start=1):
+            if len(line) == 0:
+                continue
+            if self._new_message(line):
+                # Yield chunk if we have it
+                if len(chunk) > 0:
+                    yield (original_line, chunk)
+                original_line = i
+                chunk = line
+            else:
+                # If the chunk was truncated, we'll start building a new one
+                if not chunk:
+                    original_line = i
+                    chunk = line
+                else:
+                    chunk += "\n" + line
+            if len(chunk) > self.max_snippet_len:
+                # If the chunk is too long, truncate and add <truncated> tag
+                chunk = chunk[:max(self.max_snippet_len - len(TRUNCATED), 0)] + TRUNCATED
+                yield (original_line, chunk)
+                chunk = ""
+        # if we still have some text left over
+        if chunk:
+            yield (original_line, chunk)
+
     def __call__(self, log: str, filename: str | None = None) -> list[Tuple[int, str]]:
         # Create chunks
-        chunks = list(get_chunks(log, self.max_snippet_len))
+        chunks = list(self._get_chunks(log))
 
         chunks = self.filter_snippet_patterns(chunks, filename)
 
