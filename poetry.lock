@@ -2063,7 +2063,7 @@ description = "brain-dead simple config-ini parsing"
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"server-testing\" or extra == \"testing\""
+markers = "extra == \"testing\""
 files = [
     {file = "iniconfig-2.3.0-py3-none-any.whl", hash = "sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12"},
     {file = "iniconfig-2.3.0.tar.gz", hash = "sha256:c76315c77db068650d49c5b56314774a7804df16fee4402c1f19d6d15d8c4730"},
@@ -3107,7 +3107,7 @@ description = "plugin and hook calling mechanisms for python"
 optional = true
 python-versions = ">=3.9"
 groups = ["main"]
-markers = "extra == \"server-testing\" or extra == \"testing\""
+markers = "extra == \"testing\""
 files = [
     {file = "pluggy-1.6.0-py3-none-any.whl", hash = "sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746"},
     {file = "pluggy-1.6.0.tar.gz", hash = "sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3"},
@@ -3624,7 +3624,7 @@ description = "pytest: simple powerful testing with Python"
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"server-testing\" or extra == \"testing\""
+markers = "extra == \"testing\""
 files = [
     {file = "pytest-9.0.3-py3-none-any.whl", hash = "sha256:2c5efc453d45394fdd706ade797c0a81091eccd1d6e4bccfcd476e2b8e0ab5d9"},
     {file = "pytest-9.0.3.tar.gz", hash = "sha256:b86ada508af81d19edeb213c681b1d48246c1a91d304c6c81a427674c17eb91c"},
@@ -3689,7 +3689,7 @@ description = "Thin-wrapper around the mock package for easier use with pytest"
 optional = true
 python-versions = ">=3.9"
 groups = ["main"]
-markers = "extra == \"server-testing\" or extra == \"testing\""
+markers = "extra == \"testing\""
 files = [
     {file = "pytest_mock-3.15.1-py3-none-any.whl", hash = "sha256:0a25e2eb88fe5168d535041d09a4529a188176ae608a6d249ee65abc0949630d"},
     {file = "pytest_mock-3.15.1.tar.gz", hash = "sha256:1849a238f6f396da19762269de72cb1814ab44416fa73a8686deac10b0d87a0f"},
@@ -4039,7 +4039,7 @@ description = "A utility library for mocking out the `requests` Python library."
 optional = true
 python-versions = ">=3.8"
 groups = ["main"]
-markers = "extra == \"server-testing\""
+markers = "extra == \"testing\""
 files = [
     {file = "responses-0.26.2-py3-none-any.whl", hash = "sha256:6fdfeabd58e5ec473b98dfe02e6d46d3173bd8dd573eff2ccccf1a05a5135364"},
     {file = "responses-0.26.2.tar.gz", hash = "sha256:9c9259b46a8349197edebf43cfa68a87e1a2802ef503ff8b2fecbabc0b45afd8"},
@@ -5010,10 +5010,9 @@ test = ["big-O", "jaraco.functools", "jaraco.itertools", "jaraco.test", "more_it
 type = ["pytest-mypy (>=1.0.1) ; platform_python_implementation != \"PyPy\""]
 
 [extras]
-server-testing = ["alembic", "asyncpg", "fastapi", "fastembed", "google-cloud-aiplatform", "gunicorn", "httpx", "koji", "pgvector", "pytest-mock", "python-gitlab", "responses", "sentry-sdk", "sqlalchemy", "starlette", "tenacity", "uvicorn"]
-testing = ["aioresponses", "flexmock", "pytest", "pytest-asyncio", "pytest-cov", "pytest-mock"]
+testing = ["aioresponses", "alembic", "asyncpg", "fastapi", "fastembed", "flexmock", "google-cloud-aiplatform", "gunicorn", "httpx", "koji", "pgvector", "pytest", "pytest-asyncio", "pytest-cov", "pytest-mock", "python-gitlab", "responses", "sentry-sdk", "sqlalchemy", "starlette", "tenacity", "uvicorn"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.14"
-content-hash = "ee5dc267a0648c8ecbca4761935b9869fcf11017828f626a99c883c4fb63af18"
+content-hash = "459fc83e4c4a589edc31778b115a14cda08cea829e2fbb8663342b93d3b06043"

@@ -1,8 +1,6 @@
 from fastapi.responses import Response as BasicResponse
 
-from logdetective.utils import (
-    get_version,
-)
+from logdetective.utils import get_version
 
 
 def test_obtain_version_number():

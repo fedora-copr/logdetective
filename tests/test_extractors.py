@@ -11,7 +11,7 @@ from logdetective.extractors import (
 )
 from logdetective.models import SkipSnippets
 
-from tests.base.test_helpers import (
+from tests.test_snippets import (
     test_filter_patterns,
     test_snippets_filtering,
     simple_log,

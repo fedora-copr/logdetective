@@ -18,7 +18,7 @@ require:
 component:
 - logdetective
 
-test: tox -e pytest_server
+test: tox -e pytest
 
 duration: 30m
 
