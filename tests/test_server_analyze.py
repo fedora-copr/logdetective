@@ -7,7 +7,7 @@ from httpx import ASGITransport, AsyncClient
 from logdetective.server import app, get_http_session, validate_request_size
 from logdetective.config import SERVER_CONFIG
 
-from tests.server.test_helpers import mock_AnalyzeRequestMetrics
+from tests.test_helpers import mock_AnalyzeRequestMetrics
 
 
 @pytest_asyncio.fixture

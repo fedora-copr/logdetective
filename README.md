@@ -360,8 +360,7 @@ Please use pre-commit to ensure that your code meets basic linting requirements.
 
 # Tests
 
-Tests for code used by server must placed in the `./tests/server/` path, while tests for general
-code must be in the `./tests/base/` path.
+Tests for code (server or utilities) must placed in the `./tests/` path.
 
 The [tox](https://github.com/tox-dev/tox) is used to manage tests. Please install `tox` package into your distribution and run:
 ```sh
@@ -369,14 +368,13 @@ tox
 ```
 This will create a virtual environment with dependencies and run all the tests. For more information follow the tox help.
 
-Tox environments for base and server tests are separate, each installs different dependencies. You can run test environments separately, like this:
+To run tests in the tox environment:
 
 ```sh
-tox run -e pytest_base # running base tests:
-tox run -e pytest_server # running server tests
+tox run -e pytest
 ```
 
-To run server test suite you will need postgresql client utilities.
+To run the test suite, you will need postgresql client utilities.
 ```sh
 dnf install postgresql
 ```

@@ -23,7 +23,7 @@ from logdetective.models import (
     Config,
 )
 
-from tests.server.test_helpers import (
+from tests.test_helpers import (
     MOCK_LOG,
     mock_config,
 )
