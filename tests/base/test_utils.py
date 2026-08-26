@@ -5,15 +5,7 @@ import aioresponses
 import pytest
 from jinja2.exceptions import TemplateNotFound
 
-from logdetective.utils import (
-    load_prompts,
-    filter_snippet_patterns,
-    load_skip_snippet_patterns,
-    get_chunks,
-    mib_to_bytes,
-)
-from logdetective.constants import DEFAULT_MAXIMUM_ARTIFACT_MIB, PROMPT_PATH, TRUNCATED
-from logdetective.remote_log import RemoteLog
+from logdetective.constants import DEFAULT_MAXIMUM_ARTIFACT_MIB, PROMPT_PATH
 from logdetective.exceptions import (
     RemoteLogAccessError,
     RemoteLogHeaderError,
@@ -22,6 +14,13 @@ from logdetective.exceptions import (
 )
 from logdetective.models import SkipSnippets
 from logdetective.prompts import PromptManager
+from logdetective.remote_log import RemoteLog
+from logdetective.utils import (
+    load_prompts,
+    filter_snippet_patterns,
+    load_skip_snippet_patterns,
+    mib_to_bytes,
+)
 
 from tests.base.test_helpers import (
     test_filter_patterns,
@@ -264,60 +263,3 @@ def test_get_patterns_for_file_exact_matching():
 
     patterns_unknown = skip_snippets.get_patterns_for_file("unknown.txt")
     assert set(patterns_unknown) == {"c"}
-
-
-@pytest.mark.parametrize("max_chunk_len", [100, 120, 150])
-def test_get_chunks_max_length(simple_log, max_chunk_len):
-    """Test that maximum length of chunks is properly enforced"""
-    log = "".join(simple_log)
-    chunks = list(get_chunks(log, max_chunk_len=max_chunk_len))
-
-    # Number of chunks must be <= number of original lines
-    assert len(chunks) <= len(simple_log)
-
-    # All chunks must obey contraints and exist in the original text
-    for c in chunks:
-        assert len(c[1]) <= max_chunk_len
-        assert c[1][:-len(TRUNCATED)] in log
-
-    # All chunks must have unique lines
-    lines = set(c[0] for c in chunks)
-    assert len(lines) == len(chunks)
-
-    # Last chunk must not be empty
-    assert len(chunks[-1][1]) > 0
-
-
-@pytest.mark.parametrize("max_chunk_len", [20, 50, 70])
-def test_get_chunks_raises_on_too_short(simple_log, max_chunk_len):
-
-    log = "".join(simple_log)
-    with pytest.raises(ValueError):
-        list(get_chunks(log, max_chunk_len=max_chunk_len))
-
-
-def test_empty_log_creates_no_chunks():
-    log = ""
-    chunks = list(get_chunks(log))
-
-    assert len(chunks) == 0
-
-
-def test_leading_whitespace_chunks(simple_log):
-
-    log = " ".join(simple_log)
-
-    chunks = list(get_chunks(log))
-
-    # Number of chunks must be <= number of original lines
-    assert len(chunks) <= len(simple_log)
-
-    for chunk in chunks[1:]:
-        assert chunk[1].startswith(" ")
-
-    # All chunks must have unique lines
-    lines = set(c[0] for c in chunks)
-    assert len(lines) == len(chunks)
-
-    # Last chunk must not be empty
-    assert len(chunks[-1][1]) > 0
