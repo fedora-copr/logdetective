@@ -167,11 +167,12 @@ curl "http://localhost:8080/metrics/analyze-gitlab/emojis?days=5"
 
 ## System Prompts
 
-Prompts are defined as Jinja templates and placed in location specified `LOGDETECTIVE_PROMPT_TEMPLATES` environment variable of the container service. With further, optional, configuration in the `prompts.yml` configuration file.
+Prompts are defined as Jinja templates and placed in location specified `LOGDETECTIVE_PROMPT_TEMPLATES` (`logdetective/prompts` by default) environment variable of the container service.
+It is possible to add extra sources/references for the agent via `server/config.yml` file (`prompts` section, under `references`).
 
 All system prompt templates must include place for `system_time` variable.
 
-If `references` list is defined in `prompts.yml`, templates must also include a handling for a list of references.
+If `references` list is defined in `server/config.yml`, templates must also include a handling for a list of references.
 
 Example:
 

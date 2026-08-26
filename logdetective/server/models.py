@@ -17,6 +17,7 @@ from logdetective.constants import (
     DEFAULT_MAXIMUM_ARTIFACT_MIB,
     MINIMUM_SNIPPET_TRUNCATION_LEN,
 )
+from logdetective.models import PromptConfig
 
 
 class ArtifactBase(BaseModel):
@@ -403,6 +404,13 @@ class Config(BaseModel):
     gitlab: GitLabConfig = Field(default_factory=GitLabConfig)
     koji: KojiConfig = Field(default_factory=KojiConfig)
     general: GeneralConfig = Field(default_factory=GeneralConfig)
+    prompts: PromptConfig = Field(default_factory=PromptConfig)
+
+    @field_validator("prompts", mode="before")
+    @classmethod
+    def make_prompts_optional(cls, v: Any) -> Any:
+        """Convert undefined into an empty dict."""
+        return {} if v is None else v
 
 
 class TimePeriod(BaseModel):

@@ -1,12 +1,25 @@
 import re
-from typing import Optional
-from pydantic import BaseModel, model_validator
+from typing import Any, Optional
+from pydantic import BaseModel, Field, field_validator, HttpUrl, model_validator
+
+
+class PromptReference(BaseModel):
+    """Reference to some web-source, passed to the system prompt"""
+
+    name: str
+    link: HttpUrl
 
 
 class PromptConfig(BaseModel):
-    """Configuration for basic log detective prompts."""
+    """Model for prompt configuration of log detective."""
 
-    references: Optional[list[dict[str, str]]] = None
+    references: list[PromptReference] = Field(default_factory=list)
+
+    @field_validator("references", mode="before")
+    @classmethod
+    def make_references_optional(cls, v: Any) -> Any:
+        """Convert undefined references to an empty list."""
+        return [] if v is None else v
 
 
 class SkipSnippets(BaseModel):

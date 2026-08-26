@@ -3,9 +3,8 @@ from unittest import mock
 import aiohttp
 import aioresponses
 import pytest
-from jinja2.exceptions import TemplateNotFound
 
-from logdetective.constants import DEFAULT_MAXIMUM_ARTIFACT_MIB, PROMPT_PATH
+from logdetective.constants import DEFAULT_MAXIMUM_ARTIFACT_MIB
 from logdetective.exceptions import (
     RemoteLogAccessError,
     RemoteLogHeaderError,
@@ -13,10 +12,8 @@ from logdetective.exceptions import (
     RemoteLogTooLargeError,
 )
 from logdetective.models import SkipSnippets
-from logdetective.prompts import PromptManager
 from logdetective.remote_log import RemoteLog
 from logdetective.utils import (
-    load_prompts,
     filter_snippet_patterns,
     load_skip_snippet_patterns,
 )
@@ -26,21 +23,6 @@ from tests.base.test_helpers import (
     test_snippets_filtering,
     simple_log,
 )
-
-
-def test_load_prompts_wrong_path():
-    """Test behavior for case when the path doesn't lead to a any file."""
-
-    with pytest.raises(TemplateNotFound):
-        load_prompts("/there/is/nothing/to/read.yml")
-
-
-def test_load_prompts_correct_path():
-    """Test behavior for case when the path is correct."""
-
-    prompts_config = load_prompts(template_path=PROMPT_PATH)
-
-    assert isinstance(prompts_config, PromptManager)
 
 
 @pytest.mark.asyncio
