@@ -5,7 +5,6 @@ from collections.abc import Mapping
 from typing import (
     List,
     Tuple,
-    Generator,
     Optional,
     NamedTuple,
 )
@@ -13,7 +12,6 @@ from typing import (
 import tomllib
 import yaml
 
-from logdetective.constants import TRUNCATED, MINIMUM_SNIPPET_TRUNCATION_LEN
 from logdetective.models import PromptConfig, SkipSnippets
 from logdetective.prompts import PromptManager
 
@@ -56,67 +54,6 @@ SANITIZE_PATTERNS: List[Tuple[re.Pattern[str], str]] = [
 # pylint: disable=missing-function-docstring
 def mib_to_bytes(mib: int) -> int:
     return mib * 1024 * 1024
-
-
-def new_message(text: str) -> bool:
-    """Set of heuristics for determining whether or not
-    does the current chunk of log text continue on next line.
-
-    Following rules are checked, in order:
-    * is the first character is whitespace
-    * is the first character backslash '|'
-    """
-    conditionals = [
-        lambda string: string[0].isspace(),
-        lambda string: string[0] == "|",
-    ]
-
-    for c in conditionals:
-        y = c(text)
-        if y:
-            return False
-
-    return True
-
-
-def get_chunks(
-    text: str, max_chunk_len: int = 2000
-) -> Generator[Tuple[int, str], None, None]:
-    """Split log into chunks according to heuristic
-    based on whitespace and backslash presence.
-    """
-    if max_chunk_len < MINIMUM_SNIPPET_TRUNCATION_LEN:
-        raise ValueError(f"Snippets must be at least {MINIMUM_SNIPPET_TRUNCATION_LEN} chars long")
-    lines = text.splitlines()
-
-    # Chunk we will be yielding
-    chunk = ""
-    # Number of line where the message started
-    original_line = 1
-    for i, line in enumerate(lines, start=1):
-        if len(line) == 0:
-            continue
-        if new_message(line):
-            # Yield chunk if we have it
-            if len(chunk) > 0:
-                yield (original_line, chunk)
-            original_line = i
-            chunk = line
-        else:
-            # If the chunk was truncated, we'll start building a new one
-            if not chunk:
-                original_line = i
-                chunk = line
-            else:
-                chunk += "\n" + line
-        if len(chunk) > max_chunk_len:
-            # If the chunk is too long, truncate and add <truncated> tag
-            chunk = chunk[:max(max_chunk_len - len(TRUNCATED), 0)] + TRUNCATED
-            yield (original_line, chunk)
-            chunk = ""
-    # if we still have some text left over
-    if chunk:
-        yield (original_line, chunk)
 
 
 def sanitize_artifact(log: str) -> str:

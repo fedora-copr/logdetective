@@ -1,15 +1,15 @@
-import re
 import subprocess as sp
 from unittest.mock import MagicMock
 import pytest
 
-from logdetective.models import SkipSnippets
+from logdetective.constants import TRUNCATED
 from logdetective.extractors import (
     Extractor,
     DrainExtractor,
     CSGrepExtractor,
     PythonTracebackExtractor,
 )
+from logdetective.models import SkipSnippets
 
 from tests.base.test_helpers import (
     simple_log,
@@ -125,6 +125,67 @@ def test_drain_extractor_package_unavailable_log(package_unavailable_log):
     messages = [e[1] for e in result]
     for chunk in DNF_PACKAGE_UNAVAILABLE_EXPECTED_SNIPPETS:
         assert chunk in messages
+
+
+@pytest.mark.parametrize("max_chunk_len", [100, 120, 150])
+def test_get_chunks_max_length(simple_log, max_chunk_len):
+    """Test that maximum length of chunks is properly enforced"""
+    log = "".join(simple_log)
+    extractor = DrainExtractor(max_snippet_len=max_chunk_len)
+    chunks = list(extractor._get_chunks(log))
+
+    # Number of chunks must be <= number of original lines
+    assert len(chunks) <= len(simple_log)
+
+    # All chunks must obey contraints and exist in the original text
+    for c in chunks:
+        assert len(c[1]) <= max_chunk_len
+        assert c[1][:-len(TRUNCATED)] in log
+
+    # All chunks must have unique lines
+    lines = set(c[0] for c in chunks)
+    assert len(lines) == len(chunks)
+
+    # Last chunk must not be empty
+    assert len(chunks[-1][1]) > 0
+
+
+@pytest.mark.parametrize("max_chunk_len", [20, 50, 70])
+def test_get_chunks_raises_on_too_short(simple_log, max_chunk_len):
+
+    log = "".join(simple_log)
+    extractor = DrainExtractor(max_snippet_len=max_chunk_len)
+    with pytest.raises(ValueError):
+        list(extractor._get_chunks(log))
+
+
+def test_empty_log_creates_no_chunks():
+
+    log = ""
+    extractor = DrainExtractor()
+    chunks = list(extractor._get_chunks(log))
+
+    assert len(chunks) == 0
+
+
+def test_leading_whitespace_chunks(simple_log):
+
+    log = " ".join(simple_log)
+    extractor = DrainExtractor()
+    chunks = list(extractor._get_chunks(log))
+
+    # Number of chunks must be <= number of original lines
+    assert len(chunks) <= len(simple_log)
+
+    for chunk in chunks[1:]:
+        assert chunk[1].startswith(" ")
+
+    # All chunks must have unique lines
+    lines = set(c[0] for c in chunks)
+    assert len(lines) == len(chunks)
+
+    # Last chunk must not be empty
+    assert len(chunks[-1][1]) > 0
 
 
 # --- Tests for CSGrepExtractor ---
