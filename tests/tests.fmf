@@ -7,15 +7,17 @@ require:
 - python3-tox
 - gcc-c++
 - git
+- krb5-devel
 - libffi
 - python3-devel
 - libffi-devel
 - csdiff
 
+
 component:
 - logdetective
 
-test: tox -e pytest_base
+test: tox -e pytest
 
 duration: 30m
 

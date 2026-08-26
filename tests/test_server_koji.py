@@ -10,7 +10,8 @@ from logdetective.koji import (
     get_failed_subtask_info,
     get_failed_log_from_task,
 )
-from tests.server.test_helpers import (
+
+from tests.test_helpers import (
     DatabaseFactory,
     create_mock_koji_session,
     ARCHES,

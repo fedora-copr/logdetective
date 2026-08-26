@@ -16,7 +16,7 @@ from logdetective.exceptions import (
 from logdetective.models import SkipSnippets
 from logdetective.remote_log import RemoteLog
 
-from tests.base.test_helpers import (
+from tests.test_snippets import (
     test_filter_patterns,
     test_snippets_filtering,
 )

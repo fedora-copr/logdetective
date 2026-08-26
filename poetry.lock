@@ -4026,7 +4026,7 @@ description = "A utility library for mocking out the `requests` Python library."
 optional = true
 python-versions = ">=3.8"
 groups = ["main"]
-markers = "extra == \"server-testing\""
+markers = "extra == \"testing\""
 files = [
     {file = "responses-0.26.2-py3-none-any.whl", hash = "sha256:6fdfeabd58e5ec473b98dfe02e6d46d3173bd8dd573eff2ccccf1a05a5135364"},
     {file = "responses-0.26.2.tar.gz", hash = "sha256:9c9259b46a8349197edebf43cfa68a87e1a2802ef503ff8b2fecbabc0b45afd8"},
@@ -4997,10 +4997,9 @@ test = ["big-O", "jaraco.functools", "jaraco.itertools", "jaraco.test", "more_it
 type = ["pytest-mypy (>=1.0.1) ; platform_python_implementation != \"PyPy\""]
 
 [extras]
-server-testing = ["alembic", "asyncpg", "fastapi", "fastembed", "google-cloud-aiplatform", "gunicorn", "httpx", "koji", "pgvector", "python-gitlab", "responses", "sentry-sdk", "sqlalchemy", "starlette", "tenacity", "uvicorn"]
-testing = ["aioresponses", "pytest", "pytest-asyncio", "pytest-cov", "pytest-mock"]
+testing = ["aioresponses", "alembic", "asyncpg", "fastapi", "fastembed", "google-cloud-aiplatform", "gunicorn", "httpx", "koji", "pgvector", "pytest", "pytest-asyncio", "pytest-cov", "pytest-mock", "python-gitlab", "responses", "sentry-sdk", "sqlalchemy", "starlette", "tenacity", "uvicorn"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.14"
-content-hash = "a7371237194eaf4c542ef457397d6b1fbd5ca2c93a4ab54a13f561f8d03218ef"
+content-hash = "37113a8fc7dcb4688d61f94c615396594b7686cd5af4bf3f11bb36d9a531f72c"
