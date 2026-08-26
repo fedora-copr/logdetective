@@ -17,7 +17,6 @@ SYSTEM_ROLE_DEFAULT = "developer"
 # for server it can be overwritten in config as max_artifact_size (in MiB)
 DEFAULT_MAXIMUM_ARTIFACT_MIB = 50
 
-PROMPT_CONF_PATH = os.environ.get("LOGDETECTIVE_PROMPTS", None)
 PROMPT_PATH = os.environ.get(
     "LOGDETECTIVE_PROMPT_TEMPLATES",
     f"{os.path.dirname(logdetective.__file__)}/prompts/",

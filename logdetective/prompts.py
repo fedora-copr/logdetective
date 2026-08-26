@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from jinja2 import Environment, FileSystemLoader, Template
 
-from logdetective.models import PromptConfig
+from logdetective.models import PromptReference, PromptConfig
 
 
 class PromptManager:  # pylint: disable=too-many-instance-attributes
@@ -13,11 +13,9 @@ class PromptManager:  # pylint: disable=too-many-instance-attributes
     # Templates for system prompts
     _default_system_prompt_template: Template
     _default_agent_start_prompt_template: Template
-    _references: Optional[list[dict[str, str]]] = None
+    _references: list[PromptReference] = []
 
-    def __init__(
-        self, prompts_path: str, prompts_configuration: Optional[PromptConfig] = None
-    ) -> None:
+    def __init__(self, prompts_path: str, prompt_config: PromptConfig | None = None) -> None:
         self._tmp_env = Environment(loader=FileSystemLoader(prompts_path))
 
         self._default_agent_start_prompt_template = self._tmp_env.get_template(
@@ -26,11 +24,7 @@ class PromptManager:  # pylint: disable=too-many-instance-attributes
         self._default_system_prompt_template = self._tmp_env.get_template(
             "system_prompt.j2"
         )
-        self.default_message_template = self._tmp_env.get_template(
-            "message_template.j2"
-        )
-        if prompts_configuration:
-            self._references = prompts_configuration.references
+        self._references = prompt_config.references if prompt_config else []
 
     @property
     def default_system_prompt(self) -> str:
@@ -38,10 +32,6 @@ class PromptManager:  # pylint: disable=too-many-instance-attributes
         return self._default_system_prompt_template.render(
             system_time=datetime.now(timezone.utc), references=self._references
         )
-
-    def render_message_template(self, snippets: str) -> str:
-        """Render message prompt from the template"""
-        return self.default_message_template.render(snippets=snippets)
 
     def agent_start_prompt(
         self,
