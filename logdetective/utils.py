@@ -9,10 +9,8 @@ from typing import (
 )
 
 import tomllib
-import yaml
 
-from logdetective.models import PromptConfig, SkipSnippets
-from logdetective.prompts import PromptManager
+from logdetective.models import SkipSnippets
 
 
 LOG = logging.getLogger("logdetective")
@@ -58,27 +56,6 @@ def sanitize_artifact(log: str) -> str:
     for pattern, replacement in SANITIZE_PATTERNS:
         log = re.sub(pattern, replacement, log)
     return log
-
-
-def load_prompts(
-    template_path: str, config_path: Optional[str] = None
-) -> PromptManager:
-    """Load prompt templates from given path, optionally load PromptConfig
-    and initialize `PromptManager`.
-    If templates are missing or malformed raise an exception."""
-
-    configuration = PromptConfig()
-    if config_path:
-        try:
-            with open(config_path, "r") as file:
-                configuration = PromptConfig(**yaml.safe_load(file))
-        except (FileNotFoundError, TypeError):
-            LOG.error(
-                "Prompt configuration file not found or empty, reverting to defaults.",
-                exc_info=True,
-            )
-
-    return PromptManager(template_path, configuration)
 
 
 def filter_snippet_patterns(

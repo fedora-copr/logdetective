@@ -47,9 +47,7 @@ include = [
     "logdetective/drain3.ini",
     "logdetective/server/templates/gitlab_short_comment.md.j2",
     "logdetective/server/templates/gitlab_full_comment.md.j2",
-    "logdetective/prompts.yml",
     "logdetective/prompts/agent_start_prompt.j2",
-    "logdetective/prompts/message_template.j2",
     "logdetective/prompts/system_prompt.j2",
 ]
 packages = [

@@ -5,10 +5,11 @@ from beeai_framework.backend import ChatModel
 from beeai_framework.backend.types import ChatModelParameters
 from fastembed import TextEmbedding
 
-from logdetective.utils import load_prompts, load_skip_snippet_patterns
+from logdetective.utils import load_skip_snippet_patterns
 from logdetective.server.models import Config, InferenceConfig
-from logdetective.constants import PROMPT_PATH, PROMPT_CONF_PATH, EMBEDDING_MODEL
+from logdetective.constants import PROMPT_PATH, EMBEDDING_MODEL
 import logdetective
+from logdetective.prompts import PromptManager
 
 
 def load_server_config(path: str | None) -> Config:
@@ -92,9 +93,7 @@ SERVER_SKIP_PATTERNS_PATH = os.environ.get(
 )
 
 SERVER_CONFIG = load_server_config(SERVER_CONFIG_PATH)
-PROMPT_CONFIG = load_prompts(
-    template_path=PROMPT_PATH, config_path=PROMPT_CONF_PATH
-)
+PROMPT_CONFIG = PromptManager(PROMPT_PATH, prompt_config=SERVER_CONFIG.prompts)
 SKIP_SNIPPETS_CONFIG = load_skip_snippet_patterns(SERVER_SKIP_PATTERNS_PATH)
 
 LOG = get_log(SERVER_CONFIG)
