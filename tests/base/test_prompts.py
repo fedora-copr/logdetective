@@ -2,50 +2,49 @@ import os
 
 import pytest
 
-from jinja2 import exceptions
+from jinja2.exceptions import TemplateNotFound
+from logdetective.constants import PROMPT_PATH
 from logdetective.prompts import PromptManager
-from logdetective.models import PromptConfig
+from logdetective.models import PromptConfig, PromptReference
 import logdetective
 
 
 def test_prompt_manager():
     """Test that PromptManager can be properly initilized with built-in prompts."""
+
     manager = PromptManager(
         os.path.join(os.path.dirname(logdetective.__file__), "prompts")
     )
-
     assert isinstance(manager.default_system_prompt, str)
-    rendered_snippet_message = manager.render_message_template(snippets="Snippet")
-    assert isinstance(rendered_snippet_message, str)
-    assert "Snippet" in rendered_snippet_message
+
+    assert isinstance(PromptManager(PROMPT_PATH), PromptManager)
+
+
+def test_prompt_manager_wrong_path():
+    """Test behavior for case when the path doesn't lead to a any file."""
+
+    with pytest.raises(TemplateNotFound):
+        PromptManager("/there/is/nothing/to/read.yml")
+
+    with pytest.raises(TemplateNotFound):
+        PromptManager("/no/prompts/here")
 
 
 def test_prompt_manager_with_config():
-    """Test that PromptManager can be properly initilized with built-in prompts and PromptConfig"""
-    config = PromptConfig()
-    config.references = [{"name": "Reference 1", "link": "https://valid_link.url"}]
-    manager = PromptManager(
-        os.path.join(os.path.dirname(logdetective.__file__), "prompts"),
-        prompts_configuration=config,
+    """Test that PromptManager can be properly initilized
+    with built-in prompts, PromptConfig, and PromptReferences"""
+
+    mock_config = PromptConfig(
+        references=[PromptReference(name="Reference 1", link="https://valid_link.url")]
     )
+    prompts_dir = os.path.join(os.path.dirname(logdetective.__file__), "prompts")
+    manager = PromptManager(prompts_dir, prompt_config=mock_config)
 
     rendered_system_prompt = manager.default_system_prompt
     assert isinstance(rendered_system_prompt, str)
     assert manager._references
-    assert manager._references[0]["name"] in rendered_system_prompt
-    assert manager._references[0]["link"] in rendered_system_prompt
-
-    rendered_snippet_message = manager.render_message_template(snippets="Snippet")
-    assert isinstance(rendered_snippet_message, str)
-    assert "Snippet" in rendered_snippet_message
-    assert manager._references == config.references
-
-
-def test_prompt_manager_no_templates():
-    """Test that manager raises exception when encountering empty or invalid template dir."""
-
-    with pytest.raises(exceptions.TemplateNotFound):
-        PromptManager("/no/prompts/here")
+    assert manager._references[0].name in rendered_system_prompt
+    assert str(manager._references[0].link) in rendered_system_prompt
 
 
 def test_prompt_manager_agent_start_prompt_render_artifacts():

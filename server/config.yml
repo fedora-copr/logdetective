@@ -99,3 +99,12 @@ general:
   # A new model instance is loaded per gunicorn worker process, so keep this low (depending on how many cores/threads are available)
   # to avoid exhausting the host's thread/process limit.
   embedding_model_threads: 4
+# Configuration of the prompt manager:
+# Here, you can define optional references intended for customizing the system prompt.
+# Prompt jinja templates are stored in ./prompts directory
+# prompts:
+#   references:
+#     - name: Fedora Packaging Guidelines
+#       link: https://docs.fedoraproject.org/en-US/packaging-guidelines/
+#     - name: Mock user documentation
+#       link: https://rpm-software-management.github.io/mock/
