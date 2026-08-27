@@ -9,7 +9,6 @@ from pydantic import ValidationError
 
 from logdetective.constants import TRUNCATED, MINIMUM_SNIPPET_TRUNCATION_LEN
 from logdetective.models import SkipSnippets, CSGrepOutput
-from logdetective.utils import filter_snippet_patterns
 
 
 LOG = logging.getLogger("logdetective")
@@ -37,15 +36,25 @@ class Extractor:
     def filter_snippet_patterns(
         self, chunks: list[tuple[int, str]], filename: Optional[str] = None
     ) -> list[tuple[int, str]]:
-        """Keep only chunks that don't match any of the excluded patterns"""
+        """Keep only chunks that don't match any of the patterns from SkipSnippets."""
         if not self.skip_snippets or not self.skip_snippets.snippet_patterns:
             return chunks
-        chunks = [
-            (_, chunk)
-            for _, chunk in chunks
-            if not filter_snippet_patterns(chunk, filename, self.skip_snippets)
-        ]
-        return chunks
+        result = []
+        for line_number, snippet in chunks:
+            skip = False
+            for name, skip_pattern in self.skip_snippets.snippet_patterns.items():
+                # first we find out if the pattern should be tested
+                if skip_pattern.files is None or (filename and filename in skip_pattern.files):
+                    # then we try to match the pattern
+                    if skip_pattern.pattern.match(snippet):
+                        LOG.debug(
+                            "Snippet `%s` has matched against skip pattern %s", snippet, name
+                        )
+                        skip = True
+                        break
+            if not skip:
+                result.append((line_number, snippet))
+        return result
 
 
 class DrainExtractor(Extractor):

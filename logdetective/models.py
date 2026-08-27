@@ -1,6 +1,6 @@
 import re
-from typing import Any, Optional
-from pydantic import BaseModel, Field, field_validator, HttpUrl, model_validator
+from typing import Any
+from pydantic import BaseModel, ConfigDict, Field, field_validator, HttpUrl
 
 
 class PromptReference(BaseModel):
@@ -22,70 +22,25 @@ class PromptConfig(BaseModel):
         return [] if v is None else v
 
 
-class SkipSnippets(BaseModel):
-    """Regular expressions defining snippets we should not analyze.
+class SkipPattern(BaseModel):
+    """One loaded skip pattern. If `files` is None, pattern is skipped from every file."""
 
-    Each entry in the source dict must have the form:
-        name:
-            pattern: "regex"
-            files:          # optional; if absent the pattern applies to every file
-                - "exact_filename.log"
-    """
+    pattern: re.Pattern
+    files: set[str] | None = None
 
-    # maps name -> (compiled pattern, set of exact filenames or None for global)
-    snippet_patterns: dict[
-        str,
-        tuple[
-            re.Pattern,
-            set[str] | None,
-        ],
-    ] = {}
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def __init__(self, data: Optional[dict] = None):
-        super().__init__(data=data)
-        if data is None:
-            return
-        result = {}
-        for key, value in data.items():
-            compiled = re.compile(value["pattern"], re.DOTALL)
-            files = set(value["files"]) if "files" in value else None
-            result[key] = (compiled, files)
-        self.snippet_patterns = result
-
-    def get_patterns_for_file(self, filename: str | None) -> dict[str, re.Pattern]:
-        """Return compiled patterns applicable to the given filename.
-        If unspecified, return globally applied patterns.
-
-        Patterns without a files list are always included. Patterns with a
-        files list are included only when filename is an exact match.
-        """
-        result = {}
-        for name, (pattern, files) in self.snippet_patterns.items():
-            if files is None or (filename and filename in files):
-                result[name] = pattern
-        return result
-
-    @model_validator(mode="before")
+    @field_validator("pattern", mode="after")
     @classmethod
-    def check_patterns(cls, data: dict):
-        """Validate that all supplied patterns are valid regular expressions."""
-        patterns = data["data"]
-        for key, value in patterns.items():
-            if not isinstance(value, dict) or "pattern" not in value:
-                raise ValueError(
-                    f"Pattern `{key}` must be a mapping with a 'pattern' key."
-                )
-            try:
-                re.compile(pattern=value["pattern"])
-            except (TypeError, re.error) as ex:
-                raise ValueError(
-                    (
-                        f"Invalid pattern `{value['pattern']}` "
-                        f"with name `{key}` supplied for skipping in logs."
-                    )
-                ) from ex
+    def apply_dotall_flag(cls, pattern: re.Pattern) -> re.Pattern:
+        """Default re.Pattern pydantic model does not apply re.DOTALL flag"""
+        return re.compile(pattern.pattern, pattern.flags | re.DOTALL)
 
-        return data
+
+class SkipSnippets(BaseModel):
+    """Regular expressions defining snippets we should not analyze/pass to LLM."""
+
+    snippet_patterns: dict[str, SkipPattern] = {}
 
 
 class CSGrepEvent(BaseModel):
