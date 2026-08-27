@@ -3,7 +3,9 @@ from unittest import mock
 import aiohttp
 import aioresponses
 import pytest
+from pydantic import ValidationError
 
+from logdetective.utils import load_skip_snippet_patterns
 from logdetective.constants import DEFAULT_MAXIMUM_ARTIFACT_MIB
 from logdetective.exceptions import (
     RemoteLogAccessError,
@@ -13,10 +15,6 @@ from logdetective.exceptions import (
 )
 from logdetective.models import SkipSnippets
 from logdetective.remote_log import RemoteLog
-from logdetective.utils import (
-    filter_snippet_patterns,
-    load_skip_snippet_patterns,
-)
 
 from tests.base.test_helpers import (
     test_filter_patterns,
@@ -115,15 +113,6 @@ async def test_get_url_content_connection_fails(head_status, get_status):
                 await remote_log.get_url_content()
 
 
-def test_snippet_filtering():
-    """Test snippet filtering"""
-
-    skip_snippets = SkipSnippets(test_filter_patterns)
-    for snippet in test_snippets_filtering:
-        result = filter_snippet_patterns(snippet[0], skip_snippets=skip_snippets)
-        assert result == snippet[1]
-
-
 def _to_toml(patterns: dict) -> bytes:
     """Serialize a patterns dict to TOML bytes for use in tests."""
     lines = []
@@ -194,7 +183,7 @@ def test_load_skip_snippet_patterns_invalid_syntax():
     with mock.patch(
         "logdetective.utils.open", mock.mock_open(read_data=test_skip_snippet_data)
     ):
-        with pytest.raises(ValueError, match="Invalid pattern"):
+        with pytest.raises(ValidationError, match="regular expression"):
             load_skip_snippet_patterns("/valid/filters.toml")
 
 
@@ -206,41 +195,5 @@ def test_load_skip_snippet_patterns_missing_pattern_key():
     with mock.patch(
         "logdetective.utils.open", mock.mock_open(read_data=test_skip_snippet_data)
     ):
-        with pytest.raises(ValueError, match="must be a mapping"):
+        with pytest.raises(ValidationError):
             load_skip_snippet_patterns("/valid/filters.toml")
-
-
-def test_snippet_filtering_file_scoped():
-    """File-scoped patterns apply only to exact filename matches."""
-    skip_snippets = SkipSnippets({
-        "global_pattern": {"pattern": "^GLOBAL"},
-        "scoped_pattern": {"pattern": "^SCOPED", "files": ["backend.log", "app.log"]},
-    })
-
-    # Global pattern fires regardless of filename
-    assert filter_snippet_patterns("GLOBAL line", "build.log", skip_snippets) is True
-    assert filter_snippet_patterns("GLOBAL line", "other.log", skip_snippets) is True
-
-    # Scoped pattern fires only for exact filename matches
-    assert filter_snippet_patterns("SCOPED line", "build.log", skip_snippets) is False
-    assert filter_snippet_patterns("SCOPED line", "backend.log", skip_snippets) is True
-    assert filter_snippet_patterns("SCOPED line", "app.log", skip_snippets) is True
-    assert filter_snippet_patterns("SCOPED line", "unknown.log", skip_snippets) is False
-
-
-def test_get_patterns_for_file_exact_matching():
-    """get_patterns_for_file uses exact filename matching."""
-    skip_snippets = SkipSnippets({
-        "a": {"pattern": "^A", "files": ["backend.log", "app.log"]},
-        "b": {"pattern": "^B", "files": ["build.log"]},
-        "c": {"pattern": "^C"},
-    })
-
-    patterns_build = skip_snippets.get_patterns_for_file("build.log")
-    assert set(patterns_build) == {"b", "c"}
-
-    patterns_backend = skip_snippets.get_patterns_for_file("backend.log")
-    assert set(patterns_backend) == {"a", "c"}
-
-    patterns_unknown = skip_snippets.get_patterns_for_file("unknown.txt")
-    assert set(patterns_unknown) == {"c"}

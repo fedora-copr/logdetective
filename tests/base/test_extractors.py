@@ -12,6 +12,8 @@ from logdetective.extractors import (
 from logdetective.models import SkipSnippets
 
 from tests.base.test_helpers import (
+    test_filter_patterns,
+    test_snippets_filtering,
     simple_log,
     csgrep_output_simple,
     siril_log_snippet,
@@ -34,12 +36,12 @@ from tests.base.test_helpers import (
 # --- Tests for Extractor base ---
 
 
-def test_filter_snippet_patterns():
+def test_filter_snippet_patterns_simple():
     """Tests that the filter_snippet_patterns method correctly filters out chunks
     that match the provided skip patterns.
     """
     skip_snippets = SkipSnippets(
-        data={"dummy filter": {"pattern": ".*test.*"}},
+        snippet_patterns={"dummy filter": {"pattern": ".*test.*"}},
     )
     extractor = Extractor(skip_snippets=skip_snippets)
     chunks = [
@@ -52,9 +54,44 @@ def test_filter_snippet_patterns():
     assert filtered_chunks[0] == (2, "This is another line.")
 
 
-def test_filter_snippet_patterns_per_file():
+def test_filter_snippet_patterns_complex():
+    """Test snippet filtering via Extractor."""
+    extractor = Extractor(skip_snippets=SkipSnippets(snippet_patterns=test_filter_patterns))
+    chunks = [(idx, text) for idx, (text, _) in enumerate(test_snippets_filtering)]
+    result = extractor.filter_snippet_patterns(chunks)
+    kept_texts = [text for _, text in result]
+
+    for snippet, skip in test_snippets_filtering:
+        if skip:
+            assert snippet not in kept_texts
+        else:
+            assert snippet in kept_texts
+
+
+def test_filter_snippet_patterns_scoped_simple():
+    """File-scoped patterns apply only to exact filename matches."""
+    skip_snippets = SkipSnippets(snippet_patterns={
+        "global_pattern": {"pattern": "^GLOBAL"},
+        "scoped_pattern": {"pattern": "^SCOPED", "files": ["backend.log", "app.log"]},
+    })
+
+    extractor = Extractor(skip_snippets=skip_snippets)
+
+    # Global pattern fires regardless of filename
+    assert not extractor.filter_snippet_patterns([(1, "GLOBAL line")], "build.log")
+    assert not extractor.filter_snippet_patterns([(1, "GLOBAL line")], "other.log")
+
+    # Scoped pattern fires only for exact filename matches (filtered out -> returns empty list)
+    assert extractor.filter_snippet_patterns([(1, "SCOPED line")], "build.log")
+    assert not extractor.filter_snippet_patterns([(1, "SCOPED line")], "backend.log")
+    assert not extractor.filter_snippet_patterns([(1, "SCOPED line")], "app.log")
+    assert extractor.filter_snippet_patterns([(1, "SCOPED line")], "unknown.log")
+
+
+def test_filter_snippet_patterns_scoped_complex():
+    """File-scoped patterns apply only to exact filename matches."""
     skip_snippets = SkipSnippets(
-        data={
+        snippet_patterns={
             "mock_output_specific": {
                 "pattern": "INFO:",
                 "files": ["mock_output.log"],
@@ -426,7 +463,11 @@ def test_python_tb_max_snippet_len():
 
 def test_python_tb_skip_patterns():
     """Skip pattern matching removes tracebacks whose text matches the pattern."""
-    skip = SkipSnippets(data={"skip_file_not_found": {"pattern": ".*FileNotFoundError.*"}})
+    skip = SkipSnippets(
+        snippet_patterns={
+            "skip_file_not_found": {"pattern": ".*FileNotFoundError.*"}
+        }
+    )
     extractor = PythonTracebackExtractor(skip_snippets=skip)
     results = extractor(SIMPLE_TRACEBACK_LOG)
 
