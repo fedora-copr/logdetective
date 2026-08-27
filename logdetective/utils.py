@@ -4,7 +4,6 @@ from collections.abc import Mapping
 from typing import (
     List,
     Tuple,
-    Optional,
     NamedTuple,
 )
 
@@ -58,39 +57,23 @@ def sanitize_artifact(log: str) -> str:
     return log
 
 
-def filter_snippet_patterns(
-    snippet: str,
-    filename: str | None = None,
-    skip_snippets: Optional[SkipSnippets] = None,
-) -> bool:
-    """Try to match snippet against provided patterns to determine if we should
-    filter it out or not."""
-    if not skip_snippets:
-        return False
-    for key, pattern in skip_snippets.get_patterns_for_file(filename).items():
-        if pattern.match(snippet):
-            LOG.debug("Snippet `%s` has matched against skip pattern %s", snippet, key)
-            return True
-
-    return False
-
-
 def load_skip_snippet_patterns(path: str | None) -> SkipSnippets | None:
     """Load dictionary of snippet patterns we want to skip."""
-    if path:
-        try:
-            with open(path, "rb") as file:
-                data = tomllib.load(file)
-            if not data:
-                LOG.warning("Skip pattern file `%s` is empty, no skip patterns loaded", path)
-                return None
-            return SkipSnippets(data)
-        except FileNotFoundError:
-            LOG.error(
-                "Couldn't open file with snippet skip patterns `%s`",
-                path,
-                stack_info=True,
-            )
+    if not path:
+        return None
+    try:
+        with open(path, "rb") as file:
+            data = tomllib.load(file)
+        if not data:
+            LOG.warning("Skip pattern file `%s` is empty, no skip patterns loaded", path)
+            return None
+        return SkipSnippets(snippet_patterns=data)
+    except FileNotFoundError:
+        LOG.error(
+            "Couldn't open file with snippet skip patterns `%s`",
+            path,
+            stack_info=True,
+        )
     return None
 
 
