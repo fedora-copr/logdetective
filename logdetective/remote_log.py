@@ -14,7 +14,6 @@ from logdetective.exceptions import (
 from logdetective.utils import (
     ContentSizeCheck,
     check_content_size,
-    mib_to_bytes,
     sanitize_artifact,
 )
 
@@ -32,7 +31,7 @@ class RemoteLog:
         self,
         url: str,
         http_session: aiohttp.ClientSession,
-        limit_bytes: int = mib_to_bytes(DEFAULT_MAXIMUM_ARTIFACT_MIB),
+        limit_bytes: int = (DEFAULT_MAXIMUM_ARTIFACT_MIB) * 1024**2,
     ):
         """
         Initialize with a remote log URL and HTTP session.

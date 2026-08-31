@@ -7,7 +7,6 @@ from httpx import ASGITransport, AsyncClient
 
 from logdetective.server.server import app, get_http_session
 from logdetective.server.utils import validate_request_size, SERVER_CONFIG
-from logdetective.utils import mib_to_bytes
 
 from tests.server.test_helpers import mock_AnalyzeRequestMetrics
 
@@ -44,7 +43,7 @@ async def test_client(mock_AnalyzeRequestMetrics):
         (
             {"url": "http://example.com/build.log"},
             200,
-            {"Content-Length": f"{mib_to_bytes(SERVER_CONFIG.general.max_artifact_size) + 1}"},
+            {"Content-Length": f"{(SERVER_CONFIG.general.max_artifact_size) * 1024**2 + 1}"},
             422
         ),
     ],
