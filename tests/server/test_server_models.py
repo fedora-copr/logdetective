@@ -62,7 +62,11 @@ def test_initialization_with_custom_data(mocker: MockerFixture):
     """Tests that ExtractorConfig correctly uses custom values from a provided
     data dictionary and instantiates all relevant extractors.
     """
-    mocker.patch("logdetective.server.models.check_csgrep", return_value=True)
+
+    mocker.patch(
+        "logdetective.server.models.sp.run",
+        return_value=mocker.MagicMock(returncode=0, stderr="")
+    )
 
     custom_data = {
         "max_clusters": 15,

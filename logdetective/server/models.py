@@ -1,4 +1,5 @@
 import datetime
+import subprocess as sp
 from typing import List, Dict, Optional, Any, Union, Sequence
 from pydantic import (
     BaseModel,
@@ -16,7 +17,6 @@ from logdetective.constants import (
     DEFAULT_MAXIMUM_ARTIFACT_MIB,
     MINIMUM_SNIPPET_TRUNCATION_LEN,
 )
-from logdetective.utils import check_csgrep
 
 
 class ArtifactBase(BaseModel):
@@ -253,11 +253,22 @@ class ExtractorConfig(BaseModel):
     @classmethod
     def verify_csgrep(cls, v: bool):
         """Verify presence of csgrep binary if csgrep extractor is requested."""
-        if v and not check_csgrep():
-            raise ValueError(
-                "Requested csgrep extractor but `csgrep` binary is not in the PATH"
+        if not v:
+            return v
+        try:
+            result = sp.run(
+                ["csgrep", "--version"],
+                text=True,
+                check=True,
+                shell=False,
+                capture_output=True,
+                timeout=1.0,
             )
-        return v
+        except (FileNotFoundError, sp.TimeoutExpired, sp.CalledProcessError) as ex:
+            raise ValueError(f"Required binary `csgrep` was not found in path: {ex}") from ex
+        if result.returncode == 0:
+            return v
+        raise ValueError(f"Issue was encountered while calling `csgrep`: {result.stderr}")
 
 
 class GitLabInstanceConfig(BaseModel):  # pylint: disable=too-many-instance-attributes
