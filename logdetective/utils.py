@@ -1,6 +1,5 @@
 import logging
 import re
-import subprocess as sp
 from collections.abc import Mapping
 from typing import (
     List,
@@ -116,27 +115,6 @@ def load_skip_snippet_patterns(path: str | None) -> SkipSnippets | None:
                 stack_info=True,
             )
     return None
-
-
-def check_csgrep() -> bool:
-    """Verifies presence of csgrep in path"""
-    try:
-        result = sp.run(
-            ["csgrep", "--version"],
-            text=True,
-            check=True,
-            shell=False,
-            capture_output=True,
-            timeout=1.0,
-        )
-    except (FileNotFoundError, sp.TimeoutExpired, sp.CalledProcessError) as ex:
-        LOG.error("Required binary `csgrep` was not found in path: %s", ex)
-        return False
-    if result.returncode == 0:
-        return True
-    LOG.error("Issue was encountered while calling `csgrep`: `%s`", result.stderr)
-
-    return False
 
 
 class ContentSizeCheck(NamedTuple):
