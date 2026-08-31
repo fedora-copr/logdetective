@@ -51,11 +51,6 @@ SANITIZE_PATTERNS: List[Tuple[re.Pattern[str], str]] = [
 ]
 
 
-# pylint: disable=missing-function-docstring
-def mib_to_bytes(mib: int) -> int:
-    return mib * 1024 * 1024
-
-
 def sanitize_artifact(log: str) -> str:
     """Redact personal identifiers from the artifact content before it is sent to the LLM.
 
