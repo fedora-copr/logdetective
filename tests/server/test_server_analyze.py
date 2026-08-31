@@ -1,12 +1,11 @@
-import pytest
-import pytest_asyncio
-
 import aiohttp
 import aioresponses
+import pytest
+import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from logdetective.server.server import app, get_http_session
-from logdetective.server.utils import validate_request_size, SERVER_CONFIG
+from logdetective.server.server import app, get_http_session, validate_request_size
+from logdetective.server.config import SERVER_CONFIG
 
 from tests.server.test_helpers import mock_AnalyzeRequestMetrics
 
