@@ -10,14 +10,13 @@ from pydantic import (
     ConfigDict,
 )
 
-
 from logdetective.constants import (
     DEFAULT_TEMPERATURE,
     SYSTEM_ROLE_DEFAULT,
     DEFAULT_MAXIMUM_ARTIFACT_MIB,
     MINIMUM_SNIPPET_TRUNCATION_LEN,
 )
-from logdetective.utils import check_csgrep, mib_to_bytes
+from logdetective.utils import check_csgrep
 
 
 class ArtifactBase(BaseModel):
@@ -282,13 +281,13 @@ class GitLabInstanceConfig(BaseModel):  # pylint: disable=too-many-instance-attr
 
     # Maximum size of artifacts.zip (default: 50 MiB)
     # In config, the unit is in MiB, but this max_artifact_size attribute will be in bytes
-    max_artifact_size: int = mib_to_bytes(DEFAULT_MAXIMUM_ARTIFACT_MIB)
+    max_artifact_size: int = DEFAULT_MAXIMUM_ARTIFACT_MIB * 1024**2
 
     @field_validator("max_artifact_size", mode="before")
     @classmethod
     def megabytes_to_bytes(cls, v: Any):
         """Convert max_artifact_size from megabytes to bytes."""
-        return mib_to_bytes(v if isinstance(v, int) else DEFAULT_MAXIMUM_ARTIFACT_MIB)
+        return (v if isinstance(v, int) else DEFAULT_MAXIMUM_ARTIFACT_MIB) * 1024**2
 
 
 class GitLabConfig(BaseModel):
@@ -326,13 +325,13 @@ class KojiConfig(BaseModel):
     analysis_timeout: int = 15
 
     # in yaml config, this is given in MiB, but we use bytes in code (same as gitlab)
-    max_artifact_size: int = mib_to_bytes(DEFAULT_MAXIMUM_ARTIFACT_MIB)
+    max_artifact_size: int = DEFAULT_MAXIMUM_ARTIFACT_MIB * 1024**2
 
     @field_validator("max_artifact_size", mode="before")
     @classmethod
     def megabytes_to_bytes(cls, v: Any):
         """Convert max_artifact_size from megabytes to bytes."""
-        return mib_to_bytes(v if isinstance(v, int) else DEFAULT_MAXIMUM_ARTIFACT_MIB)
+        return (v if isinstance(v, int) else DEFAULT_MAXIMUM_ARTIFACT_MIB) * 1024**2
 
     @model_validator(mode="before")
     @classmethod
@@ -367,7 +366,7 @@ class GeneralConfig(BaseModel):
     sentry_dsn: HttpUrl | None = None
     collect_emojis_interval: int = 60 * 60  # seconds
     # max_artifact_size in config.yml is in MiBs, here (GeneralConfig class) is in bytes
-    max_artifact_size: int = mib_to_bytes(DEFAULT_MAXIMUM_ARTIFACT_MIB)
+    max_artifact_size: int = DEFAULT_MAXIMUM_ARTIFACT_MIB * 1024**2
     block_localhost_urls: bool = True
     generate_solution: bool = True
     delay_artifact_download: bool = False
@@ -380,7 +379,7 @@ class GeneralConfig(BaseModel):
     @classmethod
     def megabytes_to_bytes(cls, v: Any):
         """Convert max_artifact_size from megabytes to bytes."""
-        return mib_to_bytes(v if isinstance(v, int) else DEFAULT_MAXIMUM_ARTIFACT_MIB)
+        return (v if isinstance(v, int) else DEFAULT_MAXIMUM_ARTIFACT_MIB) * 1024**2
 
 
 class Config(BaseModel):
