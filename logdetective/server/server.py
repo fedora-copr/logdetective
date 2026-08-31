@@ -22,11 +22,13 @@ import aiohttp
 import sentry_sdk
 from beeai_framework.backend import ChatModel
 
-from logdetective.utils import sanitize_artifact
 from logdetective.server.exceptions import (
     KojiInvalidTaskID,
     LogDetectiveInferenceError,
 )
+from logdetective.exceptions import RemoteLogError
+from logdetective.remote_log import RemoteLog
+from logdetective.utils import ContentSizeCheck, check_content_size, sanitize_artifact
 
 from logdetective.server.database.models.koji import KojiTaskAnalysis
 from logdetective.server.database.models.exceptions import (
@@ -52,6 +54,8 @@ from logdetective.server.metric import (
     emojis_per_time,
 )
 from logdetective.server.models import (
+    ArtifactFile,
+    RemoteArtifactFile,
     AnalysisRequest,
     Config,
     KojiInstanceConfig,
@@ -64,8 +68,6 @@ from logdetective.server.database.models import EndpointType
 from logdetective.server.emoji import collect_emojis
 from logdetective.server.utils import (
     get_version,
-    get_artifacts_from_payload,
-    validate_request_size,
     SSRFProtectedResolver,
 )
 
@@ -243,6 +245,108 @@ app = FastAPI(
 
 if SERVER_CONFIG.gitlab.instances:
     app.include_router(gitlab_router)
+
+
+async def get_artifacts_from_payload(
+    payload: AnalysisRequest,
+    http_session: aiohttp.ClientSession,
+    request_size: int,
+) -> dict[str, str | RemoteLog]:
+    """Retrieve artifact contents based on the type of artifact.
+    Raise ValueError on unsupported element types."""
+    build_artifacts: dict[str, str | RemoteLog] = {}
+
+    total_payload_size: int = request_size
+
+    for artifact in payload.files:
+        if isinstance(artifact, RemoteArtifactFile):
+            remaining_limit = (
+                SERVER_CONFIG.general.max_artifact_size - total_payload_size
+            )
+            if remaining_limit <= 0:
+                raise HTTPException(
+                    413, detail="Total size of submitted request is over the limit."
+                )
+            remote_log = RemoteLog(
+                str(artifact.url), http_session, limit_bytes=remaining_limit
+            )
+            if SERVER_CONFIG.general.delay_artifact_download:
+                LOG.info(
+                    "Delaying download of artifact %s from %s until requested",
+                    artifact.name,
+                    artifact.url
+                )
+                # Size is enforced per-file via limit_bytes when
+                # get_url_content() runs; total across deferred
+                # artifacts is accepted optimistically.
+                build_artifacts[artifact.name] = remote_log
+            else:
+                LOG.info("Downloading artifact %s from %s", artifact.name, artifact.url)
+                try:
+                    log_text = await remote_log.get_url_content()
+                except RemoteLogError as ex:
+                    raise HTTPException(
+                        status_code=ex.status_code, detail=f"{ex}"
+                    ) from ex
+                build_artifacts[artifact.name] = log_text
+                total_payload_size += remote_log.remote_log_size
+
+        elif isinstance(artifact, ArtifactFile):
+            LOG.info("Handling artifact %s as raw string", artifact.name)
+            build_artifacts[artifact.name] = sanitize_artifact(artifact.content)
+        else:
+            raise ValueError(f"Invalid element type {type(artifact)}")
+
+    total_payload_len = sum(
+        len(content)
+        for _, content in build_artifacts.items()
+        if isinstance(content, str)
+    )
+    LOG.info(
+        "Total artifact size from the obtained payload (in chars): %d "
+        "Total payload size (in bytes): %d",
+        total_payload_len,
+        total_payload_size,
+    )
+    return build_artifacts
+
+
+def validate_request_size(request: Request) -> int:
+    """
+    FastAPI Depend function checking request's Content-Length before loading body into memory.
+
+    Note:
+        In the case of URL requests, we limit the URL's content to 50 MiB.
+        With the direct files raw log content, we limit the whole request size to 50 Mib,
+        so this fails if all provided logs are under the limit, but exceed it together.
+
+    Returns:
+        Size of request in bytes
+
+    Raises:
+        HTTPException(411): If Content-Length header is missing or invalid
+        HTTPException(413): If Content-Length exceeds maximum allowed size
+    """
+    size_check: ContentSizeCheck = check_content_size(
+        request.headers, SERVER_CONFIG.general.max_artifact_size
+    )
+    if size_check.size_in_bytes is None:
+        raise HTTPException(
+            status_code=411, detail="Content-Length is missing or invalid."
+        )
+    if not size_check.proceed:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                f"Content-Length is too large: "
+                f"{size_check.size_in_bytes} B "
+                f"({size_check.size_in_bytes / (1024 * 1024):.2f} MiB) > "
+                f"{SERVER_CONFIG.general.max_artifact_size} B "
+                f"({SERVER_CONFIG.general.max_artifact_size / (1024 * 1024):.2f} MiB)"
+            ),
+        )
+
+    return size_check.size_in_bytes
 
 
 @app.post("/analyze", response_model=APIResponse)
