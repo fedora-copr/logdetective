@@ -11,8 +11,6 @@ from logdetective.server.models import (
     ArtifactFile,
     AnalysisRequest,
 )
-from logdetective.constants import DEFAULT_MAXIMUM_ARTIFACT_MIB
-from logdetective.utils import mib_to_bytes
 
 
 def test_TimePeriod():

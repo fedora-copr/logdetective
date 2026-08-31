@@ -19,7 +19,6 @@ from logdetective.utils import (
     load_prompts,
     filter_snippet_patterns,
     load_skip_snippet_patterns,
-    mib_to_bytes,
 )
 
 from tests.base.test_helpers import (
@@ -59,7 +58,7 @@ def test_load_prompts_correct_path():
         ),
         (
             "http://example.com/build.log",
-            {"Content-Length": f"{mib_to_bytes(DEFAULT_MAXIMUM_ARTIFACT_MIB) + 1}"},
+            {"Content-Length": f"{(DEFAULT_MAXIMUM_ARTIFACT_MIB) * 1024**2 + 1}"},
             "123",
             None,
             RemoteLogTooLargeError,

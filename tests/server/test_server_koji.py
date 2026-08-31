@@ -3,7 +3,6 @@ import koji
 import pytest
 from beeai_framework.backend import ChatModel
 
-from logdetective.utils import mib_to_bytes
 from logdetective.server.models import APIResponse, Explanation
 from logdetective.server.server import analyze_koji_task, KojiCallbackManager
 from logdetective.server.exceptions import LogsTooLargeError, LogsMissingError
@@ -232,7 +231,7 @@ async def test_koji_analyze_koji_task(mocker, method, mock_analysis):
         mock_koji_instance_config = mocker.Mock()
         mock_koji_conn = create_mock_koji_session(mocker, EXAMPLE_TASK_ID, method)
         mock_koji_instance_config.get_connection.return_value = mock_koji_conn
-        mock_koji_instance_config.max_artifact_size = mib_to_bytes(1)
+        mock_koji_instance_config.max_artifact_size = 1024**2
         mock_koji_instance_config.name = "fedora"
         mock_koji_instance_config.xmlrpc_url = "https://koji.fedoraproject.org/kojihub"
         mock_koji_instance_config.get_callbacks.return_value = set()
