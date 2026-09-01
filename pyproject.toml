@@ -33,7 +33,7 @@ dependencies = [
     "numpy >=1.26.0",
     "pydantic >=2.8.2,<3.0.0",
     "pyyaml >=6.0.1,<7.0.0",
-    "aiohttp >=3.7.4,<4.0.0",  # latest version in el8
+    "aiohttp >=3.14.3,<4.0.0",  # latest version in el8
     # Protection against supply chain compromise https://docs.litellm.ai/blog/security-update-march-2026
     "litellm !=1.82.7,!=1.82.8",
     "beeai-framework >=0.1.81",
