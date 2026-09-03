@@ -59,7 +59,7 @@ and public key identifiers) before forwarding to the LLM.
 | build_log_content | RPM build logs submitted by users or fetched from URLs; may contain paths, hostnames, package names, email addresses, GPG fingerprints, RSA keys, and public key identifiers (the latter are sanitized before LLM submission but present in raw logs) | medium |
 | llm_analysis_responses | AI-generated explanations posted as GitLab MR comments and stored in database | medium |
 | service_availability | Ability for legitimate users to submit logs and receive analysis results; depends on Gunicorn worker pool and inference backend capacity | high |
-| database_records | Metrics, MR job records, Koji task analyses, annotated builds, emoji feedback | medium |
+| database_records | Metrics, MR job records, Koji task analyses, annotated builds | medium |
 
 ## 3. Entry points & trust boundaries
 
@@ -69,8 +69,7 @@ and public key identifiers) before forwarding to the LLM.
 | GET /analyze/rpmbuild/koji/{instance}/{task_id} | Retrieve existing Koji task analysis result | remote unauth/auth peer (X-Koji-Token required only when instance `tokens` list is non-empty) → application process | llm_analysis_responses, database_records |
 | POST /analyze/rpmbuild/koji/{instance}/{task_id} | Trigger Koji task analysis; accepts callback URL via X-Koji-Callback header | remote unauth/auth peer (X-Koji-Token required only when instance `tokens` list is non-empty) → application process | build_log_content, llm_analysis_responses, database_records, koji_auth_tokens |
 | POST /webhook/gitlab/job_events | GitLab webhook for failed CI/CD jobs; triggers log download, analysis, and MR comment posting; requires `X-Gitlab-Instance` header to identify the source instance | remote unauth/auth peer (X-Gitlab-Token required only when instance `webhook_secrets` is non-empty; X-Gitlab-Instance always required) → application process | build_log_content, llm_analysis_responses, database_records, gitlab_api_tokens |
-| POST /webhook/gitlab/emoji_events | GitLab webhook for emoji reactions on MR comments; requires `X-Gitlab-Instance` header | remote unauth/auth peer (X-Gitlab-Token required only when instance `webhook_secrets` is non-empty; X-Gitlab-Instance always required) → application process | database_records |
-| GET /metrics/{route}/{metric_type} | Metrics endpoint returning request/response/emoji statistics; subject to global `LOGDETECTIVE_TOKEN` auth like all other routes | remote unauth/auth peer → application process | database_records |
+| GET /metrics/{route}/{metric_type} | Metrics endpoint returning request/response statistics; subject to global `LOGDETECTIVE_TOKEN` auth like all other routes | remote unauth/auth peer → application process | database_records |
 | GET /version | Returns application version string; subject to global `LOGDETECTIVE_TOKEN` auth when set, unauthenticated when unset | remote unauth/auth peer → application process | — |
 | user-supplied log URLs | URLs in /analyze payload fetched by server; pass through SSRF-protected resolver | application process → remote server (SSRF boundary) | build_log_content |
 | koji_callback_url | X-Koji-Callback header value; server POSTs `{"task_id": N}` to this URL upon completion (no credentials, logs, or analysis data in payload); pass through SSRF-protected resolver | application process → external server | — |

@@ -57,7 +57,6 @@ from logdetective.metric import (
     update_metrics,
     requests_per_time,
     average_time_per_responses,
-    emojis_per_time,
 )
 from logdetective.models import (
     ArtifactFile,
@@ -71,7 +70,6 @@ from logdetective.models import (
     MetricResponse,
 )
 from logdetective.database.models import EndpointType
-from logdetective.emoji import collect_emojis
 
 
 LOG_SOURCE_REQUEST_TIMEOUT = os.environ.get("LOG_SOURCE_REQUEST_TIMEOUT", 60)
@@ -177,11 +175,6 @@ async def lifespan(fapp: FastAPI):
 
     # Ensure that the database is initialized.
     await logdetective.database.base.check()
-
-    # Start the background task scheduler for collecting emojis, if applicable.
-    # ConnectionManager.gitlab_connections is empty if gitlab.instances contains no entries
-    if fapp.state.connection_manager.gitlab_connections:
-        asyncio.create_task(schedule_collect_emojis_task(fapp.state.connection_manager))
 
     yield
 
@@ -590,7 +583,6 @@ class MetricType(str, Enum):
 
     REQUESTS = "requests"
     RESPONSES = "responses"
-    EMOJIS = "emojis"
     ALL = "all"
 
 
@@ -618,7 +610,6 @@ async def get_metrics(
             statistics.append(
                 await average_time_per_responses(period_since_now, endpoint_type)
             )
-            statistics.extend(await emojis_per_time(period_since_now))
             return MetricResponse(time_series=statistics)
         if metric_type == MetricType.REQUESTS:
             statistics.append(await requests_per_time(period_since_now, endpoint_type))
@@ -626,8 +617,6 @@ async def get_metrics(
             statistics.append(
                 await average_time_per_responses(period_since_now, endpoint_type)
             )
-        elif metric_type == MetricType.EMOJIS:
-            statistics = await emojis_per_time(period_since_now)
         return MetricResponse(time_series=statistics)
 
     if endpoint_type == EndpointType.ANALYZE_GITLAB_JOB and not SERVER_CONFIG.gitlab.instances:
@@ -645,10 +634,6 @@ async def get_metrics(
             "Get statistics for responses given in the specified period of time "
             f"for the /{endpoint_type.value} API endpoint."
         ),
-        MetricType.EMOJIS: (
-            "Get statistics for emoji feedback in the specified period of time "
-            f"for the /{endpoint_type.value} API endpoint."
-        ),
         MetricType.ALL: (
             "Get statistics for requests and responses in the given period of time "
             f"for the /{endpoint_type.value} API endpoint."
@@ -657,36 +642,3 @@ async def get_metrics(
     handler.__doc__ = descriptions[metric_type]
 
     return await handler()
-
-
-async def collect_emoji_task(connection_manager: ConnectionManager):
-    """Collect emoji feedback.
-    Query only comments created in the last year.
-    """
-
-    for instance_url, instance in SERVER_CONFIG.gitlab.instances.items():
-        LOG.info(
-            "Collect emoji feedback for %s started at %s",
-            instance.url,
-            datetime.datetime.now(datetime.timezone.utc),
-        )
-        await collect_emojis(
-            connection_manager.gitlab_connections[instance_url], TimePeriod(weeks=54)
-        )
-        LOG.info(
-            "Collect emoji feedback finished at %s",
-            datetime.datetime.now(datetime.timezone.utc),
-        )
-
-
-async def schedule_collect_emojis_task(connection_manager: ConnectionManager):
-    """Schedule the collect_emojis_task to run on a configured interval"""
-    while True:
-        seconds_until_run = SERVER_CONFIG.general.collect_emojis_interval
-        LOG.info("Collect emojis in %d seconds", seconds_until_run)
-        await asyncio.sleep(seconds_until_run)
-
-        try:
-            await collect_emoji_task(connection_manager=connection_manager)
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            LOG.exception("Error in collect_emoji_task: %s", e)

@@ -509,7 +509,6 @@ async def generate_mr_comment(
     content = tpl.render(
         package=job.project_name,
         explanation=response.explanation.text,
-        emoji_face=":slight_smile:",
         snippets=response.snippets,
         log_url=log_url,
         artifacts_url=artifacts_url,
