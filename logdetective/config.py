@@ -12,6 +12,15 @@ import logdetective
 from logdetective.prompts import PromptManager
 
 
+SERVER_CONFIG_PATH = os.environ.get("LOGDETECTIVE_SERVER_CONF", None)
+
+# Default skip patterns location is in the same directory as logdetective __init__.py
+SERVER_SKIP_PATTERNS_PATH = os.environ.get(
+    "LOGDETECTIVE_SKIP_PATTERNS",
+    f"{os.path.dirname(logdetective.__file__)}/skip_snippets.toml",
+)
+
+
 def load_server_config(path: str | None) -> Config:
     """Load configuration file for logdetective server.
     If no path was provided, or if the file doesn't exist, return defaults.
@@ -24,6 +33,11 @@ def load_server_config(path: str | None) -> Config:
             # This is not an error, we will fall back to default
             print("Unable to find server config file, using default then.")
     return Config()
+
+
+SERVER_CONFIG = load_server_config(SERVER_CONFIG_PATH)
+
+PROMPT_CONFIG = PromptManager(PROMPT_PATH, prompt_config=SERVER_CONFIG.prompts)
 
 
 def get_log(config: Config):
@@ -56,6 +70,9 @@ def get_log(config: Config):
     return log
 
 
+LOG = get_log(SERVER_CONFIG)
+
+
 def get_chat_model(inference_config: InferenceConfig) -> ChatModel:
     """Set up chat model for Log Detective agent"""
     return ChatModel.from_name(
@@ -70,17 +87,6 @@ def get_chat_model(inference_config: InferenceConfig) -> ChatModel:
             "timeout": inference_config.api_timeout,
         },
     )
-
-
-def load_embedding_model(config: Config) -> TextEmbedding | None:
-    """Load embedding model, if DB lookup is configured."""
-    if config.general.annotation_lookup_tool:
-        try:
-            return TextEmbedding(EMBEDDING_MODEL)
-        except Exception as exc:  # pylint: disable=broad-exception-caught
-            LOG.exception("Embedding model load failed: %s", str(exc))
-            return None
-    return None
 
 
 def load_skip_snippet_patterns(path: str | None) -> SkipSnippets | None:
@@ -103,20 +109,18 @@ def load_skip_snippet_patterns(path: str | None) -> SkipSnippets | None:
     return None
 
 
-SERVER_CONFIG_PATH = os.environ.get("LOGDETECTIVE_SERVER_CONF", None)
-
-# The default location for skip patterns is in the same directory
-# as logdetective __init__.py file.
-SERVER_SKIP_PATTERNS_PATH = os.environ.get(
-    "LOGDETECTIVE_SKIP_PATTERNS",
-    f"{os.path.dirname(logdetective.__file__)}/skip_snippets.toml",
-)
-
-SERVER_CONFIG = load_server_config(SERVER_CONFIG_PATH)
-PROMPT_CONFIG = PromptManager(PROMPT_PATH, prompt_config=SERVER_CONFIG.prompts)
 SKIP_SNIPPETS_CONFIG = load_skip_snippet_patterns(SERVER_SKIP_PATTERNS_PATH)
 
-LOG = get_log(SERVER_CONFIG)
+
+def load_embedding_model(config: Config) -> TextEmbedding | None:
+    """Load embedding model, if DB lookup is configured."""
+    if config.general.annotation_lookup_tool:
+        try:
+            return TextEmbedding(EMBEDDING_MODEL)
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            LOG.exception("Embedding model load failed: %s", str(exc))
+            return None
+    return None
 
 
 EMBEDDING_MODEL_INSTANCE = load_embedding_model(SERVER_CONFIG)
