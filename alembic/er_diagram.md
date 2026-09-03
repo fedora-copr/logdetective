@@ -62,16 +62,8 @@ erDiagram
         bigint task_id
     }
 
-    reactions {
-        bigint comment_id FK,UK
-        bigint count
-        bigint id PK
-        character_varying reaction_type UK
-    }
-
     analyze_request_metrics }o--|| gitlab_merge_request_jobs : "merge_request_job_id"
     koji_task_analysis }o--|| analyze_request_metrics : "response_id"
     annotated_snippets }o--|| annotated_builds : "source_build_id"
     comments }o--|| gitlab_merge_request_jobs : "merge_request_job_id"
-    reactions }o--|| comments : "comment_id"
 ```

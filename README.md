@@ -142,7 +142,7 @@ To be able to use Log Detective with Vertex AI:
 
 ## Querying statistics
 
-You can query requests, responses and emojis statistics via `metrics` endpoints.
+You can query request and response statistics via `metrics` endpoints.
 They return JSON data with `time_series` array containing metric objects with `metric`, `timestamps`, and `values` fields.
 Metrics are `GET` methods and have the form `/metrics/ENDPOINT_TYPE/QUERY_TYPE?parameter=value`:
 
@@ -151,7 +151,6 @@ Metrics are `GET` methods and have the form `/metrics/ENDPOINT_TYPE/QUERY_TYPE?p
 2. `QUERY_TYPE`:
 - `requests` will return how many requests did the server receive at given endpoint.
 - `responses` will return average response times during the time period.
-- `emojis` will return ALL emoji reactions. This data is collected only for `analyze-gitlab` events, so the `ENDPOINT_TYPE` in the URL is ignored when querying for emojis.
 - `all` will retrieve all of the above. If `QUERY_TYPE` is left empty, it defaults to `all`.
 
 3. `parameter=value` will specify the latest period for which metrics are returned. If unspecified, the query defaults to the last 2 days.
@@ -162,7 +161,7 @@ Metrics are `GET` methods and have the form `/metrics/ENDPOINT_TYPE/QUERY_TYPE?p
 
 Examples:
 ```sh
-curl "http://localhost:8080/metrics/analyze-gitlab/emojis?days=5"
+curl "http://localhost:8080/metrics/analyze-gitlab/responses?days=5"
 ```
 
 ## System Prompts
