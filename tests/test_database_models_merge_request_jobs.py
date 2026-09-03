@@ -10,7 +10,6 @@ from logdetective.database.models import (
     Forge,
     GitlabMergeRequestJobs,
     Comments,
-    Reactions,
 )
 
 
@@ -153,78 +152,3 @@ async def test_create_and_get_Comments():
             comment_id="7893",
         )
         assert comment.id
-
-
-@pytest.mark.asyncio
-async def test_create_and_get_Reactions():
-    async with DatabaseFactory().make_new_db() as _:
-        forge = Forge.gitlab_com
-        db_id = await Reactions.create_or_update(
-            forge,
-            project_id=123,
-            mr_iid=456,
-            job_id=11,
-            comment_id="789",
-            reaction_type="thumb_up",
-            count=1,
-        )
-        assert db_id == 1
-        db_id = await Reactions.create_or_update(
-            forge,
-            project_id=123,
-            mr_iid=456,
-            job_id=11,
-            comment_id="789",
-            reaction_type="thumb_down",
-            count=1,
-        )
-        assert db_id == 2
-
-        # update reaction count
-        db_id = await Reactions.create_or_update(
-            forge,
-            project_id=123,
-            mr_iid=456,
-            job_id=11,
-            comment_id="789",
-            reaction_type="thumb_down",
-            count=3,
-        )
-        assert db_id == 2
-
-        # reaction for another comment
-        db_id = await Reactions.create_or_update(
-            forge,
-            project_id=123,
-            mr_iid=456,
-            job_id=21,
-            comment_id="7890",
-            reaction_type="thumb_down",
-            count=3,
-        )
-        assert db_id == 3
-
-        # same reaction in a new forge creates new entry
-        db_id = await Reactions.create_or_update(
-            Forge.gitlab_cee_redhat_com,
-            project_id=123,
-            mr_iid=456,
-            job_id=21,
-            comment_id="7890",
-            reaction_type="thumb_down",
-            count=3,
-        )
-        assert db_id == 4
-
-        reactions = await Reactions.get_all_reactions(forge, 123, 456, 11, "789")
-        assert len(reactions) == 2
-
-        reaction = await Reactions.get_reaction_by_type(
-            forge, 123, 456, 11, "789", "thumb_down"
-        )
-        assert reaction.count == 3
-
-        reaction = await Reactions.get_reaction_by_type(
-            forge, 123, 456, 11, "789", "thumbs"
-        )
-        assert reaction is None

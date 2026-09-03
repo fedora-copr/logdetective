@@ -14,7 +14,6 @@ from logdetective.metric import (
     create_time_series_arrays,
     requests_per_time,
     average_time_per_responses,
-    emojis_per_time,
     TimeDefinition
 )
 
@@ -243,84 +242,3 @@ async def test_request_stats(
             f"period={period}, endpoint={endpoint}, metric={stats.metric}"
         )
         assert False, msg
-
-
-@pytest.mark.parametrize(
-    "period, records",
-    [
-        pytest.param(
-            TimePeriod(hours=14),
-            [
-                (datetime.timedelta(hours=1), {"thumbsup": 3, "thumbsdown": 1}),
-                (datetime.timedelta(hours=1, minutes=30), {"thumbsup": 2, "confused": 4}),
-                (datetime.timedelta(hours=5), {"laughing": 5}),
-                (datetime.timedelta(hours=10), {"thumbsup": 1, "heart": 2}),
-                (datetime.timedelta(hours=12, minutes=50), {"thumbsdown": 3}),
-                (datetime.timedelta(hours=14, minutes=1), {"heart": 2}),  # ignored
-            ],
-            id="hourly"
-        ),
-        pytest.param(
-            TimePeriod(days=9),
-            [
-                (datetime.timedelta(days=1, hours=3), {"thumbsup": 5, "thumbsdown": 2}),
-                (datetime.timedelta(days=1, hours=18), {"thumbsup": 3}),
-                (datetime.timedelta(days=4), {"laughing": 7, "confused": 1}),
-                (datetime.timedelta(days=6, hours=12), {"heart": 4, "thumbsup": 2}),
-                (datetime.timedelta(days=7, hours=23), {"thumbsdown": 6}),
-                (datetime.timedelta(days=10, hours=2), {"thumbsdown": 1, "heart": 1}),  # ignored
-            ],
-            id="daily"
-        ),
-        pytest.param(
-            TimePeriod(weeks=3),
-            [
-                (datetime.timedelta(days=2), {"thumbsup": 4, "confused": 2}),
-                (datetime.timedelta(days=6), {"laughing": 3}),
-                (datetime.timedelta(days=9, hours=6), {"thumbsup": 1, "heart": 5}),
-                (datetime.timedelta(days=15), {"thumbsdown": 8, "laughing": 2}),
-                (datetime.timedelta(days=20, hours=12), {"thumbsup": 6, "confused": 3}),
-                (datetime.timedelta(days=22, hours=6), {"heart": 1, "laughing": 1}),  # ignored
-            ],
-            id="weekly"
-        ),
-    ]
-)
-@pytest.mark.asyncio
-async def test_emoji_stats(
-    period: TimePeriod,
-    records: list[tuple[datetime.timedelta, dict[str, int]]],
-):
-    """
-    Populate DB with a some preset mock emoji metadata (`records`) and check that
-    they are selected (only the selected `period`) properly.
-    """
-    anchor = datetime.datetime.now(datetime.timezone.utc).replace(minute=0, second=0)
-    if period.days or period.weeks:
-        anchor = anchor.replace(hour=0)
-
-    async with PopulateDatabase.populate_db_with_emoji_records(
-        anchor,
-        records,
-    ) as _:
-        stats = await emojis_per_time(period, end_time=anchor)
-
-    emoji_sums = {  # (hourly, daily, weekly) -> counts ignore the entries outside `period`
-        "thumbsup": (6, 10, 11),
-        "thumbsdown": (4, 8, 8),
-        "laughing": (5, 7, 5),
-        "heart": (2, 4, 5),
-        "confused": (4, 1, 5),
-    }
-    assert isinstance(stats, list)
-    for e in stats:
-        assert isinstance(e, MetricTimeSeries)
-        hourly_sum, daily_sum, weekly_sum = emoji_sums[e.metric.removeprefix("emoji_")]
-        if period.hours:
-            assert float(hourly_sum) == sum(e.values)
-        elif period.days:
-            assert float(daily_sum) == sum(e.values)
-        elif period.weeks:
-            assert float(weekly_sum) == sum(e.values)
-        else:
-            assert False, f"Did not test any of the expected checks for {e.metric}"

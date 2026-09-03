@@ -2,7 +2,6 @@ from logdetective.database.models.merge_request_jobs import (
     Forge,
     GitlabMergeRequestJobs,
     Comments,
-    Reactions,
 )
 from logdetective.database.models.koji import (
     KojiTaskAnalysis,
@@ -26,7 +25,6 @@ from logdetective.database.models.annotated_builds import (
 __all__ = [
     GitlabMergeRequestJobs.__name__,
     Comments.__name__,
-    Reactions.__name__,
     AnalyzeRequestMetrics.__name__,
     EndpointType.__name__,
     Forge.__name__,

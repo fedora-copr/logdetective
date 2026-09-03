@@ -1,6 +1,6 @@
 import datetime
 import io
-from itertools import cycle, count
+from itertools import cycle
 from contextlib import asynccontextmanager
 from typing import Optional, AsyncGenerator
 import zipfile
@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from flexmock import flexmock
 from pytest_mock import MockerFixture
 
@@ -27,14 +27,7 @@ from logdetective.models import (
 from logdetective import gitlab
 from logdetective.database import base
 from logdetective.database.base import Base, destroy
-from logdetective.database.models import (
-    AnalyzeRequestMetrics,
-    EndpointType,
-    GitlabMergeRequestJobs,
-    Comments,
-    Reactions,
-    Forge,
-)
+from logdetective.database.models import AnalyzeRequestMetrics, EndpointType
 from logdetective.compressors import LLMResponseCompressor
 from logdetective.models import GitLabInstanceConfig
 
@@ -182,71 +175,6 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
                     response_timestamp,
                     next(response_lengths),
                     _PRECOMPUTED_COMPRESSED_RESPONSE,
-                )
-            yield session_factory
-
-    # pylint: disable=too-many-arguments,too-many-positional-arguments
-    @staticmethod
-    async def _cascade_db_populate_for_emojis(
-        session_context: async_sessionmaker[AsyncSession],
-        project_id: int,
-        mr_iid: int,
-        job_id: int,
-        comment_id: int,
-        timestamp: datetime.datetime,
-        emoji_data: dict[str, int],
-    ):
-        """
-        A helper function that, given the necessary mock IDs,
-        inserts all necessary DB entries along with `emoji_data` in the DB.
-        """
-        await GitlabMergeRequestJobs.create(
-            Forge.gitlab_com, project_id, mr_iid, job_id,
-        )
-        id_ = await Comments.create(
-            Forge.gitlab_com, project_id, mr_iid, job_id, comment_id,
-        )
-        async with session_context() as db_session:
-            comment = await Comments.get_by_id(id_)
-            comment.created_at = timestamp
-            db_session.add(comment)
-            await db_session.flush()
-            await db_session.commit()
-        for emoji_type, emoji_count in emoji_data.items():
-            await Reactions.create_or_update(
-                Forge.gitlab_com, project_id, mr_iid, job_id, comment_id, emoji_type, emoji_count,
-            )
-
-    @classmethod
-    @asynccontextmanager
-    async def populate_db_with_emoji_records(
-        cls,
-        time_anchor: datetime.datetime,
-        emoji_records: list[tuple[datetime.timedelta, dict[str, int]]]
-    ):
-        """
-        Populate the database with emojis based on the list of metadata.
-
-        `emoji_records`: one record has a timedelta relative to `time_anchor`, see
-        `populate_db_with_analysis_records()` and emoji -> emoji count map.
-        """
-        projects = count(start=3, step=3)
-        jobs = count(start=2, step=2)
-        merge_requests = count(start=1)
-        comments = cycle("abcdefghijklmnopqrstuvwxyz")
-
-        # pylint: disable=contextmanager-generator-missing-cleanup
-        db = cls()
-        async with db.db_factory.make_new_db() as session_factory:
-            for offset, emoji_data in emoji_records:
-                await db._cascade_db_populate_for_emojis(
-                    session_factory,
-                    next(projects),
-                    next(merge_requests),
-                    next(jobs),
-                    next(comments),
-                    time_anchor - offset,
-                    emoji_data
                 )
             yield session_factory
 
