@@ -3,17 +3,20 @@ from logdetective.database.models.merge_request_jobs import (
     GitlabMergeRequestJobs,
     Comments,
 )
-from logdetective.database.models.koji import (
-    KojiTaskAnalysis,
+from logdetective.database.models.tasks import (
+    TaskAnalysis,
+    TaskType,
+    AnalysisState,
 )
 from logdetective.database.models.metrics import (
     AnalyzeRequestMetrics,
     EndpointType,
 )
 from logdetective.database.models.exceptions import (
-    KojiTaskNotFoundError,
-    KojiTaskNotAnalyzedError,
-    KojiTaskAnalysisTimeoutError,
+    TaskNotAnalyzedError,
+    TaskAnalysisTimeoutError,
+    AnalysisTaskNotFoundError,
+    AnalyzeRequestMetricsNotFoundError,
 )
 from logdetective.database.models.annotated_builds import (
     AnnotatedBuilds,
@@ -28,10 +31,13 @@ __all__ = [
     AnalyzeRequestMetrics.__name__,
     EndpointType.__name__,
     Forge.__name__,
-    KojiTaskAnalysis.__name__,
-    KojiTaskNotFoundError.__name__,
-    KojiTaskNotAnalyzedError.__name__,
-    KojiTaskAnalysisTimeoutError.__name__,
+    TaskAnalysis.__name__,
+    TaskType.__name__,
+    AnalysisState.__name__,
+    TaskNotAnalyzedError.__name__,
+    TaskAnalysisTimeoutError.__name__,
+    AnalysisTaskNotFoundError.__name__,
+    AnalyzeRequestMetricsNotFoundError.__name__,
     AnnotatedBuilds.__name__,
     AnnotatedSnippets.__name__,
     AnnotationUpdates.__name__,

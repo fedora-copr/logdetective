@@ -82,7 +82,8 @@ class DatabaseFactory:  # pylint: disable=too-few-public-methods
         self.engine = create_async_engine(
             self.get_pg_test_url(), connect_args={"command_timeout": 10}, pool_pre_ping=True
         )
-        self.SessionFactory = async_sessionmaker(autoflush=True, bind=self.engine)
+        self.SessionFactory = async_sessionmaker(
+            autoflush=True, bind=self.engine, expire_on_commit=False)
         self._engine_patch = patch.object(base, "engine", self.engine)
         self._session_patch = patch.object(base, "SessionFactory", self.SessionFactory)
         self._engine_patch.start()

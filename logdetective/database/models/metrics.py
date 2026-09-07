@@ -1,6 +1,6 @@
 from __future__ import annotations
 import enum
-import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Self, Tuple, TYPE_CHECKING
 
 from sqlalchemy import (
@@ -24,7 +24,7 @@ from logdetective.utils import retry_database_error
 
 
 if TYPE_CHECKING:
-    from .koji import KojiTaskAnalysis
+    from logdetective.database.models.tasks import TaskAnalysis
 
 
 class EndpointType(enum.Enum):
@@ -47,12 +47,18 @@ class AnalyzeRequestMetrics(Base):
         index=True,
         comment="The service endpoint that was called",
     )
-    request_received_at: Mapped[datetime.datetime] = mapped_column(
+    request_received_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
         index=True,
-        default=datetime.datetime.now(datetime.timezone.utc),
+        default=datetime.now(timezone.utc),
         comment="Timestamp when the request was received",
+    )
+    analysis_completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        index=True,
+        nullable=True,
+        comment="Timestamp when the analysis was completed"
     )
     compressed_response: Mapped[Optional[bytes]] = mapped_column(
         LargeBinary(length=314572800),  # 300MB limit (300 * 1024 * 1024)
@@ -60,7 +66,7 @@ class AnalyzeRequestMetrics(Base):
         index=False,
         comment="Given response (with explanation and snippets) saved in a zip format",
     )
-    response_sent_at: Mapped[Optional[datetime.datetime]] = mapped_column(
+    response_sent_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
         comment="Timestamp when the response was sent back",
@@ -82,9 +88,9 @@ class AnalyzeRequestMetrics(Base):
         back_populates="request_metrics"
     )
 
-    koji_tasks: Mapped[List["KojiTaskAnalysis"]] = relationship(
-        "KojiTaskAnalysis",
-        back_populates="response"
+    analysis_tasks: Mapped[List["TaskAnalysis"]] = relationship(
+        "TaskAnalysis",
+        back_populates="analysis_metrics",
     )
 
     @classmethod
@@ -92,17 +98,18 @@ class AnalyzeRequestMetrics(Base):
     async def create(
         cls,
         endpoint: EndpointType,
-        request_received_at: Optional[datetime.datetime] = None,
+        request_received_at: Optional[datetime] = None,
     ) -> int:
         """Create AnalyzeRequestMetrics record with data about received request"""
         async with transaction(commit=True) as session:
             metrics = AnalyzeRequestMetrics()
             metrics.endpoint = endpoint
-            metrics.request_received_at = request_received_at or datetime.datetime.now(
-                datetime.timezone.utc
+            metrics.request_received_at = request_received_at or datetime.now(
+                timezone.utc
             )
             session.add(metrics)
             await session.flush()
+            await session.refresh(metrics)
             return metrics.id
 
     @classmethod
@@ -210,11 +217,11 @@ class AnalyzeRequestMetrics(Base):
     @classmethod
     def get_dictionary_with_datetime_keys(
         cls, time_format: str, query_results: List[Tuple[str, int]]
-    ) -> dict[datetime.datetime, int]:
+    ) -> dict[datetime, int]:
         """Convert from a list of tuples with str as first values
         to a dictionary with datetime keys"""
         new_dict = {
-            datetime.datetime.strptime(e[0], time_format): e[1] for e in query_results
+            datetime.strptime(e[0], time_format): e[1] for e in query_results
         }
         return new_dict
 
@@ -245,11 +252,11 @@ class AnalyzeRequestMetrics(Base):
     @classmethod
     async def get_requests_in_period(
         cls,
-        start_time: datetime.datetime,
-        end_time: datetime.datetime,
+        start_time: datetime,
+        end_time: datetime,
         time_format: str,
         endpoint: Optional[EndpointType] = EndpointType.ANALYZE,
-    ) -> dict[datetime.datetime, int]:
+    ) -> dict[datetime, int]:
         """
         Get a dictionary with request counts grouped by time units within a specified period.
 
@@ -318,11 +325,11 @@ class AnalyzeRequestMetrics(Base):
     @classmethod
     async def get_responses_average_time_in_period(
         cls,
-        start_time: datetime.datetime,
-        end_time: datetime.datetime,
+        start_time: datetime,
+        end_time: datetime,
         time_format: str,
         endpoint: Optional[EndpointType] = EndpointType.ANALYZE,
-    ) -> dict[datetime.datetime, int]:
+    ) -> dict[datetime, int]:
         """
         Get a dictionary with average responses times
         grouped by time units within a specified period.
@@ -380,11 +387,11 @@ class AnalyzeRequestMetrics(Base):
     @classmethod
     async def get_responses_average_length_in_period(
         cls,
-        start_time: datetime.datetime,
-        end_time: datetime.datetime,
+        start_time: datetime,
+        end_time: datetime,
         time_format: str,
         endpoint: Optional[EndpointType] = EndpointType.ANALYZE,
-    ) -> dict[datetime.datetime, int]:
+    ) -> dict[datetime, int]:
         """
         Get a dictionary with average responses length
         grouped by time units within a specified period.
