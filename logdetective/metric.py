@@ -63,7 +63,7 @@ async def update_metrics(
     if hasattr(response, "explanation") and isinstance(
         response.explanation, Explanation
     ):
-        response_length = len(response.explanation.text)
+        response_length = len(response.model_dump_json())
     await AnalyzeRequestMetrics.update(
         id_=metrics_id,
         response_sent_at=response_sent_at,

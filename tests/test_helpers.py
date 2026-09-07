@@ -83,7 +83,8 @@ class DatabaseFactory:  # pylint: disable=too-few-public-methods
         self.engine = create_async_engine(
             self.get_pg_test_url(), connect_args={"command_timeout": 10}, pool_pre_ping=True
         )
-        self.SessionFactory = async_sessionmaker(autoflush=True, bind=self.engine)
+        self.SessionFactory = async_sessionmaker(
+            autoflush=True, expire_on_commit=False, bind=self.engine)
         flexmock(base, engine=self.engine, SessionFactory=self.SessionFactory)
 
     @asynccontextmanager

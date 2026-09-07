@@ -21,9 +21,9 @@ from fastapi.responses import Response as BasicResponse
 import aiohttp
 import sentry_sdk
 from beeai_framework.backend import ChatModel
+from logdetective.compressors import LLMResponseCompressor
 
 from logdetective.exceptions import (
-    KojiInvalidTaskID,
     LogDetectiveInferenceError,
     RemoteLogError,
 )
@@ -36,11 +36,11 @@ from logdetective.utils import (
     SSRFProtectedResolver,
 )
 
-from logdetective.database.models.koji import KojiTaskAnalysis
+from logdetective.database.models.tasks import TaskAnalysis, TaskType
 from logdetective.database.models.exceptions import (
-    KojiTaskAnalysisTimeoutError,
-    KojiTaskNotAnalyzedError,
-    KojiTaskNotFoundError,
+    TaskAnalysisTimeoutError,
+    TaskNotAnalyzedError,
+    AnalysisTaskNotFoundError,
 )
 
 from logdetective.agent.agent import analyze_artifacts
@@ -383,7 +383,7 @@ async def get_koji_task_analysis(
     koji_instance: Annotated[str, Path(title="The Koji instance to use")],
     task_id: Annotated[int, Path(title="The task ID to analyze")],
     x_koji_token: Annotated[str, Header()] = "",
-):
+):  # pylint:  disable=too-many-return-statements
     """Provide endpoint for retrieving log file analysis of a Koji task"""
 
     try:
@@ -401,14 +401,30 @@ async def get_koji_task_analysis(
 
     # Check if we have a response for this task
     try:
-        return KojiTaskAnalysis.get_response_by_task_id(task_id)
+        task = await TaskAnalysis.get_task_by_external_id(str(task_id))
+        if not (task.response and task.task_metadata):
 
-    except (KojiInvalidTaskID, KojiTaskNotFoundError):
+            return BasicResponse(
+                status_code=500,
+                content={
+                    "message": (
+                        f"No result or metadata found for task {task_id}. "
+                        "Please report to the service admin."
+                    ),
+                    "task_id": task_id,
+                }
+            )
+        return KojiResponse(
+            task_id=task_id,
+            log_file_name=task.task_metadata.get("log_file_name", "unknown"),
+            response=LLMResponseCompressor.unzip(task.response),
+        )
+    except AnalysisTaskNotFoundError:
         # This task ID is malformed, out of range, or not found, so we will
         # return a 404.
         return BasicResponse(status_code=404)
 
-    except KojiTaskAnalysisTimeoutError:
+    except TaskAnalysisTimeoutError:
         # Task analysis has timed out, so we assume that the request was lost
         # and that we need to start another analysis.
         # There isn't a fully-appropriate error code for this, so we'll use
@@ -417,7 +433,7 @@ async def get_koji_task_analysis(
             status_code=503, content="Task analysis timed out, please retry."
         )
 
-    except KojiTaskNotAnalyzedError:
+    except TaskNotAnalyzedError:
         # Its still running, so we need to return a 202
         # (Accepted) code to let the client know to keep waiting.
         return BasicResponse(
@@ -454,13 +470,9 @@ async def analyze_rpmbuild_koji(
 
     # Check if we already have a response for this task
     try:
-        response = KojiTaskAnalysis.get_response_by_task_id(task_id)
+        task = await TaskAnalysis.get_task_by_external_id(str(task_id))
 
-    except KojiInvalidTaskID:
-        # This task ID is malformed or out of range, so we will return a 400.
-        response = BasicResponse(status_code=404, content="Invalid or unknown task ID.")
-
-    except (KojiTaskNotFoundError, KojiTaskAnalysisTimeoutError):
+    except (AnalysisTaskNotFoundError, TaskAnalysisTimeoutError):
         # Task not yet analyzed or it timed out, so we need to start the
         # analysis in the background and return a 202 (Accepted) error.
 
@@ -483,17 +495,42 @@ async def analyze_rpmbuild_koji(
                 task_id, x_koji_callback
             )
 
-        response = BasicResponse(
-            status_code=202, content=f"Beginning analysis of task {task_id}"
+        return BasicResponse(
+            status_code=202,
+            content={
+                "message": f"Beginning analysis of task {task_id}",
+                "task_id": task_id,
+            }
         )
 
-    except KojiTaskNotAnalyzedError:
+    except TaskNotAnalyzedError:
         # Its still running, so we need to return a 202
         # (Accepted) error.
-        response = BasicResponse(
-            status_code=202, content=f"Analysis still in progress for task {task_id}"
+        return BasicResponse(
+            status_code=202,
+            content={
+                "message": f"Analysis still in progress for task {task_id}",
+                "task_id": task_id,
+            }
         )
 
+    if not (task.response and task.task_metadata):
+
+        return BasicResponse(
+            status_code=500,
+            content={
+                "message": (
+                    f"No result or metadata found for task {task_id}. "
+                    "Please report to the service admin."
+                ),
+                "task_id": task_id,
+            }
+        )
+    response = KojiResponse(
+        task_id=task_id,
+        log_file_name=task.task_metadata.get("log_file_name", "unknown"),
+        response=LLMResponseCompressor.unzip(task.response),
+    )
     return response
 
 
@@ -522,10 +559,13 @@ async def analyze_koji_task(
     # We need to associate the metric ID with the koji task analysis.
     # This will create the new row without a response, which we will use as
     # an indicator that the analysis is in progress.
-    await KojiTaskAnalysis.create_or_restart(
-        koji_instance=koji_instance_config.xmlrpc_url,
-        task_id=task_id,
-        log_file_name=log_file_name,
+    new_task_id = await TaskAnalysis.create_or_restart(
+        task_type=TaskType.KOJI,
+        external_task_id=str(task_id),
+        metadata={
+            "koji_instance": koji_instance_config.xmlrpc_url,
+            "log_file_name": log_file_name,
+        }
     )
     try:
         response = await analyze_artifacts(
@@ -533,14 +573,18 @@ async def analyze_koji_task(
         )
     except LogDetectiveInferenceError as exc:
         # The empty task will sit with null response_id until analysis_timeout elapses,
-        # then callers get KojiTaskAnalysisTimeoutError -> handled as 503
+        # then callers get TaskAnalysisTimeoutError -> handled as 503
         LOG.error("Not processing Koji task %d: %s: %s", task_id, type(exc).__name__, exc)
         return
 
     # Now that we have the response, we can update the metrics and mark the
     # koji task analysis as completed.
     await update_metrics(metrics_id, response)
-    await KojiTaskAnalysis.add_response(task_id, metrics_id)
+    await TaskAnalysis.add_response(
+        task_id=new_task_id,
+        metric_id=metrics_id,
+        response=response
+    )
 
     # Notify any callbacks that the analysis is complete.
     for callback in koji_callback_manager.get_callbacks(task_id):

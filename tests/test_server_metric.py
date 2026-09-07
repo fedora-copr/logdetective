@@ -38,7 +38,8 @@ from tests.test_helpers import (
     "response",
     [
         flexmock(
-            explanation=Explanation(text="abc")
+            explanation=Explanation(text="abc"),
+            model_dump_json=lambda: "{explanation: 'abc'}"
         ),
         flexmock(),  # mimic StreamResponse
     ],
@@ -74,8 +75,8 @@ async def test_track_request_async(build_log_request, mock_AnalyzeRequestMetrics
     assert isinstance(update_kwargs["response_sent_at"], datetime.datetime)
 
     # Verify value of response length
-    if explanation := getattr(response, "explanation", None):
-        assert update_kwargs["response_length"] == len(explanation.text)
+    if getattr(response, "explanation", None):
+        assert update_kwargs["response_length"] == len(response.model_dump_json())
 
 
 def test_week_Definition():

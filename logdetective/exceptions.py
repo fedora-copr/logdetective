@@ -78,10 +78,6 @@ class UnknownTaskType(LogDetectiveKojiException):
     """The task type is not supported."""
 
 
-class NoFailedTask(LogDetectiveKojiException):
-    """The task is not in the FAILED state."""
-
-
 class LogDetectiveConnectionError(LogDetectiveKojiException):
     """A connection error occurred."""
 

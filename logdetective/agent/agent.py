@@ -203,7 +203,7 @@ async def analyze_artifacts(
             max_retries_per_step=SERVER_CONFIG.inference.max_retries_per_step,
             total_max_retries=SERVER_CONFIG.inference.total_max_retries,
             expected_output=AgentResponse,
-            signal=AbortSignal.timeout(SERVER_CONFIG.general.agent_timeout),
+            signal=AbortSignal.timeout(SERVER_CONFIG.general.analysis_timeout),
         ).middleware(middleware)
     except ChatModelError as exc:
         cause = exc.__cause__

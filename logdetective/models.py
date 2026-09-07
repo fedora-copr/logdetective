@@ -423,7 +423,7 @@ class GeneralConfig(BaseModel):
     generate_solution: bool = True
     delay_artifact_download: bool = False
     # Timeout for execution of analysis in seconds
-    agent_timeout: int = 600
+    analysis_timeout: int = 900
     annotation_lookup_tool: bool = False
     max_annotations: int = 3
 
