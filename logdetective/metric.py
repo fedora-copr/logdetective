@@ -5,10 +5,6 @@ from functools import wraps
 
 import numpy
 
-from logdetective.config import LOG
-from logdetective.compressors import (
-    LLMResponseCompressor,
-)
 from logdetective.models import (
     TimePeriod,
     MetricTimeSeries,
@@ -46,15 +42,6 @@ async def update_metrics(
     This will add to the database entry the time when the response was sent,
     the length of the created response.
     """
-    try:
-        compressed_response = LLMResponseCompressor(response).zip_response()
-    except AttributeError as e:
-        compressed_response = None
-        LOG.warning(
-            "Given response can not be serialized "
-            "and saved in db (probably a StreamingResponse): %s.",
-            e,
-        )
 
     response_sent_at = (
         sent_at if sent_at else datetime.datetime.now(datetime.timezone.utc)
@@ -68,7 +55,6 @@ async def update_metrics(
         id_=metrics_id,
         response_sent_at=response_sent_at,
         response_length=response_length,
-        compressed_response=compressed_response,
     )
 
 
