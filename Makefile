@@ -17,32 +17,45 @@ server-up:
 server-down:
 	$(COMPOSE_ENGINE) -f docker-compose-dev.yaml down
 
-# WARNING: This target will start up a new server
-# and shut it down when the operation completes
+# WARNING: This target will start postgres and run migrations
 # run alembic revision in another pod
-alembic-generate-revision: server-up
-	@echo "Waiting for server to start and invoking alembic upgrade head..."
-	scripts/await_psql
+alembic-generate-revision:
+	@echo "Building server image..."
+	$(COMPOSE_ENGINE) -f docker-compose-dev.yaml build server
 
-	@echo "Checking if database is ready..."
-	$(CONTAINER_ENGINE) run --rm --network logdetective_default \
-		quay.io/logdetective/postgresql-15-c9s-pgvector \
-		pg_isready -h postgres -U $(POSTGRESQL_USER) -d $(POSTGRESQL_DATABASE) \
-		|| (echo "Database not ready -h postgres -U $(POSTGRESQL_USER) -d $(POSTGRESQL_DATABASE)"; exit 1)
+	@echo "Starting postgres..."
+	$(COMPOSE_ENGINE) -f docker-compose-dev.yaml up -d postgres
 
+	@echo "Waiting for postgres to be ready..."
+	scripts/await_psql --skip-alembic
+
+	@echo "Running existing migrations to head..."
+	$(CONTAINER_ENGINE) run --rm --user $(MY_ID) --uidmap=$(MY_ID):0:1 --uidmap=0:1:999 \
+		-e POSTGRESQL_USER=$(POSTGRESQL_USER) \
+		-e POSTGRESQL_PASSWORD=$(POSTGRESQL_PASSWORD) \
+		-e POSTGRESQL_HOST=postgres \
+		-e POSTGRESQL_DATABASE=$(POSTGRESQL_DATABASE) \
+		-v $(PWD)/logdetective:/src/logdetective:ro,z \
+		-v $(PWD)/alembic:/src/alembic:ro,z \
+		-v $(PWD)/alembic.ini:/src/alembic.ini:ro,z \
+		--network logdetective_default \
+		localhost/logdetective/server:latest \
+		bash -c "cd /src && python -m alembic upgrade head"
+
+	@echo "Generating new revision..."
 	$(CONTAINER_ENGINE) run --rm -ti --user $(MY_ID) --uidmap=$(MY_ID):0:1 --uidmap=0:1:999 \
 		-e POSTGRESQL_USER=$(POSTGRESQL_USER) \
 		-e POSTGRESQL_PASSWORD=$(POSTGRESQL_PASSWORD) \
 		-e POSTGRESQL_HOST=postgres \
 		-e POSTGRESQL_DATABASE=$(POSTGRESQL_DATABASE) \
+		-v $(PWD)/logdetective:/src/logdetective:ro,z \
 		-v $(PWD)/alembic:/src/alembic:rw,z \
 		-v $(PWD)/alembic.ini:/src/alembic.ini:ro,z \
 		--network logdetective_default \
 		localhost/logdetective/server:latest \
 		bash -c "cd /src && python -m alembic revision -m \"$(CHANGE)\" --autogenerate"
 
-	@echo "WARNING: Shutting down server..."
-	$(COMPOSE_ENGINE) down server
+	$(CONTAINER_ENGINE) rm logdetective_postgres_1 --force
 
 # Download mermerd from:
 # https://github.com/KarnerTh/mermerd/releases/download/v0.12.0/mermerd_0.12.0_linux_arm64.tar.gz
