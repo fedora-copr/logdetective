@@ -60,15 +60,6 @@ SUBTASK_ARCHES = [
 EXAMPLE_TASK_ID = 133858346
 
 
-# Purpose of these tests is not testing the compression which takes substantial time.
-# So we use a reference to a precomputed call to populate the DB.
-_PRECOMPUTED_COMPRESSED_RESPONSE = LLMResponseCompressor(
-    APIResponse(
-        explanation=Explanation(text="a small error"),
-    )
-).zip_response()
-
-
 class DatabaseFactory:  # pylint: disable=too-few-public-methods
     @staticmethod
     def get_pg_test_url() -> str:
@@ -129,7 +120,6 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
                     id_=id_,
                     response_sent_at=response_time,
                     response_length=next(response_lengths),
-                    compressed_response=_PRECOMPUTED_COMPRESSED_RESPONSE
                 )
                 current_time += interval
 
@@ -175,7 +165,6 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
                     id_,
                     response_timestamp,
                     next(response_lengths),
-                    _PRECOMPUTED_COMPRESSED_RESPONSE,
                 )
             yield session_factory
 
