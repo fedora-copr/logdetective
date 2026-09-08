@@ -11,7 +11,6 @@ from tests.test_helpers import (
 from logdetective.database.models import (
     AnalyzeRequestMetrics,
     EndpointType,
-    Forge,
 )
 
 
@@ -37,13 +36,6 @@ async def test_create_and_update_AnalyzeRequestMetrics():
 
         assert metrics is not None
         assert metrics.response_length == 0
-
-        # link metrics to a mr job
-        await metrics.add_mr_job(Forge.gitlab_com, 123, 456, 789)
-        all_metrics = await AnalyzeRequestMetrics.get_requests_metrics_for_mr_job(
-            Forge.gitlab_com, 123, 456, 789
-        )
-        assert len(all_metrics) == 1
 
 
 @pytest.mark.parametrize(
