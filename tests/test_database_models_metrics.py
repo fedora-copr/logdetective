@@ -26,7 +26,6 @@ async def test_create_and_update_AnalyzeRequestMetrics():
             id_=metrics_id,
             response_sent_at=datetime.datetime.now(datetime.timezone.utc),
             response_length=0,
-            compressed_response=bytes([1, 2, 3]),
         )
 
         query = select(AnalyzeRequestMetrics).filter(

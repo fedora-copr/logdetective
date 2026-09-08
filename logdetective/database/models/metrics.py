@@ -11,7 +11,6 @@ from sqlalchemy import (
     select,
     distinct,
     ForeignKey,
-    LargeBinary,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship, aliased
 
@@ -59,12 +58,6 @@ class AnalyzeRequestMetrics(Base):
         index=True,
         nullable=True,
         comment="Timestamp when the analysis was completed"
-    )
-    compressed_response: Mapped[Optional[bytes]] = mapped_column(
-        LargeBinary(length=314572800),  # 300MB limit (300 * 1024 * 1024)
-        nullable=True,
-        index=False,
-        comment="Given response (with explanation and snippets) saved in a zip format",
     )
     response_sent_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
@@ -119,7 +112,6 @@ class AnalyzeRequestMetrics(Base):
         id_: int,
         response_sent_at: DateTime,
         response_length: int,
-        compressed_response: bytes,
     ) -> None:
         """Update a row
         with data related to the given response"""
@@ -131,7 +123,6 @@ class AnalyzeRequestMetrics(Base):
                 raise ValueError("Returned `AnalyzeRequestMetrics` table is empty.")
             metrics.response_sent_at = response_sent_at
             metrics.response_length = response_length
-            metrics.compressed_response = compressed_response
             session.add(metrics)
 
     @classmethod
