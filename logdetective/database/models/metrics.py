@@ -12,12 +12,11 @@ from sqlalchemy import (
     distinct,
     ForeignKey,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship, aliased
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from logdetective.database.base import Base, transaction
 from logdetective.database.models.merge_request_jobs import (
     GitlabMergeRequestJobs,
-    Forge,
 )
 from logdetective.utils import retry_database_error
 
@@ -140,61 +139,6 @@ class AnalyzeRequestMetrics(Base):
             if metric is None:
                 raise ValueError("Returned `AnalyzeRequestMetrics` table is empty.")
             return metric
-
-    async def add_mr_job(
-        self,
-        forge: Forge,
-        project_id: int,
-        mr_iid: int,
-        job_id: int,
-    ) -> None:
-        """This request was triggered by a merge request job.
-        Link it.
-
-        Args:
-          forge: forge name
-          project_id: forge project id
-          mr_iid: merge request forge iid
-          job_id: forge job id
-        """
-        mr_job = await GitlabMergeRequestJobs.get_or_create(
-            forge, project_id, mr_iid, job_id
-        )
-        self.merge_request_job_id = mr_job.id
-        async with transaction(commit=True) as session:
-            await session.merge(self)
-
-    @classmethod
-    async def get_requests_metrics_for_mr_job(
-        cls,
-        forge: Forge,
-        project_id: int,
-        mr_iid: int,
-        job_id: int,
-    ) -> List[Self]:
-        """Search for all requests triggered by the specified merge request job.
-
-        Args:
-          forge: forge name
-          project_id: forge project id
-          mr_iid: merge request forge iid
-          job_id: forge job id
-        """
-        mr_job_alias = aliased(GitlabMergeRequestJobs)
-        query = (
-            select(cls)
-            .join(mr_job_alias, cls.merge_request_job_id == mr_job_alias.id)
-            .filter(
-                mr_job_alias.forge == forge,
-                mr_job_alias.mr_iid == mr_iid,
-                mr_job_alias.project_id == project_id,
-                mr_job_alias.job_id == job_id,
-            )
-        )
-        async with transaction(commit=False) as session:
-            query_result = await session.execute(query)
-            metrics = query_result.scalars().all()
-            return metrics
 
     @classmethod
     def get_postgres_time_format(cls, time_format):
