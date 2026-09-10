@@ -76,6 +76,7 @@ async def receive_gitlab_job_event_webhook(
         forge,
         job_hook,
         request.app.state.chat_model,
+        request.state.api_token_name,
     )
 
     # No return value or body is required for a webhook.

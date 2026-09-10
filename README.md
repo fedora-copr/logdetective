@@ -140,6 +140,30 @@ To be able to use Log Detective with Vertex AI:
     - Set the additional related config values in `server/config.yml` (follow the provided instructions, everything is set up so that you can just uncomment the 3 `GOOGLE_`* values).
 4. Uncomment the line in `docker-compose.yaml` which mounts the credentials JSON file.
 
+## API authentication
+
+Log Detective supports multiple named bearer tokens without putting secrets in
+`server/config.yml`. Copy `server/api_tokens.yml.example` to
+`server/api_tokens.yml`, replace every example value with a long random token,
+and restrict the file so that only the service account can read it. The file is
+a YAML mapping whose keys are stable client names and whose values are secret
+tokens:
+
+```yaml
+packit: "secret-token-for-packit"
+monitoring: "different-secret-token"
+```
+
+Set `LOGDETECTIVE_TOKENS_FILE` to the file's path and mount it read-only when
+running in a container. Clients authenticate with `Authorization: Bearer TOKEN`.
+Token names and values must be non-empty and unique, and token values must not
+have leading or trailing whitespace; duplicate token names are rejected rather
+than overwritten. An invalid configured file prevents server startup. When the
+variable is unset, authentication is disabled for local development.
+
+Only the token name is saved with analysis metrics. Token values are never
+stored in the database or included in authentication errors.
+
 ## Querying statistics
 
 You can query request and response statistics via `metrics` endpoints.
@@ -158,10 +182,15 @@ Metrics are `GET` methods and have the form `/metrics/ENDPOINT_TYPE/QUERY_TYPE?p
 - `value` is a positive integer.
 - `parameter` type also controls the granularity of the response: `?days=2` will produce time series with max 2 entries, `?hours=48` will produce a time series with max 48 entries.
 
+Use the optional `api_token_name` query parameter to restrict statistics to a
+single named token. Without it, statistics include all tokens and historical
+records without token attribution.
+
 
 Examples:
 ```sh
 curl "http://localhost:8080/metrics/analyze-gitlab/responses?days=5"
+curl "http://localhost:8080/metrics/analyze/requests?days=5&api_token_name=packit"
 ```
 
 ## System Prompts
