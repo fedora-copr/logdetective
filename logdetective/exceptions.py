@@ -1,6 +1,13 @@
 """Exception classes for Log Detective."""
 
 
+class DuplicateAPITokenNameError(ValueError):
+    """An API token configuration contains a name more than once."""
+
+    def __init__(self, name):
+        super().__init__(f"duplicate API token name {name!r}")
+
+
 class RemoteLogError(Exception):
     """Base exception for Log Detective remote log access."""
     status_code = 500  # Default: Internal Server Error

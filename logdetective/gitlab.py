@@ -59,6 +59,7 @@ async def process_gitlab_job_event(
     forge: Forge,
     job_hook: JobHook,
     chat_model: ChatModel,
+    api_token_name: str | None = None,
 ) -> APIResponse | None:
     """Handle a received job_event webhook from GitLab"""
     LOG.debug("Received webhook message from %s:\n%s", forge.value, job_hook)
@@ -126,6 +127,7 @@ async def process_gitlab_job_event(
     log_text = sanitize_artifact(log_text)
     metrics_id = await add_new_metrics(
         api_name=EndpointType.ANALYZE_GITLAB_JOB,
+        api_token_name=api_token_name,
     )
     build_metadata = BuildMetadata(
         commentary=(

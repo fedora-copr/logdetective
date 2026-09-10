@@ -11,7 +11,9 @@ from typing import (
 
 import aiohttp
 from aiohttp.abc import ResolveResult
+from pydantic import ValidationError
 from sqlalchemy.exc import OperationalError
+import yaml
 from tenacity import (
     retry,
     RetryCallState,
@@ -23,6 +25,8 @@ from tenacity import (
 from logdetective.config import LOG
 from logdetective.database.base import DB_MAX_RETRIES
 from logdetective.exceptions import LogDetectiveConnectionError
+from logdetective.models import APITokens
+from logdetective.yaml_utils import DuplicateKeySafeLoader
 
 
 retry_database_error = retry(
@@ -31,6 +35,27 @@ retry_database_error = retry(
     retry=retry_if_exception_type(OperationalError),
     reraise=True,
 )
+
+
+def load_api_tokens(path: str | None) -> APITokens | None:
+    """Load and validate named API bearer tokens from a YAML file."""
+    if not path:
+        LOG.warning(
+            "Log Detective launched without set API tokens. "
+            "All requests will be accepted without authentication!"
+        )
+        return None
+
+    with open(path, encoding="utf-8") as token_file:
+        token_data = yaml.load(token_file, Loader=DuplicateKeySafeLoader)
+
+    try:
+        return APITokens.model_validate(token_data)
+    except ValidationError as exc:
+        messages = "; ".join(
+            error["msg"] for error in exc.errors(include_input=False)
+        )
+        raise ValueError(f"Invalid API token file: {messages}") from None
 
 
 def connection_error_giveup(retry_state: RetryCallState) -> None:

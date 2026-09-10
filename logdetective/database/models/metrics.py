@@ -5,6 +5,7 @@ from typing import Optional, List, Self, Tuple, TYPE_CHECKING
 
 from sqlalchemy import (
     Integer,
+    String,
     DateTime,
     Enum,
     func,
@@ -66,6 +67,12 @@ class AnalyzeRequestMetrics(Base):
     response_length: Mapped[Optional[int]] = mapped_column(
         Integer, nullable=True, comment="Length of the response in chars"
     )
+    api_token_name: Mapped[Optional[str]] = mapped_column(
+        String,
+        nullable=True,
+        index=True,
+        comment="Non-secret name of the API token used for the request",
+    )
 
     merge_request_job_id: Mapped[Optional[int]] = mapped_column(
         Integer,
@@ -91,6 +98,7 @@ class AnalyzeRequestMetrics(Base):
         cls,
         endpoint: EndpointType,
         request_received_at: Optional[datetime] = None,
+        api_token_name: Optional[str] = None,
     ) -> int:
         """Create AnalyzeRequestMetrics record with data about received request"""
         async with transaction(commit=True) as session:
@@ -99,6 +107,7 @@ class AnalyzeRequestMetrics(Base):
             metrics.request_received_at = request_received_at or datetime.now(
                 timezone.utc
             )
+            metrics.api_token_name = api_token_name
             session.add(metrics)
             await session.flush()
             await session.refresh(metrics)
@@ -162,7 +171,7 @@ class AnalyzeRequestMetrics(Base):
 
     @classmethod
     def _get_requests_by_time_for_postgres(
-        cls, start_time, end_time, time_format, endpoint
+        cls, start_time, end_time, time_format, endpoint, api_token_name=None
     ):
         """Get total requests number in time period.
 
@@ -180,7 +189,13 @@ class AnalyzeRequestMetrics(Base):
             )
             .filter(cls.request_received_at.between(start_time, end_time))
             .filter(cls.endpoint == endpoint)
-            .cte("requests_by_time_format")
+        )
+        if api_token_name is not None:
+            requests_by_time_format = requests_by_time_format.filter(
+                cls.api_token_name == api_token_name
+            )
+        requests_by_time_format = requests_by_time_format.cte(
+            "requests_by_time_format"
         )
         return requests_by_time_format
 
@@ -191,6 +206,7 @@ class AnalyzeRequestMetrics(Base):
         end_time: datetime,
         time_format: str,
         endpoint: Optional[EndpointType] = EndpointType.ANALYZE,
+        api_token_name: Optional[str] = None,
     ) -> dict[datetime, int]:
         """
         Get a dictionary with request counts grouped by time units within a specified period.
@@ -200,13 +216,14 @@ class AnalyzeRequestMetrics(Base):
             end_time (datetime): The end of the time period to query
             time_format (str): The strftime format string to format timestamps (e.g., '%Y-%m-%d')
             endpoint (EndpointType): The analyze API endpoint to query
+            api_token_name (str): Optional named-token filter
 
         Returns:
             dict[datetime, int]: A dictionary mapping datetime objects to request counts
         """
         async with transaction(commit=False) as session:
             requests_by_time_format = cls._get_requests_by_time_for_postgres(
-                start_time, end_time, time_format, endpoint
+                start_time, end_time, time_format, endpoint, api_token_name
             )
 
             count_requests_by_time_format = select(
@@ -221,7 +238,7 @@ class AnalyzeRequestMetrics(Base):
 
     @classmethod
     async def _get_average_responses_times_for_postgres(
-        cls, start_time, end_time, time_format, endpoint
+        cls, start_time, end_time, time_format, endpoint, api_token_name=None
     ):
         """Get average responses time.
 
@@ -249,9 +266,14 @@ class AnalyzeRequestMetrics(Base):
                 )
                 .filter(cls.request_received_at.between(start_time, end_time))
                 .filter(cls.endpoint == endpoint)
-                .group_by("time_range")
-                .order_by("time_range")
             )
+            if api_token_name is not None:
+                average_responses_times = average_responses_times.filter(
+                    cls.api_token_name == api_token_name
+                )
+            average_responses_times = average_responses_times.group_by(
+                "time_range"
+            ).order_by("time_range")
 
             query_results = await session.execute(average_responses_times)
             results = query_results.all()
@@ -264,6 +286,7 @@ class AnalyzeRequestMetrics(Base):
         end_time: datetime,
         time_format: str,
         endpoint: Optional[EndpointType] = EndpointType.ANALYZE,
+        api_token_name: Optional[str] = None,
     ) -> dict[datetime, int]:
         """
         Get a dictionary with average responses times
@@ -274,6 +297,7 @@ class AnalyzeRequestMetrics(Base):
             end_time (datetime): The end of the time period to query
             time_format (str): The strftime format string to format timestamps (e.g., '%Y-%m-%d')
             endpoint (EndpointType): The analyze API endpoint to query
+            api_token_name (str): Optional named-token filter
 
         Returns:
             dict[datetime, int]: A dictionary mapping datetime objects
@@ -282,7 +306,7 @@ class AnalyzeRequestMetrics(Base):
         async with transaction(commit=False) as _:
             average_responses_times = (
                 await cls._get_average_responses_times_for_postgres(
-                    start_time, end_time, time_format, endpoint
+                    start_time, end_time, time_format, endpoint, api_token_name
                 )
             )
 
@@ -292,7 +316,7 @@ class AnalyzeRequestMetrics(Base):
 
     @classmethod
     async def _get_average_responses_lengths_for_postgres(
-        cls, start_time, end_time, time_format, endpoint
+        cls, start_time, end_time, time_format, endpoint, api_token_name=None
     ):
         """Get average responses length.
 
@@ -311,9 +335,14 @@ class AnalyzeRequestMetrics(Base):
                 )
                 .filter(cls.request_received_at.between(start_time, end_time))
                 .filter(cls.endpoint == endpoint)
-                .group_by("time_range")
-                .order_by("time_range")
             )
+            if api_token_name is not None:
+                average_responses_lengths = average_responses_lengths.filter(
+                    cls.api_token_name == api_token_name
+                )
+            average_responses_lengths = average_responses_lengths.group_by(
+                "time_range"
+            ).order_by("time_range")
 
             query_results = await session.execute(average_responses_lengths)
             results = query_results.all()
@@ -326,6 +355,7 @@ class AnalyzeRequestMetrics(Base):
         end_time: datetime,
         time_format: str,
         endpoint: Optional[EndpointType] = EndpointType.ANALYZE,
+        api_token_name: Optional[str] = None,
     ) -> dict[datetime, int]:
         """
         Get a dictionary with average responses length
@@ -336,6 +366,7 @@ class AnalyzeRequestMetrics(Base):
             end_time (datetime): The end of the time period to query
             time_format (str): The strftime format string to format timestamps (e.g., '%Y-%m-%d')
             endpoint (EndpointType): The analyze API endpoint to query
+            api_token_name (str): Optional named-token filter
 
         Returns:
             dict[datetime, int]: A dictionary mapping datetime objects
@@ -344,7 +375,7 @@ class AnalyzeRequestMetrics(Base):
         async with transaction(commit=False) as _:
             average_responses_lengths = (
                 await cls._get_average_responses_lengths_for_postgres(
-                    start_time, end_time, time_format, endpoint
+                    start_time, end_time, time_format, endpoint, api_token_name
                 )
             )
 

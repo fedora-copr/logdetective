@@ -4,6 +4,7 @@ from typing import Callable
 import pytest
 import aiohttp
 import aioresponses
+from fastapi import Request
 
 from flexmock import flexmock
 
@@ -48,7 +49,7 @@ from tests.test_helpers import (
 async def test_track_request_async(build_log_request, mock_AnalyzeRequestMetrics, response):
     """Test the @track_request decorator for a mock analyze log function call."""
     @track_request()
-    async def analyze(payload, http_session):
+    async def analyze(payload, http_session, request=None):
         return response
 
     mock_header = {"Content-Length": "3"}
@@ -57,7 +58,9 @@ async def test_track_request_async(build_log_request, mock_AnalyzeRequestMetrics
         mock.head("https://example.com/logs/123", status=200, headers=mock_header)
         mock.get("https://example.com/logs/123", status=200, body=mock_response)
         async with aiohttp.ClientSession() as session:
-            await analyze(**build_log_request, http_session=session)
+            request = Request({"type": "http"})
+            request.state.api_token_name = "packit"
+            await analyze(**build_log_request, http_session=session, request=request)
     mock_create = mock_AnalyzeRequestMetrics["mock_create"]
     mock_update = mock_AnalyzeRequestMetrics["mock_update"]
 
@@ -66,6 +69,7 @@ async def test_track_request_async(build_log_request, mock_AnalyzeRequestMetrics
 
     # Verify that endpoint is set to `EndpointType.ANALYZE`
     assert create_kwargs["endpoint"] == EndpointType.ANALYZE
+    assert create_kwargs["api_token_name"] == "packit"
 
     # value of _id used in calling `update` method must match
     # value returned by `create` method

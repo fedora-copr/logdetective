@@ -10,7 +10,9 @@ from logdetective.models import (
     ExtractorConfig,
     ArtifactFile,
     AnalysisRequest,
+    APITokens,
 )
+from logdetective.yaml_utils import DuplicateKeySafeLoader
 
 
 def test_TimePeriod():
@@ -41,6 +43,18 @@ def test_parse_deployed_config():
         config_def = yaml.safe_load(config_file)
         config = Config.model_validate(config_def)
         assert config
+
+
+def test_api_tokens_validator_rejects_duplicate_names():
+    token_data = yaml.load(
+        "packit: first-secret\npackit: second-secret\n",
+        Loader=DuplicateKeySafeLoader,
+    )
+
+    assert token_data["packit"] == "second-secret"
+    assert token_data.duplicate_keys == ["packit"]
+    with pytest.raises(ValidationError, match="duplicate API token name 'packit'"):
+        APITokens.model_validate(token_data)
 
 
 def test_default_initialization_and_configuration():

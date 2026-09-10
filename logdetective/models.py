@@ -4,12 +4,14 @@ import subprocess as sp
 from typing import List, Dict, Optional, Any, Union, Sequence
 from pydantic import (
     BaseModel,
+    RootModel,
     Field,
     model_validator,
     field_validator,
     NonNegativeFloat,
     HttpUrl,
     ConfigDict,
+    SecretStr,
 )
 
 from logdetective.constants import (
@@ -18,6 +20,39 @@ from logdetective.constants import (
     DEFAULT_MAXIMUM_ARTIFACT_MIB,
     MINIMUM_SNIPPET_TRUNCATION_LEN,
 )
+from logdetective.exceptions import DuplicateAPITokenNameError
+from logdetective.yaml_utils import DuplicateKeyMapping
+
+
+class APITokens(RootModel[dict[str, SecretStr]]):
+    """Named bearer tokens loaded from the separate API token file."""
+
+    model_config = ConfigDict(strict=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_names(cls, value):
+        """Require unique, non-empty token names before mapping validation."""
+        if isinstance(value, DuplicateKeyMapping) and value.duplicate_keys:
+            raise DuplicateAPITokenNameError(value.duplicate_keys[0])
+        if isinstance(value, dict) and any(not name for name in value):
+            raise ValueError("API token names must be non-empty strings.")
+        return value
+
+    @model_validator(mode="after")
+    def validate_tokens(self):
+        """Require usable, unique secret values in a populated mapping."""
+        if not self.root:
+            raise ValueError("API token file must contain a non-empty YAML mapping.")
+
+        token_values = [token.get_secret_value() for token in self.root.values()]
+        if any(not token for token in token_values):
+            raise ValueError("API token values must be non-empty strings.")
+        if any(token != token.strip() for token in token_values):
+            raise ValueError("API token values must not contain surrounding whitespace.")
+        if len(set(token_values)) != len(token_values):
+            raise ValueError("API token values must be unique.")
+        return self
 
 
 class PromptReference(BaseModel):

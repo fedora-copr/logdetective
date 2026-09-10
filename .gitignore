@@ -9,6 +9,7 @@ __pycache__/
 /server/privkey.pem
 /server/cert.pem
 fedora_messaging_certs/*.pem
+/server/api_tokens.yml
 
 # Vertex credentials - placed in the root folder of the project
 /*.json

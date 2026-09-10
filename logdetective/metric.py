@@ -17,6 +17,7 @@ from logdetective.database.models import EndpointType, AnalyzeRequestMetrics
 async def add_new_metrics(
     api_name: EndpointType,
     received_at: Optional[datetime.datetime] = None,
+    api_token_name: str | None = None,
 ) -> int:
     """Add a new database entry for a received request.
 
@@ -28,6 +29,7 @@ async def add_new_metrics(
     return await AnalyzeRequestMetrics.create(
         endpoint=EndpointType(api_name),
         request_received_at=received_at,
+        api_token_name=api_token_name,
     )
 
 
@@ -83,10 +85,17 @@ def track_request(name=None):
     def decorator(f):
         @wraps(f)
         async def async_decorated_function(*args, **kwargs):
-            metrics_id = None
+            bound_arguments = inspect.signature(f).bind_partial(
+                *args, **kwargs
+            ).arguments
+            request = bound_arguments.get("request")
+            api_token_name = getattr(
+                getattr(request, "state", None), "api_token_name", None
+            )
 
             metrics_id = await add_new_metrics(
                 api_name=EndpointType(name if name else f.__name__),
+                api_token_name=api_token_name,
             )
 
             response = await f(*args, **kwargs)
@@ -160,6 +169,7 @@ async def requests_per_time(
     period_of_time: TimePeriod,
     endpoint: EndpointType = EndpointType.ANALYZE,
     end_time: Optional[datetime.datetime] = None,
+    api_token_name: str | None = None,
 ) -> MetricTimeSeries:
     """
     Get request counts over a specified time period.
@@ -173,6 +183,7 @@ async def requests_per_time(
         endpoint: One of the API endpoints
         end_time: The end time for the analysis period. If None, defaults to the current
                   UTC time
+        api_token_name: If set, include only requests made with this named token
 
     Returns:
         A dictionary with timestamps and associated number of requests
@@ -181,7 +192,7 @@ async def requests_per_time(
     start_time = period_of_time.get_period_start_time(end_time)
     time_def = TimeDefinition(period_of_time)
     requests_counts = await AnalyzeRequestMetrics.get_requests_in_period(
-        start_time, end_time, time_def.time_format, endpoint
+        start_time, end_time, time_def.time_format, endpoint, api_token_name
     )
     timestamps, counts = create_time_series_arrays(requests_counts)
 
@@ -192,6 +203,7 @@ async def average_time_per_responses(
     period_of_time: TimePeriod,
     endpoint: EndpointType = EndpointType.ANALYZE,
     end_time: Optional[datetime.datetime] = None,
+    api_token_name: str | None = None,
 ) -> MetricTimeSeries:
     """
     Get average response time and length over a specified time period.
@@ -205,6 +217,7 @@ async def average_time_per_responses(
         endpoint: One of the API endpoints
         end_time: The end time for the analysis period. If None, defaults to the current
                   UTC time
+        api_token_name: If set, include only requests made with this named token
 
     Returns:
         MetricTimeSeries with values as average response times within the time period buckets.
@@ -214,7 +227,7 @@ async def average_time_per_responses(
     time_def = TimeDefinition(period_of_time)
     responses_average_time = (
         await AnalyzeRequestMetrics.get_responses_average_time_in_period(
-            start_time, end_time, time_def.time_format, endpoint
+            start_time, end_time, time_def.time_format, endpoint, api_token_name
         )
     )
     timestamps, average_time = create_time_series_arrays(

@@ -1,6 +1,7 @@
 import os
 import asyncio
 import datetime
+import secrets
 from enum import Enum
 from collections import defaultdict
 from contextlib import asynccontextmanager
@@ -18,6 +19,7 @@ from fastapi import (
     Request,
 )
 from fastapi.responses import Response as BasicResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import aiohttp
 import sentry_sdk
 from beeai_framework.backend import ChatModel
@@ -33,6 +35,7 @@ from logdetective.utils import (
     check_content_size,
     sanitize_artifact,
     get_version,
+    load_api_tokens,
     SSRFProtectedResolver,
 )
 
@@ -73,7 +76,9 @@ from logdetective.database.models import EndpointType
 
 
 LOG_SOURCE_REQUEST_TIMEOUT = os.environ.get("LOG_SOURCE_REQUEST_TIMEOUT", 60)
-API_TOKEN = os.environ.get("LOGDETECTIVE_TOKEN", None)
+API_TOKENS_PATH = os.environ.get("LOGDETECTIVE_TOKENS_FILE")
+API_TOKENS = load_api_tokens(API_TOKENS_PATH)
+BEARER_SCHEME = HTTPBearer(auto_error=False)
 
 
 if sentry_dsn := SERVER_CONFIG.general.sentry_dsn:
@@ -189,36 +194,30 @@ async def get_http_session(request: Request) -> aiohttp.ClientSession:
     return request.app.http
 
 
-def requires_token_when_set(authorization: Annotated[str | None, Header()] = None):
-    """
-    FastAPI Depend function that expects a header named Authorization
+def authenticate_api_token(
+    request: Request,
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None, Depends(BEARER_SCHEME)
+    ],
+) -> str | None:
+    """Authenticate a bearer token and attach its non-secret name to the request."""
+    request.state.api_token_name = None
+    if API_TOKENS is None:
+        return None
 
-    If LOGDETECTIVE_TOKEN env var is set, validate the client-supplied token
-    otherwise ignore it
-    """
-    if not API_TOKEN:
-        LOG.info("LOGDETECTIVE_TOKEN env var not set, authorization disabled")
-        # no token required, means local dev environment
-        return
-    if authorization:
-        try:
-            token = authorization.split(" ", 1)[1]
-        except (ValueError, IndexError) as ex:
-            LOG.warning(
-                "Authorization header has invalid structure '%s', it should be 'Bearer TOKEN'",
-                authorization,
-            )
-            # eat the exception and raise 401 below
-            raise HTTPException(
-                status_code=401,
-                detail=f"Invalid authorization, HEADER '{authorization}' not valid.",
-            ) from ex
-        if token == API_TOKEN:
-            return
-        LOG.info("Provided token does not match expected value.")
-        raise HTTPException(status_code=401, detail=f"Token '{token}' not valid.")
-    LOG.error("No authorization header provided but LOGDETECTIVE_TOKEN env var is set")
-    raise HTTPException(status_code=401, detail="No token provided.")
+    if credentials is not None:
+        supplied_token = credentials.credentials.encode("utf-8")
+        for name, expected_token in API_TOKENS.root.items():
+            expected_value = expected_token.get_secret_value().encode("utf-8")
+            if secrets.compare_digest(supplied_token, expected_value):
+                request.state.api_token_name = name
+                return name
+
+    raise HTTPException(
+        status_code=401,
+        detail="Invalid or missing bearer token.",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 app = FastAPI(
@@ -233,7 +232,7 @@ app = FastAPI(
         "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
     },
     version=get_version(),
-    dependencies=[Depends(requires_token_when_set)],
+    dependencies=[Depends(authenticate_api_token)],
     lifespan=lifespan,
     swagger_ui_parameters={"operationsSorter": "alpha"},
 )
@@ -486,6 +485,7 @@ async def analyze_rpmbuild_koji(
             koji_connection,
             request.app.state.koji_callback_manager,
             request.app.state.chat_model,
+            request.state.api_token_name,
         )
 
         # If a callback URL is provided, we need to add it to the callbacks
@@ -540,6 +540,7 @@ async def analyze_koji_task(
     koji_connection: ClientSession,
     koji_callback_manager: KojiCallbackManager,
     chat_model: ChatModel,
+    api_token_name: str | None = None,
 ):  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
     """Analyze a koji task and return the response"""
 
@@ -555,6 +556,7 @@ async def analyze_koji_task(
     metrics_id = await add_new_metrics(
         EndpointType.ANALYZE_KOJI_TASK,
         received_at=datetime.datetime.now(datetime.timezone.utc),
+        api_token_name=api_token_name,
     )
     # We need to associate the metric ID with the koji task analysis.
     # This will create the new row without a response, which we will use as
@@ -642,6 +644,7 @@ async def get_metrics(
     route: MetricRoute,
     metric_type: MetricType = MetricType.ALL,
     period_since_now: TimePeriod = Depends(TimePeriod),
+    api_token_name: str | None = None,
 ):
     """Get an handler returning statistics for the specified endpoint and metric_type."""
     endpoint_type = ROUTE_TO_ENDPOINT_TYPES[route]
@@ -650,16 +653,28 @@ async def get_metrics(
         """Return statistics for the specified endpoint and metric type."""
         statistics = []
         if metric_type == MetricType.ALL:
-            statistics.append(await requests_per_time(period_since_now, endpoint_type))
             statistics.append(
-                await average_time_per_responses(period_since_now, endpoint_type)
+                await requests_per_time(
+                    period_since_now, endpoint_type, api_token_name=api_token_name
+                )
+            )
+            statistics.append(
+                await average_time_per_responses(
+                    period_since_now, endpoint_type, api_token_name=api_token_name
+                )
             )
             return MetricResponse(time_series=statistics)
         if metric_type == MetricType.REQUESTS:
-            statistics.append(await requests_per_time(period_since_now, endpoint_type))
+            statistics.append(
+                await requests_per_time(
+                    period_since_now, endpoint_type, api_token_name=api_token_name
+                )
+            )
         elif metric_type == MetricType.RESPONSES:
             statistics.append(
-                await average_time_per_responses(period_since_now, endpoint_type)
+                await average_time_per_responses(
+                    period_since_now, endpoint_type, api_token_name=api_token_name
+                )
             )
         return MetricResponse(time_series=statistics)
 

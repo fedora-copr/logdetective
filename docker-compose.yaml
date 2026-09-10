@@ -49,6 +49,8 @@ services:
       - .:/src/:z
       - ./server/config.yml:/config.yml:z
       - ./files/run_server.sh:/run_server.sh:z
+      # Uncomment with LOGDETECTIVE_TOKENS_FILE=/api_tokens.yml in env_file.
+      # - ./server/api_tokens.yml:/api_tokens.yml:ro,z
       # Note: To use vertexai as a provider, you will need to mount
       # the credentials file by uncommmenting the following line:
       # - ./log-detective-vertex.json:/src/log-detective-vertex.json:ro,z

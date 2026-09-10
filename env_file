@@ -26,6 +26,9 @@ INFERENCE_SERVER_PORT=8100
 INFERENCE_PROXY_PORT=8000
 # Path to Logdetective server configuration file
 LOGDETECTIVE_SERVER_CONF="/config.yml"
+# Path to a YAML mapping of stable client names to bearer tokens.
+# When unset, global API authentication is disabled for local development.
+# LOGDETECTIVE_TOKENS_FILE="/api_tokens.yml"
 # Authorization token for remote LLM API
 # LLM_API_TOKEN="$API_SECRET"
 # Path to prompt templates for Log Detective
@@ -48,10 +51,10 @@ VSCODE_DEBUG_PORT=5678
 # logdetective-packit interface server github.com/fedora-copr/logdetective-packit
 # Set to value assuming container deployment on the same node
 LD_URL=0.0.0.0:8080
-# Only when the Log Detective server itself has `LOGDETECTIVE_TOKEN` variable set
+# Only when the Log Detective server has `LOGDETECTIVE_TOKENS_FILE` configured
 # LD_TOKEN=""
 # Token for logdetective packit server, allowing access to the `/analyze` API.
-# This token must not be the same as `LOGDETECTIVE_TOKEN` and `LD_TOKEN`.
+# This token must not be one of the Log Detective API tokens or `LD_TOKEN`.
 # LD_PACKIT_TOKEN=""
 # The default 8090 port is set in the logdetective-packit image
 # PACKIT_INTERFACE_PORT=8090
