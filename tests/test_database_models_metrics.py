@@ -19,6 +19,7 @@ async def test_create_and_update_AnalyzeRequestMetrics():
     async with DatabaseFactory().make_new_db() as session_factory:
         metrics_id = await AnalyzeRequestMetrics.create(
             endpoint=EndpointType.ANALYZE,
+            api_token_name="packit",
         )
         assert metrics_id == 1
         await AnalyzeRequestMetrics.update(
@@ -36,6 +37,33 @@ async def test_create_and_update_AnalyzeRequestMetrics():
 
         assert metrics is not None
         assert metrics.response_length == 0
+        assert metrics.api_token_name == "packit"
+
+
+@pytest.mark.asyncio
+async def test_filter_request_metrics_by_api_token_name():
+    now = datetime.datetime.now(datetime.timezone.utc)
+    async with DatabaseFactory().make_new_db():
+        await AnalyzeRequestMetrics.create(
+            endpoint=EndpointType.ANALYZE,
+            request_received_at=now,
+            api_token_name="packit",
+        )
+        await AnalyzeRequestMetrics.create(
+            endpoint=EndpointType.ANALYZE,
+            request_received_at=now,
+            api_token_name="monitoring",
+        )
+
+        metrics = await AnalyzeRequestMetrics.get_requests_in_period(
+            now - datetime.timedelta(minutes=1),
+            now + datetime.timedelta(minutes=1),
+            "%Y-%m-%d %H",
+            EndpointType.ANALYZE,
+            "packit",
+        )
+
+    assert sum(metrics.values()) == 1
 
 
 @pytest.mark.parametrize(
