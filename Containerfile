@@ -9,6 +9,7 @@ RUN dnf install -y \
     git-core \
     csdiff \
     krb5-devel \
+    hostname \
     && dnf clean all
 
 RUN mkdir /src
