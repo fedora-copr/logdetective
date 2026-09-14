@@ -206,7 +206,7 @@ async def average_time_per_responses(
     api_token_name: str | None = None,
 ) -> MetricTimeSeries:
     """
-    Get average response time and length over a specified time period.
+    Get average response time over a specified time period.
 
     The time intervals are determined by the provided TimePeriod object, which defines
     the granularity.
