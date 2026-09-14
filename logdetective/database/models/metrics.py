@@ -1,7 +1,7 @@
 from __future__ import annotations
 import enum
 from datetime import datetime, timezone
-from typing import Optional, List, Self, Tuple, TYPE_CHECKING
+from typing import Optional, List, Sequence, TYPE_CHECKING, Any
 
 from sqlalchemy import (
     Integer,
@@ -14,6 +14,7 @@ from sqlalchemy import (
     ForeignKey,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Row
 
 from logdetective.database.base import Base, transaction
 from logdetective.database.models.merge_request_jobs import (
@@ -57,7 +58,7 @@ class AnalyzeRequestMetrics(Base):
         DateTime(timezone=True),
         index=True,
         nullable=True,
-        comment="Timestamp when the analysis was completed"
+        comment="Timestamp when the analysis was completed",
     )
     response_sent_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
@@ -83,8 +84,7 @@ class AnalyzeRequestMetrics(Base):
     )
 
     mr_job: Mapped[Optional["GitlabMergeRequestJobs"]] = relationship(
-        "GitlabMergeRequestJobs",
-        back_populates="request_metrics"
+        "GitlabMergeRequestJobs", back_populates="request_metrics"
     )
 
     analysis_tasks: Mapped[List["TaskAnalysis"]] = relationship(
@@ -118,8 +118,8 @@ class AnalyzeRequestMetrics(Base):
     async def update(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
         cls,
         id_: int,
-        response_sent_at: DateTime,
-        response_length: int,
+        response_sent_at: datetime,
+        response_length: Optional[int] = None,
     ) -> None:
         """Update a row
         with data related to the given response"""
@@ -138,7 +138,7 @@ class AnalyzeRequestMetrics(Base):
     async def get_metric_by_id(
         cls,
         id_: int,
-    ) -> Self:
+    ) -> "AnalyzeRequestMetrics":
         """Update a row
         with data related to the given response"""
         query = select(AnalyzeRequestMetrics).filter(AnalyzeRequestMetrics.id == id_)
@@ -150,7 +150,7 @@ class AnalyzeRequestMetrics(Base):
             return metric
 
     @classmethod
-    def get_postgres_time_format(cls, time_format):
+    def get_postgres_time_format(cls, time_format: str):
         """Map python time format in the PostgreSQL format."""
         if time_format == "%Y-%m-%d":
             pgsql_time_format = "YYYY-MM-DD"
@@ -160,18 +160,21 @@ class AnalyzeRequestMetrics(Base):
 
     @classmethod
     def get_dictionary_with_datetime_keys(
-        cls, time_format: str, query_results: List[Tuple[str, int]]
+        cls, time_format: str, query_results: Sequence[Row[tuple[Any, int]]]
     ) -> dict[datetime, int]:
         """Convert from a list of tuples with str as first values
         to a dictionary with datetime keys"""
-        new_dict = {
-            datetime.strptime(e[0], time_format): e[1] for e in query_results
-        }
+        new_dict = {datetime.strptime(e[0], time_format): e[1] for e in query_results}
         return new_dict
 
     @classmethod
     def _get_requests_by_time_for_postgres(
-        cls, start_time, end_time, time_format, endpoint, api_token_name=None
+        cls,
+        start_time: datetime,
+        end_time: datetime,
+        time_format: str,
+        endpoint: EndpointType,
+        api_token_name: Optional[str] = None,
     ):
         """Get total requests number in time period.
 
@@ -194,9 +197,7 @@ class AnalyzeRequestMetrics(Base):
             requests_by_time_format = requests_by_time_format.filter(
                 cls.api_token_name == api_token_name
             )
-        requests_by_time_format = requests_by_time_format.cte(
-            "requests_by_time_format"
-        )
+        requests_by_time_format = requests_by_time_format.cte("requests_by_time_format")
         return requests_by_time_format
 
     @classmethod
@@ -205,7 +206,7 @@ class AnalyzeRequestMetrics(Base):
         start_time: datetime,
         end_time: datetime,
         time_format: str,
-        endpoint: Optional[EndpointType] = EndpointType.ANALYZE,
+        endpoint: EndpointType = EndpointType.ANALYZE,
         api_token_name: Optional[str] = None,
     ) -> dict[datetime, int]:
         """
@@ -238,7 +239,12 @@ class AnalyzeRequestMetrics(Base):
 
     @classmethod
     async def _get_average_responses_times_for_postgres(
-        cls, start_time, end_time, time_format, endpoint, api_token_name=None
+        cls,
+        start_time: datetime,
+        end_time: datetime,
+        time_format: str,
+        endpoint: EndpointType,
+        api_token_name: Optional[str] = None,
     ):
         """Get average responses time.
 
@@ -257,10 +263,11 @@ class AnalyzeRequestMetrics(Base):
                         func.coalesce(
                             func.avg(
                                 func.extract(  # pylint: disable=not-callable
-                                    "epoch", cls.response_sent_at - cls.request_received_at
+                                    "epoch",
+                                    cls.response_sent_at - cls.request_received_at,
                                 )
                             ),
-                            0
+                            0,
                         )
                     ).label("average_response_seconds"),
                 )
@@ -285,7 +292,7 @@ class AnalyzeRequestMetrics(Base):
         start_time: datetime,
         end_time: datetime,
         time_format: str,
-        endpoint: Optional[EndpointType] = EndpointType.ANALYZE,
+        endpoint: EndpointType = EndpointType.ANALYZE,
         api_token_name: Optional[str] = None,
     ) -> dict[datetime, int]:
         """
@@ -316,7 +323,12 @@ class AnalyzeRequestMetrics(Base):
 
     @classmethod
     async def _get_average_responses_lengths_for_postgres(
-        cls, start_time, end_time, time_format, endpoint, api_token_name=None
+        cls,
+        start_time: datetime,
+        end_time: datetime,
+        time_format: str,
+        endpoint: EndpointType,
+        api_token_name: Optional[str] = None,
     ):
         """Get average responses length.
 
@@ -354,7 +366,7 @@ class AnalyzeRequestMetrics(Base):
         start_time: datetime,
         end_time: datetime,
         time_format: str,
-        endpoint: Optional[EndpointType] = EndpointType.ANALYZE,
+        endpoint: EndpointType = EndpointType.ANALYZE,
         api_token_name: Optional[str] = None,
     ) -> dict[datetime, int]:
         """
