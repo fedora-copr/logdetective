@@ -13,6 +13,8 @@ from logdetective.database.models import (
     EndpointType,
 )
 
+from logdetective.database.models.metrics import TimePeriod
+
 
 @pytest.mark.asyncio
 async def test_create_and_update_AnalyzeRequestMetrics():
@@ -55,15 +57,14 @@ async def test_filter_request_metrics_by_api_token_name():
             api_token_name="monitoring",
         )
 
-        metrics = await AnalyzeRequestMetrics.get_requests_in_period(
+        metrics = await AnalyzeRequestMetrics.get_requests_stats_for_period(
             now - datetime.timedelta(minutes=1),
             now + datetime.timedelta(minutes=1),
-            "%Y-%m-%d %H",
-            EndpointType.ANALYZE,
-            "packit",
+            endpoint=EndpointType.ANALYZE,
+            api_token_name="packit",
         )
 
-    assert sum(metrics.values()) == 1
+    assert sum(metrics[1]) == 1
 
 
 @pytest.mark.parametrize(
@@ -71,64 +72,29 @@ async def test_filter_request_metrics_by_api_token_name():
     [EndpointType.ANALYZE],
 )
 @pytest.mark.asyncio
-async def test_AnalyzeRequestMetrics_ger_request_in_period(endpoint):
+async def test_AnalyzeRequestMetrics_get_requests_stats_for_period(endpoint):
     duration = datetime.timedelta(hours=13)
+    end_time = datetime.datetime(year=2077, month=1, day=1, tzinfo=datetime.UTC)
     async with PopulateDatabase.populate_db(
         duration=duration,
         endpoint=endpoint,
+        end_time=end_time,
     ) as _:
-        end_time = datetime.datetime.now(datetime.timezone.utc)
         start_time = end_time - datetime.timedelta(hours=10)
-        time_format = "%Y-%m-%d %H"
-        counts_dict = await AnalyzeRequestMetrics.get_requests_in_period(
-            start_time, end_time, time_format, endpoint
+        stats = await AnalyzeRequestMetrics.get_requests_stats_for_period(
+            start_time=start_time,
+            end_time=end_time,
+            time_period=TimePeriod.HOUR,
+            endpoint=endpoint,
         )
-        assert len(counts_dict) == 10 or len(counts_dict) == 11
 
+        # Basic checks on the returned data structure
+        assert len(stats) == 5
+        for e in stats:
+            assert isinstance(e, list)
 
-@pytest.mark.parametrize(
-    "endpoint",
-    [EndpointType.ANALYZE],
-)
-@pytest.mark.asyncio
-async def test_AnalyzeRequestMetrics_ger_responses_average_time(endpoint):
-    duration = datetime.timedelta(hours=13)
-    async with PopulateDatabase.populate_db(
-        duration=duration,
-        endpoint=endpoint,
-    ) as _:
-        end_time = datetime.datetime.now(datetime.timezone.utc)
-        start_time = end_time - datetime.timedelta(hours=10)
-        time_format = "%Y-%m-%d %H"
-        average_times_dict = (
-            await AnalyzeRequestMetrics.get_responses_average_time_in_period(
-                start_time, end_time, time_format, endpoint
-            )
-        )
-        assert len(average_times_dict) == 10 or len(average_times_dict) == 11
-        values = list(average_times_dict.values())
+        response_times = stats[2]
+        assert len(response_times) == 10
         # responses times always increase in the same way inside the hour
-        assert values[2] == pytest.approx(values[3], abs=1e-3)
-        assert values[4] == pytest.approx(values[5], abs=1e-3)
-
-
-@pytest.mark.parametrize(
-    "endpoint",
-    [EndpointType.ANALYZE],
-)
-@pytest.mark.asyncio
-async def test_AnalyzeRequestMetrics_ger_responses_average_length(endpoint):
-    duration = datetime.timedelta(hours=13)
-    async with PopulateDatabase.populate_db(
-        duration=duration,
-        endpoint=endpoint,
-    ) as _:
-        end_time = datetime.datetime.now(datetime.timezone.utc)
-        start_time = end_time - datetime.timedelta(hours=10)
-        time_format = "%Y-%m-%d %H"
-        average_lengths_dict = (
-            await AnalyzeRequestMetrics.get_responses_average_length_in_period(
-                start_time, end_time, time_format, endpoint
-            )
-        )
-        assert len(average_lengths_dict) == 10 or len(average_lengths_dict) == 11
+        assert response_times[2] == pytest.approx(response_times[3], abs=1e-3)
+        assert response_times[4] == pytest.approx(response_times[5], abs=1e-3)
