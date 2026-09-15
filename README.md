@@ -166,31 +166,42 @@ stored in the database or included in authentication errors.
 
 ## Querying statistics
 
-You can query request and response statistics via `metrics` endpoints.
-They return JSON data with `time_series` array containing metric objects with `metric`, `timestamps`, and `values` fields.
-Metrics are `GET` methods and have the form `/metrics/ENDPOINT_TYPE/QUERY_TYPE?parameter=value`:
+You can query request and response statistics via `metrics` endpoints
+using `GET` method at `/metrics/ENDPOINT_TYPE/`. The endpoint returns data
+in JSON format with a `metrics` list of dictionaries containing metadata
+about endpoint type and time series of data aggregated at the given granularity.
 
 1. `ENDPOINT_TYPE`: `analyze`, or `analyze-gitlab`.
-
-2. `QUERY_TYPE`:
-- `requests` will return how many requests did the server receive at given endpoint.
-- `responses` will return average response times during the time period.
-- `all` will retrieve all of the above. If `QUERY_TYPE` is left empty, it defaults to `all`.
-
-3. `parameter=value` will specify the latest period for which metrics are returned. If unspecified, the query defaults to the last 2 days.
-- `parameter` is either `hours`, `days`, `weeks`.
-- `value` is a positive integer.
-- `parameter` type also controls the granularity of the response: `?days=2` will produce time series with max 2 entries, `?hours=48` will produce a time series with max 48 entries.
+2. `start_time`: Timestamp, indicating inclusive start of the query
+3. `end_time`: Optional timestamp, defaults to current UTC time
+4. `time_period`: Granularity of the aggregation, 'hour', 'day' or 'month'.
 
 Use the optional `api_token_name` query parameter to restrict statistics to a
 single named token. Without it, statistics include all tokens and historical
 records without token attribution.
 
+Example calls:
 
-Examples:
 ```sh
-curl "http://localhost:8080/metrics/analyze-gitlab/responses?days=5"
-curl "http://localhost:8080/metrics/analyze/requests?days=5&api_token_name=packit"
+curl "http://localhost:8080/metrics/analyze-gitlab/?start_time=2026-09-01T00:00:00Z&time_period=day"
+curl "http://localhost:8080/metrics/analyze/?start_time=2026-09-01T00:00:00Z&end_time=2026-09-08T00:00:00Z&time_period=day&api_token_name=packit"
+```
+
+Example response:
+
+```json
+{
+  "metrics": [
+    {
+      "endpoint": "analyze",
+      "period_start": [],
+      "total_count": [],
+      "average_response_time": [],
+      "average_response_len": [],
+      "average_completion_time": []
+    }
+  ]
+}
 ```
 
 ## System Prompts

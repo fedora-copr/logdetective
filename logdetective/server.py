@@ -5,7 +5,7 @@ import secrets
 from enum import Enum
 from collections import defaultdict
 from contextlib import asynccontextmanager
-from typing import Annotated
+from typing import Annotated, Optional
 
 from koji import ClientSession
 from gitlab import Gitlab
@@ -58,8 +58,7 @@ from logdetective.metric import (
     track_request,
     add_new_metrics,
     update_metrics,
-    requests_per_time,
-    average_time_per_responses,
+    requests_statistics,
 )
 from logdetective.models import (
     ArtifactFile,
@@ -69,10 +68,9 @@ from logdetective.models import (
     KojiInstanceConfig,
     KojiResponse,
     APIResponse,
-    TimePeriod,
     MetricResponse,
 )
-from logdetective.database.models import EndpointType
+from logdetective.database.models import EndpointType, TimePeriod
 
 
 LOG_SOURCE_REQUEST_TIMEOUT = os.environ.get("LOG_SOURCE_REQUEST_TIMEOUT", 60)
@@ -624,14 +622,6 @@ class MetricRoute(str, Enum):
     ANALYZE_GITLAB_JOB = "analyze-gitlab"
 
 
-class MetricType(str, Enum):
-    """Type of metric retrieved"""
-
-    REQUESTS = "requests"
-    RESPONSES = "responses"
-    ALL = "all"
-
-
 ROUTE_TO_ENDPOINT_TYPES = {
     MetricRoute.ANALYZE: EndpointType.ANALYZE,
     MetricRoute.ANALYZE_GITLAB_JOB: EndpointType.ANALYZE_GITLAB_JOB,
@@ -639,44 +629,18 @@ ROUTE_TO_ENDPOINT_TYPES = {
 
 
 @app.get("/metrics/{route}/", response_model=MetricResponse)
-@app.get("/metrics/{route}/{metric_type}", response_model=MetricResponse)
 async def get_metrics(
     route: MetricRoute,
-    metric_type: MetricType = MetricType.ALL,
-    period_since_now: TimePeriod = Depends(TimePeriod),
+    start_time: datetime.datetime,
+    time_period: TimePeriod,
+    end_time: Optional[datetime.datetime] = None,
     api_token_name: str | None = None,
 ):
-    """Get an handler returning statistics for the specified endpoint and metric_type."""
-    endpoint_type = ROUTE_TO_ENDPOINT_TYPES[route]
+    """Get a handler returning statistics for the specified endpoint.
 
-    async def handler() -> MetricResponse:
-        """Return statistics for the specified endpoint and metric type."""
-        statistics = []
-        if metric_type == MetricType.ALL:
-            statistics.append(
-                await requests_per_time(
-                    period_since_now, endpoint_type, api_token_name=api_token_name
-                )
-            )
-            statistics.append(
-                await average_time_per_responses(
-                    period_since_now, endpoint_type, api_token_name=api_token_name
-                )
-            )
-            return MetricResponse(time_series=statistics)
-        if metric_type == MetricType.REQUESTS:
-            statistics.append(
-                await requests_per_time(
-                    period_since_now, endpoint_type, api_token_name=api_token_name
-                )
-            )
-        elif metric_type == MetricType.RESPONSES:
-            statistics.append(
-                await average_time_per_responses(
-                    period_since_now, endpoint_type, api_token_name=api_token_name
-                )
-            )
-        return MetricResponse(time_series=statistics)
+    The `start_time` must be strictly < `end_time`.
+    """
+    endpoint_type = ROUTE_TO_ENDPOINT_TYPES[route]
 
     if endpoint_type == EndpointType.ANALYZE_GITLAB_JOB and not SERVER_CONFIG.gitlab.instances:
         raise HTTPException(
@@ -684,20 +648,14 @@ async def get_metrics(
             detail="No gitlab instance configured, skipping metrics collection."
         )
 
-    descriptions = {
-        MetricType.REQUESTS: (
-            "Get statistics for the requests received in the given period of time "
-            f"for the /{endpoint_type.value} API endpoint."
-        ),
-        MetricType.RESPONSES: (
-            "Get statistics for responses given in the specified period of time "
-            f"for the /{endpoint_type.value} API endpoint."
-        ),
-        MetricType.ALL: (
-            "Get statistics for requests and responses in the given period of time "
-            f"for the /{endpoint_type.value} API endpoint."
-        ),
-    }
-    handler.__doc__ = descriptions[metric_type]
+    data = await requests_statistics(
+        start_time=start_time,
+        end_time=end_time,
+        time_period=time_period,
+        endpoint=endpoint_type,
+        api_token_name=api_token_name
+    )
 
-    return await handler()
+    return MetricResponse(
+        metrics=[data]
+    )
