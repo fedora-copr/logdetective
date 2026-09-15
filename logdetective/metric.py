@@ -3,15 +3,12 @@ import datetime
 from typing import Optional
 from functools import wraps
 
-import numpy
-
 from logdetective.models import (
-    TimePeriod,
-    MetricTimeSeries,
+    MetricsData,
     APIResponse,
     Explanation,
 )
-from logdetective.database.models import EndpointType, AnalyzeRequestMetrics
+from logdetective.database.models import EndpointType, AnalyzeRequestMetrics, TimePeriod
 
 
 async def add_new_metrics(
@@ -85,9 +82,9 @@ def track_request(name=None):
     def decorator(f):
         @wraps(f)
         async def async_decorated_function(*args, **kwargs):
-            bound_arguments = inspect.signature(f).bind_partial(
-                *args, **kwargs
-            ).arguments
+            bound_arguments = (
+                inspect.signature(f).bind_partial(*args, **kwargs).arguments
+            )
             request = bound_arguments.get("request")
             api_token_name = getattr(
                 getattr(request, "state", None), "api_token_name", None
@@ -110,128 +107,43 @@ def track_request(name=None):
     return decorator
 
 
-# TODO: Refactor aggregation to use database operations, instead of timestamp formatting  # pylint: disable=fixme
-class TimeDefinition:
-    """Define time format details, given a time period."""
-
-    def __init__(self, time_period: TimePeriod):
-        self.time_period = time_period
-        self.days_diff = time_period.get_time_period().days
-        if self.time_period.hours:
-            self._time_format = "%Y-%m-%d %H"
-            self._time_delta = datetime.timedelta(hours=1)
-        elif self.time_period.days:
-            self._time_format = "%Y-%m-%d"
-            self._time_delta = datetime.timedelta(days=1)
-        elif self.time_period.weeks:
-            self._time_format = "%Y-%m-%d"
-            self._time_delta = datetime.timedelta(weeks=1)
-
-    @property
-    def time_format(self):
-        # pylint: disable=missing-function-docstring
-        return self._time_format
-
-    @property
-    def time_delta(self):
-        # pylint: disable=missing-function-docstring
-        return self._time_delta
-
-
-def create_time_series_arrays(
-    values_dict: dict[datetime.datetime, int],
-) -> tuple[list, list]:
-    """Create time series arrays from a dictionary of values.
-
-    This function generates two aligned lists:
-    1. An array of timestamps from start_time to end_time
-    2. A corresponding array of values for each timestamp
-
-    Args:
-        values_dict: Dictionary mapping timestamps to their respective values
-    Returns:
-        A tuple containing:
-            - list: Array of timestamps
-            - list: Array of corresponding values
-    """
-
-    timestamps = []
-    values = []
-
-    for timestamp, count in values_dict.items():
-        timestamps.append(timestamp)
-        values.append(count)
-
-    return timestamps, numpy.nan_to_num(values).tolist()
-
-
-async def requests_per_time(
-    period_of_time: TimePeriod,
-    endpoint: EndpointType = EndpointType.ANALYZE,
+async def requests_statistics(
+    start_time: datetime.datetime,
     end_time: Optional[datetime.datetime] = None,
-    api_token_name: str | None = None,
-) -> MetricTimeSeries:
+    endpoint: EndpointType = EndpointType.ANALYZE,
+    time_period: TimePeriod = TimePeriod.DAY,
+    api_token_name: Optional[str] = None,
+) -> MetricsData:
     """
-    Get request counts over a specified time period.
+    Get request counts and average response times over a specified time period.
 
     The time intervals are determined by the provided TimePeriod object, which defines
     the granularity.
 
     Args:
-        period_of_time: A TimePeriod object that defines the time period and interval
-                        for the analysis (e.g., hourly, daily, weekly)
-        endpoint: One of the API endpoints
+        start_time: The start_time time for the analysis period.
         end_time: The end time for the analysis period. If None, defaults to the current
-                  UTC time
+                UTC time
+        endpoint: One of the API endpoints
         api_token_name: If set, include only requests made with this named token
 
     Returns:
-        A dictionary with timestamps and associated number of requests
+        A `MetricsData` columnar represantation of the gathered data
     """
     end_time = end_time or datetime.datetime.now(datetime.timezone.utc)
-    start_time = period_of_time.get_period_start_time(end_time)
-    time_def = TimeDefinition(period_of_time)
-    requests_counts = await AnalyzeRequestMetrics.get_requests_in_period(
-        start_time, end_time, time_def.time_format, endpoint, api_token_name
-    )
-    timestamps, counts = create_time_series_arrays(requests_counts)
-
-    return MetricTimeSeries(metric="requests", timestamps=timestamps, values=counts)
-
-
-async def average_time_per_responses(
-    period_of_time: TimePeriod,
-    endpoint: EndpointType = EndpointType.ANALYZE,
-    end_time: Optional[datetime.datetime] = None,
-    api_token_name: str | None = None,
-) -> MetricTimeSeries:
-    """
-    Get average response time over a specified time period.
-
-    The time intervals are determined by the provided TimePeriod object, which defines
-    the granularity.
-
-    Args:
-        period_of_time: A TimePeriod object that defines the time period and interval
-                        for the analysis (e.g., hourly, daily, weekly)
-        endpoint: One of the API endpoints
-        end_time: The end time for the analysis period. If None, defaults to the current
-                  UTC time
-        api_token_name: If set, include only requests made with this named token
-
-    Returns:
-        MetricTimeSeries with values as average response times within the time period buckets.
-    """
-    end_time = end_time or datetime.datetime.now(datetime.timezone.utc)
-    start_time = period_of_time.get_period_start_time(end_time)
-    time_def = TimeDefinition(period_of_time)
-    responses_average_time = (
-        await AnalyzeRequestMetrics.get_responses_average_time_in_period(
-            start_time, end_time, time_def.time_format, endpoint, api_token_name
-        )
-    )
-    timestamps, average_time = create_time_series_arrays(
-        responses_average_time,
+    statistics = await AnalyzeRequestMetrics.get_requests_stats_for_period(
+        start_time=start_time,
+        end_time=end_time,
+        time_period=time_period,
+        endpoint=endpoint,
+        api_token_name=api_token_name,
     )
 
-    return MetricTimeSeries(metric="avg_response_time", timestamps=timestamps, values=average_time)
+    return MetricsData(
+        endpoint=endpoint.value,
+        period_start=statistics[0],
+        total_count=statistics[1],
+        average_response_time=statistics[2],
+        average_response_len=statistics[3],
+        average_completion_time=statistics[4],
+    )

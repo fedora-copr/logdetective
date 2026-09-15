@@ -488,94 +488,21 @@ class Config(BaseModel):
         return {} if v is None else v
 
 
-class TimePeriod(BaseModel):
-    """Specification for a period of time.
+class MetricsData(BaseModel):
+    """Requested metrics"""
 
-    If no indication is given
-    it falls back to a 2 days period of time.
-
-    Can't be smaller than a hour"""
-
-    weeks: Optional[int] = None
-    days: Optional[int] = None
-    hours: Optional[int] = None
-
-    @model_validator(mode="before")
-    @classmethod
-    def check_exclusive_fields(cls, data):
-        """Check that only one key between weeks, days and hours is defined,
-        if no period is specified, fall back to 2 days."""
-        if isinstance(data, dict):
-            how_many_fields = sum(
-                1
-                for field in ["weeks", "days", "hours"]
-                if field in data and data[field] is not None
-            )
-
-            if how_many_fields == 0:
-                data["days"] = 2  # by default fallback to a 2 days period
-
-            if how_many_fields > 1:
-                raise ValueError("Only one of months, weeks, days, or hours can be set")
-
-        return data
-
-    @field_validator("weeks", "days", "hours")
-    @classmethod
-    def check_positive(cls, v):
-        """Check that the given value is positive"""
-        if v is not None and v <= 0:
-            raise ValueError("Time period must be positive")
-        return v
-
-    def get_time_period(self) -> datetime.timedelta:
-        """Get the period of time represented by this input model.
-        Will default to 2 days, if no period is set.
-
-        Returns:
-            datetime.timedelta: The time period as a timedelta object.
-        """
-        delta = None
-        if self.weeks:
-            delta = datetime.timedelta(weeks=self.weeks)
-        elif self.days:
-            delta = datetime.timedelta(days=self.days)
-        elif self.hours:
-            delta = datetime.timedelta(hours=self.hours)
-        else:
-            delta = datetime.timedelta(days=2)
-        return delta
-
-    def get_period_start_time(
-        self, end_time: Optional[datetime.datetime] = None
-    ) -> datetime.datetime:
-        """Calculate the start time of this period based on the end time.
-
-        Args:
-            end_time (datetime.datetime, optional): The end time of the period.
-                Defaults to current UTC time if not provided.
-
-        Returns:
-            datetime.datetime: The start time of the period.
-        """
-        time = end_time or datetime.datetime.now(datetime.timezone.utc)
-        if time.tzinfo is None:
-            time = time.replace(tzinfo=datetime.timezone.utc)
-        return time - self.get_time_period()
-
-
-class MetricTimeSeries(BaseModel):
-    """Recorded values of given metric"""
-
-    metric: str
-    timestamps: List[datetime.datetime]
-    values: List[float]
+    endpoint: str
+    period_start: list[datetime.datetime]
+    total_count: list[int]
+    average_response_time: list[float | None]
+    average_response_len: list[float | None]
+    average_completion_time: list[float | None]
 
 
 class MetricResponse(BaseModel):
     """Requested metrics"""
 
-    time_series: List[MetricTimeSeries]
+    metrics: list[MetricsData]
 
 
 class ContributionSnippet(BaseModel):

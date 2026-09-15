@@ -72,10 +72,13 @@ class DatabaseFactory:  # pylint: disable=too-few-public-methods
     def __init__(self):
         """Connect to a postgres container for testing purposes."""
         self.engine = create_async_engine(
-            self.get_pg_test_url(), connect_args={"command_timeout": 10}, pool_pre_ping=True
+            self.get_pg_test_url(),
+            connect_args={"command_timeout": 10},
+            pool_pre_ping=True,
         )
         self.SessionFactory = async_sessionmaker(
-            autoflush=True, expire_on_commit=False, bind=self.engine)
+            autoflush=True, expire_on_commit=False, bind=self.engine
+        )
         flexmock(base, engine=self.engine, SessionFactory=self.SessionFactory)
 
     @asynccontextmanager
@@ -102,11 +105,13 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
     ) -> AsyncGenerator:
         # pylint: disable=contextmanager-generator-missing-cleanup
         async with self.db_factory.make_new_db() as session_factory:
-            end_time = end_time or datetime.datetime.now(datetime.timezone.utc)
+            end_time = end_time or datetime.datetime(year=2077, month=1, day=1, tzinfo=datetime.UTC)
             start_time = end_time - duration
 
             response_times = cycle([1, 2, 3, 4])
-            response_lengths = cycle([1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 500])
+            response_lengths = cycle(
+                [1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 500]
+            )
             current_time = start_time
             while current_time < end_time:
                 id_ = await AnalyzeRequestMetrics.create(
@@ -127,14 +132,15 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
 
     @classmethod
     @asynccontextmanager
-    async def populate_db(cls, duration: datetime.timedelta, endpoint: EndpointType):
-        """Populate the db, one request every 15 minutes.
+    async def populate_db(cls, duration: datetime.timedelta, endpoint: EndpointType, end_time: datetime.datetime):
+        """Populate the db, one request every 15 minutes
         and responses increasing for 1 hour, and then back to 1.
         For the last duration time.
         """
         async with cls().populate_db_at_regular_intervals(
             duration=duration,
             endpoint_type=endpoint,
+            end_time=end_time,
         ) as session_factory:
             yield session_factory
 
@@ -144,7 +150,7 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
         cls,
         time_anchor: datetime.datetime,
         records: list[tuple[datetime.timedelta, float]],
-        endpoint: EndpointType
+        endpoint: EndpointType,
     ):
         """
         Populate the DB with request metrics based on a list of metadata
@@ -159,8 +165,12 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
         async with cls().db_factory.make_new_db() as session_factory:
             for offset, runtime in records:
                 request_timestamp = time_anchor - offset
-                id_ = await AnalyzeRequestMetrics.create(endpoint, request_timestamp)
-                response_timestamp = request_timestamp + datetime.timedelta(seconds=runtime)
+                id_ = await AnalyzeRequestMetrics.create(
+                    endpoint=endpoint, request_received_at=request_timestamp
+                )
+                response_timestamp = request_timestamp + datetime.timedelta(
+                    seconds=runtime
+                )
                 await AnalyzeRequestMetrics.update(
                     id_,
                     response_timestamp,
@@ -214,8 +224,8 @@ def build_log_two_files():
             url=None,
             files=[
                 ArtifactFile(name="builder-live.log", content=MOCK_LOG),
-                ArtifactFile(name="backend.log", content=MOCK_LOG)
-            ]
+                ArtifactFile(name="backend.log", content=MOCK_LOG),
+            ],
         )
     }
 
@@ -224,10 +234,7 @@ def build_log_two_files():
 def build_log_one_file():
     return {
         "payload": flexmock(
-            url=None,
-            files=[
-                ArtifactFile(name="build.log", content=MOCK_LOG)
-            ]
+            url=None, files=[ArtifactFile(name="build.log", content=MOCK_LOG)]
         )
     }
 
