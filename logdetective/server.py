@@ -648,6 +648,11 @@ async def get_metrics(
             detail="No gitlab instance configured, skipping metrics collection."
         )
 
+    if end_time and start_time >= end_time:
+        raise HTTPException(
+            status_code=400,
+            detail=f"start_time: {start_time} >= end_time: {end_time}",
+        )
     data = await requests_statistics(
         start_time=start_time,
         end_time=end_time,
