@@ -1,18 +1,22 @@
 import datetime
+from unittest.mock import AsyncMock
 
 import pytest
 import aiohttp
 import aioresponses
 from fastapi import Request
+from httpx import ASGITransport, AsyncClient
 
 from flexmock import flexmock
 
 from logdetective.database.models import EndpointType, TimePeriod
-from logdetective.models import Explanation
+from logdetective.config import SERVER_CONFIG
+from logdetective.models import Explanation, MetricsData
 from logdetective.metric import (
     track_request,
     requests_statistics,
 )
+from logdetective.server import app
 
 from tests.test_helpers import (
     build_log_request,
@@ -78,6 +82,162 @@ async def test_track_request_async(
     # Verify value of response length
     if getattr(response, "explanation", None):
         assert update_kwargs["response_length"] == len(response.model_dump_json())
+    else:
+        assert update_kwargs["response_length"] is None
+
+
+def test_track_request_rejects_synchronous_functions():
+    """Metric tracking only supports the async endpoints it was designed for."""
+    def analyze():
+        return None
+
+    with pytest.raises(NotImplementedError, match="async coroutine"):
+        track_request()(analyze)
+
+
+@pytest.mark.asyncio
+async def test_requests_statistics_defaults_to_current_time(mocker):
+    """Omitting end_time queries through now and returns an empty shaped model."""
+    get_stats = mocker.patch(
+        "logdetective.metric.AnalyzeRequestMetrics.get_requests_stats_for_period",
+        new_callable=AsyncMock,
+        return_value=[[], [], [], [], []],
+    )
+    start_time = datetime.datetime(2077, 1, 1, tzinfo=datetime.timezone.utc)
+    before = datetime.datetime.now(datetime.timezone.utc)
+
+    stats = await requests_statistics(start_time=start_time)
+
+    after = datetime.datetime.now(datetime.timezone.utc)
+    assert stats == MetricsData(
+        endpoint=EndpointType.ANALYZE.value,
+        period_start=[],
+        total_count=[],
+        average_response_time=[],
+        average_response_len=[],
+        average_completion_time=[],
+    )
+    call_kwargs = get_stats.await_args.kwargs
+    assert before <= call_kwargs["end_time"] <= after
+    assert call_kwargs == {
+        "start_time": start_time,
+        "end_time": call_kwargs["end_time"],
+        "time_period": TimePeriod.DAY,
+        "endpoint": EndpointType.ANALYZE,
+        "api_token_name": None,
+    }
+
+
+@pytest.mark.parametrize(
+    "route, endpoint",
+    [
+        ("analyze", EndpointType.ANALYZE),
+        ("analyze-gitlab", EndpointType.ANALYZE_GITLAB_JOB),
+    ],
+)
+@pytest.mark.asyncio
+async def test_metrics_endpoint_returns_columnar_statistics(
+    route, endpoint, mocker, monkeypatch
+):
+    """The HTTP endpoint parses filters and exposes every metrics column."""
+    monkeypatch.setattr(SERVER_CONFIG.gitlab, "instances", {"configured": object()})
+    period_start = datetime.datetime(2077, 1, 1, tzinfo=datetime.timezone.utc)
+    end_time = period_start + datetime.timedelta(days=1)
+    data = MetricsData(
+        endpoint=endpoint.value,
+        period_start=[period_start],
+        total_count=[2],
+        average_response_time=[3.5],
+        average_response_len=[200.0],
+        average_completion_time=[2.5],
+    )
+    get_stats = mocker.patch(
+        "logdetective.server.requests_statistics",
+        new_callable=AsyncMock,
+        return_value=data,
+    )
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.get(
+            f"/metrics/{route}/",
+            params={
+                "start_time": period_start.isoformat(),
+                "end_time": end_time.isoformat(),
+                "time_period": TimePeriod.HOUR.value,
+                "api_token_name": "packit",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "metrics": [
+            {
+                "endpoint": endpoint.value,
+                "period_start": ["2077-01-01T00:00:00Z"],
+                "total_count": [2],
+                "average_response_time": [3.5],
+                "average_response_len": [200.0],
+                "average_completion_time": [2.5],
+            }
+        ]
+    }
+    get_stats.assert_awaited_once_with(
+        start_time=period_start,
+        end_time=end_time,
+        time_period=TimePeriod.HOUR,
+        endpoint=endpoint,
+        api_token_name="packit",
+    )
+
+
+@pytest.mark.asyncio
+async def test_gitlab_metrics_endpoint_rejects_missing_configuration(
+    mocker, monkeypatch
+):
+    """GitLab metrics are unavailable when no GitLab instance is configured."""
+    monkeypatch.setattr(SERVER_CONFIG.gitlab, "instances", {})
+    get_stats = mocker.patch(
+        "logdetective.server.requests_statistics", new_callable=AsyncMock
+    )
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.get(
+            "/metrics/analyze-gitlab/",
+            params={
+                "start_time": "2077-01-01T00:00:00Z",
+                "time_period": "day",
+            },
+        )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "No gitlab instance configured, skipping metrics collection."
+    }
+    get_stats.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "route, params",
+    [
+        ("invalid", {"start_time": "2077-01-01T00:00:00Z", "time_period": "day"}),
+        ("analyze", {"time_period": "day"}),
+        ("analyze", {"start_time": "not-a-date", "time_period": "day"}),
+        ("analyze", {"start_time": "2077-01-01T00:00:00Z", "time_period": "week"}),
+    ],
+)
+@pytest.mark.asyncio
+async def test_metrics_endpoint_rejects_invalid_parameters(route, params):
+    """Route, timestamp, and aggregation period inputs are validated by FastAPI."""
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.get(f"/metrics/{route}/", params=params)
+
+    assert response.status_code == 422
 
 
 @pytest.mark.parametrize(
