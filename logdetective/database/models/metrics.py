@@ -200,7 +200,7 @@ class AnalyzeRequestMetrics(Base):
                     ),
                 ).label("average_completion_time"),
             )
-            .where(AnalyzeRequestMetrics.request_received_at > start_time)
+            .where(AnalyzeRequestMetrics.request_received_at >= start_time)
             .where(AnalyzeRequestMetrics.request_received_at < end_time)
             .where(AnalyzeRequestMetrics.endpoint == endpoint)
             .group_by(
