@@ -132,7 +132,10 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
 
     @classmethod
     @asynccontextmanager
-    async def populate_db(cls, duration: datetime.timedelta, endpoint: EndpointType, end_time: datetime.datetime):
+    async def populate_db(
+        cls, duration: datetime.timedelta,
+        endpoint: EndpointType, end_time: datetime.datetime
+    ):
         """Populate the db, one request every 15 minutes
         and responses increasing for 1 hour, and then back to 1.
         For the last duration time.
