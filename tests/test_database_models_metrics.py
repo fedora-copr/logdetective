@@ -43,6 +43,80 @@ async def test_create_and_update_AnalyzeRequestMetrics():
 
 
 @pytest.mark.asyncio
+async def test_get_metric_by_id_and_missing_metric_errors():
+    """Records can be retrieved, while updates and lookups reject unknown IDs."""
+    async with DatabaseFactory().make_new_db():
+        metrics_id = await AnalyzeRequestMetrics.create(
+            endpoint=EndpointType.ANALYZE,
+        )
+
+        metrics = await AnalyzeRequestMetrics.get_metric_by_id(metrics_id)
+
+        assert metrics.id == metrics_id
+        with pytest.raises(ValueError, match="table is empty"):
+            await AnalyzeRequestMetrics.get_metric_by_id(metrics_id + 1)
+        with pytest.raises(ValueError, match="table is empty"):
+            await AnalyzeRequestMetrics.update(
+                id_=metrics_id + 1,
+                response_sent_at=datetime.datetime.now(datetime.timezone.utc),
+            )
+
+
+@pytest.mark.asyncio
+async def test_get_requests_stats_for_empty_period():
+    """An empty query preserves the five-column metrics response shape."""
+    now = datetime.datetime.now(datetime.timezone.utc)
+    async with DatabaseFactory().make_new_db():
+        metrics = await AnalyzeRequestMetrics.get_requests_stats_for_period(
+            start_time=now - datetime.timedelta(days=1),
+            end_time=now,
+        )
+
+    assert metrics == [[], [], [], [], []]
+
+
+@pytest.mark.asyncio
+async def test_get_requests_stats_aggregates_every_metric_column():
+    """Counts and all averages are aggregated into aligned time buckets."""
+    period_start = datetime.datetime(2077, 1, 1, tzinfo=datetime.timezone.utc)
+    first_request = period_start + datetime.timedelta(minutes=10)
+    second_request = period_start + datetime.timedelta(minutes=20)
+    first_response = first_request + datetime.timedelta(seconds=2)
+    first_completion = first_request + datetime.timedelta(seconds=1)
+    second_response = second_request + datetime.timedelta(seconds=4)
+    second_completion = second_request + datetime.timedelta(seconds=3)
+    async with DatabaseFactory().make_new_db() as session_factory:
+        async with session_factory() as session:
+            session.add_all(
+                [
+                    AnalyzeRequestMetrics(
+                        endpoint=EndpointType.ANALYZE,
+                        request_received_at=first_request,
+                        response_sent_at=first_response,
+                        analysis_completed_at=first_completion,
+                        response_length=100,
+                    ),
+                    AnalyzeRequestMetrics(
+                        endpoint=EndpointType.ANALYZE,
+                        request_received_at=second_request,
+                        response_sent_at=second_response,
+                        analysis_completed_at=second_completion,
+                        response_length=300,
+                    ),
+                ]
+            )
+            await session.commit()
+
+        metrics = await AnalyzeRequestMetrics.get_requests_stats_for_period(
+            start_time=period_start,
+            end_time=period_start + datetime.timedelta(hours=1),
+            time_period=TimePeriod.HOUR,
+        )
+
+    assert metrics == [[period_start], [2], [3.0], [200.0], [2.0]]
+
+
+@pytest.mark.asyncio
 async def test_filter_request_metrics_by_api_token_name():
     now = datetime.datetime.now(datetime.timezone.utc)
     async with DatabaseFactory().make_new_db():
