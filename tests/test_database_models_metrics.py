@@ -13,6 +13,8 @@ from logdetective.database.models import (
     EndpointType,
 )
 
+from logdetective.database.models.metrics import TimePeriod
+
 
 @pytest.mark.asyncio
 async def test_create_and_update_AnalyzeRequestMetrics():
@@ -41,6 +43,80 @@ async def test_create_and_update_AnalyzeRequestMetrics():
 
 
 @pytest.mark.asyncio
+async def test_get_metric_by_id_and_missing_metric_errors():
+    """Records can be retrieved, while updates and lookups reject unknown IDs."""
+    async with DatabaseFactory().make_new_db():
+        metrics_id = await AnalyzeRequestMetrics.create(
+            endpoint=EndpointType.ANALYZE,
+        )
+
+        metrics = await AnalyzeRequestMetrics.get_metric_by_id(metrics_id)
+
+        assert metrics.id == metrics_id
+        with pytest.raises(ValueError, match="table is empty"):
+            await AnalyzeRequestMetrics.get_metric_by_id(metrics_id + 1)
+        with pytest.raises(ValueError, match="table is empty"):
+            await AnalyzeRequestMetrics.update(
+                id_=metrics_id + 1,
+                response_sent_at=datetime.datetime.now(datetime.timezone.utc),
+            )
+
+
+@pytest.mark.asyncio
+async def test_get_requests_stats_for_empty_period():
+    """An empty query preserves the five-column metrics response shape."""
+    now = datetime.datetime.now(datetime.timezone.utc)
+    async with DatabaseFactory().make_new_db():
+        metrics = await AnalyzeRequestMetrics.get_requests_stats_for_period(
+            start_time=now - datetime.timedelta(days=1),
+            end_time=now,
+        )
+
+    assert metrics == [[], [], [], [], []]
+
+
+@pytest.mark.asyncio
+async def test_get_requests_stats_aggregates_every_metric_column():
+    """Counts and all averages are aggregated into aligned time buckets."""
+    period_start = datetime.datetime(2077, 1, 1, tzinfo=datetime.timezone.utc)
+    first_request = period_start + datetime.timedelta(minutes=10)
+    second_request = period_start + datetime.timedelta(minutes=20)
+    first_response = first_request + datetime.timedelta(seconds=2)
+    first_completion = first_request + datetime.timedelta(seconds=1)
+    second_response = second_request + datetime.timedelta(seconds=4)
+    second_completion = second_request + datetime.timedelta(seconds=3)
+    async with DatabaseFactory().make_new_db() as session_factory:
+        async with session_factory() as session:
+            session.add_all(
+                [
+                    AnalyzeRequestMetrics(
+                        endpoint=EndpointType.ANALYZE,
+                        request_received_at=first_request,
+                        response_sent_at=first_response,
+                        analysis_completed_at=first_completion,
+                        response_length=100,
+                    ),
+                    AnalyzeRequestMetrics(
+                        endpoint=EndpointType.ANALYZE,
+                        request_received_at=second_request,
+                        response_sent_at=second_response,
+                        analysis_completed_at=second_completion,
+                        response_length=300,
+                    ),
+                ]
+            )
+            await session.commit()
+
+        metrics = await AnalyzeRequestMetrics.get_requests_stats_for_period(
+            start_time=period_start,
+            end_time=period_start + datetime.timedelta(hours=1),
+            time_period=TimePeriod.HOUR,
+        )
+
+    assert metrics == [[period_start], [2], [3.0], [200.0], [2.0]]
+
+
+@pytest.mark.asyncio
 async def test_filter_request_metrics_by_api_token_name():
     now = datetime.datetime.now(datetime.timezone.utc)
     async with DatabaseFactory().make_new_db():
@@ -55,15 +131,14 @@ async def test_filter_request_metrics_by_api_token_name():
             api_token_name="monitoring",
         )
 
-        metrics = await AnalyzeRequestMetrics.get_requests_in_period(
+        metrics = await AnalyzeRequestMetrics.get_requests_stats_for_period(
             now - datetime.timedelta(minutes=1),
             now + datetime.timedelta(minutes=1),
-            "%Y-%m-%d %H",
-            EndpointType.ANALYZE,
-            "packit",
+            endpoint=EndpointType.ANALYZE,
+            api_token_name="packit",
         )
 
-    assert sum(metrics.values()) == 1
+    assert sum(metrics[1]) == 1
 
 
 @pytest.mark.parametrize(
@@ -71,64 +146,29 @@ async def test_filter_request_metrics_by_api_token_name():
     [EndpointType.ANALYZE],
 )
 @pytest.mark.asyncio
-async def test_AnalyzeRequestMetrics_ger_request_in_period(endpoint):
+async def test_AnalyzeRequestMetrics_get_requests_stats_for_period(endpoint):
     duration = datetime.timedelta(hours=13)
+    end_time = datetime.datetime(year=2077, month=1, day=1, tzinfo=datetime.UTC)
     async with PopulateDatabase.populate_db(
         duration=duration,
         endpoint=endpoint,
+        end_time=end_time,
     ) as _:
-        end_time = datetime.datetime.now(datetime.timezone.utc)
         start_time = end_time - datetime.timedelta(hours=10)
-        time_format = "%Y-%m-%d %H"
-        counts_dict = await AnalyzeRequestMetrics.get_requests_in_period(
-            start_time, end_time, time_format, endpoint
+        stats = await AnalyzeRequestMetrics.get_requests_stats_for_period(
+            start_time=start_time,
+            end_time=end_time,
+            time_period=TimePeriod.HOUR,
+            endpoint=endpoint,
         )
-        assert len(counts_dict) == 10 or len(counts_dict) == 11
 
+        # Basic checks on the returned data structure
+        assert len(stats) == 5
+        for e in stats:
+            assert isinstance(e, list)
 
-@pytest.mark.parametrize(
-    "endpoint",
-    [EndpointType.ANALYZE],
-)
-@pytest.mark.asyncio
-async def test_AnalyzeRequestMetrics_ger_responses_average_time(endpoint):
-    duration = datetime.timedelta(hours=13)
-    async with PopulateDatabase.populate_db(
-        duration=duration,
-        endpoint=endpoint,
-    ) as _:
-        end_time = datetime.datetime.now(datetime.timezone.utc)
-        start_time = end_time - datetime.timedelta(hours=10)
-        time_format = "%Y-%m-%d %H"
-        average_times_dict = (
-            await AnalyzeRequestMetrics.get_responses_average_time_in_period(
-                start_time, end_time, time_format, endpoint
-            )
-        )
-        assert len(average_times_dict) == 10 or len(average_times_dict) == 11
-        values = list(average_times_dict.values())
+        response_times = stats[2]
+        assert len(response_times) == 10
         # responses times always increase in the same way inside the hour
-        assert values[2] == pytest.approx(values[3], abs=1e-3)
-        assert values[4] == pytest.approx(values[5], abs=1e-3)
-
-
-@pytest.mark.parametrize(
-    "endpoint",
-    [EndpointType.ANALYZE],
-)
-@pytest.mark.asyncio
-async def test_AnalyzeRequestMetrics_ger_responses_average_length(endpoint):
-    duration = datetime.timedelta(hours=13)
-    async with PopulateDatabase.populate_db(
-        duration=duration,
-        endpoint=endpoint,
-    ) as _:
-        end_time = datetime.datetime.now(datetime.timezone.utc)
-        start_time = end_time - datetime.timedelta(hours=10)
-        time_format = "%Y-%m-%d %H"
-        average_lengths_dict = (
-            await AnalyzeRequestMetrics.get_responses_average_length_in_period(
-                start_time, end_time, time_format, endpoint
-            )
-        )
-        assert len(average_lengths_dict) == 10 or len(average_lengths_dict) == 11
+        assert response_times[2] == pytest.approx(response_times[3], abs=1e-3)
+        assert response_times[4] == pytest.approx(response_times[5], abs=1e-3)

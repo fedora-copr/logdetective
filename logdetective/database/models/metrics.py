@@ -1,7 +1,7 @@
 from __future__ import annotations
 import enum
 from datetime import datetime, timezone
-from typing import Optional, List, Self, Tuple, TYPE_CHECKING
+from typing import Optional, List, TYPE_CHECKING
 
 from sqlalchemy import (
     Integer,
@@ -10,8 +10,9 @@ from sqlalchemy import (
     Enum,
     func,
     select,
-    distinct,
     ForeignKey,
+    literal_column,
+    extract,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -32,6 +33,14 @@ class EndpointType(enum.Enum):
     ANALYZE = "analyze"
     ANALYZE_GITLAB_JOB = "analyze_gitlab_job"
     ANALYZE_KOJI_TASK = "analyze_koji_task"
+
+
+class TimePeriod(enum.Enum):
+    """Time periods for metrics aggregation"""
+
+    HOUR = "hour"
+    DAY = "day"
+    MONTH = "month"
 
 
 class AnalyzeRequestMetrics(Base):
@@ -57,7 +66,7 @@ class AnalyzeRequestMetrics(Base):
         DateTime(timezone=True),
         index=True,
         nullable=True,
-        comment="Timestamp when the analysis was completed"
+        comment="Timestamp when the analysis was completed",
     )
     response_sent_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
@@ -83,8 +92,7 @@ class AnalyzeRequestMetrics(Base):
     )
 
     mr_job: Mapped[Optional["GitlabMergeRequestJobs"]] = relationship(
-        "GitlabMergeRequestJobs",
-        back_populates="request_metrics"
+        "GitlabMergeRequestJobs", back_populates="request_metrics"
     )
 
     analysis_tasks: Mapped[List["TaskAnalysis"]] = relationship(
@@ -115,11 +123,11 @@ class AnalyzeRequestMetrics(Base):
 
     @classmethod
     @retry_database_error
-    async def update(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
+    async def update(
         cls,
         id_: int,
-        response_sent_at: DateTime,
-        response_length: int,
+        response_sent_at: datetime,
+        response_length: Optional[int] = None,
     ) -> None:
         """Update a row
         with data related to the given response"""
@@ -138,7 +146,7 @@ class AnalyzeRequestMetrics(Base):
     async def get_metric_by_id(
         cls,
         id_: int,
-    ) -> Self:
+    ) -> "AnalyzeRequestMetrics":
         """Update a row
         with data related to the given response"""
         query = select(AnalyzeRequestMetrics).filter(AnalyzeRequestMetrics.id == id_)
@@ -150,235 +158,63 @@ class AnalyzeRequestMetrics(Base):
             return metric
 
     @classmethod
-    def get_postgres_time_format(cls, time_format):
-        """Map python time format in the PostgreSQL format."""
-        if time_format == "%Y-%m-%d":
-            pgsql_time_format = "YYYY-MM-DD"
-        else:
-            pgsql_time_format = "YYYY-MM-DD HH24"
-        return pgsql_time_format
-
-    @classmethod
-    def get_dictionary_with_datetime_keys(
-        cls, time_format: str, query_results: List[Tuple[str, int]]
-    ) -> dict[datetime, int]:
-        """Convert from a list of tuples with str as first values
-        to a dictionary with datetime keys"""
-        new_dict = {
-            datetime.strptime(e[0], time_format): e[1] for e in query_results
-        }
-        return new_dict
-
-    @classmethod
-    def _get_requests_by_time_for_postgres(
-        cls, start_time, end_time, time_format, endpoint, api_token_name=None
-    ):
-        """Get total requests number in time period.
-
-        func.to_char is PostgreSQL specific.
-        Let's unit tests replace this function with the SQLite version.
+    async def get_requests_stats_for_period(
+        cls,
+        start_time: datetime,
+        end_time: datetime,
+        time_period: TimePeriod = TimePeriod.DAY,
+        endpoint: EndpointType = EndpointType.ANALYZE,
+        api_token_name: Optional[str] = None,
+    ) -> list[list]:
         """
-        pgsql_time_format = cls.get_postgres_time_format(time_format)
+        Get request counts, average response times and response lengths
+        grouped by time units within a specified period.
 
-        requests_by_time_format = (
+        Args:
+            start_time (datetime): The start of the time period to query
+            end_time (datetime): The end of the time period to query
+            time_format (str): The strftime format string to format timestamps (e.g., '%Y-%m-%d')
+            endpoint (EndpointType): The analyze API endpoint to query
+            api_token_name (str): Optional named-token filter
+
+        Returns:
+            list[list]: aggregated metrics for the given time period
+        """
+        query = (
             select(
-                cls.id,
-                func.to_char(cls.request_received_at, pgsql_time_format).label(
-                    "time_format"
-                ),
+                func.date_trunc(  # pylint: disable=not-callable
+                    time_period.value, AnalyzeRequestMetrics.request_received_at
+                ).label("period_start"),
+                func.count(AnalyzeRequestMetrics.id).label("total_count"),  # pylint: disable=not-callable
+                extract(  # Convert time.timedelta to a second float
+                    "epoch",
+                    func.avg(
+                        AnalyzeRequestMetrics.response_sent_at - AnalyzeRequestMetrics.request_received_at  # pylint: disable=line-too-long
+                    ),
+                ).label("average_response_time"),
+                func.avg(cls.response_length).label("average_response_length"),
+                extract(  # Convert time.timedelta to a second float
+                    "epoch",
+                    func.avg(
+                        AnalyzeRequestMetrics.analysis_completed_at - AnalyzeRequestMetrics.request_received_at  # pylint: disable=line-too-long
+                    ),
+                ).label("average_completion_time"),
             )
-            .filter(cls.request_received_at.between(start_time, end_time))
-            .filter(cls.endpoint == endpoint)
+            .where(AnalyzeRequestMetrics.request_received_at >= start_time)
+            .where(AnalyzeRequestMetrics.request_received_at < end_time)
+            .where(AnalyzeRequestMetrics.endpoint == endpoint)
+            .group_by(
+                literal_column("period_start")  # Group by col we have labeled
+            )
+            .order_by(
+                literal_column("period_start")  # Order from the oldest
+            )
         )
         if api_token_name is not None:
-            requests_by_time_format = requests_by_time_format.filter(
-                cls.api_token_name == api_token_name
-            )
-        requests_by_time_format = requests_by_time_format.cte(
-            "requests_by_time_format"
-        )
-        return requests_by_time_format
-
-    @classmethod
-    async def get_requests_in_period(
-        cls,
-        start_time: datetime,
-        end_time: datetime,
-        time_format: str,
-        endpoint: Optional[EndpointType] = EndpointType.ANALYZE,
-        api_token_name: Optional[str] = None,
-    ) -> dict[datetime, int]:
-        """
-        Get a dictionary with request counts grouped by time units within a specified period.
-
-        Args:
-            start_time (datetime): The start of the time period to query
-            end_time (datetime): The end of the time period to query
-            time_format (str): The strftime format string to format timestamps (e.g., '%Y-%m-%d')
-            endpoint (EndpointType): The analyze API endpoint to query
-            api_token_name (str): Optional named-token filter
-
-        Returns:
-            dict[datetime, int]: A dictionary mapping datetime objects to request counts
-        """
+            query = query.where(AnalyzeRequestMetrics.api_token_name == api_token_name)
         async with transaction(commit=False) as session:
-            requests_by_time_format = cls._get_requests_by_time_for_postgres(
-                start_time, end_time, time_format, endpoint, api_token_name
-            )
-
-            count_requests_by_time_format = select(
-                requests_by_time_format.c.time_format,
-                func.count(distinct(requests_by_time_format.c.id)),  # pylint: disable=not-callable
-            ).group_by("time_format")
-
-            query_results = await session.execute(count_requests_by_time_format)
-            results = query_results.all()
-
-            return cls.get_dictionary_with_datetime_keys(time_format, results)
-
-    @classmethod
-    async def _get_average_responses_times_for_postgres(
-        cls, start_time, end_time, time_format, endpoint, api_token_name=None
-    ):
-        """Get average responses time.
-
-        func.to_char is PostgreSQL specific.
-        Let's unit tests replace this function with the SQLite version.
-        """
-        async with transaction(commit=False) as session:
-            pgsql_time_format = cls.get_postgres_time_format(time_format)
-
-            average_responses_times = (
-                select(
-                    func.to_char(cls.request_received_at, pgsql_time_format).label(
-                        "time_range"
-                    ),
-                    (
-                        func.coalesce(
-                            func.avg(
-                                func.extract(  # pylint: disable=not-callable
-                                    "epoch", cls.response_sent_at - cls.request_received_at
-                                )
-                            ),
-                            0
-                        )
-                    ).label("average_response_seconds"),
-                )
-                .filter(cls.request_received_at.between(start_time, end_time))
-                .filter(cls.endpoint == endpoint)
-            )
-            if api_token_name is not None:
-                average_responses_times = average_responses_times.filter(
-                    cls.api_token_name == api_token_name
-                )
-            average_responses_times = average_responses_times.group_by(
-                "time_range"
-            ).order_by("time_range")
-
-            query_results = await session.execute(average_responses_times)
-            results = query_results.all()
-            return results
-
-    @classmethod
-    async def get_responses_average_time_in_period(
-        cls,
-        start_time: datetime,
-        end_time: datetime,
-        time_format: str,
-        endpoint: Optional[EndpointType] = EndpointType.ANALYZE,
-        api_token_name: Optional[str] = None,
-    ) -> dict[datetime, int]:
-        """
-        Get a dictionary with average responses times
-        grouped by time units within a specified period.
-
-        Args:
-            start_time (datetime): The start of the time period to query
-            end_time (datetime): The end of the time period to query
-            time_format (str): The strftime format string to format timestamps (e.g., '%Y-%m-%d')
-            endpoint (EndpointType): The analyze API endpoint to query
-            api_token_name (str): Optional named-token filter
-
-        Returns:
-            dict[datetime, int]: A dictionary mapping datetime objects
-            to average responses times
-        """
-        async with transaction(commit=False) as _:
-            average_responses_times = (
-                await cls._get_average_responses_times_for_postgres(
-                    start_time, end_time, time_format, endpoint, api_token_name
-                )
-            )
-
-            return cls.get_dictionary_with_datetime_keys(
-                time_format, average_responses_times
-            )
-
-    @classmethod
-    async def _get_average_responses_lengths_for_postgres(
-        cls, start_time, end_time, time_format, endpoint, api_token_name=None
-    ):
-        """Get average responses length.
-
-        func.to_char is PostgreSQL specific.
-        Let's unit tests replace this function with the SQLite version.
-        """
-        async with transaction(commit=False) as session:
-            pgsql_time_format = cls.get_postgres_time_format(time_format)
-
-            average_responses_lengths = (
-                select(
-                    func.to_char(cls.request_received_at, pgsql_time_format).label(
-                        "time_range"
-                    ),
-                    (func.avg(cls.response_length)).label("average_responses_length"),
-                )
-                .filter(cls.request_received_at.between(start_time, end_time))
-                .filter(cls.endpoint == endpoint)
-            )
-            if api_token_name is not None:
-                average_responses_lengths = average_responses_lengths.filter(
-                    cls.api_token_name == api_token_name
-                )
-            average_responses_lengths = average_responses_lengths.group_by(
-                "time_range"
-            ).order_by("time_range")
-
-            query_results = await session.execute(average_responses_lengths)
-            results = query_results.all()
-            return results
-
-    @classmethod
-    async def get_responses_average_length_in_period(
-        cls,
-        start_time: datetime,
-        end_time: datetime,
-        time_format: str,
-        endpoint: Optional[EndpointType] = EndpointType.ANALYZE,
-        api_token_name: Optional[str] = None,
-    ) -> dict[datetime, int]:
-        """
-        Get a dictionary with average responses length
-        grouped by time units within a specified period.
-
-        Args:
-            start_time (datetime): The start of the time period to query
-            end_time (datetime): The end of the time period to query
-            time_format (str): The strftime format string to format timestamps (e.g., '%Y-%m-%d')
-            endpoint (EndpointType): The analyze API endpoint to query
-            api_token_name (str): Optional named-token filter
-
-        Returns:
-            dict[datetime, int]: A dictionary mapping datetime objects
-            to average responses lengths
-        """
-        async with transaction(commit=False) as _:
-            average_responses_lengths = (
-                await cls._get_average_responses_lengths_for_postgres(
-                    start_time, end_time, time_format, endpoint, api_token_name
-                )
-            )
-
-            return cls.get_dictionary_with_datetime_keys(
-                time_format, average_responses_lengths
-            )
+            query_results = await session.execute(query)
+            query_results = query_results.all()
+        if query_results:
+            return [list(col) for col in zip(*query_results)]
+        return [[], [], [], [], []]

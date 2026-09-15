@@ -11,6 +11,7 @@ from logdetective.database.models.tasks import (
 from logdetective.database.models.metrics import (
     AnalyzeRequestMetrics,
     EndpointType,
+    TimePeriod,
 )
 from logdetective.database.models.exceptions import (
     TaskNotAnalyzedError,
@@ -30,6 +31,7 @@ __all__ = [
     Comments.__name__,
     AnalyzeRequestMetrics.__name__,
     EndpointType.__name__,
+    TimePeriod.__name__,
     Forge.__name__,
     TaskAnalysis.__name__,
     TaskType.__name__,
