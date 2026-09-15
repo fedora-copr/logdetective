@@ -98,7 +98,7 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
         interval: datetime.timedelta = datetime.timedelta(minutes=15),
         duration: datetime.timedelta = datetime.timedelta(hours=23),
         end_time: Optional[datetime.datetime] = None,
-        endpoint_type: Optional[EndpointType] = EndpointType.ANALYZE,
+        endpoint_type: EndpointType = EndpointType.ANALYZE,
     ) -> AsyncGenerator:
         # pylint: disable=contextmanager-generator-missing-cleanup
         async with self.db_factory.make_new_db() as session_factory:
@@ -127,7 +127,7 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
 
     @classmethod
     @asynccontextmanager
-    async def populate_db(cls, duration=datetime.timedelta, endpoint=EndpointType):
+    async def populate_db(cls, duration: datetime.timedelta, endpoint: EndpointType):
         """Populate the db, one request every 15 minutes.
         and responses increasing for 1 hour, and then back to 1.
         For the last duration time.
