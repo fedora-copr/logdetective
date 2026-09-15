@@ -1,5 +1,4 @@
 import datetime
-from typing import Callable
 
 import pytest
 import aiohttp
@@ -8,14 +7,11 @@ from fastapi import Request
 
 from flexmock import flexmock
 
-from logdetective.database.models import AnalyzeRequestMetrics, EndpointType
-from logdetective.models import Explanation, TimePeriod, MetricTimeSeries
+from logdetective.database.models import EndpointType, TimePeriod
+from logdetective.models import Explanation
 from logdetective.metric import (
     track_request,
-    create_time_series_arrays,
-    requests_per_time,
-    average_time_per_responses,
-    TimeDefinition
+    requests_statistics,
 )
 
 from tests.test_helpers import (
@@ -30,24 +26,25 @@ from tests.test_helpers import (
 
 @pytest.mark.parametrize(
     "build_log_request",
-    [
-        "build_log_url", "build_log_one_file", "build_log_two_files"
-    ],
-    indirect=True
+    ["build_log_url", "build_log_one_file", "build_log_two_files"],
+    indirect=True,
 )
 @pytest.mark.parametrize(
     "response",
     [
         flexmock(
             explanation=Explanation(text="abc"),
-            model_dump_json=lambda: "{explanation: 'abc'}"
+            model_dump_json=lambda: "{explanation: 'abc'}",
         ),
         flexmock(),  # mimic StreamResponse
     ],
 )
 @pytest.mark.asyncio
-async def test_track_request_async(build_log_request, mock_AnalyzeRequestMetrics, response):
+async def test_track_request_async(
+    build_log_request, mock_AnalyzeRequestMetrics, response
+):
     """Test the @track_request decorator for a mock analyze log function call."""
+
     @track_request()
     async def analyze(payload, http_session, request=None):
         return response
@@ -83,84 +80,24 @@ async def test_track_request_async(build_log_request, mock_AnalyzeRequestMetrics
         assert update_kwargs["response_length"] == len(response.model_dump_json())
 
 
-def test_week_Definition():
-    time_def = TimeDefinition(TimePeriod(weeks=3))
-    assert time_def.days_diff == 21
-
-
-def test_day_Definition():
-    time_def = TimeDefinition(TimePeriod(days=3))
-    assert time_def.days_diff == 3
-
-
-def test_hour_Definition():
-    time_def = TimeDefinition(TimePeriod(hours=3))
-    assert time_def.days_diff == 0
-
-
 @pytest.mark.parametrize(
     "endpoint",
-    [EndpointType.ANALYZE],
-)
-@pytest.mark.asyncio
-async def test_create_time_series_arrays(endpoint):
-    duration = datetime.timedelta(hours=15)
-    async with PopulateDatabase.populate_db(
-        duration=duration,
-        endpoint=endpoint,
-    ) as _:
-        period = TimePeriod(hours=22)
-        time_def = TimeDefinition(period)
-        end_time = datetime.datetime.now(datetime.timezone.utc)
-        start_time = period.get_period_start_time(end_time)
-        counts_dict = await AnalyzeRequestMetrics.get_requests_in_period(
-            start_time, end_time, time_def.time_format, endpoint
-        )
-        timestamps, counts = create_time_series_arrays(
-            counts_dict,
-        )
-        assert len(timestamps) == len(counts)
-        assert (
-            sum(counts) < 22 * 4
-        )  # since we have added requests just for the last 15 hours
-
-
-@pytest.mark.parametrize(
-    "end_time",
-    [None, datetime.datetime(1970, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)]
-)
-@pytest.mark.asyncio
-async def test_get_period_start_time(end_time):
-    """Test that start time retrieval works with and without set `end_time`."""
-    period = TimePeriod(hours=22)
-    start_time = period.get_period_start_time(end_time)
-
-    if end_time:
-        assert start_time == end_time - period.get_time_period()
-    else:
-        assert start_time <= datetime.datetime.now(datetime.timezone.utc) - period.get_time_period()
-
-
-@pytest.mark.parametrize(
-    "endpoint, stats_function",
     [
         pytest.param(
             EndpointType.ANALYZE,
-            requests_per_time,
-            id="Requests per time for ANALYZE endpoint",
+            id="Requests stats for ANALYZE endpoint",
         ),
         pytest.param(
-            EndpointType.ANALYZE,
-            average_time_per_responses,
-            id="Average response times for ANALYZE endpoint",
+            EndpointType.ANALYZE_KOJI_TASK,
+            id="Average stats for ANALYZE_KOJI_TASK endpoint",
         ),
     ],
 )
 @pytest.mark.parametrize(
-    "period, records",
+    "time_period, records",
     [
         pytest.param(
-            TimePeriod(hours=14),
+            TimePeriod.HOUR,
             [
                 (datetime.timedelta(minutes=10), 1.0),
                 (datetime.timedelta(minutes=40), 2.0),
@@ -168,13 +105,13 @@ async def test_get_period_start_time(end_time):
                 (datetime.timedelta(hours=8, minutes=5), 3.5),
                 (datetime.timedelta(hours=8, minutes=50), 4.5),
                 (datetime.timedelta(hours=12, minutes=59), 1.0),
-                (datetime.timedelta(hours=16, minutes=1), 1.0),  # ignored
+                (datetime.timedelta(hours=16, minutes=1), 1.0),
                 (datetime.timedelta(hours=23), 5.0),  # ignored
             ],
             id="hourly",
         ),
         pytest.param(
-            TimePeriod(days=9),
+            TimePeriod.DAY,
             [
                 (datetime.timedelta(days=0, hours=2), 1.0),
                 (datetime.timedelta(days=3, hours=1), 2.5),
@@ -187,26 +124,25 @@ async def test_get_period_start_time(end_time):
             id="daily",
         ),
         pytest.param(
-            TimePeriod(weeks=3),
+            TimePeriod.MONTH,
             [
                 (datetime.timedelta(days=1, hours=5), 1.0),
                 (datetime.timedelta(days=1, hours=20), 3.0),
-                (datetime.timedelta(days=5), 2.0),
-                (datetime.timedelta(days=8, hours=12), 1.5),
-                (datetime.timedelta(days=14, hours=3), 2.5),
-                (datetime.timedelta(days=14, hours=18), 4.0),
-                (datetime.timedelta(days=20, hours=1), 1.0),
-                (datetime.timedelta(days=23, hours=16), 2.5),  # ignored
+                (datetime.timedelta(days=15), 2.0),
+                (datetime.timedelta(days=28, hours=12), 1.5),
+                (datetime.timedelta(days=42, hours=3), 2.5),
+                (datetime.timedelta(days=42, hours=18), 4.0),
+                (datetime.timedelta(days=65, hours=1), 1.0),
+                (datetime.timedelta(days=80, hours=16), 2.5),  # ignored
             ],
-            id="weekly",
+            id="monthly",
         ),
-    ]
+    ],
 )
 @pytest.mark.asyncio
 async def test_request_stats(
     endpoint: EndpointType,
-    stats_function: Callable,
-    period: TimePeriod,
+    time_period: TimePeriod,
     records: list[tuple[datetime.timedelta, float]],
 ):
     """
@@ -215,35 +151,49 @@ async def test_request_stats(
     """
     # `anchor` refers to the last full-hour (X:00:00), or midnight,
     # for more deterministic bucket testing.
-    anchor = datetime.datetime.now(datetime.timezone.utc).replace(minute=0, second=0)
-    if period.days or period.weeks:
+    anchor = datetime.datetime(
+        year=2077,
+        month=1,
+        day=1,
+        hour=0,
+        minute=0,
+        second=0,
+        tzinfo=datetime.timezone.utc,
+    )
+    if time_period in [TimePeriod.DAY, TimePeriod.MONTH]:
         anchor = anchor.replace(hour=0)
 
-    async with PopulateDatabase.populate_db_with_analysis_records(anchor, records, endpoint) as _:
-        stats = await stats_function(period, endpoint, end_time=anchor)
+    start_time = anchor - (records[-1][0])
+    assert start_time < anchor, start_time
 
-    assert isinstance(stats, MetricTimeSeries)
-    assert len(stats.timestamps) > 0
-    assert len(stats.values) > 0
+    async with PopulateDatabase.populate_db_with_analysis_records(
+        time_anchor=anchor, records=records, endpoint=endpoint
+    ) as _:
+        stats = await requests_statistics(
+            start_time=start_time,
+            end_time=anchor,
+            endpoint=endpoint,
+            time_period=time_period,
+        )
+
+    assert len(stats.period_start) == len(stats.average_response_time) > 0
+    assert len(stats.average_response_len) == len(stats.average_response_time)
+    assert len(stats.total_count) == len(stats.average_response_len)
 
     # We only use .0, .5, and .25 in the mock data
     # so that we can do exact comparisons with floats
-    if period.hours and stats.metric == "requests":
-        assert stats.values == [1.0, 2.0, 1.0, 2.0]
-    elif period.hours and stats.metric == "avg_response_time":
-        assert stats.values == [1.0, 4.0, 3.0, 1.5]
-    elif period.days and stats.metric == "requests":
-        assert stats.values == [1.0, 1.0, 3.0, 1.0]
-    elif period.days and stats.metric == "avg_response_time":
-        assert stats.values == [4.0, 2.5, 2.0, 1.0]
-    # Weekly stats are actually in daily buckets, just over a multi-week period.
-    elif period.weeks and stats.metric == "requests":
-        assert stats.values == [1.0, 2.0, 1.0, 1.0, 2.0]
-    elif period.weeks and stats.metric == "avg_response_time":
-        assert stats.values == [1.0, 3.25, 1.5, 2.0, 2.0]
+    if time_period == TimePeriod.HOUR:
+        assert stats.total_count == [1, 1, 2, 1, 2]
+        assert stats.average_response_time == [1.0, 1.0, 4.0, 3.0, 1.5]
+    elif time_period == TimePeriod.DAY:
+        assert stats.total_count == [1, 1, 3, 1]
+        assert stats.average_response_time == [4.0, 2.5, 2.0, 1.0]
+    elif time_period == TimePeriod.MONTH:
+        assert stats.total_count == [1, 2, 4]
+        assert stats.average_response_time == [1.0, 3.25, 1.875]
     else:
         msg = (
             "Did not test any of the expected checks, "
-            f"period={period}, endpoint={endpoint}, metric={stats.metric}"
+            f"period={time_period}, endpoint={endpoint}, stats={stats}"
         )
         assert False, msg
