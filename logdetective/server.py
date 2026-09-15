@@ -636,7 +636,10 @@ async def get_metrics(
     end_time: Optional[datetime.datetime] = None,
     api_token_name: str | None = None,
 ):
-    """Get an handler returning statistics for the specified endpoint."""
+    """Get an handler returning statistics for the specified endpoint.
+
+    The `start_time` must be strictly < `end_time`.
+    """
     endpoint_type = ROUTE_TO_ENDPOINT_TYPES[route]
 
     if endpoint_type == EndpointType.ANALYZE_GITLAB_JOB and not SERVER_CONFIG.gitlab.instances:
@@ -645,6 +648,11 @@ async def get_metrics(
             detail="No gitlab instance configured, skipping metrics collection."
         )
 
+    if end_time and start_time >= end_time:
+        raise HTTPException(
+            status_code=400,
+            detail=f"start_time: {start_time} >= end_time: {end_time}",
+        )
     data = await requests_statistics(
         start_time=start_time,
         end_time=end_time,
