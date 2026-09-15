@@ -266,7 +266,7 @@ async def test_metrics_endpoint_rejects_invalid_parameters(route, params):
                 (datetime.timedelta(hours=8, minutes=50), 4.5),
                 (datetime.timedelta(hours=12, minutes=59), 1.0),
                 (datetime.timedelta(hours=16, minutes=1), 1.0),
-                (datetime.timedelta(hours=23), 5.0),  # ignored
+                (datetime.timedelta(hours=23), 5.0),
             ],
             id="hourly",
         ),
@@ -279,7 +279,7 @@ async def test_metrics_endpoint_rejects_invalid_parameters(route, params):
                 (datetime.timedelta(days=3, hours=14), 1.5),
                 (datetime.timedelta(days=5, hours=23), 2.5),
                 (datetime.timedelta(days=8, hours=12), 4.0),
-                (datetime.timedelta(days=10, hours=2), 3.0),  # ignored
+                (datetime.timedelta(days=10, hours=2), 3.0),
             ],
             id="daily",
         ),
@@ -293,7 +293,7 @@ async def test_metrics_endpoint_rejects_invalid_parameters(route, params):
                 (datetime.timedelta(days=42, hours=3), 2.5),
                 (datetime.timedelta(days=42, hours=18), 4.0),
                 (datetime.timedelta(days=65, hours=1), 1.0),
-                (datetime.timedelta(days=80, hours=16), 2.5),  # ignored
+                (datetime.timedelta(days=80, hours=16), 2.5),
             ],
             id="monthly",
         ),
@@ -343,14 +343,14 @@ async def test_request_stats(
     # We only use .0, .5, and .25 in the mock data
     # so that we can do exact comparisons with floats
     if time_period == TimePeriod.HOUR:
-        assert stats.total_count == [1, 1, 2, 1, 2]
-        assert stats.average_response_time == [1.0, 1.0, 4.0, 3.0, 1.5]
+        assert stats.total_count == [1, 1, 1, 2, 1, 2]
+        assert stats.average_response_time == [5.0, 1.0, 1.0, 4.0, 3.0, 1.5]
     elif time_period == TimePeriod.DAY:
-        assert stats.total_count == [1, 1, 3, 1]
-        assert stats.average_response_time == [4.0, 2.5, 2.0, 1.0]
+        assert stats.total_count == [1, 1, 1, 3, 1]
+        assert stats.average_response_time == [3.0, 4.0, 2.5, 2.0, 1.0]
     elif time_period == TimePeriod.MONTH:
-        assert stats.total_count == [1, 2, 4]
-        assert stats.average_response_time == [1.0, 3.25, 1.875]
+        assert stats.total_count == [2, 2, 4]
+        assert stats.average_response_time == [1.75, 3.25, 1.875]
     else:
         msg = (
             "Did not test any of the expected checks, "
