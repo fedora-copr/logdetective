@@ -34,7 +34,9 @@ LOGDETECTIVE_SERVER_CONF="/config.yml"
 # Path to prompt templates for Log Detective
 LOGDETECTIVE_PROMPT_TEMPLATES="/src/logdetective/prompts"
 # llama.cpp inference server will look for `LLAMA_ARG_MODEL` in this location
-MODELS_PATH="./models"
+# Referencing .. as compose is invoked from the containers directory
+# and there is no --project-directory arg for podman-compose (yet)
+MODELS_PATH="../models"
 # Path to patterns to be skipped during processing
 LOGDETECTIVE_SKIP_PATTERNS="/src/logdetective/skip_snippets.toml"
 
