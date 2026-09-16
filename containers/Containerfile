@@ -1,5 +1,4 @@
 FROM fedora:42
-# Fedora's llama-cpp-python is segfaulting on the model we use :/
 # python3-alembic is needed for the alembic-3
 RUN dnf install -y \
     python3-pip \

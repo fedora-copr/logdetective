@@ -2,21 +2,24 @@ services:
 
   # Proxy for one, or multiple, containerized inference servers
   proxy:
+    container_name: logdetective_proxy
     image: nginx:1.28.2-alpine
     hostname: inference-server
     expose:
       - "${INFERENCE_PROXY_PORT:-8000}"
     volumes:
-      - ./server/nginx_dev.conf.template:/etc/nginx/templates/nginx.conf.template:ro,z
+      - ../server/nginx_dev.conf.template:/etc/nginx/templates/nginx.conf.template:ro,z
     environment:
       - INFERENCE_PROXY_PORT=${INFERENCE_PROXY_PORT:-8000}
       - INFERENCE_SERVER_PORT=${INFERENCE_SERVER_PORT:-8100}
     depends_on:
       - inference-0
+
   # Base and developer deployments are using llama.cpp for improved portability
   inference-0:
+    container_name: logdetective_inference
     image: ghcr.io/ggml-org/llama.cpp:server-cuda
-    # make sure to match this hostname with inference->url in server/config.yml
+    # make sure to match this hostname with inference:provider_settings:base_url in server/config.yml
     # llama.cpp requires valid chat template of your model in order to handle tool calls
     # in many cases, the best approach is to download one from the original model.
     # For example, the chat template for ibm-granite/granite-4.0-h-tiny is in the Hugging Face repo:
@@ -24,80 +27,85 @@ services:
     command: "--host 0.0.0.0 --port ${INFERENCE_SERVER_PORT:-8100} --jinja --chat-template-file /models/chat_template.jinja"
     stdin_open: true
     tty: true
-    env_file: ./env_file
+    env_file: ../env_file
     expose:
       - "${INFERENCE_SERVER_PORT:-8100}"
     volumes:
-      - ${MODELS_PATH-./models}:/models:Z
+      - ${MODELS_PATH-../models}:/models:Z
     # these 4 lines are needed for CUDA acceleration
     # devices:
     #   - nvidia.com/gpu=all
     # security_opt:
     #   - "label=disable"
+
   server:
+    container_name: logdetective_server
     image: quay.io/logdetective/server:latest
     depends_on:
       - proxy
       - postgres
     build:
-      context: .
-      dockerfile: ./Containerfile
+      context: ..
+      dockerfile: containers/Containerfile
     hostname: logdetective-server
     stdin_open: true
     tty: true
     volumes:
-      - .:/src/:z
-      - ./server/config.yml:/config.yml:z
-      - ./files/run_server.sh:/run_server.sh:z
+      - ..:/src/:z
+      - ../server/config.yml:/config.yml:z
+      - ../files/run_server.sh:/run_server.sh:z
       # Uncomment with LOGDETECTIVE_TOKENS_FILE=/api_tokens.yml in env_file.
-      # - ./server/api_tokens.yml:/api_tokens.yml:ro,z
+      # - ../server/api_tokens.yml:/api_tokens.yml:ro,z
       # Note: To use vertexai as a provider, you will need to mount
       # the credentials file by uncommmenting the following line:
-      # - ./log-detective-vertex.json:/src/log-detective-vertex.json:ro,z
+      # - ../log-detective-vertex.json:/src/log-detective-vertex.json:ro,z
     ports:
       - "${LOGDETECTIVE_SERVER_PORT:-8080}:${LOGDETECTIVE_SERVER_PORT:-8080}"
-    env_file: ./env_file
+    env_file: ../env_file
     # so gunicorn can find logdetective python module
     # and alembic can find alembic.ini
     working_dir: /src
     entrypoint: ["/run_server.sh"]
 
   postgres:
+    container_name: logdetective_postgres
     image: quay.io/logdetective/postgresql-15-c9s-pgvector
     build:
-      context: .
-      dockerfile: ./Containerfile.database
+      context: ..
+      dockerfile: containers/Containerfile.database
     volumes:
       - database_data:/var/lib/pgsql/data
     ports:
       - "${POSTGRESQL_PORT:-5432}:${POSTGRESQL_PORT:-5432}"
-    env_file: ./env_file
+    env_file: ../env_file
 
   packit-interface:
+    container_name: logdetective_packit_interface
     image: quay.io/logdetective/packit:latest
     volumes:
-      - ./files/fedora_messaging_conf.toml:/etc/fedora-messaging/config.toml:ro,Z
-      - ${FM_CERT_PATH:-./fedora_messaging_certs/logdetective-packit-cert.pem}:/etc/fedora-messaging/fedora-cert.pem:ro,Z
-      - ${FM_KEY_PATH:-./fedora_messaging_certs/logdetective-packit-key.pem}:/etc/fedora-messaging/fedora-key.pem:ro,Z
+      - ../files/fedora_messaging_conf.toml:/etc/fedora-messaging/config.toml:ro,Z
+      - ${FM_CERT_PATH:-../fedora_messaging_certs/logdetective-packit-cert.pem}:/etc/fedora-messaging/fedora-cert.pem:ro,Z
+      - ${FM_KEY_PATH:-../fedora_messaging_certs/logdetective-packit-key.pem}:/etc/fedora-messaging/fedora-key.pem:ro,Z
     depends_on:
       - server
     # Port 8090 is the default for logdetective-packit container
     # github.com/fedora-copr/logdetective-packit
     ports:
       - "${PACKIT_INTERFACE_PORT:-8090}:${PACKIT_INTERFACE_PORT:-8090}"
-    env_file: ./env_file
+    env_file: ../env_file
 
   user-contributions-update:
+    container_name: logdetective_user_contributions_update
     image: quay.io/logdetective/server:latest
     build:
-      context: .
-      dockerfile: ./Containerfile
-    env_file: ./env_file
+      context: ..
+      dockerfile: containers/Containerfile
+    env_file: ../env_file
     environment:
       - LOG_DIR=/var/log/logdetective
     working_dir: /src
     volumes:
-      - ./log:/var/log/logdetective:z
+      - ../log:/var/log/logdetective:z
     entrypoint:
       - bash
       - -c

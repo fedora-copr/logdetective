@@ -25,17 +25,17 @@ To install full superset of dependencies in a single resolution pass, use:
 
 Tox environments use two separate `poetry install` calls.
 Combined form is more stable for interactive development.
-Dev stack uses `docker-compose-dev.yaml` which extends the base `docker-compose.yaml`.
+Dev stack uses `containers/docker-compose-dev.yaml` which extends the base `containers/docker-compose.yaml`.
 DB migrations run automatically on server startup via `scripts/await_psql` + alembic.
-For CUDA GPU acceleration, uncomment the device lines in `docker-compose-dev.yaml`.
+For CUDA GPU acceleration, uncomment the device lines in `containers/docker-compose-dev.yaml`.
 
-- `make server-up` builds and starts the dev stack (inference, server, postgres, nginx)
-- `make server-down` tears down dev stack
-- `make rebuild-server` rebuild server image without cache
+- `make dev-up` starts the dev stack (inference, server, postgres, nginx)
+- `make dev-down` tears down dev stack
+- `make rebuild-server` and `make rebuild-postgres` rebuild server/postgres image without cache
 
 # Testing
 
-- `tox -e pytest` - requires podman; runs on Postgres + pgvector (see `Container.database`)
+- `tox -e pytest` - requires podman; runs on Postgres + pgvector (see `containers/Containerfile.database`)
 - CI runs on GitHub Actions which run `tox -e pytest` + `tox -e lint,style,ruff,djlint`
 
 # Data modeling conventions
