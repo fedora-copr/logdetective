@@ -226,6 +226,15 @@ async def test_gitlab_metrics_endpoint_rejects_missing_configuration(
         ("invalid", {"start_time": "2077-01-01T00:00:00Z", "time_period": "day"}),
         ("analyze", {"time_period": "day"}),
         ("analyze", {"start_time": "not-a-date", "time_period": "day"}),
+        ("analyze", {"start_time": "2077-01-01T00:00:00", "time_period": "day"}),
+        (
+            "analyze",
+            {
+                "start_time": "2077-01-01T00:00:00Z",
+                "end_time": "2077-01-02T00:00:00",
+                "time_period": "day",
+            },
+        ),
         ("analyze", {"start_time": "2077-01-01T00:00:00Z", "time_period": "week"}),
     ],
 )
