@@ -20,6 +20,7 @@ from fastapi import (
 )
 from fastapi.responses import Response as BasicResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import AwareDatetime
 import aiohttp
 import sentry_sdk
 from beeai_framework.backend import ChatModel
@@ -631,9 +632,9 @@ ROUTE_TO_ENDPOINT_TYPES = {
 @app.get("/metrics/{route}/", response_model=MetricResponse)
 async def get_metrics(
     route: MetricRoute,
-    start_time: datetime.datetime,
+    start_time: AwareDatetime,
     time_period: TimePeriod,
-    end_time: Optional[datetime.datetime] = None,
+    end_time: Optional[AwareDatetime] = None,
     api_token_name: str | None = None,
 ):
     """Get a handler returning statistics for the specified endpoint.
