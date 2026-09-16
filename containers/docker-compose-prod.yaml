@@ -4,7 +4,7 @@ services:
       file: docker-compose.yaml
       service: proxy
     volumes:
-      - ./server/nginx_prod.conf.template:/etc/nginx/templates/nginx.conf.template:ro,z
+      - ../server/nginx_prod.conf.template:/etc/nginx/templates/nginx.conf.template:ro,z
     depends_on:
       inference-0:
         condition: service_healthy
