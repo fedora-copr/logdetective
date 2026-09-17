@@ -36,17 +36,17 @@ from logdetective.utils import retry_database_error
 class AnalysisState(enum.Enum):
     """State of the analysis task"""
 
-    SCHEDULED = "scheduled"
-    DONE = "done"
-    IN_PROGRESS = "in_progress"
-    ERROR = "error"
+    SCHEDULED = "SCHEDULED"
+    DONE = "DONE"
+    IN_PROGRESS = "IN_PROGRESS"
+    ERROR = "ERROR"
 
 
 class TaskType(enum.Enum):
     """Type of the task"""
 
-    GENERIC = "generic"
-    KOJI = "koji"
+    GENERIC = "GENERIC"
+    KOJI = "KOJI"
 
 
 class TaskAnalysis(Base):
