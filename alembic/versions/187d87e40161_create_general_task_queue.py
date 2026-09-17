@@ -48,7 +48,7 @@ def upgrade() -> None:
         ),
         sa.Column(
             "state",
-            sa.Enum("scheduled", "done", "in_progress", "error", name="analysisstate"),
+            sa.Enum("SCHEDULED", "DONE", "IN_PROGRESS", "ERROR", name="analysisstate"),
             nullable=False,
             comment="State of the analysis task",
         ),
@@ -72,7 +72,7 @@ def upgrade() -> None:
         ),
         sa.Column(
             "task_type",
-            sa.Enum("generic", "koji", name="tasktype"),
+            sa.Enum("GENERIC", "KOJI", name="tasktype"),
             nullable=False,
             comment="Type of the task being processed",
         ),
