@@ -15,6 +15,21 @@ services:
       file: docker-compose.yaml
       service: server
     image: logdetective/server
+  migrate:
+    extends:
+      file: docker-compose.yaml
+      service: migrate
+    image: logdetective/migrate
+  worker:
+    extends:
+      file: docker-compose.yaml
+      service: worker
+    image: logdetective/server
+  maintenance-worker:
+    extends:
+      file: docker-compose.yaml
+      service: maintenance-worker
+    image: logdetective/server
   postgres:
     extends:
       file: docker-compose.yaml

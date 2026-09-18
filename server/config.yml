@@ -63,15 +63,16 @@ extractor:
 #       - example_secret
 #     timeout: 6.0
 # koji:
-#   analysis_timeout: 15
+#   api_timeout: 15
+#   retrieval_timeout: 30
 #   max_artifact_size: 50
 
 #   # Koji instances
 #   instances:
 #     "fedora":
 #       xmlrpc_url: https://koji.fedoraproject.org/kojihub
-#       tokens:
-#         - example_token
+#       # tokens:
+#       #   - example_token
 general:
   max_artifact_size: 50  # in MiB
   packages:
@@ -86,11 +87,20 @@ general:
   # generate_solution: true
   # Enable lazy fetching of build artifacts
   # delay_artifact_download: true
+  # Total timeout in seconds for downloading remote log sources
+  log_source_request_timeout: 10
   analysis_timeout: 600  # Timeout on agent execution
   # Enable DB lookup of annotated snippets (requires populated annotated_snippets table)
   # annotation_lookup_tool: true
   # Upper limit for returned similar annotated snippets
   # max_annotations: 3
+task_queue:
+  retry_after: 5
+  # Number of simultaneous analysis jobs; maintenance uses a separate worker.
+  concurrency: 10
+  retention_days: 30
+  shutdown_graceful_timeout: 30
+  stalled_worker_timeout: 30
 # Configuration of the prompt manager:
 # Here, you can define optional references intended for customizing the system prompt.
 # Prompt jinja templates are stored in ./prompts directory

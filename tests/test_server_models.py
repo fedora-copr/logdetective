@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from logdetective.models import (
     Config,
     ExtractorConfig,
+    GeneralConfig,
     ArtifactFile,
     AnalysisRequest,
     APITokens,
@@ -19,6 +20,14 @@ def test_parse_deployed_config():
         config_def = yaml.safe_load(config_file)
         config = Config.model_validate(config_def)
         assert config
+
+
+def test_log_source_request_timeout_validation():
+    config = GeneralConfig(log_source_request_timeout=12.5)
+
+    assert config.log_source_request_timeout == 12.5
+    with pytest.raises(ValidationError):
+        GeneralConfig(log_source_request_timeout=0)
 
 
 def test_api_tokens_validator_rejects_duplicate_names():

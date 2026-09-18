@@ -2,97 +2,15 @@ import datetime
 from unittest.mock import AsyncMock
 
 import pytest
-import aiohttp
-import aioresponses
-from fastapi import Request
 from httpx import ASGITransport, AsyncClient
-
-from flexmock import flexmock
 
 from logdetective.database.models import EndpointType, TimePeriod
 from logdetective.config import SERVER_CONFIG
-from logdetective.models import Explanation, MetricsData
-from logdetective.metric import (
-    track_request,
-    requests_statistics,
-)
+from logdetective.models import MetricsData
+from logdetective.metric import requests_statistics
 from logdetective.server import app
 
-from tests.test_helpers import (
-    build_log_request,
-    build_log_url,
-    build_log_one_file,
-    build_log_two_files,
-    mock_AnalyzeRequestMetrics,
-    PopulateDatabase,
-)
-
-
-@pytest.mark.parametrize(
-    "build_log_request",
-    ["build_log_url", "build_log_one_file", "build_log_two_files"],
-    indirect=True,
-)
-@pytest.mark.parametrize(
-    "response",
-    [
-        flexmock(
-            explanation=Explanation(text="abc"),
-            model_dump_json=lambda: "{explanation: 'abc'}",
-        ),
-        flexmock(),  # mimic StreamResponse
-    ],
-)
-@pytest.mark.asyncio
-async def test_track_request_async(
-    build_log_request, mock_AnalyzeRequestMetrics, response
-):
-    """Test the @track_request decorator for a mock analyze log function call."""
-
-    @track_request()
-    async def analyze(payload, http_session, request=None):
-        return response
-
-    mock_header = {"Content-Length": "3"}
-    mock_response = "123"
-    with aioresponses.aioresponses() as mock:
-        mock.head("https://example.com/logs/123", status=200, headers=mock_header)
-        mock.get("https://example.com/logs/123", status=200, body=mock_response)
-        async with aiohttp.ClientSession() as session:
-            request = Request({"type": "http"})
-            request.state.api_token_name = "packit"
-            await analyze(**build_log_request, http_session=session, request=request)
-    mock_create = mock_AnalyzeRequestMetrics["mock_create"]
-    mock_update = mock_AnalyzeRequestMetrics["mock_update"]
-
-    create_kwargs = mock_create.await_args.kwargs
-    update_kwargs = mock_update.await_args.kwargs
-
-    # Verify that endpoint is set to `EndpointType.ANALYZE`
-    assert create_kwargs["endpoint"] == EndpointType.ANALYZE
-    assert create_kwargs["api_token_name"] == "packit"
-
-    # value of _id used in calling `update` method must match
-    # value returned by `create` method
-    assert update_kwargs["id_"] == 1
-
-    # Verify type of time stamp
-    assert isinstance(update_kwargs["response_sent_at"], datetime.datetime)
-
-    # Verify value of response length
-    if getattr(response, "explanation", None):
-        assert update_kwargs["response_length"] == len(response.model_dump_json())
-    else:
-        assert update_kwargs["response_length"] is None
-
-
-def test_track_request_rejects_synchronous_functions():
-    """Metric tracking only supports the async endpoints it was designed for."""
-    def analyze():
-        return None
-
-    with pytest.raises(NotImplementedError, match="async coroutine"):
-        track_request()(analyze)
+from tests.test_helpers import PopulateDatabase
 
 
 @pytest.mark.asyncio
@@ -132,6 +50,7 @@ async def test_requests_statistics_defaults_to_current_time(mocker):
     "route, endpoint",
     [
         ("analyze", EndpointType.ANALYZE),
+        ("analyze-koji", EndpointType.ANALYZE_KOJI_TASK),
         ("analyze-gitlab", EndpointType.ANALYZE_GITLAB_JOB),
     ],
 )

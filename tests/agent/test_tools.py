@@ -393,16 +393,15 @@ async def test_annotated_snippet_lookup_success():
     mock_embedding = MagicMock()
     mock_embedding.tolist.return_value = ZERO_EMBEDDING
 
+    mock_embed_model = MagicMock()
+    mock_embed_model.embed.return_value = [mock_embedding]
     with patch.object(
         AnnotatedSnippets,
         "get_by_snippet_embedding",
         new_callable=AsyncMock,
         return_value=[mock_row]
-    ), patch(
-        "logdetective.agent.tools.EMBEDDING_MODEL_INSTANCE"
-    ) as mock_embed_model:
-        mock_embed_model.embed.return_value = [mock_embedding]
-        tool = AnnotatedSnippetLookupTool()
+    ):
+        tool = AnnotatedSnippetLookupTool(mock_embed_model)
         result = await tool._run(
             input=AnnotatedSnippetLookupToolInput(snippet="linker error", top_k=1),
             context=RunContext(instance=MockRunInstance(), signal=None),
@@ -439,18 +438,17 @@ async def test_annotated_snippet_lookup_fail(
     mock_embedding = MagicMock()
     mock_embedding.tolist.return_value = ZERO_EMBEDDING
 
+    mock_embed_model = MagicMock()
+    mock_embed_model.embed.side_effect = embed_side_effect
+    mock_embed_model.embed.return_value = [mock_embedding]
     with patch.object(
         AnnotatedSnippets,
         "get_by_snippet_embedding",
         new_callable=AsyncMock,
         side_effect=db_effect,
         return_value=[],
-    ), patch(
-        "logdetective.agent.tools.EMBEDDING_MODEL_INSTANCE"
-    ) as mock_embed_model:
-        mock_embed_model.embed.side_effect = embed_side_effect
-        mock_embed_model.embed.return_value = [mock_embedding]
-        tool = AnnotatedSnippetLookupTool()
+    ):
+        tool = AnnotatedSnippetLookupTool(mock_embed_model)
         if expected_err:
             with pytest.raises(ToolError, match=expected_err):
                 await tool._run(

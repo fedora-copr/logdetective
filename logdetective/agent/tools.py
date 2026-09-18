@@ -20,11 +20,17 @@ from logdetective.extractors import (
 from logdetective.models import SkipSnippets
 from logdetective.remote_log import RemoteLog
 from logdetective.models import ExtractorConfig, Snippet, AnalyzedSnippet
-from logdetective.config import EMBEDDING_MODEL_INSTANCE, SERVER_CONFIG
+from logdetective.config import SERVER_CONFIG
 from logdetective.database.models.annotated_builds import AnnotatedSnippets
+from logdetective.utils import run_blocking
 
 
 ARTIFACT_NAME_DESC = "The exact name of the artifact you want to extract information from."
+
+
+def create_embedding(model: TextEmbedding, snippet: str) -> list[float]:
+    """Materialize one embedding inside the blocking-call worker thread."""
+    return list(model.embed([snippet]))[0].tolist()
 
 
 class ExtractorToolInput(BaseModel):
@@ -118,7 +124,9 @@ class ExtractorTool(Tool[ExtractorToolInput]):
 
         self._remaining_artifacts.remove(input.artifact_name)
 
-        raw_snippets = self.extractor(artifact, filename=input.artifact_name)
+        raw_snippets = await run_blocking(
+            self.extractor, artifact, filename=input.artifact_name
+        )
 
         current_snippets = []
         for line_number, text in raw_snippets:
@@ -413,10 +421,11 @@ class AnnotatedSnippetLookupTool(
 
     def __init__(
         self,
+        embedding_model: TextEmbedding,
         options: dict[str, Any] | None = None
     ) -> None:
         super().__init__(options)
-        self._embedding_model = EMBEDDING_MODEL_INSTANCE
+        self._embedding_model = embedding_model
 
     def _create_emitter(self) -> Emitter:
         return Emitter.root().child(
@@ -433,7 +442,9 @@ class AnnotatedSnippetLookupTool(
             return AnnotatedSnippetLookupToolOutput(results=[])
 
         try:
-            embedding = list(self._embedding_model.embed([input.snippet]))[0].tolist()
+            embedding = await run_blocking(
+                create_embedding, self._embedding_model, input.snippet
+            )
         except Exception as exc:
             raise ToolError(f"Embedding creation failed: {exc}") from exc
 

@@ -14,10 +14,9 @@ from logdetective.database.models.metrics import (
     TimePeriod,
 )
 from logdetective.database.models.exceptions import (
-    TaskNotAnalyzedError,
-    TaskAnalysisTimeoutError,
     AnalysisTaskNotFoundError,
-    AnalyzeRequestMetricsNotFoundError,
+    TaskConflictError,
+    TaskTerminalError,
 )
 from logdetective.database.models.annotated_builds import (
     AnnotatedBuilds,
@@ -36,10 +35,9 @@ __all__ = [
     TaskAnalysis.__name__,
     TaskType.__name__,
     AnalysisState.__name__,
-    TaskNotAnalyzedError.__name__,
-    TaskAnalysisTimeoutError.__name__,
     AnalysisTaskNotFoundError.__name__,
-    AnalyzeRequestMetricsNotFoundError.__name__,
+    TaskConflictError.__name__,
+    TaskTerminalError.__name__,
     AnnotatedBuilds.__name__,
     AnnotatedSnippets.__name__,
     AnnotationUpdates.__name__,

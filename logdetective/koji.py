@@ -1,4 +1,3 @@
-import asyncio
 import re
 from typing import Any, Callable
 
@@ -15,7 +14,7 @@ from logdetective.exceptions import (
     UnknownTaskType,
     InvalidKojiTaskResultResponse,
 )
-from logdetective.utils import connection_error_giveup
+from logdetective.utils import connection_error_giveup, run_blocking
 
 FAILURE_LOG_REGEX = re.compile(r"(\w*\.log)")
 
@@ -33,7 +32,7 @@ async def call_koji(func: Callable, *args, **kwargs) -> Any:
     Automatically retries on connection errors.
     """
     try:
-        result = await asyncio.to_thread(func, *args, **kwargs)
+        result = await run_blocking(func, *args, **kwargs)
     except koji.ActionNotAllowed as e:
         # User doesn't have permission to do this, don't retry.
         raise LogDetectiveConnectionError(e) from e
@@ -86,7 +85,7 @@ async def get_failed_subtask_info(
         return taskinfo
 
     # Look up the subtasks for the task.
-    response = await asyncio.to_thread(koji_session.getTaskDescendents, task_id)
+    response = await run_blocking(koji_session.getTaskDescendents, task_id)
     subtasks = response[f"{task_id}"]
     arch_tasks = {}
     for subtask in subtasks:

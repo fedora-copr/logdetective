@@ -1,7 +1,5 @@
-import inspect
 import datetime
 from typing import Optional
-from functools import wraps
 
 from logdetective.models import (
     MetricsData,
@@ -38,8 +36,8 @@ async def update_metrics(
     """Update a database metric entry for a received request,
     filling data for the given response.
 
-    This will add to the database entry the time when the response was sent,
-    the length of the created response.
+    This fills the response timestamp only if admission did not record it,
+    and updates the length of the created response.
     """
 
     response_sent_at = (
@@ -55,56 +53,6 @@ async def update_metrics(
         response_sent_at=response_sent_at,
         response_length=response_length,
     )
-
-
-def track_request(name=None):
-    """
-    Decorator to track requests/responses metrics
-
-    On entering the decorated function, it registers the time for the request
-    and saves the passed log content.
-    On exiting the decorated function, it registers the time for the response
-    and saves the generated response.
-
-    Use it to decorate server endpoints that generate a llm response
-    as in the following example:
-
-    >>> @app.post("/analyze", response_model=Response)
-    >>> @track_request()
-    >>> async def analyze(payload)
-    >>>     pass
-
-    Warning: the decorators' order is important!
-    The function returned by the *track_request* decorator is the
-    server API function we want to be called by FastAPI.
-    """
-
-    def decorator(f):
-        @wraps(f)
-        async def async_decorated_function(*args, **kwargs):
-            bound_arguments = (
-                inspect.signature(f).bind_partial(*args, **kwargs).arguments
-            )
-            request = bound_arguments.get("request")
-            api_token_name = getattr(
-                getattr(request, "state", None), "api_token_name", None
-            )
-
-            metrics_id = await add_new_metrics(
-                api_name=EndpointType(name if name else f.__name__),
-                api_token_name=api_token_name,
-            )
-
-            response = await f(*args, **kwargs)
-            if metrics_id is not None:
-                await update_metrics(metrics_id, response)
-            return response
-
-        if inspect.iscoroutinefunction(f):
-            return async_decorated_function
-        raise NotImplementedError("An async coroutine is needed")
-
-    return decorator
 
 
 async def requests_statistics(

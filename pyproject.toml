@@ -41,7 +41,8 @@ dependencies = [
     "tenacity>=9.1.0,<9.2.0",
     "sentry-sdk[fastapi]>=2.17.0,<3.0.0",
     "koji>=1.35.0,<2.0.0",
-    "asyncpg>=0.30.0,<1.0.0",
+    "psycopg[binary,pool]>=3.2.0,<4.0.0",
+    "procrastinate>=3.9.0,<3.10.0",
     "python-gitlab>=4.4.0",
     "httpx>=0.28.1,<1.0.0",
     "starlette<2.0.0",
@@ -52,6 +53,18 @@ dependencies = [
     "google-cloud-aiplatform>=1.158.0",
 ]
 requires-python = ">=3.11,<3.14"
+
+[dependency-groups]
+migration = [
+    "alembic",
+    "pgvector",
+    "procrastinate",
+    "psycopg[binary,pool]",
+    "pydantic",
+    "pyyaml",
+    "sqlalchemy",
+    "tenacity",
+]
 
 [project.urls]
 homepage = "https://github.com/fedora-copr/logdetective"
@@ -71,6 +84,9 @@ packages = [
     { include = "logdetective" }
 ]
 
+[tool.poetry.group.migration]
+optional = true
+
 [project.optional-dependencies]
 testing = [
     "fastapi>=0.111.1,<1.0.0",
@@ -79,7 +95,6 @@ testing = [
     "tenacity>=9.1.0,<9.2.0",
     "sentry-sdk[fastapi]>=2.17.0,<3.0.0",
     "koji>=1.35.0,<2.0.0",
-    "asyncpg>=0.30.0,<1.0.0",
     "python-gitlab>=4.4.0",
     "httpx>=0.28.1,<1.0.0",
     "starlette<2.0.0",
