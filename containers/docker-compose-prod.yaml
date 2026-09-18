@@ -1,10 +1,11 @@
 services:
   proxy:
+    container_name: logdetective_proxy
     extends:
       file: docker-compose.yaml
       service: proxy
     volumes:
-      - ./server/nginx_prod.conf.template:/etc/nginx/templates/nginx.conf.template:ro,z
+      - ../server/nginx_prod.conf.template:/etc/nginx/templates/nginx.conf.template:ro,z
     depends_on:
       inference-0:
         condition: service_healthy
@@ -22,6 +23,7 @@ services:
 
   # GPU 0 Instance
   inference-0: &inference-base
+    container_name: logdetective_inference_0
     image: vllm/vllm-openai:v0.22.0
     command: >
       google/gemma-4-E4B-it
@@ -52,6 +54,7 @@ services:
   # GPU 1 Instance
   inference-1:
     <<: *inference-base
+    container_name: logdetective_inference_1
     deploy:
       resources:
         reservations:
@@ -63,6 +66,7 @@ services:
   # GPU 2 Instance
   inference-2:
     <<: *inference-base
+    container_name: logdetective_inference_2
     deploy:
       resources:
         reservations:
@@ -74,6 +78,7 @@ services:
   # GPU 3 Instance
   inference-3:
     <<: *inference-base
+    container_name: logdetective_inference_3
     deploy:
       resources:
         reservations:
@@ -83,6 +88,7 @@ services:
               capabilities: [gpu]
 
   server:
+    container_name: logdetective_server
     extends:
       file: docker-compose.yaml
       service: server
@@ -92,14 +98,17 @@ services:
     ports:
       - "443:443"
   postgres:
+    container_name: logdetective_postgres
     extends:
       file: docker-compose.yaml
       service: postgres
   packit-interface:
+    container_name: logdetective_packit_interface
     extends:
       file: docker-compose.yaml
       service: packit-interface
   user-contributions-update:
+    container_name: logdetective_user_contributions_update
     extends:
       file: docker-compose.yaml
       service: user-contributions-update

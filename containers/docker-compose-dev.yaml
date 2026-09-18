@@ -1,9 +1,11 @@
 services:
   proxy:
+    container_name: logdetective_proxy
     extends:
       file: docker-compose.yaml
       service: proxy
   inference-0:
+    container_name: logdetective_inference
     extends:
       file: docker-compose.yaml
       service: inference-0
@@ -11,19 +13,23 @@ services:
     # devices:
     #   - nvidia.com/gpu=all
   server:
+    container_name: logdetective_server
     extends:
       file: docker-compose.yaml
       service: server
     image: logdetective/server
   postgres:
+    container_name: logdetective_postgres
     extends:
       file: docker-compose.yaml
       service: postgres
   packit-interface:
+    container_name: logdetective_packit_interface
     extends:
       file: docker-compose.yaml
       service: packit-interface
   user-contributions-update:
+    container_name: logdetective_user_contributions_update
     extends:
       file: docker-compose.yaml
       service: user-contributions-update
