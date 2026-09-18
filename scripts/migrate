@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export PGPASSWORD="${POSTGRESQL_PASSWORD}"
+
+until pg_isready -d "${POSTGRESQL_DATABASE}" -U "${POSTGRESQL_USER}" \
+    -h "${POSTGRESQL_HOST:-postgres}" -p "${POSTGRESQL_PORT:-5432}"
+do
+    sleep 1
+done
+
+procrastinate_table=$(psql -d "${POSTGRESQL_DATABASE}" -U "${POSTGRESQL_USER}" \
+    -h "${POSTGRESQL_HOST:-postgres}" -p "${POSTGRESQL_PORT:-5432}" \
+    -tAc "SELECT to_regclass('public.procrastinate_jobs')")
+
+# Procrastinate 3.9's schema command is an installer for an empty schema, not
+# an idempotent migrator. Version upgrades must apply its supplied SQL
+# migrations explicitly before this deployment step.
+if [[ -z "${procrastinate_table}" ]]; then
+    python -m procrastinate --app=logdetective.procrastinate_app.app schema --apply
+fi
+python -m alembic -x verbose=true upgrade head

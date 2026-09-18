@@ -1,15 +1,20 @@
 import os
 import logging
 import tomllib
+from functools import cache
+from typing import TYPE_CHECKING
+
 import yaml
 from beeai_framework.backend import ChatModel
 from beeai_framework.backend.types import ChatModelParameters
-from fastembed import TextEmbedding
 
 from logdetective.constants import PROMPT_PATH, EMBEDDING_MODEL
 from logdetective.models import Config, InferenceConfig, SkipSnippets
 import logdetective
 from logdetective.prompts import PromptManager
+
+if TYPE_CHECKING:
+    from fastembed import TextEmbedding
 
 
 SERVER_CONFIG_PATH = os.environ.get("LOGDETECTIVE_SERVER_CONF", None)
@@ -112,10 +117,14 @@ def load_skip_snippet_patterns(path: str | None) -> SkipSnippets | None:
 SKIP_SNIPPETS_CONFIG = load_skip_snippet_patterns(SERVER_SKIP_PATTERNS_PATH)
 
 
-def load_embedding_model(config: Config) -> TextEmbedding | None:
+def load_embedding_model(config: Config) -> "TextEmbedding | None":
     """Load embedding model, if DB lookup is configured."""
     if config.general.annotation_lookup_tool:
         try:
+            from fastembed import (  # pylint: disable=import-outside-toplevel
+                TextEmbedding,
+            )
+
             return TextEmbedding(EMBEDDING_MODEL)
         except Exception as exc:  # pylint: disable=broad-exception-caught
             LOG.exception("Embedding model load failed: %s", str(exc))
@@ -123,4 +132,7 @@ def load_embedding_model(config: Config) -> TextEmbedding | None:
     return None
 
 
-EMBEDDING_MODEL_INSTANCE = load_embedding_model(SERVER_CONFIG)
+@cache
+def get_embedding_model() -> "TextEmbedding | None":
+    """Lazily load and cache the annotation lookup model for this process."""
+    return load_embedding_model(SERVER_CONFIG)

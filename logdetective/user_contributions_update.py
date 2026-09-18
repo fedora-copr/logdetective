@@ -49,7 +49,7 @@ from pydantic import ValidationError
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from logdetective.constants import EMBEDDING_MODEL
-from logdetective.database.base import transaction
+from logdetective.database.base import transaction, retry_database_error
 from logdetective.database.models.annotated_builds import (
     AnnotatedBuilds,
     AnnotatedSnippets,
@@ -65,7 +65,6 @@ from logdetective.user_contributions_helpers import (
     reset_tables,
     fetch_and_parse,
 )
-from logdetective.utils import retry_database_error
 
 logger = logging.getLogger(__name__)
 

@@ -28,4 +28,4 @@ RUN update-ca-trust
 
 WORKDIR /src
 
-RUN pip3 install .[server]
+RUN pip3 install .

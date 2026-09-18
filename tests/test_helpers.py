@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, AsyncMock, patch
 
 import pytest
 import pytest_asyncio
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
 from openai.types.chat.chat_completion import Choice, ChatCompletion
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
@@ -63,13 +63,22 @@ class DatabaseFactory:  # pylint: disable=too-few-public-methods
         Database container is started by `tox -e pytest` command,
         connection details for the container are specified in tox.ini"""
 
-        return "postgresql+asyncpg://user:password@localhost:5432/test_db"
+        return "postgresql+psycopg://user:password@localhost:5432/test_db"
+
+    @staticmethod
+    def get_pg_test_conninfo() -> str:
+        """Return libpq connection information for the test database.
+
+        Returns:
+            Connection information accepted by Procrastinate's psycopg connector.
+        """
+        return "postgresql://user:password@localhost:5432/test_db"
 
     def __init__(self):
         """Connect to a postgres container for testing purposes."""
         self.engine = create_async_engine(
             self.get_pg_test_url(),
-            connect_args={"command_timeout": 10},
+            connect_args={"connect_timeout": 10},
             pool_pre_ping=True,
         )
         self.SessionFactory = async_sessionmaker(
@@ -80,7 +89,9 @@ class DatabaseFactory:  # pylint: disable=too-few-public-methods
         self._session_patch.start()
 
     @asynccontextmanager
-    async def make_new_db(self):
+    async def make_new_db(
+        self,
+    ) -> AsyncGenerator[async_sessionmaker[AsyncSession], None]:
         try:
             async with self.engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
@@ -104,7 +115,7 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
         duration: datetime.timedelta = datetime.timedelta(hours=23),
         end_time: Optional[datetime.datetime] = None,
         endpoint_type: EndpointType = EndpointType.ANALYZE,
-    ) -> AsyncGenerator:
+    ) -> AsyncGenerator[async_sessionmaker[AsyncSession], None]:
         # pylint: disable=contextmanager-generator-missing-cleanup
         async with self.db_factory.make_new_db() as session_factory:
             end_time = end_time or datetime.datetime(year=2077, month=1, day=1, tzinfo=datetime.UTC)
@@ -137,7 +148,7 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
     async def populate_db(
         cls, duration: datetime.timedelta,
         endpoint: EndpointType, end_time: datetime.datetime
-    ):
+    ) -> AsyncGenerator[async_sessionmaker[AsyncSession], None]:
         """Populate the db, one request every 15 minutes
         and responses increasing for 1 hour, and then back to 1.
         For the last duration time.
@@ -156,7 +167,7 @@ class PopulateDatabase:  # pylint: disable=too-few-public-methods
         time_anchor: datetime.datetime,
         records: list[tuple[datetime.timedelta, float]],
         endpoint: EndpointType,
-    ):
+    ) -> AsyncGenerator[async_sessionmaker[AsyncSession], None]:
         """
         Populate the DB with request metrics based on a list of metadata
 
@@ -296,6 +307,8 @@ def mock_artifact_download(zip_content: bytes):
         action = kwargs.get("action")
         if action and callable(action):
             action(zip_content)
+            return None
+        return func(*args, **kwargs)
 
     with patch("asyncio.to_thread", side_effect=mock_side_effect) as mock_to_thread:
         yield mock_to_thread

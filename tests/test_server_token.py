@@ -19,16 +19,18 @@ def credentials(token: str) -> HTTPAuthorizationCredentials:
     return HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
 
 
-def test_authentication_disabled_without_tokens(monkeypatch):
+@pytest.mark.asyncio
+async def test_authentication_disabled_without_tokens(monkeypatch):
     monkeypatch.setattr(logdetective.server, "API_TOKENS", None)
     request = make_request()
 
-    assert authenticate_api_token(request, None) is None
+    assert await authenticate_api_token(request, None) is None
     assert request.state.api_token_name is None
     assert load_api_tokens(None) is None
 
 
-def test_matching_token_returns_and_records_name(monkeypatch):
+@pytest.mark.asyncio
+async def test_matching_token_returns_and_records_name(monkeypatch):
     monkeypatch.setattr(
         logdetective.server,
         "API_TOKENS",
@@ -38,14 +40,15 @@ def test_matching_token_returns_and_records_name(monkeypatch):
     )
     request = make_request()
 
-    assert authenticate_api_token(request, credentials("monitoring-secret")) == (
+    assert await authenticate_api_token(request, credentials("monitoring-secret")) == (
         "monitoring"
     )
     assert request.state.api_token_name == "monitoring"
 
 
 @pytest.mark.parametrize("supplied_credentials", [None, credentials("wrong-secret")])
-def test_missing_or_invalid_token_is_rejected_without_echoing_secret(
+@pytest.mark.asyncio
+async def test_missing_or_invalid_token_is_rejected_without_echoing_secret(
     monkeypatch, supplied_credentials
 ):
     monkeypatch.setattr(
@@ -55,7 +58,7 @@ def test_missing_or_invalid_token_is_rejected_without_echoing_secret(
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        authenticate_api_token(make_request(), supplied_credentials)
+        await authenticate_api_token(make_request(), supplied_credentials)
 
     assert exc_info.value.status_code == 401
     assert exc_info.value.headers == {"WWW-Authenticate": "Bearer"}

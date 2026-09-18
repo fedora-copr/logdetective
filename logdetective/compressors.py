@@ -2,10 +2,12 @@ import io
 import zipfile
 
 from typing import Dict
+from pydantic import TypeAdapter
 from logdetective.models import (
     APIResponse,
     AnalyzedSnippet,
     Explanation,
+    Snippet,
 )
 
 
@@ -63,6 +65,7 @@ class LLMResponseCompressor:
     EXPLANATION_FILE_NAME = "explanation.txt"
     SNIPPET_FILE_NAME = "snippet_{number}.txt"
     COMPRESSOR = TextCompressor()
+    SNIPPET_ADAPTER = TypeAdapter(AnalyzedSnippet | Snippet)
 
     def __init__(self, response: APIResponse):
         """
@@ -120,7 +123,7 @@ class LLMResponseCompressor:
         }
         for i in range(len(snippet_files)):
             snippets.append(
-                AnalyzedSnippet.model_validate_json(
+                cls.SNIPPET_ADAPTER.validate_json(
                     items[cls.SNIPPET_FILE_NAME.format(number=i)]
                 )
             )

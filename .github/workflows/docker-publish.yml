@@ -16,6 +16,7 @@ on:
 env:
   REGISTRY: quay.io
   SERVER_IMAGE: logdetective/server
+  MIGRATE_IMAGE: logdetective/migrate
   DATABASE_IMAGE: logdetective/postgresql-15-c9s-pgvector
 
 jobs:
@@ -84,6 +85,28 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Extract metadata for migration image
+        id: meta-migrate
+        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5.7.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.MIGRATE_IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=sha
+            type=raw,value=latest,enable=${{ contains(github.ref, 'refs/tags/') }}
+
+      - name: Build and push migration image
+        id: build-image-migrate
+        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
+        with:
+          context: .
+          file: Containerfile.migrate
+          tags: ${{ steps.meta-migrate.outputs.tags }}
+          push: ${{ github.event_name != 'pull_request' && contains(github.ref, 'refs/tags/') }}
+          labels: ${{ steps.meta-migrate.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       # Extract metadata (tags, labels) for database image with pgvector
       # https://github.com/docker/metadata-action
       - name: Extract metadata for database image with pgvector support
@@ -123,6 +146,13 @@ jobs:
           DIGEST: ${{ steps.build-image.outputs.digest }}
         # This step uses the identity token to provision an ephemeral certificate
         # against the sigstore community Fulcio instance.
+        run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
+
+      - name: Sign the published migration image
+        if: ${{ github.event_name != 'pull_request' && contains(github.ref, 'refs/tags/') }}
+        env:
+          TAGS: ${{ steps.meta-migrate.outputs.tags }}
+          DIGEST: ${{ steps.build-image-migrate.outputs.digest }}
         run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
 
       # Sign the resulting Docker image digest except on PRs.

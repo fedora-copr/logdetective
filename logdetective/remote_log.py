@@ -14,6 +14,7 @@ from logdetective.exceptions import (
 from logdetective.utils import (
     ContentSizeCheck,
     check_content_size,
+    run_blocking,
     sanitize_artifact,
 )
 
@@ -49,12 +50,18 @@ class RemoteLog:
         """The remote log url."""
         return self._url
 
-    def validate_url(self) -> bool:
-        """Validate incoming URL to be at least somewhat sensible for log files.
-        Only http and https protocols permitted. No result, params or query fields allowed.
-        Either netloc or path must have non-zero length.
+    @staticmethod
+    def is_valid_url(url: str) -> bool:
+        """Check whether a remote artifact URL satisfies the public contract.
+
+        Args:
+            url: URL to validate.
+
+        Returns:
+            ``True`` for an HTTP(S) URL with a host or path and without parameters,
+            a query, or a fragment; otherwise ``False``.
         """
-        result = urlparse(self.url)
+        result = urlparse(url)
         if result.scheme not in ["http", "https"]:
             return False
         if any([result.params, result.query, result.fragment]):
@@ -62,6 +69,13 @@ class RemoteLog:
         if not (result.path or result.netloc):
             return False
         return True
+
+    def validate_url(self) -> bool:
+        """Validate incoming URL to be at least somewhat sensible for log files.
+        Only http and https protocols permitted. No result, params or query fields allowed.
+        Either netloc or path must have non-zero length.
+        """
+        return self.is_valid_url(self.url)
 
     async def get_url_content(self) -> str:
         """Validate log url, check content size (either using Content-Length, or,
@@ -94,7 +108,7 @@ class RemoteLog:
         try:
             async with self._http_session.get(self.url, raise_for_status=True) as response:
                 artifact = await self._read_with_size_limit(response)
-                return sanitize_artifact(artifact)
+                return await run_blocking(sanitize_artifact, artifact)
         except (aiohttp.ClientResponseError, aiohttp.ClientConnectorError) as ex:
             raise RemoteLogAccessError(f"We couldn't obtain the log from {self.url}") from ex
 

@@ -1,0 +1,10 @@
+.git
+.pytest_cache
+.tox
+.venv
+**/__pycache__
+**/*.py[cod]
+.coverage*
+log/
+models/
+server/api_tokens.yml

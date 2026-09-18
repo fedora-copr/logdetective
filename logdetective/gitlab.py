@@ -18,6 +18,7 @@ from tenacity import (
 )
 
 from logdetective.utils import (
+    run_blocking,
     sanitize_artifact,
     ContentSizeCheck,
     check_content_size,
@@ -72,6 +73,66 @@ def read_zip_entry_chunked(
     return b"".join(chunks)
 
 
+def _select_koji_log(gitlab_cfg, job, tempfile):  # pylint: disable=too-many-locals
+    """Select and open the relevant log from a downloaded artifact archive."""
+    tempfile.seek(0)
+    failed_arches = {}
+    with zipfile.ZipFile(tempfile, mode="r") as artifacts_zip:
+        size_sum = 0
+        for zipinfo in artifacts_zip.infolist():
+            if not zipinfo.filename.endswith("task_failed.log"):
+                continue
+            path = PurePath(zipinfo.filename)
+            if len(path.parts) <= 3:
+                failed_arches["~toplevel"] = path
+                continue
+
+            architecture = path.parent.parts[-1].split("-")[0]
+            contents = read_zip_entry_chunked(
+                artifacts_zip, zipinfo.filename, gitlab_cfg.max_artifact_size - size_sum
+            )
+            size_sum += len(contents)
+            decoded_contents = contents.decode("utf-8")
+            match = FAILURE_LOG_REGEX.search(decoded_contents)
+            if match:
+                failed_arches[architecture] = PurePath(
+                    path.parent, match.group(1)
+                )
+            else:
+                LOG.info(
+                    "task_failed.log does not indicate which log contains the failure."
+                )
+                failed_arches[architecture] = path
+
+        if not failed_arches:
+            raise FileNotFoundError("Could not detect failed architecture.")
+
+        preferred_arches = (
+            "x86_64",
+            "aarch64",
+            "riscv",
+            "ppc64le",
+            "s390x",
+            "noarch",
+        )
+        failed_arch = next(
+            (arch for arch in preferred_arches if arch in failed_arches),
+            sorted(failed_arches)[0],
+        )
+        LOG.debug("Failed architecture: %s", failed_arch)
+
+        log_path = failed_arches[failed_arch].as_posix()
+        log_url = (
+            f"{gitlab_cfg.url}/{gitlab_cfg.api_path}/projects/{job.project_id}/"
+            f"jobs/{job.id}/artifacts/{log_path}"
+        )
+        log_content = read_zip_entry_chunked(
+            artifacts_zip, log_path, gitlab_cfg.max_artifact_size - size_sum
+        ).decode("utf-8")
+        LOG.debug("Returning contents of %s%s", gitlab_cfg.url, log_url)
+        return log_url, log_content
+
+
 # pylint: disable=too-many-locals, too-many-arguments, \
 # pylint: disable=too-many-positional-arguments, too-many-return-statements
 async def process_gitlab_job_event(
@@ -82,18 +143,19 @@ async def process_gitlab_job_event(
     job_hook: JobHook,
     chat_model: ChatModel,
     api_token_name: str | None = None,
+    metrics_id: int | None = None,
 ) -> APIResponse | None:
     """Handle a received job_event webhook from GitLab"""
     LOG.debug("Received webhook message from %s:\n%s", forge.value, job_hook)
 
     # Look up the project this job belongs to
-    project = await asyncio.to_thread(
+    project = await run_blocking(
         gitlab_connection.projects.get, job_hook.project_id
     )
     LOG.info("Processing failed job for %s", project.name)
 
     # Retrieve data about the job from the GitLab API
-    job = await asyncio.to_thread(project.jobs.get, job_hook.build_id)
+    job = await run_blocking(project.jobs.get, job_hook.build_id)
 
     # For easy retrieval later, we'll add project_name and project_url to the
     # job object
@@ -101,7 +163,7 @@ async def process_gitlab_job_event(
     job.project_url = project.web_url
 
     # Retrieve the pipeline that started this job
-    pipeline = await asyncio.to_thread(project.pipelines.get, job_hook.pipeline_id)
+    pipeline = await run_blocking(project.pipelines.get, job_hook.pipeline_id)
 
     # Verify this is a merge request
     if pipeline.source != "merge_request_event":
@@ -133,7 +195,7 @@ async def process_gitlab_job_event(
     LOG.debug("Retrieving log artifacts")
     # Retrieve the build logs from the merge request artifacts and preprocess them
     try:
-        log_url, log_text = await retrieve_and_preprocess_koji_logs(
+        log_url, preprocessed_log = await retrieve_and_preprocess_koji_logs(
             gitlab_cfg, job, http_session
         )
     except (
@@ -145,11 +207,12 @@ async def process_gitlab_job_event(
         return
 
     # Submit log to Log Detective and await the results.
-    log_text = sanitize_artifact(log_text)
-    metrics_id = await add_new_metrics(
-        api_name=EndpointType.ANALYZE_GITLAB_JOB,
-        api_token_name=api_token_name,
-    )
+    log_text = await run_blocking(sanitize_artifact, preprocessed_log)
+    if metrics_id is None:
+        metrics_id = await add_new_metrics(
+            api_name=EndpointType.ANALYZE_GITLAB_JOB,
+            api_token_name=api_token_name,
+        )
     build_metadata = BuildMetadata(
         commentary=(
             "The package was built in Koji, using Mock."
@@ -230,7 +293,7 @@ async def retrieve_and_preprocess_koji_logs(
     gitlab_cfg: GitLabInstanceConfig,
     job: gitlab.v4.objects.ProjectJob,
     http_session: aiohttp.ClientSession,
-):  # pylint: disable=too-many-branches,too-many-locals
+):
     """Download logs from the merge request artifacts
 
     This function will retrieve the build logs and do some minimal
@@ -245,103 +308,14 @@ async def retrieve_and_preprocess_koji_logs(
             f"Oversized logs for job {job.id} in project {job.project_id}"
         )
 
-    # Create a temporary file to store the downloaded log zipfile.
-    with TemporaryFile(mode="w+b") as tempfile:
-        await asyncio.to_thread(job.artifacts, streamed=True, action=tempfile.write)
-        tempfile.seek(0)
-
-        failed_arches: dict[str, PurePath] = {}
-        with zipfile.ZipFile(tempfile, mode="r") as artifacts_zip:
-            size_sum = 0
-            for zipinfo in artifacts_zip.infolist():
-                if not zipinfo.filename.endswith("task_failed.log"):
-                    continue
-                # The koji logs store this file in two places: 1) in the
-                # directory with the failed architecture and 2) in the parent
-                # directory. Most of the time, we want to ignore the one in the
-                # parent directory, since the rest of the information is in the
-                # specific task directory. However, there are some situations
-                # where non-build failures (such as "Target build already exists")
-                # may be presented only at the top level.
-                # The paths look like `kojilogs/noarch-XXXXXX/task_failed.log`
-                # or `kojilogs/noarch-XXXXXX/x86_64-XXXXXX/task_failed.log`
-                # We prefix "toplevel" with '~' so that later when we sort the
-                # keys to see if there are any unrecognized arches, it will always
-                # sort last.
-                path = PurePath(zipinfo.filename)
-                if len(path.parts) <= 3:
-                    failed_arches["~toplevel"] = path
-                    continue
-
-                # Extract the architecture from the immediate parent path
-                architecture = path.parent.parts[-1].split("-")[0]
-
-                # Open this file and read which log failed.
-                # The string in this log has the format
-                # `see <log> for more information`.
-                # Note: it may sometimes say
-                # `see build.log or root.log for more information`, but in
-                # that situation, we only want to handle build.log (for now),
-                # which means accepting only the first match for the regular
-                # expression.
-                contents = read_zip_entry_chunked(
-                    artifacts_zip, zipinfo.filename, gitlab_cfg.max_artifact_size - size_sum
-                )
-                size_sum += len(contents)
-                decoded_contents = contents.decode("utf-8")
-                match = FAILURE_LOG_REGEX.search(decoded_contents)
-                if match:
-                    failure_log_name = match.group(1)
-                    failed_arches[architecture] = PurePath(
-                        path.parent, failure_log_name
-                    )
-                else:
-                    LOG.info(
-                        "task_failed.log does not indicate which log contains the failure."
-                    )
-                    # The best thing we can do at this point is return the
-                    # task_failed.log, since it will probably contain the most
-                    # relevant information
-                    failed_arches[architecture] = path
-
-            if not failed_arches:
-                # No failed task found in the sub-tasks.
-                raise FileNotFoundError("Could not detect failed architecture.")
-
-            # We only want to handle one arch, so we'll check them in order of
-            # "most to least likely for the maintainer to have access to hardware"
-            # This means: x86_64 > aarch64 > riscv > ppc64le > s390x
-            if "x86_64" in failed_arches:
-                failed_arch = "x86_64"
-            elif "aarch64" in failed_arches:
-                failed_arch = "aarch64"
-            elif "riscv" in failed_arches:
-                failed_arch = "riscv"
-            elif "ppc64le" in failed_arches:
-                failed_arch = "ppc64le"
-            elif "s390x" in failed_arches:
-                failed_arch = "s390x"
-            elif "noarch" in failed_arches:
-                # May have failed during BuildSRPMFromSCM phase
-                failed_arch = "noarch"
-            else:
-                # We have one or more architectures that we don't know about? Just
-                # pick the first alphabetically. If the issue was a Koji error
-                # rather than a build failure, this will fall back to ~toplevel as
-                # the lowest-sorting possibility.
-                failed_arch = sorted(list(failed_arches.keys()))[0]
-
-            LOG.debug("Failed architecture: %s", failed_arch)
-
-            log_path = failed_arches[failed_arch].as_posix()
-            log_url = f"{gitlab_cfg.url}/{gitlab_cfg.api_path}/projects/{job.project_id}/jobs/{job.id}/artifacts/{log_path}"  # pylint: disable=line-too-long
-            LOG.debug("Returning contents of %s%s", gitlab_cfg.url, log_url)
-
-            log_content = read_zip_entry_chunked(
-                artifacts_zip, log_path, gitlab_cfg.max_artifact_size - size_sum
-            ).decode("utf-8")
-
-        return log_url, log_content
+    # Create a temporary file for the downloaded archive. The selected log is
+    # copied into a bounded in-memory stream before the archive is closed.
+    tempfile = TemporaryFile(mode="w+b")
+    try:
+        await run_blocking(job.artifacts, streamed=True, action=tempfile.write)
+        return await run_blocking(_select_koji_log, gitlab_cfg, job, tempfile)
+    finally:
+        await run_blocking(tempfile.close)
 
 
 async def check_artifacts_file_size(
@@ -418,7 +392,8 @@ async def comment_on_mr(  # pylint: disable=too-many-arguments disable=too-many-
     await suppress_latest_comment(forge, project, merge_request_iid)
 
     # Get the formatted short comment.
-    short_comment = await generate_mr_comment(
+    short_comment = await run_blocking(
+        generate_mr_comment,
         job,
         log_url,
         response,
@@ -426,24 +401,25 @@ async def comment_on_mr(  # pylint: disable=too-many-arguments disable=too-many-
     )
 
     # Look up the merge request
-    merge_request = await asyncio.to_thread(
+    merge_request = await run_blocking(
         project.mergerequests.get, merge_request_iid
     )
 
     # Submit a new comment to the Merge Request using the Gitlab API
-    discussion = await asyncio.to_thread(
+    discussion = await run_blocking(
         merge_request.discussions.create, {"body": short_comment}
     )
 
     # Get the ID of the first note
     note_id = discussion.attributes["notes"][0]["id"]
-    note = discussion.notes.get(note_id)
+    note = await run_blocking(discussion.notes.get, note_id)
 
     # Update the comment with the full details
     # We do this in a second step so we don't bombard the user's email
     # notifications with a massive message. Gitlab doesn't send email for
     # comment edits.
-    full_comment = await generate_mr_comment(
+    full_comment = await run_blocking(
+        generate_mr_comment,
         job,
         log_url,
         response,
@@ -455,7 +431,7 @@ async def comment_on_mr(  # pylint: disable=too-many-arguments disable=too-many-
     # Gitlab may bundle the edited message together with the creation
     # message in email.
     await asyncio.sleep(5)
-    await asyncio.to_thread(note.save)
+    await run_blocking(note.save)
 
     # Save the new comment to the database
     metrics = await AnalyzeRequestMetrics.get_metric_by_id(metrics_id)
@@ -490,28 +466,28 @@ async def suppress_latest_comment(
     # Retrieve its content from the Gitlab API
 
     # Look up the merge request
-    merge_request = await asyncio.to_thread(
+    merge_request = await run_blocking(
         project.mergerequests.get, merge_request_iid
     )
 
     # Find the discussion matching the latest comment ID
-    discussion = await asyncio.to_thread(
+    discussion = await run_blocking(
         merge_request.discussions.get, previous_comment.comment_id
     )
 
     # Get the ID of the first note
     note_id = discussion.attributes["notes"][0]["id"]
-    note = discussion.notes.get(note_id)
+    note = await run_blocking(discussion.notes.get, note_id)
 
     # Wrap the note in <details>, indicating why.
     note.body = (
         "This comment has been superseded by a newer "
         f"Log Detective analysis.\n<details>\n{note.body}\n</details>"
     )
-    await asyncio.to_thread(note.save)
+    await run_blocking(note.save)
 
 
-async def generate_mr_comment(
+def generate_mr_comment(
     job: gitlab.v4.objects.ProjectJob,
     log_url: str,
     response: APIResponse,

@@ -1,40 +1,66 @@
+import asyncio
 import ipaddress
 import re
 import socket
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from importlib.metadata import version
 from typing import (
     List,
+    ParamSpec,
     Tuple,
     NamedTuple,
+    TypeVar,
 )
 
 import aiohttp
 from aiohttp.abc import ResolveResult
 from pydantic import ValidationError
-from sqlalchemy.exc import OperationalError
+import sentry_sdk
 import yaml
 from tenacity import (
-    retry,
     RetryCallState,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential_jitter,
 )
 
-from logdetective.config import LOG
-from logdetective.database.base import DB_MAX_RETRIES
+from logdetective.config import LOG, SERVER_CONFIG
 from logdetective.exceptions import LogDetectiveConnectionError
 from logdetective.models import APITokens
 from logdetective.yaml_utils import DuplicateKeySafeLoader
 
+P = ParamSpec("P")
+T = TypeVar("T")
 
-retry_database_error = retry(
-    stop=stop_after_attempt(DB_MAX_RETRIES),
-    wait=wait_exponential_jitter(),
-    retry=retry_if_exception_type(OperationalError),
-    reraise=True,
-)
+
+def init_sentry() -> None:
+    """Enable Sentry for this process when the shared configuration has a DSN."""
+    if sentry_dsn := SERVER_CONFIG.general.sentry_dsn:
+        sentry_sdk.init(dsn=str(sentry_dsn), traces_sample_rate=1.0)
+
+
+async def run_blocking(function: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> T:
+    """Run blocking work without abandoning its thread during cancellation.
+
+    Python cannot safely stop a running thread. If the caller is cancelled, this
+    helper waits for the blocking call to return before propagating cancellation.
+    This makes cancellation eventual while keeping the work owned by the task.
+    """
+    worker = asyncio.create_task(asyncio.to_thread(function, *args, **kwargs))
+    try:
+        return await asyncio.shield(worker)
+    except asyncio.CancelledError as cancellation:
+        current = asyncio.current_task()
+        if current is not None:
+            current.uncancel()
+        while not worker.done():
+            try:
+                await asyncio.shield(worker)
+            except asyncio.CancelledError:
+                if current is not None:
+                    current.uncancel()
+        try:
+            worker.result()
+        except Exception:  # pylint: disable=broad-exception-caught
+            LOG.exception("Blocking operation failed while cancellation was pending")
+        raise cancellation
 
 
 def load_api_tokens(path: str | None) -> APITokens | None:
