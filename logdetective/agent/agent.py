@@ -33,7 +33,7 @@ from logdetective.config import (
     PROMPT_CONFIG,
     SERVER_CONFIG,
     SKIP_SNIPPETS_CONFIG,
-    EMBEDDING_MODEL_INSTANCE,
+    get_embedding_model,
 )
 from logdetective.agent.tools import (
     ExtractorTool,
@@ -52,7 +52,11 @@ from logdetective.exceptions import (
     LogDetectiveInferenceError,
     LogDetectiveInferenceRateLimit,
 )
-from logdetective.utils import inference_retry_backoff, inference_retry_giveup
+from logdetective.utils import (
+    inference_retry_backoff,
+    inference_retry_giveup,
+    run_blocking,
+)
 
 
 @retry(
@@ -142,18 +146,24 @@ async def analyze_artifacts(
             )
         )
 
-    if EMBEDDING_MODEL_INSTANCE and await AnnotatedSnippets.get_count() > 0:
-        snippet_lookup_tool = AnnotatedSnippetLookupTool(
-            options={"cache": UnconstrainedCache()},
-        )
-        tools.append(snippet_lookup_tool)
-        snippet_lookup_options = ConditionalRequirement(
-            AnnotatedSnippetLookupTool,
-            consecutive_allowed=True,
-            only_after=ExtractorTool,
-            max_invocations=5,
-        )
-        requirements.append(snippet_lookup_options)
+    annotations_available = False
+    if SERVER_CONFIG.general.annotation_lookup_tool:
+        annotations_available = await AnnotatedSnippets.get_count() > 0
+    if annotations_available:
+        embedding_model = await run_blocking(get_embedding_model)
+        if embedding_model is not None:
+            snippet_lookup_tool = AnnotatedSnippetLookupTool(
+                embedding_model,
+                options={"cache": UnconstrainedCache()},
+            )
+            tools.append(snippet_lookup_tool)
+            snippet_lookup_options = ConditionalRequirement(
+                AnnotatedSnippetLookupTool,
+                consecutive_allowed=True,
+                only_after=ExtractorTool,
+                max_invocations=5,
+            )
+            requirements.append(snippet_lookup_options)
 
     # Add snippet analysis tool, link all extractors and condition it to run after them
     # max_invocations are set at 5. Most snippets are not informative, and annotating them

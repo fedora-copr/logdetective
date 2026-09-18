@@ -6,26 +6,19 @@ import aioresponses
 import pytest
 from pydantic import HttpUrl
 
-import gitlab
 from flexmock import flexmock
 
+from logdetective.artifacts import get_artifacts_from_payload
 from logdetective.config import load_server_config, SERVER_CONFIG
 from logdetective.remote_log import RemoteLog
-from logdetective.server import (
-    ConnectionManager,
-    get_artifacts_from_payload,
-    KojiCallbackManager,
-)
 from logdetective.models import (
     AnalysisRequest,
     ArtifactFile,
     RemoteArtifactFile,
-    Config,
 )
 
 from tests.test_helpers import (
     MOCK_LOG,
-    mock_config,
 )
 
 
@@ -35,7 +28,12 @@ async def test_loading_config():
     # this file - this dir (tests/) - repo root
     repo_root = Path(__file__).parent.parent
     config_file = repo_root / "server" / "config.yml"
-    assert load_server_config(str(config_file))
+    config = load_server_config(str(config_file))
+
+    assert config.inference.provider_settings == {
+        "api_key": "api-key-placeholder",
+        "base_url": "http://inference-server:8000/v1",
+    }
 
 
 @pytest.mark.asyncio
@@ -51,44 +49,6 @@ async def test_get_url_content():
             url_output_cr = remote_log.get_url_content()
             url_output = await url_output_cr
             assert url_output == "123"
-
-
-def test_koji_callback_manager():
-    """Test KojiCallbackManager initialization, callback registration
-    and removal."""
-    manager = KojiCallbackManager()
-    assert len(manager.get_callbacks(1)) == 0
-
-    manager.register_callback(1, "test_callback")
-
-    assert len(manager.get_callbacks(1)) == 1
-
-    manager.clear_callbacks(1)
-
-    assert len(manager.get_callbacks(1)) == 0
-
-
-@pytest.mark.asyncio
-async def test_connection_manager(mock_config):
-    """Test that ConnectionManager can handle initialization and disposal
-    of managed objects, sessions in particular."""
-    connection_manager = ConnectionManager()
-    server_config = mock_config["server_config"]
-    assert isinstance(server_config, Config)
-
-    assert len(server_config.gitlab.instances) == 1
-
-    await connection_manager.initialize(server_config)
-    assert len(connection_manager.gitlab_connections) == 1
-    assert len(connection_manager.gitlab_http_sessions) == 1
-
-    assert isinstance(
-        connection_manager.gitlab_connections["https://gitlab.com"], gitlab.Gitlab
-    )
-    assert not connection_manager.gitlab_http_sessions["https://gitlab.com"].closed
-
-    await connection_manager.close()
-    assert connection_manager.gitlab_http_sessions["https://gitlab.com"].closed
 
 
 @pytest.mark.parametrize("request_size", [0, 10, 2000])

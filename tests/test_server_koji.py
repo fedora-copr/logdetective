@@ -1,10 +1,6 @@
-from unittest.mock import AsyncMock, MagicMock
 import koji
 import pytest
-from beeai_framework.backend import ChatModel
 
-from logdetective.models import APIResponse, Explanation
-from logdetective.server import analyze_koji_task, KojiCallbackManager
 from logdetective.exceptions import LogsTooLargeError, LogsMissingError
 from logdetective.koji import (
     get_failed_subtask_info,
@@ -12,7 +8,6 @@ from logdetective.koji import (
 )
 
 from tests.test_helpers import (
-    DatabaseFactory,
     create_mock_koji_session,
     ARCHES,
     SIMPLE_METHODS,
@@ -205,50 +200,3 @@ async def test_koji_get_failed_log_from_task_log_missing(mocker, method):
     mock_session.getTaskResult.assert_called_once_with(task_id, raise_fault=False)
     mock_session.listTaskOutput.assert_called_once_with(task_id, stat=True)
     mock_session.downloadTaskOutput.assert_not_called()
-
-
-@pytest.fixture
-def mock_analysis(mocker, request):
-    """Fixture to mock analyze_artifacts directly at the server level."""
-    message = getattr(request, "param", "This is a mock message")
-    mock_response = APIResponse(
-        explanation=Explanation(text=message),
-        snippets=None
-    )
-    return mocker.patch(
-        "logdetective.server.analyze_artifacts",
-        AsyncMock(return_value=mock_response)
-    )
-
-
-@pytest.mark.parametrize(
-    "mock_analysis", ["This is a mock message"], indirect=True
-)
-@pytest.mark.parametrize("method", SIMPLE_METHODS)
-@pytest.mark.asyncio
-async def test_koji_analyze_koji_task(mocker, method, mock_analysis):
-    async with DatabaseFactory().make_new_db() as _:
-        # Mock the KojiInstanceConfig
-        mock_koji_instance_config = mocker.Mock()
-        mock_koji_conn = create_mock_koji_session(mocker, EXAMPLE_TASK_ID, method)
-        mock_koji_instance_config.get_connection.return_value = mock_koji_conn
-        mock_koji_instance_config.max_artifact_size = 1024**2
-        mock_koji_instance_config.name = "fedora"
-        mock_koji_instance_config.xmlrpc_url = "https://koji.fedoraproject.org/kojihub"
-        mock_koji_instance_config.get_callbacks.return_value = set()
-
-        mock_chat_model = MagicMock(spec=ChatModel)
-
-        response = await analyze_koji_task(
-            task_id=EXAMPLE_TASK_ID,
-            koji_instance_config=mock_koji_instance_config,
-            koji_connection=mock_koji_conn,
-            koji_callback_manager=KojiCallbackManager(),
-            chat_model=mock_chat_model,
-        )
-
-        assert response is not None
-
-        # Verify the response content
-        assert isinstance(response, APIResponse)
-        assert response.explanation.text == "This is a mock message"

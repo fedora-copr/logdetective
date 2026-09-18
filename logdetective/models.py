@@ -1,7 +1,10 @@
 import datetime
+import enum
 import re
 import subprocess as sp
 from typing import List, Dict, Optional, Any, Union, Sequence
+from uuid import UUID
+
 from pydantic import (
     BaseModel,
     RootModel,
@@ -12,6 +15,7 @@ from pydantic import (
     HttpUrl,
     ConfigDict,
     SecretStr,
+    UUID4,
 )
 
 from logdetective.constants import (
@@ -166,6 +170,10 @@ class AnalysisRequest(BaseModel):
     """Model of the request body for /analyze endpoint"""
 
     model_config = ConfigDict(hide_input_in_errors=True, extra="forbid")
+    id: UUID4 | None = Field(
+        default=None,
+        description="Optional client-generated public task id used for safe retries.",
+    )
     files: Sequence[Union[ArtifactFile, RemoteArtifactFile]] = Field(
         description="List of artifacts",
         min_length=1,
@@ -183,6 +191,17 @@ class AnalysisRequest(BaseModel):
         if len(names) != len(set(names)):
             raise ValueError("Duplicate filenames detected in 'files' list")
         return self
+
+
+class KojiAnalysisRequest(BaseModel):
+    """Request an analysis of a build from a configured Koji instance."""
+
+    model_config = ConfigDict(
+        hide_input_in_errors=True, extra="forbid", populate_by_name=True
+    )
+    id: UUID4 | None = None
+    koji_instance: str = Field(alias="kojiInstance", min_length=1)
+    task_id: int = Field(alias="taskId", gt=0)
 
 
 class JobHook(BaseModel):
@@ -281,6 +300,19 @@ class APIResponse(AgentResponse):
     snippets: Optional[List[Union[AnalyzedSnippet, Snippet]]] = None
 
 
+class TaskMetadata(BaseModel):
+    """Base model for validated, task-specific metadata persisted as JSON."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class KojiTaskMetadata(TaskMetadata):
+    """Metadata required to construct the public result of a Koji task."""
+
+    task_id: int
+    log_file_name: str
+
+
 class KojiResponse(BaseModel):
     """Model of data returned by Log Detective API when called when a Koji build
     analysis is requested. Contains list of reponses to prompts for individual
@@ -290,6 +322,44 @@ class KojiResponse(BaseModel):
     task_id: int
     log_file_name: str
     response: APIResponse
+
+
+class AnalysisState(str, enum.Enum):
+    """Lifecycle labels for an analysis operation."""
+
+    SCHEDULED = "scheduled"
+    IN_PROGRESS = "in_progress"
+    CANCELLING = "cancelling"
+    CANCELLED = "cancelled"
+    DONE = "done"
+    ERROR = "error"
+
+
+class TaskType(str, enum.Enum):
+    """Kinds of durable work dispatched through Procrastinate."""
+
+    GENERIC = "generic"
+    KOJI = "koji"
+    GITLAB = "gitlab"
+
+
+class TaskError(BaseModel):
+    """Safe public error information for an asynchronous task."""
+
+    code: str
+    message: str
+
+
+class TaskResponse(BaseModel):
+    """Stable response envelope used from admission through termination."""
+
+    model_config = ConfigDict(populate_by_name=True)
+    id: UUID
+    task_type: TaskType = Field(alias="taskType")
+    created_at: datetime.datetime = Field(alias="createdAt")
+    status: AnalysisState
+    error: TaskError | None = None
+    result: KojiResponse | APIResponse | None = None
 
 
 class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attributes
@@ -410,7 +480,10 @@ class KojiConfig(BaseModel):
     """Model for Koji configuration of logdetective server."""
 
     instances: Dict[str, KojiInstanceConfig] = {}
-    analysis_timeout: int = 15
+    # Timeout of Koji API call
+    api_timeout: int = 15
+    # Aggregate timeout for all retrieval operations, must be > api_timeout
+    retrieval_timeout: float = Field(default=20.0, ge=0)
 
     # in yaml config, this is given in MiB, but we use bytes in code (same as gitlab)
     max_artifact_size: int = DEFAULT_MAXIMUM_ARTIFACT_MIB * 1024**2
@@ -457,6 +530,7 @@ class GeneralConfig(BaseModel):
     block_localhost_urls: bool = True
     generate_solution: bool = True
     delay_artifact_download: bool = False
+    log_source_request_timeout: float = Field(default=10, gt=0)
     # Timeout for execution of analysis in seconds
     analysis_timeout: int = 900
     annotation_lookup_tool: bool = False
@@ -469,6 +543,16 @@ class GeneralConfig(BaseModel):
         return (v if isinstance(v, int) else DEFAULT_MAXIMUM_ARTIFACT_MIB) * 1024**2
 
 
+class TaskQueueConfig(BaseModel):
+    """Log Detective policy layered over Procrastinate's worker mechanics."""
+
+    retry_after: int = Field(default=5, ge=1)
+    concurrency: int = Field(default=1, ge=1)
+    retention_days: int = Field(default=30, ge=1)
+    shutdown_graceful_timeout: float = Field(default=30, gt=0)
+    stalled_worker_timeout: float = Field(default=30, gt=0)
+
+
 class Config(BaseModel):
     """Model for configuration of logdetective server."""
 
@@ -479,6 +563,7 @@ class Config(BaseModel):
     gitlab: GitLabConfig = Field(default_factory=GitLabConfig)
     koji: KojiConfig = Field(default_factory=KojiConfig)
     general: GeneralConfig = Field(default_factory=GeneralConfig)
+    task_queue: TaskQueueConfig = Field(default_factory=TaskQueueConfig)
     prompts: PromptConfig = Field(default_factory=PromptConfig)
 
     @field_validator("prompts", mode="before")

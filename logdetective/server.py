@@ -1,199 +1,91 @@
+"""FastAPI surface for durable asynchronous Log Detective operations."""
+
+from __future__ import annotations
+
 import os
-import asyncio
-import datetime
 import secrets
 from enum import Enum
-from collections import defaultdict
 from contextlib import asynccontextmanager
+from collections.abc import AsyncGenerator
 from typing import Annotated, Optional
+from uuid import UUID, uuid4
 
-from koji import ClientSession
-from gitlab import Gitlab
 from fastapi import (
     FastAPI,
     HTTPException,
-    BackgroundTasks,
     Depends,
     Header,
-    Path,
     Request,
+    Response,
 )
 from fastapi.responses import Response as BasicResponse
+from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import AwareDatetime
-import aiohttp
-import sentry_sdk
-from beeai_framework.backend import ChatModel
+from pydantic import AwareDatetime, ValidationError
 from logdetective.compressors import LLMResponseCompressor
 
-from logdetective.exceptions import (
-    LogDetectiveInferenceError,
-    RemoteLogError,
-)
 from logdetective.remote_log import RemoteLog
 from logdetective.utils import (
     ContentSizeCheck,
     check_content_size,
-    sanitize_artifact,
     get_version,
+    init_sentry,
     load_api_tokens,
-    SSRFProtectedResolver,
 )
 
-from logdetective.database.models.tasks import TaskAnalysis, TaskType
+from logdetective.database.models.tasks import (
+    TaskAnalysis,
+    TaskType,
+    ACTIVE_STATES,
+    AnalysisState,
+)
 from logdetective.database.models.exceptions import (
-    TaskAnalysisTimeoutError,
-    TaskNotAnalyzedError,
     AnalysisTaskNotFoundError,
+    TaskConflictError,
+    TaskTerminalError,
 )
 
-from logdetective.agent.agent import analyze_artifacts
 import logdetective.database.base
 
-from logdetective.config import SERVER_CONFIG, LOG, get_chat_model
+from logdetective.config import SERVER_CONFIG
 from logdetective.routes_gitlab import gitlab_router
-from logdetective.koji import (
-    get_failed_log_from_task as get_failed_log_from_koji_task,
-)
-from logdetective.metric import (
-    track_request,
-    add_new_metrics,
-    update_metrics,
-    requests_statistics,
-)
+from logdetective.metric import requests_statistics
 from logdetective.models import (
-    ArtifactFile,
     RemoteArtifactFile,
     AnalysisRequest,
-    Config,
-    KojiInstanceConfig,
     KojiResponse,
     APIResponse,
     MetricResponse,
+    KojiAnalysisRequest,
+    KojiTaskMetadata,
+    TaskError,
+    TaskResponse,
 )
 from logdetective.database.models import EndpointType, TimePeriod
+from logdetective.tasks import analyze_generic, analyze_koji
+from logdetective.tasks import app as task_app
 
 
-LOG_SOURCE_REQUEST_TIMEOUT = os.environ.get("LOG_SOURCE_REQUEST_TIMEOUT", 60)
 API_TOKENS_PATH = os.environ.get("LOGDETECTIVE_TOKENS_FILE")
 API_TOKENS = load_api_tokens(API_TOKENS_PATH)
 BEARER_SCHEME = HTTPBearer(auto_error=False)
 
 
-if sentry_dsn := SERVER_CONFIG.general.sentry_dsn:
-    sentry_sdk.init(dsn=str(sentry_dsn), traces_sample_rate=1.0)
-
-
-class ConnectionManager:
-    """
-    Manager for all connections and sesssions.
-    """
-
-    koji_connections: dict[str, ClientSession] = {}
-    gitlab_connections: dict[str, Gitlab] = {}
-    gitlab_http_sessions: dict[str, aiohttp.ClientSession] = {}
-
-    async def initialize(self, service_config: Config):
-        """Initialize all managed objects"""
-
-        for connection, config in service_config.gitlab.instances.items():
-            self.gitlab_connections[connection] = Gitlab(
-                url=config.url,
-                private_token=config.api_token,
-                timeout=config.timeout,
-            )
-            self.gitlab_http_sessions[connection] = aiohttp.ClientSession(
-                base_url=config.url,
-                headers={"Authorization": f"Bearer {config.api_token}"},
-                timeout=aiohttp.ClientTimeout(
-                    total=config.timeout,
-                    connect=3.07,
-                ),
-            )
-        for connection, config in service_config.koji.instances.items():
-            self.koji_connections[connection] = ClientSession(baseurl=config.xmlrpc_url)
-
-    async def close(self):
-        """Close all managed http sessions"""
-        for session in self.gitlab_http_sessions.values():
-            await session.close()
-
-
-class KojiCallbackManager:
-    """Manages callbacks used by Koji, with callbacks referenced by task id.
-
-    Multiple callbacks can be assigned to a single task."""
-
-    _callbacks: defaultdict[int, set[str]]
-
-    def __init__(self) -> None:
-        self._callbacks = defaultdict(set)
-
-    def register_callback(self, task_id: int, callback: str):
-        """Register a callback for a task"""
-        self._callbacks[task_id].add(callback)
-
-    def clear_callbacks(self, task_id: int):
-        """Unregister a callback for a task"""
-        try:
-            del self._callbacks[task_id]
-        except KeyError:
-            pass
-
-    def get_callbacks(self, task_id: int) -> set[str]:
-        """Get the callbacks for a task"""
-        return self._callbacks[task_id]
+init_sentry()
 
 
 @asynccontextmanager
-async def lifespan(fapp: FastAPI):
-    """
-    Establish one HTTP session
-    """
-    connector = None
-    # Custom resolver covering Server-Side Request Forgery
-    if SERVER_CONFIG.general.block_localhost_urls:
-        connector = aiohttp.TCPConnector(
-            resolver=SSRFProtectedResolver(),
-        )
-
-    fapp.http = aiohttp.ClientSession(
-        connector=connector,
-        timeout=aiohttp.ClientTimeout(
-            total=int(LOG_SOURCE_REQUEST_TIMEOUT), connect=3.07
-        ),
-    )
-
-    # Manager for connections and sessions
-    fapp.state.connection_manager = ConnectionManager()
-
-    await fapp.state.connection_manager.initialize(service_config=SERVER_CONFIG)
-
-    # Koji callbacks
-    fapp.state.koji_callback_manager = KojiCallbackManager()
-
-    # Chat model for agent
-    fapp.state.chat_model = get_chat_model(
-        inference_config=SERVER_CONFIG.inference
-    )
-
-    # Ensure that the database is initialized.
+async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
+    """Open database-backed API resources; inference belongs to workers."""
     await logdetective.database.base.check()
-
-    yield
-
-    await fapp.state.connection_manager.close()
-    await fapp.http.close()
-
-
-async def get_http_session(request: Request) -> aiohttp.ClientSession:
-    """
-    Return the single aiohttp ClientSession for this app
-    """
-    return request.app.http
+    await task_app.open_async()
+    try:
+        yield
+    finally:
+        await task_app.close_async()
 
 
-def authenticate_api_token(
+async def authenticate_api_token(
     request: Request,
     credentials: Annotated[
         HTTPAuthorizationCredentials | None, Depends(BEARER_SCHEME)
@@ -240,374 +132,230 @@ if SERVER_CONFIG.gitlab.instances:
     app.include_router(gitlab_router)
 
 
-async def get_artifacts_from_payload(
-    payload: AnalysisRequest,
-    http_session: aiohttp.ClientSession,
-    request_size: int,
-) -> dict[str, str | RemoteLog]:
-    """Retrieve artifact contents based on the type of artifact.
-    Raise ValueError on unsupported element types."""
-    build_artifacts: dict[str, str | RemoteLog] = {}
-
-    total_payload_size: int = request_size
-
-    for artifact in payload.files:
-        if isinstance(artifact, RemoteArtifactFile):
-            remaining_limit = (
-                SERVER_CONFIG.general.max_artifact_size - total_payload_size
-            )
-            if remaining_limit <= 0:
-                raise HTTPException(
-                    413, detail="Total size of submitted request is over the limit."
-                )
-            remote_log = RemoteLog(
-                str(artifact.url), http_session, limit_bytes=remaining_limit
-            )
-            if SERVER_CONFIG.general.delay_artifact_download:
-                LOG.info(
-                    "Delaying download of artifact %s from %s until requested",
-                    artifact.name,
-                    artifact.url
-                )
-                # Size is enforced per-file via limit_bytes when
-                # get_url_content() runs; total across deferred
-                # artifacts is accepted optimistically.
-                build_artifacts[artifact.name] = remote_log
-            else:
-                LOG.info("Downloading artifact %s from %s", artifact.name, artifact.url)
-                try:
-                    log_text = await remote_log.get_url_content()
-                except RemoteLogError as ex:
-                    raise HTTPException(
-                        status_code=ex.status_code, detail=f"{ex}"
-                    ) from ex
-                build_artifacts[artifact.name] = log_text
-                total_payload_size += remote_log.remote_log_size
-
-        elif isinstance(artifact, ArtifactFile):
-            LOG.info("Handling artifact %s as raw string", artifact.name)
-            build_artifacts[artifact.name] = sanitize_artifact(artifact.content)
-        else:
-            raise ValueError(f"Invalid element type {type(artifact)}")
-
-    total_payload_len = sum(
-        len(content)
-        for _, content in build_artifacts.items()
-        if isinstance(content, str)
-    )
-    LOG.info(
-        "Total artifact size from the obtained payload (in chars): %d "
-        "Total payload size (in bytes): %d",
-        total_payload_len,
-        total_payload_size,
-    )
-    return build_artifacts
-
-
 def validate_request_size(request: Request) -> int:
-    """
-    FastAPI Depend function checking request's Content-Length before loading body into memory.
-
-    Note:
-        In the case of URL requests, we limit the URL's content to 50 MiB.
-        With the direct files raw log content, we limit the whole request size to 50 Mib,
-        so this fails if all provided logs are under the limit, but exceed it together.
-
-    Returns:
-        Size of request in bytes
-
-    Raises:
-        HTTPException(411): If Content-Length header is missing or invalid
-        HTTPException(413): If Content-Length exceeds maximum allowed size
-    """
+    """Reject requests without a bounded, valid Content-Length."""
     size_check: ContentSizeCheck = check_content_size(
         request.headers, SERVER_CONFIG.general.max_artifact_size
     )
     if size_check.size_in_bytes is None:
-        raise HTTPException(
-            status_code=411, detail="Content-Length is missing or invalid."
-        )
+        raise HTTPException(411, detail="Content-Length is missing or invalid.")
     if not size_check.proceed:
-        raise HTTPException(
-            status_code=413,
-            detail=(
-                f"Content-Length is too large: "
-                f"{size_check.size_in_bytes} B "
-                f"({size_check.size_in_bytes / (1024 * 1024):.2f} MiB) > "
-                f"{SERVER_CONFIG.general.max_artifact_size} B "
-                f"({SERVER_CONFIG.general.max_artifact_size / (1024 * 1024):.2f} MiB)"
-            ),
-        )
-
+        raise HTTPException(413, detail="Content-Length is too large.")
     return size_check.size_in_bytes
 
 
-@app.post("/analyze", response_model=APIResponse)
-@track_request()
+def task_representation(task: TaskAnalysis) -> TaskResponse:
+    """Build the stable public response envelope for an application task.
+
+    Args:
+        task: Persisted application task whose current state should be exposed.
+
+    Returns:
+        Public task state containing a result or safe error when available.
+
+    Raises:
+        RuntimeError: If a completed task lacks its required response or Koji
+            metadata, or if an internal GitLab task is exposed publicly.
+    """
+    result: APIResponse | KojiResponse | None = None
+    if task.state == AnalysisState.DONE:
+        if task.response is None:
+            raise RuntimeError("Completed task has no persisted response")
+        response = LLMResponseCompressor.unzip(task.response)
+        if task.task_type == TaskType.KOJI:
+            if task.task_metadata is None:
+                raise RuntimeError("Completed Koji task has no metadata")
+            try:
+                metadata = KojiTaskMetadata.model_validate(task.task_metadata)
+            except ValidationError as exc:
+                raise RuntimeError(
+                    "Completed Koji task metadata is invalid"
+                ) from exc
+            result = KojiResponse(
+                task_id=metadata.task_id,
+                log_file_name=metadata.log_file_name,
+                response=response,
+            )
+        else:
+            result = response
+    error = None
+    if task.error_code is not None:
+        error = TaskError(
+            code=task.error_code,
+            message=task.error_message or "Analysis failed",
+        )
+    if task.task_type == TaskType.GITLAB:
+        raise RuntimeError("GitLab webhook tasks do not have a public representation")
+    return TaskResponse(
+        id=task.task_id,
+        taskType=task.task_type,
+        createdAt=task.request_received_at,
+        status=task.state,
+        error=error,
+        result=result,
+    )
+
+
+async def accept_task(
+    payload: AnalysisRequest | KojiAnalysisRequest,
+    request: Request,
+    task_type: TaskType,
+    request_size: int,
+) -> JSONResponse:
+    """Admit an analysis task and construct its HTTP 202 response.
+
+    Args:
+        payload: Validated generic or Koji analysis request.
+        request: FastAPI request carrying the authenticated token identity and URL
+            router.
+        task_type: Kind of analysis to enqueue.
+        request_size: Validated request-body size in bytes.
+
+    Returns:
+        A ``202 Accepted`` response containing the stable task envelope, polling
+        location, retry interval, and cache policy. Idempotent retries return the
+        existing task through the same response contract.
+
+    Raises:
+        HTTPException: With status 409 when the public identifier conflicts with a
+            different request.
+    """
+    public_id = payload.id or uuid4()
+    data = payload.model_dump(mode="json", by_alias=True)
+    data["id"] = str(public_id)
+    deferrable = analyze_generic if task_type == TaskType.GENERIC else analyze_koji
+    endpoint = (
+        EndpointType.ANALYZE
+        if task_type == TaskType.GENERIC
+        else EndpointType.ANALYZE_KOJI_TASK
+    )
+    try:
+        task, _ = await TaskAnalysis.admit(
+            task_id=public_id,
+            owner_token_name=request.state.api_token_name,
+            task_type=task_type,
+            input_payload=data,
+            request_size=request_size,
+            deferrable_task=deferrable,
+            endpoint=endpoint,
+        )
+    except TaskConflictError as exc:
+        raise HTTPException(409, detail=str(exc)) from exc
+    representation = task_representation(task)
+    return JSONResponse(
+        status_code=202,
+        content=representation.model_dump(mode="json", by_alias=True),
+        headers={
+            "Location": str(request.url_for("get_analysis_task", task_id=task.task_id)),
+            "Retry-After": str(SERVER_CONFIG.task_queue.retry_after),
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@app.post("/analyze", response_model=TaskResponse, status_code=202)
 async def analyze(
     payload: AnalysisRequest,
     request: Request,
-    http_session: aiohttp.ClientSession = Depends(get_http_session),
     request_size: int = Depends(validate_request_size),
-):
-    """
-    Provide endpoint for analysis of artifacts. Artifacts can be submitted directly,
-    or using URL. URL must contain appropriate scheme, path and netloc,
-    while lacking  result, params or query fields.
-    """
-    artifacts = await get_artifacts_from_payload(
-        payload, http_session, request_size=request_size
-    )
-
-    try:
-        response = await analyze_artifacts(
-            artifacts=artifacts,
-            chat_model=request.app.state.chat_model,
-            build_metadata=payload.build_metadata
-        )
-    except LogDetectiveInferenceError as exc:
-        raise HTTPException(
-            status_code=exc.http_status_code,
-            detail=f"{type(exc).__doc__}: {exc}",
-        ) from exc
-    return response
+) -> JSONResponse:
+    """Durably submit generic artifact analysis without downloading in the API."""
+    for artifact in payload.files:
+        if isinstance(artifact, RemoteArtifactFile) and not RemoteLog.is_valid_url(
+            str(artifact.url)
+        ):
+            raise HTTPException(400, detail="Invalid artifact URL")
+    return await accept_task(payload, request, TaskType.GENERIC, request_size)
 
 
-@app.get(
-    "/analyze/rpmbuild/koji/{koji_instance}/{task_id}",
-    response_model=KojiResponse,
-)
-async def get_koji_task_analysis(
-    koji_instance: Annotated[str, Path(title="The Koji instance to use")],
-    task_id: Annotated[int, Path(title="The task ID to analyze")],
-    x_koji_token: Annotated[str, Header()] = "",
-):  # pylint:  disable=too-many-return-statements
-    """Provide endpoint for retrieving log file analysis of a Koji task"""
-
-    try:
-        koji_instance_config = SERVER_CONFIG.koji.instances[koji_instance]
-    except KeyError:
-        # This Koji instance is not configured, so we will return a 404.
-        return BasicResponse(status_code=404, content="Unknown Koji instance.")
-
-    # This should always be available in a production environment.
-    # In a testing environment, the tokens list may be empty, in which case
-    # it will just proceed.
-    if koji_instance_config.tokens and x_koji_token not in koji_instance_config.tokens:
-        # (Unauthorized) error.
-        return BasicResponse(x_koji_token, status_code=401)
-
-    # Check if we have a response for this task
-    try:
-        task = await TaskAnalysis.get_task_by_external_id(str(task_id))
-        if not (task.response and task.task_metadata):
-
-            return BasicResponse(
-                status_code=500,
-                content={
-                    "message": (
-                        f"No result or metadata found for task {task_id}. "
-                        "Please report to the service admin."
-                    ),
-                    "task_id": task_id,
-                }
-            )
-        return KojiResponse(
-            task_id=task_id,
-            log_file_name=task.task_metadata.get("log_file_name", "unknown"),
-            response=LLMResponseCompressor.unzip(task.response),
-        )
-    except AnalysisTaskNotFoundError:
-        # This task ID is malformed, out of range, or not found, so we will
-        # return a 404.
-        return BasicResponse(status_code=404)
-
-    except TaskAnalysisTimeoutError:
-        # Task analysis has timed out, so we assume that the request was lost
-        # and that we need to start another analysis.
-        # There isn't a fully-appropriate error code for this, so we'll use
-        # 503 (Service Unavailable) as our best option.
-        return BasicResponse(
-            status_code=503, content="Task analysis timed out, please retry."
-        )
-
-    except TaskNotAnalyzedError:
-        # Its still running, so we need to return a 202
-        # (Accepted) code to let the client know to keep waiting.
-        return BasicResponse(
-            status_code=202, content=f"Analysis still in progress for task {task_id}"
-        )
-
-
-@app.post(
-    "/analyze/rpmbuild/koji/{koji_instance}/{task_id}",
-    response_model=KojiResponse,
-)
+@app.post("/analyze/rpmbuild/koji", response_model=TaskResponse, status_code=202)
 async def analyze_rpmbuild_koji(
-    koji_instance: Annotated[str, Path(title="The Koji instance to use")],
-    task_id: Annotated[int, Path(title="The task ID to analyze")],
+    payload: KojiAnalysisRequest,
     request: Request,
     x_koji_token: Annotated[str, Header()] = "",
-    x_koji_callback: Annotated[str, Header()] = "",
-    background_tasks: BackgroundTasks = BackgroundTasks(),
-):  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
-    """Provide endpoint for retrieving log file analysis of a Koji task"""
+    request_size: int = Depends(validate_request_size),
+) -> JSONResponse:
+    """Durably submit one build from a configured Koji instance."""
+    instance = SERVER_CONFIG.koji.instances.get(payload.koji_instance)
+    if instance is None:
+        raise HTTPException(404, detail="Unknown Koji instance")
+    supplied = x_koji_token.encode("utf-8")
+    if instance.tokens and not any(
+        secrets.compare_digest(supplied, token.encode("utf-8"))
+        for token in instance.tokens
+    ):
+        raise HTTPException(401, detail="Invalid or missing Koji token")
+    return await accept_task(payload, request, TaskType.KOJI, request_size)
 
+
+@app.get("/tasks/{task_id}", response_model=TaskResponse)
+async def get_analysis_task(
+    task_id: UUID, request: Request, response: Response
+) -> TaskResponse:
+    """Return current state and, when available, the result of an owned task.
+
+    Args:
+        task_id: Public UUID of the requested application task.
+        request: FastAPI request carrying the authenticated token identity.
+        response: Mutable FastAPI response used to set polling and cache headers.
+
+    Returns:
+        The task's stable public response envelope.
+
+    Raises:
+        HTTPException: With status 404 when the task is absent, expired, or owned by
+            another API token.
+        RuntimeError: If persisted terminal task data violates response invariants.
+    """
     try:
-        koji_instance_config = SERVER_CONFIG.koji.instances[koji_instance]
-    except KeyError:
-        # This Koji instance is not configured, so we will return a 404.
-        return BasicResponse(status_code=404, content="Unknown Koji instance.")
+        task = await TaskAnalysis.get_owned(task_id, request.state.api_token_name)
+    except AnalysisTaskNotFoundError as exc:
+        raise HTTPException(404, detail="Task not found") from exc
+    response.headers["Cache-Control"] = "no-store"
+    if task.state in ACTIVE_STATES:
+        response.headers["Retry-After"] = str(SERVER_CONFIG.task_queue.retry_after)
+    return task_representation(task)
 
-    # This should always be available in a production environment.
-    # In a testing environment, the tokens list may be empty, in which case
-    # it will just proceed.
-    if koji_instance_config.tokens and x_koji_token not in koji_instance_config.tokens:
-        # (Unauthorized) error.
-        return BasicResponse(status_code=401)
 
-    # Check if we already have a response for this task
+@app.delete(
+    "/tasks/{task_id}",
+    response_model=TaskResponse,
+    responses={202: {"model": TaskResponse}},
+)
+async def cancel_analysis_task(
+    task_id: UUID, request: Request, response: Response
+) -> TaskResponse:
+    """Request cancellation of one owned task and report its resulting state.
+
+    Args:
+        task_id: Public UUID of the application task to cancel.
+        request: FastAPI request carrying the authenticated token identity.
+        response: Mutable FastAPI response used to set status and polling headers.
+
+    Returns:
+        The task's stable public response envelope. The HTTP status is 202 while
+        process cleanup remains pending and 200 after cancellation is confirmed.
+
+    Raises:
+        HTTPException: With status 404 when the task is not visible, or status 409
+            when its terminal state cannot be cancelled.
+    """
     try:
-        task = await TaskAnalysis.get_task_by_external_id(str(task_id))
-
-    except (AnalysisTaskNotFoundError, TaskAnalysisTimeoutError):
-        # Task not yet analyzed or it timed out, so we need to start the
-        # analysis in the background and return a 202 (Accepted) error.
-
-        koji_connection = request.app.state.connection_manager.koji_connections[
-            koji_instance
-        ]
-        background_tasks.add_task(
-            analyze_koji_task,
+        task = await TaskAnalysis.request_cancellation(
             task_id,
-            koji_instance_config,
-            koji_connection,
-            request.app.state.koji_callback_manager,
-            request.app.state.chat_model,
             request.state.api_token_name,
+            task_app.job_manager,
+            SERVER_CONFIG.task_queue.retention_days,
         )
-
-        # If a callback URL is provided, we need to add it to the callbacks
-        # table so that we can notify it when the analysis is complete.
-        if x_koji_callback:
-            request.app.state.koji_callback_manager.register_callback(
-                task_id, x_koji_callback
-            )
-
-        return BasicResponse(
-            status_code=202,
-            content={
-                "message": f"Beginning analysis of task {task_id}",
-                "task_id": task_id,
-            }
-        )
-
-    except TaskNotAnalyzedError:
-        # Its still running, so we need to return a 202
-        # (Accepted) error.
-        return BasicResponse(
-            status_code=202,
-            content={
-                "message": f"Analysis still in progress for task {task_id}",
-                "task_id": task_id,
-            }
-        )
-
-    if not (task.response and task.task_metadata):
-
-        return BasicResponse(
-            status_code=500,
-            content={
-                "message": (
-                    f"No result or metadata found for task {task_id}. "
-                    "Please report to the service admin."
-                ),
-                "task_id": task_id,
-            }
-        )
-    response = KojiResponse(
-        task_id=task_id,
-        log_file_name=task.task_metadata.get("log_file_name", "unknown"),
-        response=LLMResponseCompressor.unzip(task.response),
-    )
-    return response
-
-
-async def analyze_koji_task(
-    task_id: int,
-    koji_instance_config: KojiInstanceConfig,
-    koji_connection: ClientSession,
-    koji_callback_manager: KojiCallbackManager,
-    chat_model: ChatModel,
-    api_token_name: str | None = None,
-):  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
-    """Analyze a koji task and return the response"""
-
-    # Get the log text from the koji task
-    log_file_name, log_text = await get_failed_log_from_koji_task(
-        koji_connection, task_id, max_size=SERVER_CONFIG.koji.max_artifact_size
-    )
-    log_text = sanitize_artifact(log_text)
-
-    # We need to handle the metric tracking manually here, because we need
-    # to retrieve the metric ID to associate it with the koji task analysis.
-
-    metrics_id = await add_new_metrics(
-        EndpointType.ANALYZE_KOJI_TASK,
-        received_at=datetime.datetime.now(datetime.timezone.utc),
-        api_token_name=api_token_name,
-    )
-    # We need to associate the metric ID with the koji task analysis.
-    # This will create the new row without a response, which we will use as
-    # an indicator that the analysis is in progress.
-    new_task_id = await TaskAnalysis.create_or_restart(
-        task_type=TaskType.KOJI,
-        external_task_id=str(task_id),
-        metadata={
-            "koji_instance": koji_instance_config.xmlrpc_url,
-            "log_file_name": log_file_name,
-        }
-    )
-    try:
-        response = await analyze_artifacts(
-            {log_file_name: log_text}, chat_model=chat_model
-        )
-    except LogDetectiveInferenceError as exc:
-        # The empty task will sit with null response_id until analysis_timeout elapses,
-        # then callers get TaskAnalysisTimeoutError -> handled as 503
-        LOG.error("Not processing Koji task %d: %s: %s", task_id, type(exc).__name__, exc)
-        return
-
-    # Now that we have the response, we can update the metrics and mark the
-    # koji task analysis as completed.
-    await update_metrics(metrics_id, response)
-    await TaskAnalysis.add_response(
-        task_id=new_task_id,
-        metric_id=metrics_id,
-        response=response
-    )
-
-    # Notify any callbacks that the analysis is complete.
-    for callback in koji_callback_manager.get_callbacks(task_id):
-        LOG.info("Notifying callback %s of task %d completion", callback, task_id)
-        asyncio.create_task(send_koji_callback(callback, task_id))
-
-    # Now that it's sent, we can clear the callbacks for this task.
-    koji_callback_manager.clear_callbacks(task_id)
-
-    return response
-
-
-async def send_koji_callback(callback: str, task_id: int):
-    """Send a callback to the specified URL with the task ID and log file name."""
-    connector = None
-    if SERVER_CONFIG.general.block_localhost_urls:
-        connector = aiohttp.TCPConnector(
-            resolver=SSRFProtectedResolver()
-        )
-    async with aiohttp.ClientSession(connector=connector) as session:
-        async with session.post(callback, json={"task_id": task_id}):
-            pass
+    except AnalysisTaskNotFoundError as exc:
+        raise HTTPException(404, detail="Task not found") from exc
+    except TaskTerminalError as exc:
+        raise HTTPException(409, detail=str(exc)) from exc
+    response.headers["Cache-Control"] = "no-store"
+    if task.state == AnalysisState.CANCELLING:
+        response.status_code = 202
+        response.headers["Retry-After"] = str(SERVER_CONFIG.task_queue.retry_after)
+    return task_representation(task)
 
 
 @app.get("/version", response_class=BasicResponse)
@@ -621,11 +369,13 @@ class MetricRoute(str, Enum):
 
     ANALYZE = "analyze"
     ANALYZE_GITLAB_JOB = "analyze-gitlab"
+    ANALYZE_KOJI_TASK = "analyze-koji"
 
 
 ROUTE_TO_ENDPOINT_TYPES = {
     MetricRoute.ANALYZE: EndpointType.ANALYZE,
     MetricRoute.ANALYZE_GITLAB_JOB: EndpointType.ANALYZE_GITLAB_JOB,
+    MetricRoute.ANALYZE_KOJI_TASK: EndpointType.ANALYZE_KOJI_TASK,
 }
 
 

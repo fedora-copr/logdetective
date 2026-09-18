@@ -12,7 +12,7 @@ from logdetective.agent.tools import (
     DrainExtractorTool,
     CSGrepExtractorTool,
 )
-from logdetective.config import SERVER_CONFIG, load_embedding_model
+from logdetective.config import SERVER_CONFIG
 from logdetective.database.models.annotated_builds import AnnotatedSnippets
 from logdetective.exceptions import (
     LogDetectiveInferenceError,
@@ -194,18 +194,19 @@ async def test_analyze_artifacts_lookup_tool_included(
         with (
             patch.object(SERVER_CONFIG.general, "annotation_lookup_tool", config_option),
             patch.object(SERVER_CONFIG.general, "max_annotations", 3),
-            patch("logdetective.config.TextEmbedding", MagicMock()),
+            patch(
+                "logdetective.agent.agent.get_embedding_model",
+                return_value=MagicMock(),
+            ) as get_embedding_model,
             patch.object(
                 AnnotatedSnippets, "get_count", new_callable=AsyncMock, return_value=snippet_count
-            ),
+            ) as get_count,
         ):
-            model_instance = load_embedding_model(SERVER_CONFIG)
-            with patch(
-                "logdetective.agent.agent.EMBEDDING_MODEL_INSTANCE", model_instance
-            ):
-                await analyze_artifacts(mock_artifacts, mock_chat_model)
+            await analyze_artifacts(mock_artifacts, mock_chat_model)
 
         _, kwargs = MockAgent.call_args
         tools = kwargs.get("tools", [])
         is_tool_included = any(isinstance(t, AnnotatedSnippetLookupTool) for t in tools)
         assert is_tool_included == expecting_lookup_tool
+        assert get_count.await_count == int(config_option)
+        assert get_embedding_model.call_count == int(expecting_lookup_tool)

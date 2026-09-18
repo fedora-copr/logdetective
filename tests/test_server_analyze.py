@@ -1,25 +1,18 @@
-import aiohttp
-import aioresponses
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from logdetective.server import app, get_http_session, validate_request_size
-from logdetective.config import SERVER_CONFIG
-
-from tests.test_helpers import mock_AnalyzeRequestMetrics
+from logdetective.server import app, validate_request_size
 
 
 @pytest_asyncio.fixture
-async def test_client(mock_AnalyzeRequestMetrics):
+async def test_client():
     """Mocking AsyncClient for sending and checking requests."""
 
-    async def override_get_http_session():
-        async with aiohttp.ClientSession() as session:
-            yield session
+    async def no_request_size_limit():
+        return None
 
-    app.dependency_overrides[validate_request_size] = lambda: None
-    app.dependency_overrides[get_http_session] = override_get_http_session
+    app.dependency_overrides[validate_request_size] = no_request_size_limit
 
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://localhost:8080"
@@ -31,36 +24,15 @@ async def test_client(mock_AnalyzeRequestMetrics):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "request_body, head_status, mock_headers, final_status",
+    "request_body",
     [
-        ({"usb": "http://example.com/build.log"}, None, None, 422),
-        ({"url": "not-a-valid-url-for-testing"}, None, None, 422),
-        ({"url": "http://example.com/build.log"}, 404, None, 422),
-        ({"url": "http://example.com/build.log"}, 500, None, 422),
-        ({"url": "http://example.com/build.log"}, 503, None, 422),
-        ({"url": "http://example.com/build.log"}, 200, {}, 422),
-        (
-            {"url": "http://example.com/build.log"},
-            200,
-            {"Content-Length": f"{(SERVER_CONFIG.general.max_artifact_size) * 1024**2 + 1}"},
-            422
-        ),
+        {"usb": "http://example.com/build.log"},
+        {"url": "not-a-valid-url-for-testing"},
+        {"url": "http://example.com/build.log"},
     ],
-    indirect=False
 )
-async def test_analyze_invalid_errors(
-    test_client,
-    request_body,
-    head_status,
-    mock_headers,
-    final_status
-):
-    """Test various cases when submitting invalid request with log's URL fails."""
-    if not head_status:
-        response = await test_client.post("/analyze", json=request_body)
-    else:
-        with aioresponses.aioresponses() as mock:
-            mock.head(request_body["url"], status=head_status, headers=mock_headers)
-            response = await test_client.post("/analyze", json=request_body)
+async def test_analyze_rejects_obsolete_request_shapes(test_client, request_body):
+    """The async API accepts only the documented artifact-list request model."""
+    response = await test_client.post("/analyze", json=request_body)
 
-    assert response.status_code == final_status
+    assert response.status_code == 422

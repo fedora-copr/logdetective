@@ -14,6 +14,15 @@ from logdetective.database.models import (
 )
 
 from logdetective.database.models.metrics import TimePeriod
+from logdetective.metric import update_metrics
+from logdetective.models import APIResponse
+
+
+def test_endpoint_enum_values_match_lowercase_database_labels() -> None:
+    """Persist endpoint values instead of SQLAlchemy's uppercase member names."""
+    assert AnalyzeRequestMetrics.__table__.c.endpoint.type.enums == [
+        endpoint.value for endpoint in EndpointType
+    ]
 
 
 @pytest.mark.asyncio
@@ -38,8 +47,40 @@ async def test_create_and_update_AnalyzeRequestMetrics():
             metrics = query_result.scalars().first()
 
         assert metrics is not None
+        assert metrics.response_sent_at is not None
         assert metrics.response_length == 0
         assert metrics.api_token_name == "packit"
+
+
+@pytest.mark.asyncio
+async def test_worker_update_preserves_admitted_webhook_response_time():
+    """Inference output cannot replace the webhook acknowledgement timestamp."""
+    received_at = datetime.datetime(2077, 1, 1, tzinfo=datetime.timezone.utc)
+    admitted_at = received_at + datetime.timedelta(seconds=2)
+    worker_at = received_at + datetime.timedelta(minutes=5)
+    response = APIResponse(explanation="Analysis complete")
+    async with DatabaseFactory().make_new_db():
+        metrics_id = await AnalyzeRequestMetrics.create(
+            endpoint=EndpointType.ANALYZE_GITLAB_JOB,
+            request_received_at=received_at,
+        )
+        await AnalyzeRequestMetrics.update(
+            id_=metrics_id,
+            response_sent_at=admitted_at,
+        )
+
+        await update_metrics(metrics_id, response, sent_at=worker_at)
+        metrics = await AnalyzeRequestMetrics.get_metric_by_id(metrics_id)
+        statistics = await AnalyzeRequestMetrics.get_requests_stats_for_period(
+            start_time=received_at,
+            end_time=received_at + datetime.timedelta(hours=1),
+            endpoint=EndpointType.ANALYZE_GITLAB_JOB,
+            time_period=TimePeriod.HOUR,
+        )
+
+    assert metrics.response_sent_at == admitted_at
+    assert metrics.response_length == len(response.model_dump_json())
+    assert statistics[2] == [2.0]
 
 
 @pytest.mark.asyncio

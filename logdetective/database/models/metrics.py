@@ -15,12 +15,17 @@ from sqlalchemy import (
     extract,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from logdetective.database.base import Base, transaction
+from logdetective.database.base import (
+    Base,
+    enum_values,
+    transaction,
+    retry_database_error,
+)
 from logdetective.database.models.merge_request_jobs import (
     GitlabMergeRequestJobs,
 )
-from logdetective.utils import retry_database_error
 
 
 if TYPE_CHECKING:
@@ -50,7 +55,7 @@ class AnalyzeRequestMetrics(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     endpoint: Mapped[EndpointType] = mapped_column(
-        Enum(EndpointType),
+        Enum(EndpointType, values_callable=enum_values),
         nullable=False,
         index=True,
         comment="The service endpoint that was called",
@@ -71,7 +76,7 @@ class AnalyzeRequestMetrics(Base):
     response_sent_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
-        comment="Timestamp when the response was sent back",
+        comment="Timestamp when the endpoint response was ready",
     )
     response_length: Mapped[Optional[int]] = mapped_column(
         Integer, nullable=True, comment="Length of the response in chars"
@@ -99,6 +104,36 @@ class AnalyzeRequestMetrics(Base):
         "TaskAnalysis",
         back_populates="analysis_metrics",
     )
+
+    @classmethod
+    async def create_in_session(
+        cls,
+        session: AsyncSession,
+        endpoint: EndpointType,
+        request_received_at: datetime | None = None,
+        api_token_name: str | None = None,
+    ) -> AnalyzeRequestMetrics | None:
+        """Create metrics inside a caller-owned admission transaction.
+
+        Args:
+            session: Database session whose transaction owns task admission.
+            endpoint: API endpoint for which the request was accepted.
+            request_received_at: Optional request timestamp; current UTC time is used
+                when omitted.
+            api_token_name: Non-secret name of the token that authorized the request.
+
+        Returns:
+            The flushed metrics record, or ``None`` if the database did not assign
+            its primary key.
+        """
+        metrics = cls(
+            endpoint=endpoint,
+            request_received_at=request_received_at or datetime.now(timezone.utc),
+            api_token_name=api_token_name,
+        )
+        session.add(metrics)
+        await session.flush()
+        return metrics if metrics.id is not None else None
 
     @classmethod
     @retry_database_error
@@ -129,14 +164,19 @@ class AnalyzeRequestMetrics(Base):
         response_sent_at: datetime,
         response_length: Optional[int] = None,
     ) -> None:
-        """Update a row with data related to the given response"""
+        """Fill a missing response timestamp and update the response length.
+
+        Admission records the HTTP acknowledgement time before GitLab analysis
+        starts. A later worker update must keep that timestamp intact.
+        """
         query = select(AnalyzeRequestMetrics).filter(AnalyzeRequestMetrics.id == id_)
         async with transaction(commit=True) as session:
             query_result = await session.execute(query)
             metrics = query_result.scalars().first()
             if metrics is None:
                 raise ValueError("Returned `AnalyzeRequestMetrics` table is empty.")
-            metrics.response_sent_at = response_sent_at
+            if metrics.response_sent_at is None:
+                metrics.response_sent_at = response_sent_at
             metrics.response_length = response_length
             session.add(metrics)
 
