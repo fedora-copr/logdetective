@@ -15,8 +15,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from logdetective.database.base import Base, transaction
-from logdetective.utils import retry_database_error
+from logdetective.database.base import Base, transaction, retry_database_error
 
 
 if TYPE_CHECKING:

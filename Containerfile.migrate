@@ -1,0 +1,36 @@
+FROM fedora:42 AS dependencies
+
+ARG POETRY_VERSION=2.4.2
+
+RUN dnf install -y python3-pip && dnf clean all
+RUN pip3 install --no-cache-dir "poetry==${POETRY_VERSION}"
+
+WORKDIR /build
+
+COPY ./pyproject.toml ./poetry.lock ./README.md ./LICENSE ./
+RUN python3 -m venv /opt/migration-dependencies
+ENV VIRTUAL_ENV=/opt/migration-dependencies
+ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
+RUN poetry sync --only migration --no-root --no-interaction --no-ansi
+
+COPY ./logdetective/ ./logdetective/
+RUN poetry build --format wheel --no-interaction
+RUN python -m pip install --no-cache-dir --no-deps dist/logdetective-*.whl
+
+FROM fedora:42
+
+RUN dnf install -y python3 postgresql && dnf clean all
+
+COPY --from=dependencies /opt/migration-dependencies /opt/migration-dependencies
+ENV VIRTUAL_ENV=/opt/migration-dependencies
+ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
+
+WORKDIR /src
+
+COPY ./alembic.ini /src/alembic.ini
+COPY ./alembic/ /src/alembic/
+COPY ./scripts/migrate /src/scripts/migrate
+
+RUN python -c "import logdetective.database.models"
+
+ENTRYPOINT ["/src/scripts/migrate"]

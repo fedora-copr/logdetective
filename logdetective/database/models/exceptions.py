@@ -5,13 +5,9 @@ class AnalysisTaskNotFoundError(Exception):
     """Exception raised when analysis task is not found"""
 
 
-class TaskNotAnalyzedError(Exception):
-    """Exception raised when a task analysis is still in progress"""
+class TaskConflictError(Exception):
+    """A client task id already exists with different ownership or input."""
 
 
-class TaskAnalysisTimeoutError(Exception):
-    """Exception raised when a task analysis has timed out"""
-
-
-class AnalyzeRequestMetricsNotFoundError(Exception):
-    """Exception raised when AnalyzeRequestMetrics is not found"""
+class TaskTerminalError(Exception):
+    """Cancellation was requested for an already terminal task."""

@@ -80,6 +80,42 @@ curl --header "Content-Type: application/json" --request POST \
      http://localhost:8080/analyze
 ```
 
+Analysis endpoints use asynchronous request/reply. A successful `POST` returns
+`202 Accepted`, a `Location` header pointing to `/tasks/{id}`, and a
+`Retry-After` header. The JSON response is a stable task envelope; it does not
+contain an analysis result until processing finishes:
+
+```json
+{
+  "id": "7d036221-ec50-4d31-b714-09edaccf1486",
+  "taskType": "generic",
+  "createdAt": "2026-09-18T10:00:00Z",
+  "status": "scheduled",
+  "error": null,
+  "result": null
+}
+```
+
+Poll the URL in `Location` with `GET`. It returns `200` and the same envelope
+while `status` is `scheduled`, `in_progress`, or `cancelling`, including
+`Retry-After` while more polling is useful. A terminal response has status
+`done`, `error`, or `cancelled`; `result` is populated only for `done`.
+Cancel an owned operation with `DELETE /tasks/{id}`. Cancellation returns
+`202` while process cleanup is pending and `200` once cancellation is
+confirmed. Clients may supply a UUIDv4 as the request body's optional `id`;
+repeating the identical request with that ID returns the original operation,
+while reusing it for different input or credentials returns `409`. Once the
+original operation expires, retries using its ID return `409` until retention
+cleanup removes the record; use a new ID to submit a new operation.
+
+Koji analysis follows the same contract through
+`POST /analyze/rpmbuild/koji` with a body such as
+`{"id": "...", "kojiInstance": "fedora", "taskId": 123}`. The former Koji
+path-ID endpoints and callback header are intentionally removed. GitLab keeps
+its external webhook/`204` contract, but the webhook is durably admitted to
+the same worker queue before acknowledgement. An expired GitLab source still
+awaiting retention cleanup receives `409` on redelivery.
+
 Note that Log Detective redacts certain personal information, such as emails and GPG fingerprints from logs, before calling LLM.
 
 LLM should be aware of this fact and factor it into its responses.
@@ -90,12 +126,60 @@ Modify the database models (`logdetective/database/models/`).
 
 Generate a new database revision with the command:
 
-**Warning**: this command will start up a new server
-and shut it down when the operation completes.
+**Warning**: this command builds the migration image and starts PostgreSQL.
 
 ```sh
 CHANGE="A change comment" make alembic-generate-revision
 ```
+
+Procrastinate owns its `procrastinate_*` tables; Alembic owns Log Detective's
+tables. On a new database, the one-shot `migrate` service installs the pinned
+Procrastinate 3.9 schema and then runs `alembic upgrade head`. Web and worker
+replicas must not run schema installation themselves. Before changing the
+pinned Procrastinate minor version, operators must apply its supplied SQL
+migrations according to that release's notes; the 3.9 schema installer is not
+an idempotent upgrade command.
+
+The migration service uses the Fedora-based `quay.io/logdetective/migrate`
+image built from `Containerfile.migrate`. It installs the complete Log Detective
+wheel without its general application dependencies, then adds only PostgreSQL
+client tools and the dependencies in the standard
+`[dependency-groups].migration` group. Poetry installs that group at the exact
+versions recorded in `poetry.lock`; update the group and lock together whenever
+database, model-import, or Procrastinate dependencies change.
+
+This release is a direct queue cut-over. Its Alembic revision refuses to replace
+or restore `task_analysis` when that table contains records, preventing silent
+loss of accepted work. Rollback therefore requires draining/removing all new
+tasks, downgrading Alembic, and only then removing Procrastinate's schema if it
+is no longer needed.
+
+Long-running analysis is performed by the `worker` service. The
+`maintenance-worker` service consumes only reconciliation and expiry jobs with
+one reserved worker slot, so queued or running analyses cannot occupy its
+capacity. Deploy both workers; `make server-up` starts both in development.
+Outside Compose, start `python -m logdetective.worker analysis` and
+`python -m logdetective.worker maintenance` as separate processes.
+The API service validates and admits work but does not invoke inference or
+outbound GitLab clients. All services load `server/config.yml`; inference
+provider settings and per-instance GitLab API tokens are configured there.
+Analysis worker concurrency, polling hints, graceful shutdown, stalled-worker
+detection, and the default 30-day result retention are configured under
+`task_queue` in `server/config.yml`.
+The total timeout for downloading a remote log source is configured with
+`general.log_source_request_timeout` in that file.
+Analysis runs directly in Procrastinate's async worker tasks. Cancellation is
+cooperative: async work stops at cancellation points, while an already-running
+blocking Koji, GitLab, extraction, sanitization, or embedding call is allowed to
+finish before the public task becomes `cancelled`. These blocking calls use
+bounded client timeouts where network access is involved. The container's
+`stop_grace_period` must remain longer than `shutdown_graceful_timeout`.
+
+The periodic reconciler compares application state with queue job status. It
+confirms a `CANCELLING` task when its job is missing, succeeded, aborted, or
+cancelled. For other active tasks, a succeeded job without a published outcome
+reports `result_lost`. Stalled jobs and other missing or unexpectedly terminal
+combinations fail the application task and fence it against late publication.
 
 ## Our production instance
 
@@ -137,8 +221,15 @@ To be able to use Log Detective with Vertex AI:
 2. Put the credentials JSON file into the project directory as `log-detective-vertex.json`. Without this file, container creation will fail.
 3. Update `server/config.yml`:
     - Change `inference.model` to `vertexai:model-name`, such that `model-name` is a valid model provided by Vertex AI.
-    - Set the additional related config values in `server/config.yml` (follow the provided instructions, everything is set up so that you can just uncomment the 3 `GOOGLE_`* values).
-4. Uncomment the line in `docker-compose.yaml` which mounts the credentials JSON file.
+    - Set the related `inference.provider_settings` values in the same file.
+4. Mount the Vertex credentials JSON at the path configured by
+   `inference.provider_settings.vertex_credentials`.
+
+The server and worker intentionally use the same application configuration and
+are therefore in the same configuration trust domain. The separate API bearer
+token file selected by `LOGDETECTIVE_TOKENS_FILE` remains server-specific.
+Set `general.sentry_dsn` in `server/config.yml` to enable Sentry in both the
+API server and worker containers. When it is unset, Sentry is disabled in both.
 
 ## API authentication
 
@@ -170,8 +261,12 @@ You can query request and response statistics via `metrics` endpoints
 using `GET` method at `/metrics/ENDPOINT_TYPE/`. The endpoint returns data
 in JSON format with a `metrics` list of dictionaries containing metadata
 about endpoint type and time series of data aggregated at the given granularity.
+For asynchronous generic and Koji analysis, response time measures durable queue
+admission through the initial `202 Accepted` response. For GitLab webhooks, it
+measures admission through the `204 No Content` acknowledgement. Completion
+time measures the worker's analysis through its terminal result.
 
-1. `ENDPOINT_TYPE`: `analyze`, or `analyze-gitlab`.
+1. `ENDPOINT_TYPE`: `analyze`, `analyze-koji`, or `analyze-gitlab`.
 2. `start_time`: Timestamp, indicating inclusive start of the query
 3. `end_time`: Optional timestamp, defaults to current UTC time
 4. `time_period`: Granularity of the aggregation, 'hour', 'day' or 'month'.
@@ -393,6 +488,10 @@ Contributions are welcome! Please submit a pull request if you have any improvem
 For larger code changes, please consult us first by creating an issue.
 
 We are always looking for more annotated snippets that will increase the quality of Log Detective's results. You can contribute on our [website](https://logdetective.com/).
+
+When annotated-snippet lookup is enabled, its embedding model is loaded lazily on
+the first analysis that finds annotations to search and is then reused for the life
+of that process. Importing Log Detective modules does not load the model.
 
 Please use pre-commit to ensure that your code meets basic linting requirements.
 
