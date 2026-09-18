@@ -164,3 +164,6 @@ cython_debug/
 
 # Model files
 /models/
+
+# test_request.sh outputs
+test_results/
