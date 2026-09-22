@@ -34,10 +34,6 @@ services:
     extends:
       file: docker-compose.yaml
       service: postgres
-  packit-interface:
-    extends:
-      file: docker-compose.yaml
-      service: packit-interface
   user-contributions-update:
     extends:
       file: docker-compose.yaml
