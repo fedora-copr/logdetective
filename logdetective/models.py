@@ -291,12 +291,14 @@ class AgentResponse(BaseModel):
 class APIResponse(AgentResponse):
     """Model of data returned by Log Detective API
 
-    explanation: Explanation
+    explanation: Plain text explanation
     snippets: List of extracted snippets
-    solution: Proposed solution to the detected issue
+    solution: Optional plain text solution to the detected issue
     no_issue_found: Set to true if no issue was detected
     """
 
+    explanation: str
+    solution: Optional[str] = None
     snippets: Optional[List[Union[AnalyzedSnippet, Snippet]]] = None
 
 

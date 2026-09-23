@@ -95,7 +95,7 @@ async def test_analyze_artifacts_execution_flow(mock_agent_setup):
 
         response = await analyze_artifacts(mock_artifacts, mock_chat_model)
 
-        assert response.explanation.text == expected_answer
+        assert response.explanation == expected_answer
 
         run_call_args = mock_agent_instance.run.call_args[0][0]
         assert "artifact_1.log" in run_call_args
@@ -165,7 +165,7 @@ async def test_analyze_artifacts_solution_kept_when_enabled(mock_agent_setup):
         with patch.object(SERVER_CONFIG.general, "generate_solution", True):
             response = await analyze_artifacts(mock_artifacts, mock_chat_model)
             assert response.solution is not None
-            assert response.solution.text == "Mock solution"
+            assert response.solution == "Mock solution"
 
 
 @pytest.mark.asyncio

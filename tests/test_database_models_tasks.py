@@ -24,7 +24,7 @@ from logdetective.database.models.exceptions import (
     AnalysisTaskNotFoundError,
     TaskConflictError,
 )
-from logdetective.models import APIResponse, Explanation, KojiTaskMetadata
+from logdetective.models import APIResponse, KojiTaskMetadata
 from logdetective.procrastinate_app import app
 from logdetective.tasks import analyze_generic
 
@@ -416,7 +416,7 @@ async def test_fenced_result_publication_checks_optional_metric():
             task_id=public_id,
             job_id=task.procrastinate_job_id,
             generation=started.generation,
-            response=APIResponse(explanation=Explanation(text="done")),
+            response=APIResponse(explanation="done"),
             task_metadata=KojiTaskMetadata(
                 task_id=123,
                 log_file_name="build.log",
@@ -432,7 +432,7 @@ async def test_fenced_result_publication_checks_optional_metric():
             task_id=public_id,
             job_id=task.procrastinate_job_id,
             generation=started.generation,
-            response=APIResponse(explanation=Explanation(text="stale")),
+            response=APIResponse(explanation="stale"),
             task_metadata=None,
             retention_days=30,
         )
@@ -509,7 +509,7 @@ async def test_queue_failure_fences_late_publication():
             task_id=public_id,
             job_id=task.procrastinate_job_id,
             generation=started.generation,
-            response=APIResponse(explanation=Explanation(text="too late")),
+            response=APIResponse(explanation="too late"),
             task_metadata=None,
             retention_days=30,
         )
@@ -546,7 +546,7 @@ async def test_result_loss_fences_late_publication():
             task_id=public_id,
             job_id=task.procrastinate_job_id,
             generation=started.generation,
-            response=APIResponse(explanation=Explanation(text="too late")),
+            response=APIResponse(explanation="too late"),
             task_metadata=None,
             retention_days=30,
         )
