@@ -11,7 +11,7 @@ import pytest
 
 from logdetective import task_execution
 from logdetective.database.models.tasks import TaskAnalysis, TaskType
-from logdetective.models import APIResponse, Explanation, KojiTaskMetadata
+from logdetective.models import APIResponse, KojiTaskMetadata
 from logdetective.task_execution import TaskOutcome, run_task
 from logdetective.utils import run_blocking
 
@@ -20,7 +20,7 @@ from logdetective.utils import run_blocking
 async def test_execute_generic_uses_configured_log_source_timeout(monkeypatch):
     """Remote log downloads use the configured request timeout."""
     captured_timeout = None
-    response = APIResponse(explanation=Explanation(text="done"))
+    response = APIResponse(explanation="done")
 
     class ClientSession:
         """Capture aiohttp configuration without opening a network session."""
@@ -109,7 +109,7 @@ def _task(task_type: TaskType = TaskType.GENERIC):
 async def test_run_task_publishes_direct_result(monkeypatch):
     """A direct result is published through the application generation fence."""
     task_id = uuid4()
-    response = APIResponse(explanation=Explanation(text="done"))
+    response = APIResponse(explanation="done")
     monkeypatch.setattr(TaskAnalysis, "mark_started", AsyncMock(return_value=_task()))
     metadata = KojiTaskMetadata(task_id=123, log_file_name="build.log")
     execute = AsyncMock(return_value=TaskOutcome(response=response, metadata=metadata))

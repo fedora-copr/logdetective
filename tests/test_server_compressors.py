@@ -3,13 +3,11 @@ import pytest
 from logdetective.models import (
     APIResponse,
     AnalyzedSnippet,
-    Explanation,
     Snippet,
-    Solution,
 )
 from logdetective.compressors import LLMResponseCompressor
 
-RESPONSE_EXPLANATION = Explanation(text="A response explanation")
+RESPONSE_EXPLANATION = "A response explanation"
 
 
 @pytest.mark.parametrize(
@@ -37,7 +35,7 @@ RESPONSE_EXPLANATION = Explanation(text="A response explanation")
         APIResponse(explanation=RESPONSE_EXPLANATION, snippets=None),
         APIResponse(
             explanation=RESPONSE_EXPLANATION,
-            solution=Solution(text="Solution text"),
+            solution="Solution text",
             snippets=None,
         ),
     ],
@@ -54,6 +52,14 @@ async def test_server_response_compressor(
     uncompressed_response = response_compressor.unzip(zip_data)
     assert isinstance(uncompressed_response, APIResponse)
     assert uncompressed_response == response
+
+
+def test_api_response_uses_plain_text_fields() -> None:
+    response = APIResponse(explanation="Missing dependency", solution="Install libfoo")
+
+    assert response.model_dump()["explanation"] == "Missing dependency"
+    assert response.model_dump()["solution"] == "Install libfoo"
+    assert APIResponse(explanation="No issue").model_dump()["solution"] is None
 
 
 @pytest.mark.parametrize(
@@ -81,7 +87,7 @@ def test_response_compressor_preserves_supported_snippet_types(
         and all of its fields.
     """
     response = APIResponse(
-        explanation=Explanation(text="A response explanation"), snippets=[snippet]
+        explanation="A response explanation", snippets=[snippet]
     )
 
     uncompressed = LLMResponseCompressor(response).unzip(

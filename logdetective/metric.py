@@ -4,7 +4,6 @@ from typing import Optional
 from logdetective.models import (
     MetricsData,
     APIResponse,
-    Explanation,
 )
 from logdetective.database.models import EndpointType, AnalyzeRequestMetrics, TimePeriod
 
@@ -44,9 +43,7 @@ async def update_metrics(
         sent_at if sent_at else datetime.datetime.now(datetime.timezone.utc)
     )
     response_length = None
-    if hasattr(response, "explanation") and isinstance(
-        response.explanation, Explanation
-    ):
+    if isinstance(response.explanation, str):
         response_length = len(response.model_dump_json())
     await AnalyzeRequestMetrics.update(
         id_=metrics_id,
