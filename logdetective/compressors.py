@@ -2,12 +2,8 @@ import io
 import zipfile
 
 from typing import Dict
-from pydantic import TypeAdapter
 from logdetective.models import (
     APIResponse,
-    AnalyzedSnippet,
-    Explanation,
-    Snippet,
 )
 
 
@@ -62,10 +58,8 @@ class LLMResponseCompressor:
     Handles compression and decompression of LLM responses.
     """
 
-    EXPLANATION_FILE_NAME = "explanation.txt"
-    SNIPPET_FILE_NAME = "snippet_{number}.txt"
+    RESPONSE_FILE_NAME = "response.json"
     COMPRESSOR = TextCompressor()
-    SNIPPET_ADAPTER = TypeAdapter(AnalyzedSnippet | Snippet)
 
     def __init__(self, response: APIResponse):
         """
@@ -84,14 +78,8 @@ class LLMResponseCompressor:
             bytes: Compressed response as bytes
         """
         items = {
-            self.EXPLANATION_FILE_NAME: self._response.explanation.model_dump_json()
+            self.RESPONSE_FILE_NAME: self._response.model_dump_json(),
         }
-
-        if self._response.snippets:
-            for i, snippet in enumerate(self._response.snippets):
-                items[self.SNIPPET_FILE_NAME.format(number=i)] = (
-                    snippet.model_dump_json()
-                )
 
         return self.COMPRESSOR.zip(items)
 
@@ -109,25 +97,10 @@ class LLMResponseCompressor:
             Union[Response]: The decompressed (partial) response object
         """
         items = cls.COMPRESSOR.unzip(zip_data)
-        if cls.EXPLANATION_FILE_NAME not in items:
+        if cls.RESPONSE_FILE_NAME not in items:
             raise KeyError(
-                f"Required file {cls.EXPLANATION_FILE_NAME} not found in zip archive"
+                f"Required file {cls.RESPONSE_FILE_NAME} not found in zip archive"
             )
-        explanation = Explanation.model_validate_json(items[cls.EXPLANATION_FILE_NAME])
-
-        snippets = []
-        snippet_files = {
-            k: v
-            for k, v in items.items()
-            if cls.SNIPPET_FILE_NAME.replace("{number}.txt", "") in k
-        }
-        for i in range(len(snippet_files)):
-            snippets.append(
-                cls.SNIPPET_ADAPTER.validate_json(
-                    items[cls.SNIPPET_FILE_NAME.format(number=i)]
-                )
-            )
-
-        response = APIResponse(explanation=explanation, snippets=snippets)
+        response = APIResponse.model_validate_json(items[cls.RESPONSE_FILE_NAME])
 
         return response
