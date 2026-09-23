@@ -182,7 +182,7 @@ poll_until "$CANCELLATION_LOCATION" cancelled cancellation_result
 echo "=== Test 5: wait for the other task result ==="
 poll_until "$COMPLETION_LOCATION" done completion_result
 jq --exit-status \
-    ".result.task_id == $COMPLETION_TASK_ID and (.result.response.explanation.text | length > 0)" \
+    ".result.task_id == $COMPLETION_TASK_ID and (.result.response.explanation | length > 0)" \
     "$RESULTS_DIR/completion_result.json" >/dev/null
 
 podman logs --since "$TEST_START" "$SERVER_CONTAINER" \

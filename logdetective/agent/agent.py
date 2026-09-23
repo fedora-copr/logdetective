@@ -241,8 +241,8 @@ async def analyze_artifacts(
         all_snippets.extend(python_tb_extractor.extracted_snippets)
 
     response = APIResponse(
-        explanation=structured_output.explanation,
-        solution=structured_output.solution,
+        explanation=structured_output.explanation.text,
+        solution=(structured_output.solution.text if structured_output.solution else None),
         no_issue_found=structured_output.no_issue_found,
         snippets=all_snippets,
     )

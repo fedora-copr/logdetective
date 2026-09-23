@@ -365,7 +365,7 @@ async def comment_on_mr(  # pylint: disable=too-many-arguments disable=too-many-
         "Primary Explanation for %s MR %d: %s",
         project.name,
         merge_request_iid,
-        response.explanation.text,
+        response.explanation,
     )
 
     # First, we'll see if there's an existing comment on this Merge Request
@@ -491,7 +491,7 @@ def generate_mr_comment(
     # Generate the comment from the template
     content = tpl.render(
         package=job.project_name,
-        explanation=response.explanation.text,
+        explanation=response.explanation,
         snippets=response.snippets,
         log_url=log_url,
         artifacts_url=artifacts_url,

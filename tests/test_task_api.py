@@ -13,7 +13,7 @@ from logdetective.config import SERVER_CONFIG
 from logdetective.database.models import Forge
 from logdetective.database.models.exceptions import TaskConflictError
 from logdetective.database.models.tasks import AnalysisState, TaskAnalysis, TaskType
-from logdetective.models import APIResponse, Explanation, GitLabInstanceConfig, JobHook
+from logdetective.models import APIResponse, GitLabInstanceConfig, JobHook
 from logdetective.routes_gitlab import receive_gitlab_job_event_webhook
 from logdetective.server import app, task_representation, validate_request_size
 
@@ -49,7 +49,7 @@ def test_task_representation_validates_koji_metadata():
     task.task_type = TaskType.KOJI
     task.state = AnalysisState.DONE
     task.response = LLMResponseCompressor(
-        APIResponse(explanation=Explanation(text="done"))
+        APIResponse(explanation="done")
     ).zip_response()
     task.task_metadata = {"task_id": 123, "log_file_name": "build.log"}
 
@@ -66,7 +66,7 @@ def test_task_representation_rejects_invalid_koji_metadata():
     task.task_type = TaskType.KOJI
     task.state = AnalysisState.DONE
     task.response = LLMResponseCompressor(
-        APIResponse(explanation=Explanation(text="done"))
+        APIResponse(explanation="done")
     ).zip_response()
     task.task_metadata = {"task_id": 123}
 
@@ -130,6 +130,25 @@ async def test_get_active_task_returns_200_with_retry_after(mocker):
     assert response.status_code == 200
     assert response.headers["retry-after"] == "5"
     assert response.json()["status"] == "scheduled"
+
+
+@pytest.mark.asyncio
+async def test_get_completed_task_returns_plain_text_analysis(mocker):
+    task = scheduled_task()
+    task.state = AnalysisState.DONE
+    task.response = LLMResponseCompressor(
+        APIResponse(explanation="Missing dependency", solution="Install libfoo")
+    ).zip_response()
+    mocker.patch.object(TaskAnalysis, "get_owned", AsyncMock(return_value=task))
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.get(f"/tasks/{task.task_id}")
+
+    assert response.status_code == 200
+    assert response.json()["result"]["explanation"] == "Missing dependency"
+    assert response.json()["result"]["solution"] == "Install libfoo"
 
 
 @pytest.mark.asyncio

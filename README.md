@@ -411,9 +411,7 @@ Note that only a handful of snippets were selected from the original response fo
 
 ```json
 {
-  "explanation": {
-    "text": "The build failed during the compilation phase of `emacs-with-editor` because the build process could not find a required load file, specifically `cond-let`, while compiling `with-editor.el` (build.log, line 104). This indicates a missing dependency or an incomplete build environment setup for Emacs Lisp components."
-  },
+  "explanation": "The build failed during the compilation phase of `emacs-with-editor` because the build process could not find a required load file, specifically `cond-let`, while compiling `with-editor.el` (build.log, line 104). This indicates a missing dependency or an incomplete build environment setup for Emacs Lisp components.",
   "no_issue_found": false,
   "snippets": [
     {
@@ -462,13 +460,12 @@ Note that only a handful of snippets were selected from the original response fo
       "text": "error: Bad exit status from /var/tmp/rpm-tmp.Us2T6p (%build)\n    Bad exit status from /var/tmp/rpm-tmp.Us2T6p (%build)"
     }
   ],
-  "solution": {
-    "text": "Ensure that all necessary Emacs Lisp development dependencies, including any required libraries that provide `cond-let`, are correctly installed and available in the build environment before running the build process."
-  }
+  "solution": "Ensure that all necessary Emacs Lisp development dependencies, including any required libraries that provide `cond-let`, are correctly installed and available in the build environment before running the build process."
 }
 ```
 
-The most significant field for diagnosis is `explanation`.
+The most significant field for diagnosis is `explanation`, a plain text string.
+`solution` is a plain text string when a fix is suggested, or `null` otherwise.
 
 ## Choice of LLM
 
