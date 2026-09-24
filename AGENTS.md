@@ -81,6 +81,7 @@ For CUDA GPU acceleration, uncomment the device lines in `docker-compose-dev.yam
 - `logdetective/templates/` - Jinja2 response templates (HTML, GitLab markdown)
 - `alembic/versions/` - Database migration scripts
 - `server/` - Deployment configs (gunicorn, nginx templates, server config YAML)
+- `docs/` - User-facing API guides and examples
 - `tests/` - Tests for utilities and server (requires PostgreSQL)
 
 # Documentation
@@ -90,4 +91,5 @@ When making functionality changes, check whether these need updating:
 - `AGENTS.md` - this file
 - `THREAT_MODEL.md` - security assets, entry points, threats
 - `README.md` - general usage, installation, configuration overview
+- `docs/api.md` - API requests, task lifecycle, authentication, metrics, and examples
 - `alembic/er_diagram.md` - Mermaid ER diagram; regenerate with `make generate-db-diagram` after schema changes (alembic revisions)
