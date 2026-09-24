@@ -180,7 +180,7 @@ class AnalysisRequest(BaseModel):
         max_length=15,
     )
     build_metadata: Optional[BuildMetadata] = Field(
-        description="Optional build metadata. Unused in the initial release.",
+        description="Optional build metadata.",
         default=None,
     )
 
