@@ -58,7 +58,7 @@ async def test_worker_update_preserves_admitted_webhook_response_time():
     received_at = datetime.datetime(2077, 1, 1, tzinfo=datetime.timezone.utc)
     admitted_at = received_at + datetime.timedelta(seconds=2)
     worker_at = received_at + datetime.timedelta(minutes=5)
-    response = APIResponse(explanation=Explanation(text="Analysis complete"))
+    response = APIResponse(explanation="Analysis complete")
     async with DatabaseFactory().make_new_db():
         metrics_id = await AnalyzeRequestMetrics.create(
             endpoint=EndpointType.ANALYZE_GITLAB_JOB,
