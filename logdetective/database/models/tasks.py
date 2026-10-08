@@ -40,6 +40,7 @@ from logdetective.database.models.exceptions import (
     TaskConflictError,
     TaskTerminalError,
 )
+from logdetective.exceptions import LogDetectiveMetricsError
 from logdetective.models import AnalysisState, TaskMetadata, TaskType
 
 if TYPE_CHECKING:
@@ -253,7 +254,7 @@ class TaskAnalysis(Base):  # pylint: disable=too-many-instance-attributes
             return
         metric = await session.get(AnalyzeRequestMetrics, metric_id)
         if metric is None:
-            raise RuntimeError("Analysis metric disappeared before task completion")
+            raise LogDetectiveMetricsError("Analysis metric disappeared before task completion")
         metric.analysis_completed_at = finished_at
         if response_length is not None:
             metric.response_length = response_length

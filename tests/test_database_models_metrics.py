@@ -16,6 +16,7 @@ from logdetective.database.models import (
 from logdetective.database.models.metrics import TimePeriod
 from logdetective.metric import update_metrics
 from logdetective.models import APIResponse, Explanation
+from logdetective.exceptions import LogDetectiveMetricsError
 
 
 def test_endpoint_enum_values_match_lowercase_database_labels() -> None:
@@ -94,9 +95,9 @@ async def test_get_metric_by_id_and_missing_metric_errors():
         metrics = await AnalyzeRequestMetrics.get_metric_by_id(metrics_id)
 
         assert metrics.id == metrics_id
-        with pytest.raises(ValueError, match="table is empty"):
+        with pytest.raises(LogDetectiveMetricsError, match="table is empty"):
             await AnalyzeRequestMetrics.get_metric_by_id(metrics_id + 1)
-        with pytest.raises(ValueError, match="table is empty"):
+        with pytest.raises(LogDetectiveMetricsError, match="table is empty"):
             await AnalyzeRequestMetrics.update(
                 id_=metrics_id + 1,
                 response_sent_at=datetime.datetime.now(datetime.timezone.utc),
