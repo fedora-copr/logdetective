@@ -15,7 +15,7 @@ from logdetective.database.models import (
 
 from logdetective.database.models.metrics import TimePeriod
 from logdetective.metric import update_metrics
-from logdetective.models import APIResponse, Explanation
+from logdetective.models import APIResponse
 from logdetective.exceptions import LogDetectiveMetricsError
 
 

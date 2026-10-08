@@ -16,10 +16,7 @@ from logdetective.exceptions import (
 from logdetective.models import SkipSnippets
 from logdetective.remote_log import RemoteLog
 
-from tests.test_snippets import (
-    test_filter_patterns,
-    test_snippets_filtering,
-)
+from tests.test_snippets import test_filter_patterns
 
 
 @pytest.mark.asyncio
