@@ -2,7 +2,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import aiohttp
-import aioresponses
+from aiointercept import aiointercept
 import pytest
 from pydantic import HttpUrl
 
@@ -39,7 +39,7 @@ async def test_get_url_content():
     url = "http://localhost:8999/"
     mock_header = {"Content-Length": "3"}
     mock_response = "123"
-    with aioresponses.aioresponses() as mock:
+    async with aiointercept(mock_external_urls=True) as mock:
         mock.head(url, status=200, headers=mock_header)
         mock.get(url, status=200, body=mock_response)
         async with aiohttp.ClientSession() as http:
@@ -117,7 +117,7 @@ async def test_remote_log_get_url_content_sanitizes(dirty_log, redacted_value):
     """RemoteLog.get_url_content returns sanitized content."""
     url = "http://example.com/build.log"
     mock_header = {"Content-Length": str(len(dirty_log))}
-    with aioresponses.aioresponses() as mock:
+    async with aiointercept(mock_external_urls=True) as mock:
         mock.head(url, status=200, headers=mock_header)
         mock.get(url, status=200, body=dirty_log)
         async with aiohttp.ClientSession() as http:
