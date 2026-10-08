@@ -18,9 +18,9 @@ from logdetective.agent.tools import (
     DrainExtractorTool,
     ExtractorTool,
     ExtractorToolInput,
-    SnippetAnalysisTool,
-    SnippetAnalysisToolInput,
-    SnippetAnalysisToolOutput,
+    SnippetAnnotationTool,
+    SnippetAnnotationToolInput,
+    SnippetAnnotationToolOutput,
 )
 from logdetective.constants import EMBEDDING_VECTOR_SIZE
 from logdetective.database.models.annotated_builds import AnnotatedBuilds, AnnotatedSnippets
@@ -36,7 +36,7 @@ class MockRunInstance(RunInstance):
 
 
 @pytest.mark.asyncio
-async def test_snippet_analysis_tool_init():
+async def test_snippet_annotation_tool_init():
 
     snippet_analysis = "Mock analyis"
     source_file = "build.log"
@@ -51,8 +51,8 @@ async def test_snippet_analysis_tool_init():
         )
     ]
     extractors[0].extracted_snippets.append(snippet)
-    tool = SnippetAnalysisTool(extractors=extractors)
-    analysis_input = SnippetAnalysisToolInput(
+    tool = SnippetAnnotationTool(extractors=extractors)
+    analysis_input = SnippetAnnotationToolInput(
         source_file=source_file,
         line_number=line_number,
         snippet_analysis=snippet_analysis,
@@ -63,12 +63,14 @@ async def test_snippet_analysis_tool_init():
         options=None,
     )
 
+    assert tool.name == "snippet_annotation"
+    assert "Attach a brief description" in tool.description
     assert result.snippet_analysis == snippet_analysis
     assert result.snippet == snippet
 
 
 @pytest.mark.asyncio
-async def test_snippet_analysis_nonexistent_source_file():
+async def test_snippet_annotation_nonexistent_source_file():
     """ToolInputValidationError when source_file is not in any extractor's available_artifacts."""
 
     source_file = "build.log"
@@ -77,8 +79,8 @@ async def test_snippet_analysis_nonexistent_source_file():
             ExtractorConfig(), available_artifacts={source_file: "content"}
         )
     ]
-    tool = SnippetAnalysisTool(extractors=extractors)
-    analysis_input = SnippetAnalysisToolInput(
+    tool = SnippetAnnotationTool(extractors=extractors)
+    analysis_input = SnippetAnnotationToolInput(
         source_file="nonexistent.log", line_number=0, snippet_analysis="analysis"
     )
     with pytest.raises(ToolInputValidationError):
@@ -90,7 +92,7 @@ async def test_snippet_analysis_nonexistent_source_file():
 
 
 @pytest.mark.asyncio
-async def test_snippet_analysis_wrong_line_number():
+async def test_snippet_annotation_wrong_line_number():
     """ToolError when source_file exists but no snippet matches the line_number."""
 
     source_file = "build.log"
@@ -102,8 +104,8 @@ async def test_snippet_analysis_wrong_line_number():
         )
     ]
     extractors[0].extracted_snippets.append(snippet)
-    tool = SnippetAnalysisTool(extractors=extractors)
-    analysis_input = SnippetAnalysisToolInput(
+    tool = SnippetAnnotationTool(extractors=extractors)
+    analysis_input = SnippetAnnotationToolInput(
         source_file=source_file, line_number=999, snippet_analysis="analysis"
     )
     with pytest.raises(ToolError):
@@ -115,7 +117,7 @@ async def test_snippet_analysis_wrong_line_number():
 
 
 @pytest.mark.asyncio
-async def test_snippet_analysis_mutates_extractor_snippets():
+async def test_snippet_annotation_mutates_extractor_snippets():
     """After analysis, the extractor's snippet list contains AnalyzedSnippet in place of original."""
     source_file = "build.log"
     artifact_content = "extracted text"
@@ -126,8 +128,8 @@ async def test_snippet_analysis_mutates_extractor_snippets():
         )
     ]
     extractors[0].extracted_snippets.append(snippet)
-    tool = SnippetAnalysisTool(extractors=extractors)
-    analysis_input = SnippetAnalysisToolInput(
+    tool = SnippetAnnotationTool(extractors=extractors)
+    analysis_input = SnippetAnnotationToolInput(
         source_file=source_file, line_number=0, snippet_analysis="this is important"
     )
     await tool._run(
@@ -144,7 +146,7 @@ async def test_snippet_analysis_mutates_extractor_snippets():
 
 
 @pytest.mark.asyncio
-async def test_snippet_analysis_multiple_extractors():
+async def test_snippet_annotation_multiple_extractors():
     """Snippet in the second extractor is found and analyzed correctly."""
     file_a = "a.log"
     file_b = "b.log"
@@ -158,8 +160,8 @@ async def test_snippet_analysis_multiple_extractors():
     )
     extractor_b.extracted_snippets.append(snippet_b)
 
-    tool = SnippetAnalysisTool(extractors=[extractor_a, extractor_b])
-    analysis_input = SnippetAnalysisToolInput(
+    tool = SnippetAnnotationTool(extractors=[extractor_a, extractor_b])
+    analysis_input = SnippetAnnotationToolInput(
         source_file=file_b, line_number=42, snippet_analysis="root cause"
     )
     result = await tool._run(
@@ -173,7 +175,7 @@ async def test_snippet_analysis_multiple_extractors():
 
 
 @pytest.mark.asyncio
-async def test_snippet_analysis_already_analyzed():
+async def test_snippet_annotation_already_analyzed():
     """ToolInputValidationError when attempting to analyze a snippet that was already analyzed."""
 
     source_file = "build.log"
@@ -185,8 +187,8 @@ async def test_snippet_analysis_already_analyzed():
         )
     ]
     extractors[0].extracted_snippets.append(snippet)
-    tool = SnippetAnalysisTool(extractors=extractors)
-    analysis_input = SnippetAnalysisToolInput(
+    tool = SnippetAnnotationTool(extractors=extractors)
+    analysis_input = SnippetAnnotationToolInput(
         source_file=source_file, line_number=0, snippet_analysis="first analysis"
     )
     await tool._run(
@@ -203,7 +205,7 @@ async def test_snippet_analysis_already_analyzed():
 
 
 @pytest.mark.asyncio
-async def test_snippet_analysis_no_extracted_snippets():
+async def test_snippet_annotation_no_extracted_snippets():
     """ToolError when source_file is valid but no snippets have been extracted yet."""
 
     source_file = "build.log"
@@ -212,8 +214,8 @@ async def test_snippet_analysis_no_extracted_snippets():
             ExtractorConfig(), available_artifacts={source_file: "content"}
         )
     ]
-    tool = SnippetAnalysisTool(extractors=extractors)
-    analysis_input = SnippetAnalysisToolInput(
+    tool = SnippetAnnotationTool(extractors=extractors)
+    analysis_input = SnippetAnnotationToolInput(
         source_file=source_file, line_number=0, snippet_analysis="analysis"
     )
     with pytest.raises(ToolError):
@@ -224,28 +226,28 @@ async def test_snippet_analysis_no_extracted_snippets():
         )
 
 
-def test_snippet_analysis_output_get_text_content():
+def test_snippet_annotation_output_get_text_content():
     snippet = Snippet(text="some error", line_number=5, source_file="build.log")
-    output = SnippetAnalysisToolOutput(snippet=snippet, snippet_analysis="looks bad")
+    output = SnippetAnnotationToolOutput(snippet=snippet, snippet_analysis="looks bad")
     text = output.get_text_content()
     assert "some error" in text
     assert "looks bad" in text
 
 
-def test_snippet_analysis_output_is_empty():
+def test_snippet_annotation_output_is_empty():
     snippet = Snippet(text="", line_number=0, source_file="build.log")
-    output_empty_text = SnippetAnalysisToolOutput(
+    output_empty_text = SnippetAnnotationToolOutput(
         snippet=snippet, snippet_analysis="analysis"
     )
     assert output_empty_text.is_empty()
 
     snippet_with_text = Snippet(text="content", line_number=0, source_file="build.log")
-    output_empty_analysis = SnippetAnalysisToolOutput(
+    output_empty_analysis = SnippetAnnotationToolOutput(
         snippet=snippet_with_text, snippet_analysis=""
     )
     assert output_empty_analysis.is_empty()
 
-    output_full = SnippetAnalysisToolOutput(
+    output_full = SnippetAnnotationToolOutput(
         snippet=snippet_with_text, snippet_analysis="analysis"
     )
     assert not output_full.is_empty()

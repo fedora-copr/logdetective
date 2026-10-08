@@ -180,18 +180,20 @@ async def test_analyze_artifacts_solution_kept_when_enabled(mock_agent_setup):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("config_option", "snippet_count", "expecting_lookup_tool"),
+    ("config_option", "snippet_count", "model_available", "expecting_lookup_tool"),
     [
-        (True, 10, True),
-        (False, 10, False),
-        (True, 0, False),
+        (True, 10, True, True),
+        (False, 10, True, False),
+        (True, 0, True, False),
+        (True, 10, False, False),
     ],
-    ids=("everything-set-up", "config-option-off", "db-not-populated"),
+    ids=("everything-set-up", "config-option-off", "db-not-populated", "model-unavailable"),
 )
 async def test_analyze_artifacts_lookup_tool_included(
     mock_agent_setup,
     config_option: bool,
     snippet_count: int,
+    model_available: bool,
     expecting_lookup_tool: bool,
 ):
     """AnnotatedSnippetLookupTool is enabled only if the flag is on and the table has data."""
@@ -208,7 +210,7 @@ async def test_analyze_artifacts_lookup_tool_included(
             patch.object(SERVER_CONFIG.general, "max_annotations", 3),
             patch(
                 "logdetective.agent.agent.get_embedding_model",
-                return_value=MagicMock(),
+                return_value=MagicMock() if model_available else None,
             ) as get_embedding_model,
             patch.object(
                 AnnotatedSnippets, "get_count", new_callable=AsyncMock, return_value=snippet_count
@@ -220,5 +222,9 @@ async def test_analyze_artifacts_lookup_tool_included(
         tools = kwargs.get("tools", [])
         is_tool_included = any(isinstance(t, AnnotatedSnippetLookupTool) for t in tools)
         assert is_tool_included == expecting_lookup_tool
+        agent_prompt = MockAgent.return_value.run.call_args.args[0]
+        assert ("annotated_snippet_lookup" in agent_prompt) == expecting_lookup_tool
+        assert "snippet_annotation" in agent_prompt
+        assert "`snippet_analysis` argument" in agent_prompt
         assert get_count.await_count == int(config_option)
-        assert get_embedding_model.call_count == int(expecting_lookup_tool)
+        assert get_embedding_model.call_count == int(config_option and snippet_count > 0)

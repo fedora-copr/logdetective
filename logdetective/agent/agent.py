@@ -42,7 +42,7 @@ from logdetective.agent.tools import (
     DrainExtractorTool,
     CSGrepExtractorTool,
     PythonTracebackExtractorTool,
-    SnippetAnalysisTool,
+    SnippetAnnotationTool,
     AnnotatedSnippetLookupTool,
 )
 from logdetective.database.models.annotated_builds import AnnotatedSnippets
@@ -167,19 +167,19 @@ async def analyze_artifacts(
             )
             requirements.append(snippet_lookup_options)
 
-    # Add snippet analysis tool, link all extractors and condition it to run after them
+    # Add snippet annotation tool, link all extractors and condition it to run after them
     # max_invocations are set at 5. Most snippets are not informative, and annotating them
     # provides no benefit.
     extractors = [tool for tool in tools if isinstance(tool, ExtractorTool)]
     tools.append(
-        SnippetAnalysisTool(
+        SnippetAnnotationTool(
             extractors=extractors,
             options={"cache": UnconstrainedCache()}
         )
     )
     requirements.append(
         ConditionalRequirement(
-            SnippetAnalysisTool,
+            SnippetAnnotationTool,
             consecutive_allowed=True,
             only_after=ExtractorTool,
             max_invocations=5,
@@ -199,6 +199,9 @@ async def analyze_artifacts(
     # Middleware for observability and potentially snippet retrieval
     middleware = GlobalTrajectoryMiddleware(pretty=True)
 
+    # Prompt guidance must reflect the tools actually offered to this agent run.
+    available_tools = {tool.name for tool in tools}
+
     # Names of build artifacts are inserted into the template.
     if build_metadata:
 
@@ -214,10 +217,14 @@ async def analyze_artifacts(
         agent_input = PROMPT_CONFIG.agent_start_prompt(
             artifacts=list(artifacts.keys()),
             commentary=build_metadata.commentary,
-            infra_status=build_metadata.infra_status
+            infra_status=build_metadata.infra_status,
+            available_tools=available_tools,
         )
     else:
-        agent_input = PROMPT_CONFIG.agent_start_prompt(artifacts=list(artifacts.keys()))
+        agent_input = PROMPT_CONFIG.agent_start_prompt(
+            artifacts=list(artifacts.keys()),
+            available_tools=available_tools,
+        )
 
     try:
         raw_output = await agent.run(

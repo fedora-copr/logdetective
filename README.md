@@ -252,6 +252,9 @@ The container images are built with `csdiff` installed.
 
 ## Choice of LLM
 
+The agent's extractor, database lookup, and snippet annotation workflow is described
+in [Agent tools](docs/agent-tools.md).
+
 While Log Detective is compatible with a wide range of LLMs, it does require an instruction tuned model with tool calling to function properly.
 
 Whether or not the model has been trained to work with instructions can be determined by examining the model card, or simply by checking if it has `instruct` in its name.

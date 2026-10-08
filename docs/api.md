@@ -284,6 +284,9 @@ curl --header "Content-Type: application/json" --request POST \
 
 Note that only a handful of snippets were selected from the original response for demonstration purposes:
 
+When the agent attaches a description to a snippet using the `snippet_annotation` tool,
+that snippet also has a `snippet_analysis` field.
+
 ```json
 {
   "explanation": "The build failed during the compilation phase of `emacs-with-editor` because the build process could not find a required load file, specifically `cond-let`, while compiling `with-editor.el` (build.log, line 104). This indicates a missing dependency or an incomplete build environment setup for Emacs Lisp components.",
