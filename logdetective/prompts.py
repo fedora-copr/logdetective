@@ -2,10 +2,10 @@ from datetime import datetime, timezone
 from typing import Optional
 from jinja2 import Environment, FileSystemLoader, Template
 
-from logdetective.models import PromptReference, PromptConfig
+from logdetective.models import PromptReference, Config
 
 
-class PromptManager:  # pylint: disable=too-many-instance-attributes
+class PromptManager:
     """Manages prompts defined as jinja templates"""
 
     _tmp_env: Environment
@@ -15,7 +15,7 @@ class PromptManager:  # pylint: disable=too-many-instance-attributes
     _default_agent_start_prompt_template: Template
     _references: list[PromptReference] = []
 
-    def __init__(self, prompts_path: str, prompt_config: PromptConfig | None = None) -> None:
+    def __init__(self, prompts_path: str, server_config: Config) -> None:
         self._tmp_env = Environment(loader=FileSystemLoader(prompts_path))
 
         self._default_agent_start_prompt_template = self._tmp_env.get_template(
@@ -24,7 +24,7 @@ class PromptManager:  # pylint: disable=too-many-instance-attributes
         self._default_system_prompt_template = self._tmp_env.get_template(
             "system_prompt.j2"
         )
-        self._references = prompt_config.references if prompt_config else []
+        self._references = server_config.prompts.references
 
     @property
     def default_system_prompt(self) -> str:
@@ -38,6 +38,7 @@ class PromptManager:  # pylint: disable=too-many-instance-attributes
         artifacts: list[str],
         commentary: Optional[str] = None,
         infra_status: Optional[str] = None,
+        available_tools: Optional[set[str]] = None,
     ) -> str:
         """Render agent start prompt"""
 
@@ -45,4 +46,5 @@ class PromptManager:  # pylint: disable=too-many-instance-attributes
             artifacts=artifacts,
             commentary=commentary,
             infra_status=infra_status,
+            available_tools=available_tools or set(),
         )

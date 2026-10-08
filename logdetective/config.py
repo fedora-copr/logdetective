@@ -42,7 +42,7 @@ def load_server_config(path: str | None) -> Config:
 
 SERVER_CONFIG = load_server_config(SERVER_CONFIG_PATH)
 
-PROMPT_CONFIG = PromptManager(PROMPT_PATH, prompt_config=SERVER_CONFIG.prompts)
+PROMPT_CONFIG = PromptManager(PROMPT_PATH, server_config=SERVER_CONFIG)
 
 
 def get_log(config: Config):

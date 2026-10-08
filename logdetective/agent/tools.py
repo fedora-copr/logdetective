@@ -274,34 +274,35 @@ class PythonTracebackExtractorTool(ExtractorTool):
         )
 
 
-class SnippetAnalysisToolInput(BaseModel):
+class SnippetAnnotationToolInput(BaseModel):
     source_file: str = Field(
         description="Name of the file the snippet was extracted from."
     )
     line_number: int = Field(
         description="Location of the snippet in the original file."
     )
-    snippet_analysis: str = Field(description="Analysis of given snippet")
+    snippet_analysis: str = Field(description="Brief description to attach to the selected snippet")
 
 
-class SnippetAnalysisToolOutput(ToolOutput, BaseModel):
-    snippet: Snippet = Field(description="Snippet that was analyzed")
-    snippet_analysis: str = Field(description="Explanation of the analyzed snippet")
+class SnippetAnnotationToolOutput(ToolOutput, BaseModel):
+    snippet: Snippet = Field(description="Snippet that received the description")
+    snippet_analysis: str = Field(description="Description attached to the snippet")
 
     def get_text_content(self) -> str:
-        return f"Snippet:\n    {self.snippet.text}\nAnalysis:\n    {self.snippet_analysis}"
+        return f"Snippet:\n    {self.snippet.text}\nDescription:\n    {self.snippet_analysis}"
 
     def is_empty(self) -> bool:
         return not self.snippet_analysis or not self.snippet.text
 
 
-class SnippetAnalysisTool(
-    Tool[SnippetAnalysisToolInput, ToolRunOptions, SnippetAnalysisToolOutput]
+class SnippetAnnotationTool(
+    Tool[SnippetAnnotationToolInput, ToolRunOptions, SnippetAnnotationToolOutput]
 ):
-    name: str = "snippet_analysis"
+    name: str = "snippet_annotation"
     description: str = (
-        "Analyzes single snippet from list of all extracted snippets."
-        "Only the most interesting snippets require separate analysis."
+        "Attach a brief description to an existing extracted snippet. "
+        "Select it by its exact source_file and line_number from extractor output. "
+        "Only describe snippets useful for identifying the build failure."
     )
 
     _extractors: list[ExtractorTool]
@@ -317,10 +318,10 @@ class SnippetAnalysisTool(
 
     async def _run(
         self,
-        input: SnippetAnalysisToolInput,
+        input: SnippetAnnotationToolInput,
         options: ToolRunOptions | None,
         context: RunContext,
-    ) -> SnippetAnalysisToolOutput:
+    ) -> SnippetAnnotationToolOutput:
         """Add annotation to one snippet from all snippets extracted. Extractors do not allow
         for creation of duplicate snippets, so we should see at most one snippet for any
         combination of source_file and line_number.
@@ -343,7 +344,7 @@ class SnippetAnalysisTool(
                 if snippet.source_file == input.source_file and snippet.line_number == input.line_number:
                     if isinstance(snippet, AnalyzedSnippet):
                         raise ToolInputValidationError(
-                            f"Selected snippet from file: {input.source_file} line: {input.line_number} has been analyzed already."
+                            f"Selected snippet from file: {input.source_file} line: {input.line_number} has been annotated already."
                         )
                     extractor.extracted_snippets[snippet_index] = AnalyzedSnippet(
                         text=snippet.text,
@@ -351,7 +352,7 @@ class SnippetAnalysisTool(
                         source_file=snippet.source_file,
                         snippet_analysis=input.snippet_analysis,
                     )
-                    return SnippetAnalysisToolOutput(
+                    return SnippetAnnotationToolOutput(
                         snippet=snippet, snippet_analysis=input.snippet_analysis
                     )
 
@@ -362,12 +363,12 @@ class SnippetAnalysisTool(
 
     def _create_emitter(self) -> Emitter:
         return Emitter.root().child(
-            namespace=["tool", "snippet_analysis"], creator=self
+            namespace=["tool", "snippet_annotation"], creator=self
         )
 
     @property
-    def input_schema(self) -> type[SnippetAnalysisToolInput]:
-        return SnippetAnalysisToolInput
+    def input_schema(self) -> type[SnippetAnnotationToolInput]:
+        return SnippetAnnotationToolInput
 
 
 class AnnotatedSnippetLookupToolInput(BaseModel):
@@ -420,7 +421,8 @@ class AnnotatedSnippetLookupTool(
     description: str = (
         "Search the database of annotated log snippets for examples similar to a given "
         "snippet or key phrase. Returns matching snippets with their annotations and the "
-        "associated build problem and solution. Use after extraction to look up known failures."
+        "associated build problem and solution. Use after extraction when a relevant "
+        "past failure could help. Similarity does not establish the current cause."
     )
 
     _embedding_model: TextEmbedding
