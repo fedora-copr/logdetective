@@ -26,6 +26,7 @@ from logdetective.database.base import (
 from logdetective.database.models.merge_request_jobs import (
     GitlabMergeRequestJobs,
 )
+from logdetective.exceptions import LogDetectiveMetricsError
 
 
 if TYPE_CHECKING:
@@ -174,7 +175,7 @@ class AnalyzeRequestMetrics(Base):
             query_result = await session.execute(query)
             metrics = query_result.scalars().first()
             if metrics is None:
-                raise ValueError("Returned `AnalyzeRequestMetrics` table is empty.")
+                raise LogDetectiveMetricsError("Returned `AnalyzeRequestMetrics` table is empty.")
             if metrics.response_sent_at is None:
                 metrics.response_sent_at = response_sent_at
             metrics.response_length = response_length
@@ -192,7 +193,7 @@ class AnalyzeRequestMetrics(Base):
             query_result = await session.execute(query)
             metric = query_result.scalars().first()
             if metric is None:
-                raise ValueError("Returned `AnalyzeRequestMetrics` table is empty.")
+                raise LogDetectiveMetricsError("Returned `AnalyzeRequestMetrics` table is empty.")
             return metric
 
     @classmethod
