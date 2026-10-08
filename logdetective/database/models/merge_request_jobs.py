@@ -146,21 +146,6 @@ class GitlabMergeRequestJobs(Base):
             return mr
 
     @classmethod
-    async def get_by_mr_iid(cls, forge: Forge, project_id: int, mr_iid) -> List[Self]:
-        """Get all the mr jobs saved for the specified mr iid and project id."""
-        query = select(cls).where(
-            GitlabMergeRequestJobs.forge == forge,
-            GitlabMergeRequestJobs.project_id == project_id,
-            GitlabMergeRequestJobs.mr_iid == mr_iid,
-        )
-
-        async with transaction(commit=False) as session:
-            query_result = await session.execute(query)
-            comments = query_result.scalars().all()
-
-            return comments
-
-    @classmethod
     async def get_or_create(
         cls,
         forge: Forge,
@@ -270,44 +255,6 @@ class Comments(Base):
             return comment.id
 
     @classmethod
-    async def get_by_id(
-        cls,
-        id_: int,
-    ) -> Optional["Comments"]:
-        """Search for a given PostgreSQL id"""
-        query = select(cls).where(cls.id == id_)
-        async with transaction(commit=False) as session:
-            query_result = await session.execute(query)
-            comment = query_result.scalars().first()
-            return comment
-
-    @classmethod
-    async def get_by_gitlab_id(
-        cls,
-        forge: Forge,
-        comment_id: str,
-    ) -> Optional[Self]:
-        """Search for a detailed comment
-        by its unique forge comment id.
-
-        Args:
-          forge: forge name
-          comment_id: forge comment id
-        """
-        query = (
-            select(cls)
-            .join(
-                GitlabMergeRequestJobs,
-                cls.merge_request_job_id == GitlabMergeRequestJobs.id,
-            )
-            .filter(GitlabMergeRequestJobs.forge == forge, cls.comment_id == comment_id)
-        )
-        async with transaction(commit=False) as session:
-            query_result = await session.execute(query)
-            comment = query_result.scalars().first()
-            return comment
-
-    @classmethod
     async def get_latest_comment(
         cls,
         forge: Forge,
@@ -338,81 +285,3 @@ class Comments(Base):
             query_result = await session.execute(query)
             comment = query_result.scalars().first()
             return comment
-
-    @classmethod
-    async def get_mr_comments(
-        cls,
-        forge: Forge,
-        project_id: int,
-        mr_iid: int,
-    ) -> List[Self]:
-        """Search for all merge request comments.
-
-        Args:
-          forge: forge name
-          project_id: forge project id
-          mr_iid: merge request forge iid
-        """
-        query = (
-            select(cls)
-            .join(
-                GitlabMergeRequestJobs,
-                cls.merge_request_job_id == GitlabMergeRequestJobs.id,
-            )
-            .filter(
-                GitlabMergeRequestJobs.forge == forge,
-                GitlabMergeRequestJobs.project_id == project_id,
-                GitlabMergeRequestJobs.mr_iid == mr_iid,
-            )
-            .order_by(desc(cls.created_at))
-        )
-        async with transaction(commit=False) as session:
-            query_result = await session.execute(query)
-            comments = query_result.scalars().all()
-            return comments
-
-    @classmethod
-    async def get_or_create(  # pylint: disable=too-many-arguments disable=too-many-positional-arguments
-        cls,
-        forge: Forge,
-        project_id: int,
-        mr_iid: int,
-        job_id: int,
-        comment_id: str,
-    ) -> Self:
-        """Search for a detailed comment
-        or create a new one if not found.
-
-        Args:
-          forge: forge name
-          project_id: forge project id
-          mr_iid: merge request forge iid
-          job_id: forge job id
-          comment_id: forge comment id
-        """
-        comment = await Comments.get_by_gitlab_id(forge, comment_id)
-        if comment is None:
-            id_ = await Comments.create(forge, project_id, mr_iid, job_id, comment_id)
-            comment = await Comments.get_by_id(id_)
-        return comment
-
-    @classmethod
-    async def get_since(cls, time: datetime.datetime) -> List[Self]:
-        """Get all the comments created after the given time."""
-        query = select(cls).filter(Comments.created_at > time)
-        async with transaction(commit=False) as session:
-            query_result = await session.execute(query)
-            comments = query_result.scalars().all()
-
-            return comments
-
-    @classmethod
-    async def get_by_mr_job(
-        cls, merge_request_job: GitlabMergeRequestJobs
-    ) -> Optional["Comments"]:
-        """Get the comment added for the specified merge request's job."""
-        query = select(cls).filter(Comments.merge_request_job == merge_request_job)
-        async with transaction(commit=False) as session:
-            query_result = await session.execute(query)
-            comments = query_result.scalars().first()
-            return comments

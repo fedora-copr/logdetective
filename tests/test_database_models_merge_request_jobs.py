@@ -75,8 +75,6 @@ async def test_create_and_get_Comments():
             comment_id="789",
         )
         assert comment_db_id == 1
-        comment = await Comments.get_by_id(comment_db_id)
-        assert comment.merge_request_job_id == 1
 
         # create a new mr (implicitly) if it does not exist
         comment_db_id = await Comments.create(
@@ -87,8 +85,6 @@ async def test_create_and_get_Comments():
             comment_id="7890",
         )
         assert comment_db_id == 2
-        comment = await Comments.get_by_id(comment_db_id)
-        assert comment.merge_request_job_id == 2
 
         # no more than 1 comment for 1 job
         with pytest.raises(IntegrityError):
@@ -110,10 +106,6 @@ async def test_create_and_get_Comments():
                 comment_id="7890",
             )
 
-        comment = await Comments.get_by_gitlab_id(forge, "789")
-        assert comment.id == 1
-        assert comment.merge_request_job_id == 1
-
         # one more comment for the same merge request
         comment_db_id = await Comments.create(
             forge,
@@ -126,9 +118,6 @@ async def test_create_and_get_Comments():
 
         comment = await Comments.get_latest_comment(forge, 123, 456)
         assert comment.id == comment_db_id
-
-        comments = await Comments.get_mr_comments(forge, 123, 456)
-        assert len(comments) == 3
 
         # Try to get a comment on an MR that doesn't exist
         comment = await Comments.get_latest_comment(forge, 123, 457)
@@ -143,12 +132,3 @@ async def test_create_and_get_Comments():
             job_id=30000000000,
             comment_id="7893",
         )
-
-        comment = await Comments.get_or_create(
-            forge,
-            project_id=123,
-            mr_iid=456,
-            job_id=22,
-            comment_id="7893",
-        )
-        assert comment.id
