@@ -6,7 +6,7 @@ import pytest
 import pytest_asyncio
 import aiohttp
 import responses
-import aioresponses
+from aiointercept import aiointercept
 from gitlab import Gitlab
 from packaging.version import Version
 from sqlalchemy import select
@@ -166,7 +166,7 @@ async def mock_job_hook():
 """
 
     with responses.RequestsMock() as sync_rsps:
-        with aioresponses.aioresponses() as async_rsps:
+        async with aiointercept(mock_external_urls=True) as async_rsps:
             async_rsps.head(
                 url="https://gitlab.com/api/v4/projects/678/jobs/1/artifacts",
                 status=200,
@@ -267,10 +267,6 @@ def mock_analysis(request):
 
 @pytest.mark.parametrize(
     "mock_analysis", ["This is a mock message"], indirect=True
-)
-@pytest.mark.skipif(
-    Version(aioresponses.__version__) < Version("0.7.8"),
-    reason="aioresponses lacks support for base_url",
 )
 @pytest.mark.asyncio
 async def test_process_gitlab_job_event(

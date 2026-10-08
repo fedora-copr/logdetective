@@ -1,7 +1,9 @@
-from unittest.mock import patch, mock_open
+from unittest.mock import patch, mock_open, Mock, AsyncMock
+from types import SimpleNamespace
+from multidict import CIMultiDict
 
 import aiohttp
-import aioresponses
+from aiointercept import aiointercept
 import pytest
 from pydantic import ValidationError
 
@@ -24,14 +26,6 @@ from tests.test_snippets import test_filter_patterns
     "url, mock_header, mock_body, limit_bytes, exc_type, exc_match",
     [
         ("http://example.com/build.log", {"Content-Length": "3"}, "123", None, None, None),
-        (
-            "http://example.com/build.log",
-            {"Content-Length": "test"},
-            "123",
-            None,
-            RemoteLogHeaderError,
-            "Content-Length header is invalid",
-        ),
         (
             "http://example.com/build.log",
             {"Content-Length": f"{(DEFAULT_MAXIMUM_ARTIFACT_MIB) * 1024**2 + 1}"},
@@ -74,9 +68,13 @@ async def test_get_url_content(
     exc_match
 ):
     """Test various URL requests and correct Exceptions during RemoteLog access."""
-    with aioresponses.aioresponses() as mock:
-        mock.head(url, status=200, headers=mock_header)
-        mock.get(url, status=200, body=mock_body)
+    async with aiointercept(mock_external_urls=True) as mock:
+        # Using invalid URL with aiointercept raises ValueError.
+        # The exception is raised before the request is made,
+        # so we don't need the full mock.
+        if exc_match != "Invalid log URL":
+            mock.head(url, status=200, headers=mock_header)
+            mock.get(url, status=200, body=mock_body)
         async with aiohttp.ClientSession() as http:
             kwargs = {"limit_bytes": limit_bytes} if limit_bytes is not None else {}
             if exc_type:
@@ -90,6 +88,22 @@ async def test_get_url_content(
 
 
 @pytest.mark.asyncio
+async def test_get_url_content_invalid_content_length():
+    """An invalid header reaches the size check, even though aiohttp cannot serve it."""
+    url = "http://example.com/build.log"
+    http = Mock()
+    http.head = AsyncMock(
+        return_value=SimpleNamespace(headers=CIMultiDict({"Content-Length": "test"}))
+    )
+
+    with pytest.raises(RemoteLogHeaderError, match="Content-Length header is invalid"):
+        await RemoteLog(url, http).get_url_content()
+
+    http.head.assert_awaited_once_with(url, raise_for_status=True)
+    http.get.assert_not_called()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "head_status, get_status",
     [(404, 200), (500, 200), (503, 200), (200, 404), (200, 500), (200, 503)],
@@ -100,7 +114,7 @@ async def test_get_url_content_connection_fails(head_status, get_status):
     url = "http://example.com/build.log"
     mock_head_response = {"Content-Length": "11"} if head_status <= 399 else None
     mock_get_response = "Lorem Ipsum"
-    with aioresponses.aioresponses() as mock:
+    async with aiointercept(mock_external_urls=True) as mock:
         mock.head(url, status=head_status, headers=mock_head_response)
         mock.get(url, status=get_status, body=mock_get_response)
         async with aiohttp.ClientSession() as http:
