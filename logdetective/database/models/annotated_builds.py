@@ -188,12 +188,3 @@ class AnnotationUpdates(Base):
             session.add(revision)
             await session.flush()
             return revision.id
-
-    @classmethod
-    async def get_total_files_processed(cls) -> int:
-        """Return the total number of files processed across all sync runs."""
-        async with transaction(commit=False) as session:
-            result = await session.execute(
-                select(func.coalesce(func.sum(cls.file_count), 0))  # pylint: disable=not-callable
-            )
-            return result.scalar_one()
