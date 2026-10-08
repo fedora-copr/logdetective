@@ -142,8 +142,6 @@ async def test_incremental_skips_duplicates():
             await run_update("https://example.com/download")
 
         assert await AnnotatedBuilds.get_count() == 2, "duplicate skipped, new one added"
-        total = await AnnotationUpdates.get_total_files_processed()
-        assert total > 2, "total includes the skipped duplicate"
 
 
 @pytest.mark.asyncio

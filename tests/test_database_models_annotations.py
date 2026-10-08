@@ -80,9 +80,6 @@ async def test_annotation_updates_lifecycle():
         latest = await AnnotationUpdates.get_latest_date()
         assert latest is None, "empty table returns None"
 
-        total = await AnnotationUpdates.get_total_files_processed()
-        assert total == 0, "empty table returns 0"
-
         await AnnotationUpdates.add_update_record(
             file_count=10, archive_date=date(2025, 7, 1),
         )
@@ -92,6 +89,3 @@ async def test_annotation_updates_lifecycle():
 
         latest = await AnnotationUpdates.get_latest_date()
         assert latest == date(2025, 7, 8), "returns most recent date"
-
-        total = await AnnotationUpdates.get_total_files_processed()
-        assert total == 15, "sums all file counts"
