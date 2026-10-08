@@ -1,4 +1,3 @@
-import os
 from urllib.parse import urlparse
 
 import aiohttp
@@ -128,27 +127,3 @@ class RemoteLog:
         self.remote_log_size = total
         encoding = response.charset or "utf-8"
         return b"".join(chunks).decode(encoding, errors="replace")
-
-
-async def retrieve_log_content(
-    http: aiohttp.ClientSession, log_path: str, size_limit: int
-) -> str:
-    """Get content of the file on the log_path path.
-    Path is assumed to be valid URL if it has a scheme.
-    Otherwise it attempts to pull it from local filesystem."""
-    parsed_url = urlparse(log_path)
-    log = ""
-
-    if not parsed_url.scheme:
-        if not os.path.exists(log_path):
-            raise ValueError(f"Local log {log_path} doesn't exist!")
-
-        with open(log_path, "rt") as f:
-            log = f.read()
-
-    else:
-        remote_log = RemoteLog(log_path, http, limit_bytes=size_limit)
-        # limited to DEFAULT_MAXIMUM_ARTIFACT_MIB (50 MiB)
-        log = await remote_log.get_url_content()
-
-    return log
