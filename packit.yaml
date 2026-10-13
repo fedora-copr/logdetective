@@ -19,41 +19,5 @@ actions:
   get-current-version:
     - poetry version -s
 
-jobs:
-  - job: pull_from_upstream
-    trigger: release
-    dist_git_branches:
-      - rawhide
-  - job: copr_build
-    trigger: pull_request
-    targets:
-      - fedora-rawhide
-      - fedora-44
-  # Run build on commit with OpenScanHub checks
-  - job: copr_build
-    trigger: commit
-    branch: main
-    targets:
-      - fedora-rawhide
-      - fedora-44
-    osh_diff_scan_after_copr_build: true
-  - job: tests
-    trigger: pull_request
-    targets:
-      - fedora-rawhide
-      - fedora-44
-  # downstream automation:
-  - job: koji_build
-    packit_instances: ["prod"]
-    trigger: commit
-    allowed_committers: ['packit', 'msuchy']
-    dist_git_branches:
-      - fedora-rawhide
-      - fedora-44
-
-  - job: bodhi_update
-    packit_instances: ["prod"]
-    trigger: commit
-    dist_git_branches:
-      - fedora-rawhide
-      - fedora-44
+# Packit jobs are disabled until all project dependencies are packaged
+jobs: []
