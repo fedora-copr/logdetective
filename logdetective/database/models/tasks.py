@@ -350,8 +350,6 @@ class TaskAnalysis(Base):  # pylint: disable=too-many-instance-attributes
                 session.add(task)
                 await session.flush()
                 await session.refresh(task)
-                if metric is not None:
-                    metric.response_sent_at = datetime.now(UTC)
                 return task, True
         except IntegrityError as exc:
             existing = await cls._existing(task_id)

@@ -12,6 +12,7 @@ from uuid import UUID, uuid4
 
 from fastapi import (
     FastAPI,
+    BackgroundTasks,
     HTTPException,
     Depends,
     Header,
@@ -37,6 +38,7 @@ from logdetective.database.models.tasks import (
     TaskAnalysis,
     TaskType,
     ACTIVE_STATES,
+    TERMINAL_STATES,
     AnalysisState,
 )
 from logdetective.database.models.exceptions import (
@@ -49,7 +51,7 @@ import logdetective.database.base
 
 from logdetective.config import SERVER_CONFIG
 from logdetective.routes_gitlab import gitlab_router
-from logdetective.metric import requests_statistics
+from logdetective.metric import requests_statistics, update_metrics
 from logdetective.models import (
     RemoteArtifactFile,
     AnalysisRequest,
@@ -290,7 +292,10 @@ async def analyze_rpmbuild_koji(
 
 @app.get("/tasks/{task_id}", response_model=TaskResponse)
 async def get_analysis_task(
-    task_id: UUID, request: Request, response: Response
+    task_id: UUID,
+    request: Request,
+    response: Response,
+    background_tasks: BackgroundTasks,
 ) -> TaskResponse:
     """Return current state and, when available, the result of an owned task.
 
@@ -298,6 +303,8 @@ async def get_analysis_task(
         task_id: Public UUID of the requested application task.
         request: FastAPI request carrying the authenticated token identity.
         response: Mutable FastAPI response used to set polling and cache headers.
+        background_tasks: Post-response metric update for a delivered terminal
+            result.
 
     Returns:
         The task's stable public response envelope.
@@ -314,7 +321,13 @@ async def get_analysis_task(
     response.headers["Cache-Control"] = "no-store"
     if task.state in ACTIVE_STATES:
         response.headers["Retry-After"] = str(SERVER_CONFIG.task_queue.retry_after)
-    return task_representation(task)
+    representation = task_representation(task)
+    if task.state in TERMINAL_STATES and task.response_metrics_id is not None:
+        background_tasks.add_task(
+            update_metrics,
+            task.response_metrics_id,
+        )
+    return representation
 
 
 @app.delete(

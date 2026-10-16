@@ -54,8 +54,8 @@ async def test_create_and_update_AnalyzeRequestMetrics():
 
 
 @pytest.mark.asyncio
-async def test_worker_update_preserves_admitted_webhook_response_time():
-    """Inference output cannot replace the webhook acknowledgement timestamp."""
+async def test_worker_update_preserves_first_response_sent_time():
+    """A later metrics update cannot replace the first response timestamp."""
     received_at = datetime.datetime(2077, 1, 1, tzinfo=datetime.timezone.utc)
     admitted_at = received_at + datetime.timedelta(seconds=2)
     worker_at = received_at + datetime.timedelta(minutes=5)

@@ -77,7 +77,7 @@ class AnalyzeRequestMetrics(Base):
     response_sent_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
-        comment="Timestamp when the endpoint response was ready",
+        comment="Timestamp when the response was sent back",
     )
     response_length: Mapped[Optional[int]] = mapped_column(
         Integer, nullable=True, comment="Length of the response in chars"
@@ -165,21 +165,23 @@ class AnalyzeRequestMetrics(Base):
         response_sent_at: datetime,
         response_length: Optional[int] = None,
     ) -> None:
-        """Fill a missing response timestamp and update the response length.
+        """Record a delivered analysis response and its serialized length.
 
-        Admission records the HTTP acknowledgement time before GitLab analysis
-        starts. A later worker update must keep that timestamp intact.
+        The first delivery timestamp is preserved if the response is delivered
+        more than once. A missing response length leaves a previously recorded
+        length intact.
         """
-        query = select(AnalyzeRequestMetrics).filter(AnalyzeRequestMetrics.id == id_)
         async with transaction(commit=True) as session:
-            query_result = await session.execute(query)
-            metrics = query_result.scalars().first()
-            if metrics is None:
+            metric = await session.scalar(
+                select(cls).where(cls.id == id_).with_for_update()
+            )
+            if metric is None:
                 raise LogDetectiveMetricsError("Returned `AnalyzeRequestMetrics` table is empty.")
-            if metrics.response_sent_at is None:
-                metrics.response_sent_at = response_sent_at
-            metrics.response_length = response_length
-            session.add(metrics)
+            if metric.response_sent_at is None:
+                metric.response_sent_at = response_sent_at
+            if response_length is not None:
+                metric.response_length = response_length
+            session.add(metric)
 
     @classmethod
     @retry_database_error
