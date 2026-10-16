@@ -271,8 +271,6 @@ async def process_gitlab_job_event(
         )
         return
 
-    await update_metrics(metrics_id, response)
-
     # check if this project is on the opt-in list for posting comments.
     if not is_eligible_package(project.name):
         LOG.info("Not publishing comment for unrecognized package %s", project.name)
@@ -288,6 +286,8 @@ async def process_gitlab_job_event(
         response,
         metrics_id,
     )
+
+    await update_metrics(metrics_id, response)
 
     return response
 

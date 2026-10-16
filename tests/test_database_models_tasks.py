@@ -154,8 +154,7 @@ async def test_admission_and_matching_retry_create_one_record():
                 AnalyzeRequestMetrics, first.response_metrics_id
             )
             assert metric is not None
-            assert metric.response_sent_at is not None
-            assert metric.response_sent_at >= metric.request_received_at
+            assert metric.response_sent_at is None
 
 
 @pytest.mark.asyncio

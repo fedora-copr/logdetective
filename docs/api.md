@@ -203,12 +203,13 @@ You can query request and response statistics via `metrics` endpoints
 using `GET` method at `/metrics/ENDPOINT_TYPE/`. The endpoint returns data
 in JSON format with a `metrics` list of dictionaries containing metadata
 about endpoint type and time series of data aggregated at the given granularity.
-For asynchronous generic and Koji analysis, response time measures durable queue
-admission through the initial `202 Accepted` response. For GitLab webhooks, it
-measures admission through the `204 No Content` acknowledgement. Completion
-time runs from request receipt to the terminal outcome, including time waiting
-in the queue. Response length measures the serialized analysis result in
-characters when one is available, rather than the initial HTTP acknowledgement.
+For asynchronous generic and Koji analysis, response time runs from request
+receipt until the first terminal task response is sent by `GET /tasks/{task_id}`;
+active polling responses do not count. For GitLab webhooks, it runs from request
+receipt until the analysis result is published as a merge request comment.
+Completion time runs from request receipt to the terminal outcome, including time
+waiting in the queue. Response length measures the serialized analysis result in
+characters when one is available.
 
 1. `ENDPOINT_TYPE`: `analyze`, `analyze-koji`, or `analyze-gitlab`.
 2. `start_time`: Timestamp, indicating inclusive start of the query

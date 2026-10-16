@@ -29,21 +29,21 @@ async def add_new_metrics(
 
 async def update_metrics(
     metrics_id: int,
-    response: APIResponse,
+    response: APIResponse | None = None,
     sent_at: Optional[datetime.datetime] = None,
 ) -> None:
-    """Update a database metric entry for a received request,
-    filling data for the given response.
+    """Record when a response is delivered and, when present, its length.
 
-    This fills the response timestamp only if admission did not record it,
-    and updates the length of the created response.
+    The first delivery timestamp is preserved, and the serialized result length
+    is stored for metrics aggregation. Callers may omit the result to record only
+    the delivery timestamp.
     """
 
     response_sent_at = (
         sent_at if sent_at else datetime.datetime.now(datetime.timezone.utc)
     )
     response_length = None
-    if isinstance(response.explanation, str):
+    if response is not None and isinstance(response.explanation, str):
         response_length = len(response.model_dump_json())
     await AnalyzeRequestMetrics.update(
         id_=metrics_id,
