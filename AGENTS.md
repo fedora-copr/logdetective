@@ -25,18 +25,19 @@ To install full superset of dependencies in a single resolution pass, use:
 
 Tox environments use two separate `poetry install` calls.
 Combined form is more stable for interactive development.
-Dev stack uses `docker-compose-dev.yaml` which extends the base `docker-compose.yaml`.
+Dev stack uses `containers/docker-compose-dev.yaml` which extends the base `containers/docker-compose.yaml`.
 On a new database, the one-shot `migrate` service installs Procrastinate's pinned schema and then runs Alembic before API and worker services start. Procrastinate upgrades require its supplied SQL migrations; its 3.9 schema installer is not an idempotent upgrader.
-The migration service installs the complete project wheel without dependencies in the minimal Fedora-based `Containerfile.migrate`. Its runtime subset is declared in the standard `[dependency-groups].migration` group and installed at the versions recorded in `poetry.lock`.
-For CUDA GPU acceleration, uncomment the device lines in `docker-compose-dev.yaml`.
+The migration service installs the complete project wheel without dependencies in the minimal Fedora-based `containers/Containerfile.migrate`. Its runtime subset is declared in the standard `[dependency-groups].migration` group and installed at the versions recorded in `poetry.lock`.
+For CUDA GPU acceleration, uncomment the device lines in `containers/docker-compose-dev.yaml`.
 
-- `make server-up` builds and starts the dev stack (inference, server, analysis worker, maintenance worker, postgres, nginx)
-- `make server-down` tears down dev stack
-- `make rebuild-server` rebuild server image without cache
+- `make dev-up` starts the dev stack (inference, server, analysis worker, maintenance worker, postgres, nginx)
+- `make dev-down` tears down dev stack
+- `make rebuild-server` and `make rebuild-postgres` rebuild server/postgres image without cache
+- `make rebuild-migrate` rebuilds migrate image -- should be run before `make dev-up` in case of an changes/additions to alembic revisions.
 
 # Testing
 
-- `tox -e pytest` - requires podman; runs on Postgres + pgvector (see `Container.database`)
+- `tox -e pytest` - requires podman; runs on Postgres + pgvector (see `containers/Containerfile.database`)
 - CI runs on GitHub Actions which run `tox -e pytest` + `tox -e lint,style,ruff,djlint`
 
 # Data modeling conventions
@@ -81,6 +82,7 @@ For CUDA GPU acceleration, uncomment the device lines in `docker-compose-dev.yam
 - `logdetective/templates/` - Jinja2 response templates (HTML, GitLab markdown)
 - `alembic/versions/` - Database migration scripts
 - `server/` - Deployment configs (gunicorn, nginx templates, server config YAML)
+- `containers/` - Containerfiles, docker/podman compose files for local and prod deployment
 - `docs/` - User-facing API guides and examples
 - `tests/` - Tests for utilities and server (requires PostgreSQL)
 

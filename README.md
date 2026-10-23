@@ -21,9 +21,11 @@ For locally setting up the FastAPI server, you would need a postgresql and some 
 
 Log Detective has been built as inference agnostic service. The only requirement, is that the inference server must provide OpenAI API.
 
-We provide two example deployment configurations. The [development configuration](./docker-compose-dev.yaml) is intended for local testing of changes, and uses own [llama.cpp server image](https://github.com/ggml-org/llama.cpp/pkgs/container/llama.cpp).
+We provide two example deployment configurations. The [development configuration](./containers/docker-compose-dev.yaml) is intended for local testing of changes, and uses own [llama.cpp server image](https://github.com/ggml-org/llama.cpp/pkgs/container/llama.cpp).
 
-The sample [production](./docker-compose-prod.yaml) configuration, uses 4 load balanced [vLLM](https://github.com/vllm-project/vllm) servers.
+The sample [production](./containers/docker-compose-prod.yaml) configuration, uses 4 load balanced [vLLM](https://github.com/vllm-project/vllm) servers.
+
+Use the make targets from the project root directory to start and stop either deployment. The development and production files extend `containers/docker-compose.yaml`. The installed `podman-compose` mishandles their relative bind mounts when invoked with a `containers/...` file path. The Make targets avoid this by running Compose from `containers/`.
 
 The basic setup:
 
@@ -34,7 +36,8 @@ You can either edit the value in [env_file](env_file), create a symlink `ln -s /
     $ ll $MODELS_PATH
     -rw-r--r--. 1 tt tt 3.9G apr 10 17:18  granite-4.0-h-tiny-Q8_0.gguf
     ```
-2. `podman-compose  -f <you-compose-file> up` (or  `podman-compose  -f <you-compose-file> up -d` to detach from your current terminal)
+2. Start the development stack with `make dev-up`, or the production stack with `make prod-up`. Both run in the background. Stop them with `make dev-down` or `make prod-down`.
+   For direct Podman Compose commands, change to `containers/` first and use the Compose filename there, see make targets.
 3. When encountering timeout errors (you can check what happens in containers with `podman logs`), If you get `nginx` timeouts, try setting/increasing timeouts in [server/nginx_dev.conf.template](server/nginx_dev.conf.template):
     ```diff
         server {
@@ -79,6 +82,9 @@ Generate a new database revision with the command:
 CHANGE="A change comment" make alembic-generate-revision
 ```
 
+Then, `make rebuild-migrate` so that the migration image contains the new alembic revision scripts.
+Only then will `make dev-up` properly apply migrations for the dev stack.
+
 Procrastinate owns its `procrastinate_*` tables; Alembic owns Log Detective's
 tables. On a new database, the one-shot `migrate` service installs the pinned
 Procrastinate 3.9 schema and then runs `alembic upgrade head`. Web and worker
@@ -88,7 +94,7 @@ migrations according to that release's notes; the 3.9 schema installer is not
 an idempotent upgrade command.
 
 The migration service uses the Fedora-based `quay.io/logdetective/migrate`
-image built from `Containerfile.migrate`. It installs the complete Log Detective
+image built from `containers/Containerfile.migrate`. It installs the complete Log Detective
 wheel without its general application dependencies, then adds only PostgreSQL
 client tools and the dependencies in the standard
 `[dependency-groups].migration` group. Poetry installs that group at the exact
@@ -104,7 +110,7 @@ is no longer needed.
 Long-running analysis is performed by the `worker` service. The
 `maintenance-worker` service consumes only reconciliation and expiry jobs with
 one reserved worker slot, so queued or running analyses cannot occupy its
-capacity. Deploy both workers; `make server-up` starts both in development.
+capacity. Deploy both workers; `make dev-up` starts both in development.
 Outside Compose, start `python -m logdetective.worker analysis` and
 `python -m logdetective.worker maintenance` as separate processes.
 The API service validates and admits work but does not invoke inference or
@@ -137,8 +143,8 @@ Amazon AWS instance. The VM is provisioned by an
 You can control the server through:
 
 ```sh
-cd /root/logdetective
-podman-compose -f docker-compose-prod.yaml ...
+cd /root/logdetective/containers
+podman-compose --project-name logdetective -f docker-compose-prod.yaml ...
 ```
 
 The `/root` directory contains valuable data. If moving to a new instance,
@@ -299,7 +305,7 @@ dnf install postgresql
 
 ## Visual Studio Code testing with podman/docker-compose
 
-- In `Containerfile`, add `debugpy` as a dependency
+- In `containers/Containerfile`, add `debugpy` as a dependency
 
 ```diff
 +RUN pip3 install debugpy
@@ -311,7 +317,7 @@ dnf install postgresql
 make rebuild-server
 ```
 
-- Forward debugging port in `docker-compose.yaml` for `server` service.
+- Forward debugging port in `containers/docker-compose.yaml` for `server` service.
 
 ```diff
      ports:
@@ -355,7 +361,8 @@ make rebuild-server
 - Run the server
 
 ```sh
-podman-compose -f docker-compose-dev.yaml up server
+cd containers
+podman-compose --project-name logdetective -f docker-compose-dev.yaml up server
 ```
 
 - Run Visual Stdio Code debug configuration named *Python Debug: Remote Attach*

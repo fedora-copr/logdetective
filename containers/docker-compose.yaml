@@ -7,16 +7,17 @@ services:
     expose:
       - "${INFERENCE_PROXY_PORT:-8000}"
     volumes:
-      - ./server/nginx_dev.conf.template:/etc/nginx/templates/nginx.conf.template:ro,z
+      - ../server/nginx_dev.conf.template:/etc/nginx/templates/nginx.conf.template:ro,z
     environment:
       - INFERENCE_PROXY_PORT=${INFERENCE_PROXY_PORT:-8000}
       - INFERENCE_SERVER_PORT=${INFERENCE_SERVER_PORT:-8100}
     depends_on:
       - inference-0
+
   # Base and developer deployments are using llama.cpp for improved portability
   inference-0:
     image: ghcr.io/ggml-org/llama.cpp:server-cuda
-    # make sure to match this hostname with inference->url in server/config.yml
+    # make sure to match this hostname with inference:provider_settings:base_url in server/config.yml
     # llama.cpp requires valid chat template of your model in order to handle tool calls
     # in many cases, the best approach is to download one from the original model.
     # For example, the chat template for ibm-granite/granite-4.0-h-tiny is in the Hugging Face repo:
@@ -24,36 +25,37 @@ services:
     command: "--host 0.0.0.0 --port ${INFERENCE_SERVER_PORT:-8100} --jinja --chat-template-file /models/chat_template.jinja"
     stdin_open: true
     tty: true
-    env_file: ./env_file
+    env_file: ../env_file
     expose:
       - "${INFERENCE_SERVER_PORT:-8100}"
     volumes:
-      - ${MODELS_PATH-./models}:/models:Z
+      - ${MODELS_PATH-../models}:/models:Z
     # these 4 lines are needed for CUDA acceleration
     # devices:
     #   - nvidia.com/gpu=all
     # security_opt:
     #   - "label=disable"
+
   server:
     image: quay.io/logdetective/server:latest
     depends_on:
       migrate:
         condition: service_completed_successfully
     build:
-      context: .
-      dockerfile: ./Containerfile
+      context: ..
+      dockerfile: containers/Containerfile
     hostname: logdetective-server
     stdin_open: true
     tty: true
     volumes:
-      - .:/src/:z
-      - ./server/config.yml:/config.yml:z
-      - ./files/run_server.sh:/run_server.sh:z
+      - ..:/src/:z
+      - ../server/config.yml:/config.yml:z
+      - ../files/run_server.sh:/run_server.sh:z
       # Uncomment with LOGDETECTIVE_TOKENS_FILE=/api_tokens.yml in env_file.
       # - ./server/api_tokens.yml:/api_tokens.yml:ro,z
     ports:
       - "${LOGDETECTIVE_SERVER_PORT:-8080}:${LOGDETECTIVE_SERVER_PORT:-8080}"
-    env_file: ./env_file
+    env_file: ../env_file
     # so gunicorn can find logdetective python module
     # and alembic can find alembic.ini
     working_dir: /src
@@ -62,9 +64,9 @@ services:
   migrate:
     image: quay.io/logdetective/migrate:latest
     build:
-      context: .
-      dockerfile: ./Containerfile.migrate
-    env_file: ./env_file
+      context: ..
+      dockerfile: containers/Containerfile.migrate
+    env_file: ../env_file
     working_dir: /src
     depends_on:
       - postgres
@@ -72,15 +74,15 @@ services:
   worker:
     image: quay.io/logdetective/server:latest
     build:
-      context: .
-      dockerfile: ./Containerfile
-    env_file: ./env_file
+      context: ..
+      dockerfile: containers/Containerfile
+    env_file: ../env_file
     working_dir: /src
     volumes:
-      - .:/src/:z
-      - ./server/config.yml:/config.yml:ro,z
+      - ..:/src/:z
+      - ../server/config.yml:/config.yml:ro,z
       # Mount cloud-provider credentials when required by provider_settings:
-      # - ./log-detective-vertex.json:/src/log-detective-vertex.json:ro,z
+      # - ../log-detective-vertex.json:/src/log-detective-vertex.json:ro,z
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -94,13 +96,13 @@ services:
   maintenance-worker:
     image: quay.io/logdetective/server:latest
     build:
-      context: .
-      dockerfile: ./Containerfile
-    env_file: ./env_file
+      context: ..
+      dockerfile: containers/Containerfile
+    env_file: ../env_file
     working_dir: /src
     volumes:
-      - .:/src/:z
-      - ./server/config.yml:/config.yml:ro,z
+      - ..:/src/:z
+      - ../server/config.yml:/config.yml:ro,z
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -112,26 +114,26 @@ services:
   postgres:
     image: quay.io/logdetective/postgresql-15-c9s-pgvector
     build:
-      context: .
-      dockerfile: ./Containerfile.database
+      context: ..
+      dockerfile: containers/Containerfile.database
     volumes:
       - database_data:/var/lib/pgsql/data
     ports:
       - "${POSTGRESQL_PORT:-5432}:${POSTGRESQL_PORT:-5432}"
-    env_file: ./env_file
+    env_file: ../env_file
 
   user-contributions-update:
     image: quay.io/logdetective/server:latest
     build:
-      context: .
-      dockerfile: ./Containerfile
-    env_file: ./env_file
+      context: ..
+      dockerfile: containers/Containerfile
+    env_file: ../env_file
     environment:
       - LOG_DIR=/var/log/logdetective
       - USER_CONTRIBUTION_UPDATE_THREADS=4
     working_dir: /src
     volumes:
-      - ./log:/var/log/logdetective:z
+      - ../log:/var/log/logdetective:z
     entrypoint:
       - bash
       - -c
