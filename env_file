@@ -43,6 +43,8 @@ POSTGRESQL_USER=logdetective
 POSTGRESQL_PASSWORD=secret-password
 POSTGRESQL_DATABASE=logdetective
 POSTGRESQL_PORT=5432
+# Bundled PostgreSQL allows 800 clients; size host memory for peak connection use.
+POSTGRESQL_MAX_CONNECTIONS=800
 SQLALCHEMY_ECHO=1
 
 # Debugging
