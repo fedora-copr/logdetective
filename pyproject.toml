@@ -1,6 +1,6 @@
 [project]
 name = "logdetective"
-version = "5.0.0"
+version = "5.0.1"
 description = "Analyze logs with a template miner and an LLM to discover errors and suggest solutions."
 authors = [
     { name="Jiri Podivin", email="jpodivin@gmail.com" }
@@ -33,7 +33,8 @@ dependencies = [
     "pyyaml >=6.0.1,<7.0.0",
     "aiohttp >=3.14.3,<4.0.0",
     # Protection against supply chain compromise https://docs.litellm.ai/blog/security-update-march-2026
-    "litellm !=1.82.7,!=1.82.8",
+    # and another one https://www.rescana.com/post/litellm-1-107-0-supply-chain-compromise-october-2026 !
+    "litellm !=1.82.7,!=1.82.8,!=1.107.0",
     "beeai-framework >=0.1.81",
     "fastapi>=0.111.1,<1.0.0",
     "sqlalchemy[asyncio]>=2.0.36,<3.0.0",
@@ -48,9 +49,12 @@ dependencies = [
     "starlette<2.0.0",
     "uvicorn>=0.44.0",
     "gunicorn>=25.3.0",
-    "fastembed>=0.8.0",
+    "fastembed>=0.9.1",
     "pgvector>=0.4.2",
     "google-cloud-aiplatform>=1.158.0",
+    # Second order dependency, resolving CVE-2026-112900 and several other
+    # vulnerabilities
+    "pillow>=13.0.0",
 ]
 requires-python = ">=3.11,<3.14"
 
