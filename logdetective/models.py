@@ -267,9 +267,9 @@ class Snippet(BaseModel):
 
 
 class AnalyzedSnippet(Snippet):
-    """Model for snippets already processed by Log Detective.
+    """Model for extracted snippets with an attached description.
 
-    snippet_analysis: analysis from the LLM
+    snippet_analysis: description from the LLM
     """
 
     snippet_analysis: str
