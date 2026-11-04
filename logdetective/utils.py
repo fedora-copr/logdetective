@@ -118,24 +118,28 @@ def inference_retry_giveup(retry_state: RetryCallState) -> None:
     raise exception
 
 
+EMAIL_AT_PATTERN = re.compile(r"@|\(at\)|\[at\]", re.IGNORECASE)
+EMAIL_DOMAIN_CANDIDATE = re.compile(r"[a-z0-9._-]+", re.IGNORECASE)
+EMAIL_REPLACEMENT = "copr-team@redhat.com"
+# These suffixes identify systemd units in logs, even when the name contains @.
+SYSTEMD_UNIT_SUFFIXES = (
+    ".automount",
+    ".device",
+    ".mount",
+    ".path",
+    ".scope",
+    ".service",
+    ".slice",
+    ".socket",
+    ".swap",
+    ".target",
+    ".timer",
+)
+
 SANITIZE_PATTERNS: List[Tuple[re.Pattern[str], str]] = [
-    (  # Emails
-        # we don't want to match invalid subdomains, starting/ending with - or .
-        # such as @-domain.com or @domain-.com or @.domain.com or @domain..com
-        re.compile(
-            (
-                r"\b[\w.%+-]+"  # username
-                r"(?:@|\(at\)|\[at\])"  # "at" symbol
-                r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.){1,10}"  # subdomains
-                r"[a-z]{2,4}\b"  # top level domain
-            ),
-            re.IGNORECASE,
-        ),
-        "copr-team@redhat.com",
-    ),
     (  # GPG fingerprints
         re.compile(
-            r"\bFingerprint:\s*([0-9A-F]{32,64}|(?:\s*[0-9A-F]{4}){8,16})\b",
+            r"\bFingerprint:\s*+([0-9A-F]{32,64}|(?:\s*[0-9A-F]{4}){8,16})\b",
             re.IGNORECASE,
         ),
         f"Fingerprint:{' FFFF' * 10}",
@@ -151,13 +155,83 @@ SANITIZE_PATTERNS: List[Tuple[re.Pattern[str], str]] = [
 ]
 
 
+def _is_email_word_char(char: str) -> bool:
+    """Match the Unicode word characters used by the original ``\b`` rule."""
+    return char.isalnum() or char == "_"
+
+
+def _is_email_local_char(char: str) -> bool:
+    """Match the original local-part character class without regex backtracking."""
+    return _is_email_word_char(char) or char in ".%+-"
+
+
+def _is_email_boundary(log: str, position: int) -> bool:
+    """Match ``\b`` at the start of a candidate local part."""
+    previous_is_word = position > 0 and _is_email_word_char(log[position - 1])
+    return previous_is_word != _is_email_word_char(log[position])
+
+
+def _email_domain_end(log: str, position: int) -> int | None:
+    """Accept dotted malformed domains without consuming ordinary log identifiers.
+
+    Numeric hosts, systemd unit names, and journal names also appear after
+    ``@`` in build logs; they are not treated as email domains. A unit suffix
+    exempts the whole candidate, including names with additional dots.
+    """
+    candidate = EMAIL_DOMAIN_CANDIDATE.match(log, position)
+    if candidate is None:
+        return None
+    value = candidate.group().rstrip(".")
+    if "." not in value or not any(char.isalpha() for char in value):
+        return None
+    if value.lower().endswith((*SYSTEMD_UNIT_SUFFIXES, ".journal")):
+        return None
+    return position + len(value)
+
+
+def _redact_emails(log: str) -> str:
+    """Find email separators and inspect each adjacent local part only once.
+
+    Searching for a local part from every word boundary retries long failed
+    candidates at each character. Separator-centered scanning avoids that cost
+    while retaining the original left boundary and replacement rules.
+    """
+    pieces = []
+    previous_end = 0
+    for separator in EMAIL_AT_PATTERN.finditer(log):
+        if separator.start() < previous_end:
+            continue
+
+        local_start = separator.start()
+        while local_start > previous_end and _is_email_local_char(log[local_start - 1]):
+            local_start -= 1
+        while local_start < separator.start() and not _is_email_boundary(log, local_start):
+            local_start += 1
+        if local_start == separator.start():
+            continue
+
+        domain_end = _email_domain_end(log, separator.end())
+        if domain_end is None:
+            continue
+        pieces.extend((log[previous_end:local_start], EMAIL_REPLACEMENT))
+        previous_end = domain_end
+
+    if not pieces:
+        return log
+    pieces.append(log[previous_end:])
+    return "".join(pieces)
+
+
 def sanitize_artifact(log: str) -> str:
     """Redact personal identifiers from the artifact content before it is sent to the LLM.
 
-    Redaction is done by replacing emails, and various public keys/signatures.
+    Redaction replaces emails and various public keys/signatures. Email
+    separators are scanned directly; the remaining patterns avoid repartitioning
+    whitespace when a fingerprint candidate fails.
     """
+    log = _redact_emails(log)
     for pattern, replacement in SANITIZE_PATTERNS:
-        log = re.sub(pattern, replacement, log)
+        log = pattern.sub(replacement, log)
     return log
 
 
