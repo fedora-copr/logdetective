@@ -192,7 +192,13 @@ receives `409` on redelivery.
 > secret is distinct from the API token the server uses to call GitLab.
 
 Before sending logs to the LLM, Log Detective redacts some personal
-identifiers, including email addresses and GPG fingerprints.
+identifiers, including email addresses, GPG fingerprints, RSA keys, and public
+key identifiers. Email matching accepts `@`, `(at)`, and `[at]` separators and
+redacts address-shaped text with malformed dotted domains, such as
+`user@-domain.com`. Numeric hosts, systemd unit names ending in `.service`,
+`.socket`, `.timer`, or another unit suffix, and `.journal` names remain visible
+because they also use `@` in build logs. The suffix exemption applies to the
+whole candidate, including dotted instances such as `alice@example.com.service`.
 
 See [Appendix: HTTP response reference](#appendix-http-response-reference) for
 all endpoint responses, including errors.

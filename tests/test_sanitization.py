@@ -1,3 +1,7 @@
+from time import perf_counter
+
+import pytest
+
 from logdetective.utils import sanitize_artifact
 
 
@@ -44,10 +48,6 @@ def test_do_not_sanitize_identifiers():
         "root@12.34.56.78",
         "git hash deadbee or 1234567",
         "git checkout 0d5375d54b258ec63edd1fb5d58c37d58ce8be8b",
-        "user@.domain.com",
-        "user@domain..com",
-        "user@-domain.com",
-        "user@domain-.com",
     ]
     redacted_lines = sanitize_artifact("\n".join(test_lines)).split("\n")
 
@@ -59,18 +59,6 @@ def test_do_not_sanitize_identifiers():
 
     assert "0d5375d54b258ec63edd1fb5d58c37d58ce8be8b" in redacted_lines[2]
     assert all(i not in redacted_lines[2] for i in ["ffff", "FFFF"])
-
-    assert "user@.domain.com" in redacted_lines[3]
-    assert all(i not in redacted_lines[3] for i in ["copr", "team", "redhat"])
-
-    assert "user@domain..com" in redacted_lines[4]
-    assert all(i not in redacted_lines[4] for i in ["copr", "team", "redhat"])
-
-    assert "user@-domain.com" in redacted_lines[5]
-    assert all(i not in redacted_lines[5] for i in ["copr", "team", "redhat"])
-
-    assert "user@domain-.com" in redacted_lines[6]
-    assert all(i not in redacted_lines[6] for i in ["copr", "team", "redhat"])
 
 
 def test_sanitize_all_emails():
@@ -121,7 +109,6 @@ def test_do_not_sanitize_emails():
         "@pytest.mark.parametrize(",
         "GIT_AUTHOR_DATE=@1000000000",
         "something something invalid/character@ema/il.com",
-        "something something example@invalid-domain.42",
         "Not found: /nut-2.8.3-build/BUILDROOT/usr/lib/systemd/system/enphase-monitor@.service",
         "func.func @inline_func_with_file_locations(%arg0: i32)",
         "36:  func.func private @replaced_foo() attributes {sym.new_name = \"replaced_foo\"}",
@@ -146,15 +133,78 @@ def test_do_not_sanitize_emails():
     assert all(i in redacted_lines[4] for i in ["@pytest.mark.parametrize"])
     assert all(i in redacted_lines[5] for i in ["GIT_AUTHOR_DATE=@1000000000"])
     assert all(i in redacted_lines[6] for i in ["invalid/character@ema/il.com"])
-    assert all(i in redacted_lines[7] for i in ["example@invalid-domain.42"])
-    assert all(i in redacted_lines[8] for i in ["nut-2.8.3-build", "enphase-monitor@.service"])
-    assert all(i in redacted_lines[9] for i in ["func.func", "@inline_func_with_file_locations"])
-    assert all(i in redacted_lines[10] for i in ["func.func", "@replaced_foo"])
-    assert all(i in redacted_lines[11] for i in ["@PACKAGE_URL", "http://avahi.org/"])
-    assert all(i in redacted_lines[12] for i in ["G@Type@Value"])
-    assert all(i in redacted_lines[13] for i in ["admin@InternalService", "user@192.168.1.1"])
-    assert all(i in redacted_lines[14] for i in ["systemd-mkswap@dev-sdy3.service"])
-    assert all(i in redacted_lines[15] for i in ["serial-getty@ttyS0.service"])
-    assert all(i in redacted_lines[16] for i in [
+    assert all(i in redacted_lines[7] for i in ["nut-2.8.3-build", "enphase-monitor@.service"])
+    assert all(i in redacted_lines[8] for i in ["func.func", "@inline_func_with_file_locations"])
+    assert all(i in redacted_lines[9] for i in ["func.func", "@replaced_foo"])
+    assert all(i in redacted_lines[10] for i in ["@PACKAGE_URL", "http://avahi.org/"])
+    assert all(i in redacted_lines[11] for i in ["G@Type@Value"])
+    assert all(i in redacted_lines[12] for i in ["admin@InternalService", "user@192.168.1.1"])
+    assert all(i in redacted_lines[13] for i in ["systemd-mkswap@dev-sdy3.service"])
+    assert all(i in redacted_lines[14] for i in ["serial-getty@ttyS0.service"])
+    assert all(i in redacted_lines[15] for i in [
         "system@0005ebbfd4385848-2e5dff5354ab9bcf.journal"
     ])
+
+
+@pytest.mark.parametrize(
+    "suffix",
+    [
+        "automount", "device", "mount", "path", "scope", "service",
+        "slice", "socket", "swap", "target", "timer",
+    ],
+)
+def test_systemd_unit_suffixes_remain_visible(suffix: str) -> None:
+    """Systemd instances and templates remain readable beside real emails."""
+    artifact = f"foo@bar.{suffix} foo@.{suffix} alice@example.com"
+    expected = f"foo@bar.{suffix} foo@.{suffix} copr-team@redhat.com"
+    assert sanitize_artifact(artifact) == expected
+
+
+def test_service_suffix_exempts_entire_candidate() -> None:
+    """A dotted systemd instance is retained under the unit suffix rule."""
+    assert sanitize_artifact("alice@example.com.service") == "alice@example.com.service"
+
+
+@pytest.mark.parametrize(
+    ("artifact", "expected"),
+    [
+        ("a.b+tag(at)sub.example.org", "copr-team@redhat.com"),
+        ("UPPER[AT]EXAMPLE.COM", "copr-team@redhat.com"),
+        ("<name@domain.com>", "<copr-team@redhat.com>"),
+        ("-name@domain.com", "-copr-team@redhat.com"),
+        ("name@domain.com.extra", "copr-team@redhat.com"),
+        ("one@a.com two@b.org", "copr-team@redhat.com copr-team@redhat.com"),
+        ("a@x.com+second@y.org", "copr-team@redhat.comcopr-team@redhat.com"),
+        ("one@a.com.+[at]a.com", "copr-team@redhat.comcopr-team@redhat.com"),
+        ("name@.domain.com", "copr-team@redhat.com"),
+        ("name@-domain.com", "copr-team@redhat.com"),
+        ("name@domain-.com", "copr-team@redhat.com"),
+        ("name@domain..com", "copr-team@redhat.com"),
+        ("name@domain.toolong", "copr-team@redhat.com"),
+        ("name@domain.12", "copr-team@redhat.com"),
+        ("name@domain.com-.invalid", "copr-team@redhat.com"),
+        ("name@domain_with_underscore.com", "copr-team@redhat.com"),
+        ("example@invalid-domain.42", "copr-team@redhat.com"),
+        ("name(at)domain-.com.", "copr-team@redhat.com."),
+        ("name@localhost", "name@localhost"),
+        ("@domain.com", "@domain.com"),
+    ],
+)
+def test_email_boundaries_and_domains(artifact: str, expected: str) -> None:
+    """Redact dotted address candidates while preserving separator boundaries."""
+    assert sanitize_artifact(artifact) == expected
+
+
+@pytest.mark.parametrize(
+    "artifact",
+    [
+        "a" * 32_768 + "@invalid",
+        "a." * 16_384 + "@invalid",
+        "Fingerprint:" + " " * 32_768 + "Z",
+    ],
+)
+def test_adversarial_sanitization_finishes_promptly(artifact: str) -> None:
+    """Long failed candidates must not monopolize an analysis worker."""
+    started = perf_counter()
+    assert sanitize_artifact(artifact) == artifact
+    assert perf_counter() - started < 2.0
