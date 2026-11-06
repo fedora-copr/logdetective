@@ -7,15 +7,21 @@ Use provided tools to analyze following build artifacts:
 {% endfor %}
 </external_data>
 {% endif %}
-You MUST extract snippets from ALL artifacts.
+First, call `drain_extractor` for EACH artifact listed above.
+Do this even if another extractor can analyze the same artifact: optional
+extractors do not replace a required `drain_extractor` call.
+Do not provide the final answer until `drain_extractor` has completed for
+every artifact.
 Focus on issues that are likely to cause a build failure.
 
 {% if 'csgrep_extractor' in available_tools %}
-For GCC compiler traces, use `csgrep_extractor` to capture the trace.
+After the required `drain_extractor` calls, use `csgrep_extractor` for GCC
+compiler traces.
 {% endif %}
 
 {% if 'python_traceback_extractor' in available_tools %}
-For Python exceptions, use `python_traceback_extractor` to capture the traceback.
+After the required `drain_extractor` calls, use `python_traceback_extractor`
+to capture the traceback produced by Python exceptions.
 {% endif %}
 
 {% if 'annotated_snippet_lookup' in available_tools %}
