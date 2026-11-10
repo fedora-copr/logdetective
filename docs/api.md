@@ -117,6 +117,25 @@ curl --header "Content-Type: application/json" --request POST \
 `files` must contain 1–15 artifacts with distinct names.
 Use `url` to fetch a remote HTTP(S) log, or `content` to submit the log text
 itself. Remote URLs cannot contain parameters, a query, or a fragment.
+By default, DNS answers for these downloads cannot point to private or special
+addresses. Operators can list exact DNS names in
+`general.ssrf_protection.allowed_hostnames` to permit ordinary private
+addresses; names are case-insensitive and an optional trailing dot is ignored.
+Wildcards, suffix matching, and IP literals are not supported. All DNS answers,
+including redirect destinations, are checked at connection time. Loopback,
+link-local/metadata, other special non-routable addresses, and
+`general.ssrf_protection.blocked_cluster_cidrs` remain blocked even for allowed
+names. The default blocked CIDRs are [Kubernetes kubeadm Service
+`10.96.0.0/12`](https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/);
+[OpenShift installation example](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_openstack/index)
+Service `172.30.0.0/16`, Pod `10.128.0.0/14`, and common node
+`10.0.0.0/16`; and [OpenShift OVN internal ranges](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/networking_overview/networking_overview)
+`100.64.0.0/16` and `100.88.0.0/16`.
+Setting `general.ssrf_protection.blocked_cluster_cidrs` replaces all defaults;
+set it to the deployment's actual cluster ranges to avoid blocking unrelated
+private hosts. Set `general.block_localhost_urls: false` to disable these
+address checks for generic remote-log downloads; configured allow-list and CIDR
+values are still validated but have no effect while disabled.
 Analysis submissions require a valid `Content-Length` header; the declared
 request size must fit within `general.max_artifact_size` in
 `server/config.yml`. A missing or invalid length returns `411`, and an
