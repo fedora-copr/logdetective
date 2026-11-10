@@ -6,6 +6,7 @@ from logdetective.models import (
     Config,
     ExtractorConfig,
     GeneralConfig,
+    SSRFProtectionConfig,
     ArtifactFile,
     AnalysisRequest,
     APITokens,
@@ -26,6 +27,44 @@ def test_log_source_request_timeout_validation():
     assert config.log_source_request_timeout == 12.5
     with pytest.raises(ValidationError):
         GeneralConfig(log_source_request_timeout=0)
+
+
+@pytest.mark.parametrize(
+    "hostname",
+    [
+        "*.example.com", ".example.com", "example..com", "bad_name.example",
+        "127.0.0.1", "127.1", "2130706433", "0x7f000001", "::1",
+        "-bad.example", "bad-.example", "example.com..",
+    ],
+)
+def test_ssrf_allowlist_rejects_non_dns_hostnames(hostname):
+    """Configuration fails at load time for ambiguous allow-list entries."""
+    with pytest.raises(ValidationError):
+        SSRFProtectionConfig(allowed_hostnames=[hostname])
+
+
+@pytest.mark.parametrize("cidr", ["not-a-network", "10.96.0.0/33", "10.96.0.1/12"])
+def test_ssrf_cluster_cidrs_validate_at_load(cidr):
+    """Malformed or host-bit-set CIDRs cannot silently weaken the policy."""
+    with pytest.raises(ValidationError):
+        SSRFProtectionConfig(blocked_cluster_cidrs=[cidr])
+
+
+def test_ssrf_configuration_defaults_and_replacement():
+    """A custom list entirely replaces the protective default ranges."""
+    defaults = GeneralConfig().ssrf_protection
+    assert len(defaults.blocked_cluster_cidrs) == 6
+    assert defaults.allowed_hostnames == []
+    custom = GeneralConfig(
+        ssrf_protection={
+            "allowed_hostnames": ["Trusted.Example."],
+            "blocked_cluster_cidrs": ["192.168.1.0/24"],
+        }
+    ).ssrf_protection
+    assert custom.allowed_hostnames == ["trusted.example"]
+    assert [str(network) for network in custom.blocked_cluster_cidrs] == [
+        "192.168.1.0/24"
+    ]
 
 
 def test_api_tokens_validator_rejects_duplicate_names():

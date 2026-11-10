@@ -34,7 +34,12 @@ from logdetective.models import (
     KojiTaskMetadata,
     TaskMetadata,
 )
-from logdetective.utils import SSRFProtectedResolver, run_blocking, sanitize_artifact
+from logdetective.utils import (
+    SSRFProtectedConnector,
+    SSRFProtectedResolver,
+    run_blocking,
+    sanitize_artifact,
+)
 
 
 @dataclass(frozen=True)
@@ -49,12 +54,16 @@ async def _execute_generic(
     payload_data: dict[str, Any], request_size: int
 ) -> TaskOutcome:
     payload = AnalysisRequest.model_validate(payload_data)
-    connector = aiohttp.TCPConnector(
-        resolver=(
-            SSRFProtectedResolver()
-            if SERVER_CONFIG.general.block_localhost_urls
-            else None
+    ssrf_config = SERVER_CONFIG.general.ssrf_protection
+    connector = (
+        SSRFProtectedConnector(
+            SSRFProtectedResolver(
+                allowed_hostnames=ssrf_config.allowed_hostnames,
+                blocked_cluster_cidrs=ssrf_config.blocked_cluster_cidrs,
+            )
         )
+        if SERVER_CONFIG.general.block_localhost_urls
+        else aiohttp.TCPConnector()
     )
     timeout = aiohttp.ClientTimeout(
         total=SERVER_CONFIG.general.log_source_request_timeout,

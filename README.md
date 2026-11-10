@@ -115,6 +115,13 @@ detection, and the default 30-day result retention are configured under
 `task_queue` in `server/config.yml`.
 The total timeout for downloading a remote log source is configured with
 `general.log_source_request_timeout` in that file.
+For generic `/analyze` remote logs, exact trusted DNS names may be configured
+with `general.ssrf_protection.allowed_hostnames`; configure deployment-specific
+protected cluster CIDRs with `general.ssrf_protection.blocked_cluster_cidrs`
+before enabling private hosts. The latter list replaces the documented
+defaults. Setting `general.block_localhost_urls: false` disables these address
+checks; the configured lists remain validated but are ignored for requests.
+See [API usage](docs/api.md) and the commented example in `server/config.yml`.
 Analysis runs directly in Procrastinate's async worker tasks. Cancellation is
 cooperative: async work stops at cancellation points, while an already-running
 blocking Koji, GitLab, extraction, sanitization, or embedding call is allowed to

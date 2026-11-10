@@ -59,6 +59,65 @@ async def test_execute_generic_uses_configured_log_source_timeout(monkeypatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("protection_enabled", [True, False])
+async def test_execute_generic_ssrf_connector_configuration(monkeypatch, protection_enabled):
+    """Only generic downloads use the configured resolver, unless opted out."""
+    captured_connector = None
+
+    class ClientSession:
+        """Capture the worker's connector without making a request."""
+
+        def __init__(self, *, connector, timeout):
+            del timeout
+            nonlocal captured_connector
+            captured_connector = connector
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+    monkeypatch.setattr(task_execution.aiohttp, "ClientSession", ClientSession)
+    monkeypatch.setattr(
+        task_execution, "get_artifacts_from_payload", AsyncMock(return_value={})
+    )
+    monkeypatch.setattr(
+        task_execution, "analyze_artifacts", AsyncMock(return_value=APIResponse(explanation="done"))
+    )
+    monkeypatch.setattr(task_execution, "get_chat_model", lambda _config: object())
+    monkeypatch.setattr(
+        task_execution.SERVER_CONFIG.general,
+        "block_localhost_urls",
+        protection_enabled,
+    )
+    monkeypatch.setattr(
+        task_execution.SERVER_CONFIG.general.ssrf_protection,
+        "allowed_hostnames",
+        ["trusted.example"],
+    )
+    monkeypatch.setattr(
+        task_execution.SERVER_CONFIG.general.ssrf_protection,
+        "blocked_cluster_cidrs",
+        [],
+    )
+
+    await task_execution._execute_generic(  # pylint: disable=protected-access
+        {"files": [{"name": "build.log", "content": "failed"}]},
+        request_size=128,
+    )
+
+    if protection_enabled:
+        assert isinstance(captured_connector, task_execution.SSRFProtectedConnector)
+        assert captured_connector._ssrf_resolver._blocked_cluster_cidrs == ()  # pylint: disable=protected-access
+        assert captured_connector._ssrf_resolver._allowed_hostnames == {"trusted.example"}  # pylint: disable=protected-access
+    else:
+        assert isinstance(captured_connector, task_execution.aiohttp.TCPConnector)
+        assert not isinstance(captured_connector, task_execution.SSRFProtectedConnector)
+    await captured_connector.close()
+
+
+@pytest.mark.asyncio
 async def test_run_blocking_waits_for_active_thread_on_cancellation():
     """Cancellation remains pending until already-running blocking work finishes."""
     started = threading.Event()

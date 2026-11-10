@@ -79,9 +79,27 @@ general:
     - .*
   excluded_packages:
     - ^redhat-internal-.*
-  # Log Detective server blocks analysis of local files
-  # as a security measure. This block can be disabled.
+  # Enable SSRF address checks for user-supplied generic /analyze remote logs.
   # block_localhost_urls: true
+  # SSRF controls for user-supplied generic /analyze remote logs.
+  # ssrf_protection:
+  #   # Exact DNS names allowed to resolve to ordinary private addresses.
+  #   # Case and a trailing dot are normalized; wildcards and IP literals are
+  #   # not accepted. Redirect destinations are checked too.
+  #   allowed_hostnames: []
+  #   # Cluster ranges are always blocked, even for allowed names. This list
+  #   # REPLACES the defaults; configure the actual ranges for your deployment.
+  #   # Defaults use Kubernetes kubeadm Service (https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/)
+  #   # and OpenShift Service/Pod/node/OVN examples (https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_openstack/index ; https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/networking_overview/networking_overview).
+  #   blocked_cluster_cidrs:
+  #     - 10.96.0.0/12    # Kubernetes Service
+  #     - 172.30.0.0/16   # OpenShift Service
+  #     - 10.128.0.0/14   # OpenShift Pod
+  #     - 10.0.0.0/16     # Common OpenShift node
+  #     - 100.64.0.0/16   # OpenShift OVN internal
+  #     - 100.88.0.0/16   # OpenShift OVN internal
+  # Setting block_localhost_urls: false disables SSRF address checks for
+  # these downloads; allow-list and CIDR settings remain parsed/validated.
   # If true, the API response will contain a solution,
   # if the agent is sure about the build failure root cause. (default=True)
   # generate_solution: true

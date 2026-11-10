@@ -2,7 +2,7 @@ import asyncio
 import ipaddress
 import re
 import socket
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from importlib.metadata import version
 from typing import (
     List,
@@ -14,6 +14,7 @@ from typing import (
 
 import aiohttp
 from aiohttp.abc import ResolveResult
+from aiohttp.helpers import is_ip_address
 from pydantic import ValidationError
 import sentry_sdk
 import yaml
@@ -23,11 +24,20 @@ from tenacity import (
 
 from logdetective.config import LOG, SERVER_CONFIG
 from logdetective.exceptions import LogDetectiveConnectionError
-from logdetective.models import APITokens
+from logdetective.models import (
+    APITokens,
+    DEFAULT_SSRF_BLOCKED_CLUSTER_CIDRS,
+    normalize_ssrf_hostname,
+)
 from logdetective.yaml_utils import DuplicateKeySafeLoader
 
 P = ParamSpec("P")
 T = TypeVar("T")
+SSRFNetwork = ipaddress.IPv4Network | ipaddress.IPv6Network
+_PRIVATE_NETWORKS = tuple(
+    ipaddress.ip_network(cidr)
+    for cidr in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7")
+)
 
 
 def init_sentry() -> None:
@@ -241,28 +251,113 @@ def get_version() -> str:
 
 
 class SSRFProtectedResolver(aiohttp.ThreadedResolver):
-    """Resolver raising exception if URL evaluates to local address."""
+    """Reject unsafe addresses in every DNS answer before connecting."""
+
+    def __init__(
+        self,
+        allowed_hostnames: list[str] | tuple[str, ...] = (),
+        blocked_cluster_cidrs: list[SSRFNetwork] | tuple[str, ...] | None = None,
+    ) -> None:
+        """Normalize trusted names and blocked ranges for later address checks.
+
+        ``None`` selects the protective defaults; an explicit empty CIDR list
+        replaces them with no additional deployment-specific blocked ranges.
+        """
+        super().__init__()
+        self._allowed_hostnames = frozenset(
+            normalize_ssrf_hostname(hostname) for hostname in allowed_hostnames
+        )
+        self._blocked_cluster_cidrs = tuple(
+            ipaddress.ip_network(cidr)
+            for cidr in (
+                DEFAULT_SSRF_BLOCKED_CLUSTER_CIDRS
+                if blocked_cluster_cidrs is None
+                else blocked_cluster_cidrs
+            )
+        )
+
+    def check_address(
+        self, address_text: str, host: str, port: int, family: socket.AddressFamily
+    ) -> None:
+        """Apply the same policy to DNS answers and literal URL addresses."""
+        try:
+            ip_address = ipaddress.ip_address(address_text)
+        except ValueError as ex:
+            raise socket.gaierror(socket.EAI_FAIL) from ex
+        try:
+            allowed = normalize_ssrf_hostname(host) in self._allowed_hostnames
+        except ValueError:
+            allowed = False
+        # IPv4-mapped IPv6 addresses must obey IPv4 CIDRs and classifications.
+        address = getattr(ip_address, "ipv4_mapped", None) or ip_address
+        blocked_cluster = any(
+            address in network for network in self._blocked_cluster_cidrs
+            if address.version == network.version
+        )
+        private_network = any(
+            address in network for network in _PRIVATE_NETWORKS
+            if address.version == network.version
+        )
+        # Only ordinary RFC1918/ULA addresses may use the hostname exception.
+        # Other non-global addresses include loopback, link-local, metadata,
+        # unspecified, reserved, multicast and shared address space.
+        special = any(
+            (
+                address.is_multicast,
+                address.is_reserved,
+                address.is_unspecified,
+                address.is_loopback,
+                address.is_link_local,
+            )
+        )
+        blocked = blocked_cluster or special or not (
+            address.is_global or (allowed and private_network)
+        )
+        if blocked:
+            msg = (
+                f"Request to host: {host} port: {port} socket: "
+                f"{family} resolved to internal IP: {ip_address}."
+            )
+            LOG.error(msg=msg)
+            raise socket.gaierror(socket.EAI_FAIL, msg)
 
     async def resolve(
         self, host: str, port: int = 0, family: socket.AddressFamily = socket.AF_INET
     ) -> List[ResolveResult]:
-        """Resolve IP for given hostname, raise exception if the IP is local."""
+        """Resolve a hostname and reject unsafe answers, including mixed sets.
+
+        Public addresses and allow-listed RFC1918/ULA addresses are accepted.
+        Cluster CIDRs and special or non-global addresses remain blocked even
+        for allow-listed names; a rejected answer raises ``socket.gaierror``.
+        """
         ips = await super().resolve(host, port, family)
 
         for resolved_ip in ips:
-            try:
-                ip_address = ipaddress.ip_address(resolved_ip["host"])
-            except ValueError as ex:
-                raise socket.gaierror(socket.EAI_FAIL) from ex
-            if ip_address.is_private:
-                msg = (
-                    f"Request to host: {host} port: {port} socket: "
-                    f"{family} resolved to internal IP: {ip_address}."
-                )
-                LOG.error(msg=msg)
-                raise socket.gaierror(socket.EAI_FAIL, msg)
+            self.check_address(resolved_ip["host"], host, port, family)
 
         return ips
+
+
+class SSRFProtectedConnector(aiohttp.TCPConnector):
+    """Apply the resolver policy to IP-literal URLs that aiohttp skips resolving."""
+
+    def __init__(self, resolver: SSRFProtectedResolver) -> None:
+        """Create a connector applying ``resolver`` to DNS and IP literals."""
+        super().__init__(resolver=resolver)
+        self._ssrf_resolver = resolver
+
+    async def _resolve_host(  # pylint: disable=protected-access
+        self, host: str, port: int, traces: Sequence | None = None
+    ) -> list[ResolveResult]:
+        """Check literal IP hosts before delegating normal DNS resolution.
+
+        aiohttp bypasses its resolver for IP literals, so this override invokes
+        the same address policy directly and raises ``socket.gaierror`` when
+        the literal is blocked.
+        """
+        if is_ip_address(host):
+            self._ssrf_resolver.check_address(host, host, port, self._family)
+        return await super()._resolve_host(host, port, traces)
 
 
 class ContentSizeCheck(NamedTuple):

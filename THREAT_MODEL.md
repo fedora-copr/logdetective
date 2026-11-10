@@ -49,8 +49,19 @@ GitLab instance tokens are checked independently. When bearer authentication is
 enabled, FastAPI's built-in `/docs`, `/redoc`, and `/openapi.json` routes remain
 public. Omitting the bearer-token file is intended for development only. SSRF
 protection is applied to user-supplied log URLs by default when
-`general.block_localhost_urls` is enabled, but not uniformly to all outbound
-HTTP requests. The system processes untrusted log
+`general.block_localhost_urls` is true, but not uniformly to all outbound
+HTTP requests. For generic `/analyze` downloads only, exact names in
+`general.ssrf_protection.allowed_hostnames` may resolve to ordinary private addresses;
+all DNS answers and redirect destinations are checked at connection time.
+Loopback, link-local/metadata, other special non-routable addresses, and the
+configured cluster CIDRs remain blocked. The protective default CIDRs cover
+Kubernetes Service `10.96.0.0/12` and OpenShift Service `172.30.0.0/16`, Pod
+`10.128.0.0/14`, common node `10.0.0.0/16`, and OVN internal `100.64.0.0/16`
+and `100.88.0.0/16`. Setting `general.ssrf_protection.blocked_cluster_cidrs` replaces
+these defaults; operators must use their deployment's actual cluster ranges.
+`general.block_localhost_urls: false` disables these checks; allow-list and
+CIDR settings remain validated but do not affect requests while disabled. The
+system processes untrusted log
 content but sanitizes personal identifiers (emails, GPG fingerprints, RSA keys,
 and public key identifiers) before forwarding to the LLM.
 
@@ -92,7 +103,7 @@ and trajectory logging (GlobalTrajectoryMiddleware) for monitoring.
 | POST /webhook/gitlab/job_events | Available when GitLab is configured; requires `X-Gitlab-Instance` and checks `X-Gitlab-Token` when that instance has webhook secrets. Durably admits a valid webhook before returning 204; the worker later downloads logs and posts comments | remote unauth/auth peer → API process → PostgreSQL → worker | build_log_content, llm_analysis_responses, database_records, gitlab_api_tokens |
 | GET /metrics/{route}/ | Metrics endpoint returning request count, average response time, average time from receipt to completion (including queue wait), and average analysis response length in a columnar response. Callers supply `start_time`, optional exclusive `end_time`, `time_period` (`hour`, `day`, or `month`), and an optional non-secret `api_token_name` filter. The endpoint is subject to global bearer authentication like other application routes, but filtering is not scoped to the authenticated token name | remote unauth/auth peer → application process | metrics_data, database_records |
 | GET /version | Returns application version string; subject to global bearer auth when a token file is configured, unauthenticated when unset | remote unauth/auth peer → application process | — |
-| user-supplied log URLs | URLs in `/analyze` payload fetched by a worker; use the SSRF-protected resolver when `general.block_localhost_urls` is enabled | worker process → remote server (SSRF boundary) | build_log_content |
+| user-supplied log URLs | URLs in `/analyze` payload fetched by a worker; use the SSRF-protected resolver when `general.block_localhost_urls` is true | worker process → remote server (SSRF boundary) | build_log_content |
 | analysis worker task | Procrastinate runs analysis directly as async work; blocking client and CPU calls are tracked until completion | Procrastinate worker → inference and integration clients | build_log_content, inference_api_credentials |
 | openshift_api | Kubernetes/OpenShift API server reachable from within the pod (kubernetes.default.svc); accepts service account tokens auto-mounted into pods | application process → cluster control plane (pod → API server boundary) | openshift_secrets, openshift_route_config |
 | external_inference_endpoint | Outbound requests from workers carrying API keys and sanitized log snippets | worker process → external inference service (TLS boundary) | inference_api_credentials, build_log_content |

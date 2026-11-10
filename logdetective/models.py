@@ -1,6 +1,8 @@
 import datetime
 import enum
+import ipaddress
 import re
+import socket
 import subprocess as sp
 from typing import List, Dict, Optional, Any, Union, Sequence
 from uuid import UUID
@@ -17,6 +19,7 @@ from pydantic import (
     PositiveInt,
     SecretStr,
     UUID4,
+    IPvAnyNetwork,
 )
 
 from logdetective.constants import (
@@ -522,6 +525,62 @@ class LogConfig(BaseModel):
     datefmt: str = "%Y-%m-%d %H:%M:%S"
 
 
+# Upstream references for these protective defaults are linked beside the
+# ranges in docs/api.md; deployments must replace them with their actual CIDRs.
+DEFAULT_SSRF_BLOCKED_CLUSTER_CIDRS = (
+    "10.96.0.0/12",  # Kubernetes Service
+    "172.30.0.0/16",  # OpenShift Service
+    "10.128.0.0/14",  # OpenShift Pod
+    "10.0.0.0/16",  # Common OpenShift node network
+    "100.64.0.0/16",  # OpenShift OVN internal
+    "100.88.0.0/16",  # OpenShift OVN internal
+)
+
+
+def normalize_ssrf_hostname(hostname: str) -> str:
+    """Canonicalize an exact DNS hostname for the SSRF allow-list.
+
+    A single terminal dot and DNS case are insignificant; IP literals, wildcard
+    patterns, and malformed DNS labels are not valid allow-list entries.
+    """
+    if not isinstance(hostname, str) or not hostname:
+        raise ValueError("SSRF allowed hostname must be a non-empty DNS name")
+    name = hostname.removesuffix(".").lower()
+    if not name or len(name) > 253 or any(
+        not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label)
+        for label in name.split(".")
+    ):
+        raise ValueError("SSRF allowed hostname must be a valid DNS name")
+    try:
+        ipaddress.ip_address(name)
+    except ValueError:
+        try:
+            # inet_aton also recognizes legacy IPv4 forms such as 127.1 and
+            # 0x7f000001, which a system resolver may interpret as literals.
+            socket.inet_aton(name)
+        except OSError:
+            return name
+    raise ValueError("SSRF allowed hostname must not be an IP address")
+
+
+class SSRFProtectionConfig(BaseModel):
+    """Policy for user-supplied remote log downloads."""
+
+    allowed_hostnames: list[str] = Field(default_factory=list)
+    # Replacing this list, including with [], replaces every protective default.
+    blocked_cluster_cidrs: list[IPvAnyNetwork] = Field(
+        default_factory=lambda: [
+            ipaddress.ip_network(cidr) for cidr in DEFAULT_SSRF_BLOCKED_CLUSTER_CIDRS
+        ]
+    )
+
+    @field_validator("allowed_hostnames")
+    @classmethod
+    def validate_allowed_hostnames(cls, hostnames: list[str]) -> list[str]:
+        """Reject ambiguous entries and store normalized exact DNS names."""
+        return [normalize_ssrf_hostname(hostname) for hostname in hostnames]
+
+
 class GeneralConfig(BaseModel):
     """General config options for Log Detective"""
 
@@ -530,7 +589,9 @@ class GeneralConfig(BaseModel):
     sentry_dsn: HttpUrl | None = None
     # max_artifact_size in config.yml is in MiBs, here (GeneralConfig class) is in bytes
     max_artifact_size: int = DEFAULT_MAXIMUM_ARTIFACT_MIB * 1024**2
+    # Enables SSRF address checks for user-supplied generic remote-log URLs.
     block_localhost_urls: bool = True
+    ssrf_protection: SSRFProtectionConfig = Field(default_factory=SSRFProtectionConfig)
     generate_solution: bool = True
     delay_artifact_download: bool = False
     log_source_request_timeout: float = Field(default=10, gt=0)
