@@ -1,6 +1,7 @@
 """Tests for periodic reconciliation of application and queue state."""
 
 from types import SimpleNamespace
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -9,7 +10,7 @@ from procrastinate.exceptions import NoResult
 from procrastinate.jobs import Status
 
 from logdetective.config import SERVER_CONFIG
-from logdetective.database.models.tasks import AnalysisState, TaskAnalysis
+from logdetective.database.models.tasks import AnalysisState, TaskAnalysis, TaskType
 from logdetective.procrastinate_app import app
 from logdetective.tasks import expire_analysis_jobs, reconcile_analysis_jobs
 
@@ -25,6 +26,43 @@ def _manager(**methods) -> SimpleNamespace:
     }
     defaults.update(methods)
     return SimpleNamespace(**defaults)
+
+
+@pytest.mark.asyncio
+async def test_reconcile_expires_queued_suite_before_claim(mocker, monkeypatch):
+    """A queued suite is fenced before its queue job is cancelled."""
+    task = SimpleNamespace(
+        task_id=uuid4(), procrastinate_job_id=91,
+        task_type=TaskType.TFT_SUITE, state=AnalysisState.SCHEDULED,
+        deadline_at=datetime.now(UTC) - timedelta(seconds=1),
+    )
+    manager = _manager()
+    monkeypatch.setattr(app, "job_manager", manager)
+    mocker.patch.object(TaskAnalysis, "list_active", AsyncMock(return_value=[task]))
+    expire = mocker.patch.object(TaskAnalysis, "expire_queued_suite",
+                                 AsyncMock(return_value=True))
+    await reconcile_analysis_jobs(123)
+    expire.assert_awaited_once_with(task.task_id, 91,
+                                    SERVER_CONFIG.task_queue.retention_days)
+    manager.cancel_job_by_id_async.assert_awaited_once_with(91, abort=True)
+    manager.get_job_status_async.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_reconcile_claim_race_does_not_cancel_worker(mocker, monkeypatch):
+    """A worker claim winning the conditional transition must keep its job."""
+    task = SimpleNamespace(
+        task_id=uuid4(), procrastinate_job_id=92,
+        task_type=TaskType.TFT_SUITE, state=AnalysisState.SCHEDULED,
+        deadline_at=datetime.now(UTC) - timedelta(seconds=1),
+    )
+    manager = _manager()
+    monkeypatch.setattr(app, "job_manager", manager)
+    mocker.patch.object(TaskAnalysis, "list_active", AsyncMock(return_value=[task]))
+    mocker.patch.object(TaskAnalysis, "expire_queued_suite",
+                        AsyncMock(return_value=False))
+    await reconcile_analysis_jobs(123)
+    manager.cancel_job_by_id_async.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -62,7 +100,7 @@ async def test_reconcile_fails_stalled_jobs(mocker, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "status", [Status.ABORTED, Status.CANCELLED, Status.SUCCEEDED]
+    "status", [Status.FAILED, Status.ABORTED, Status.CANCELLED, Status.SUCCEEDED]
 )
 @pytest.mark.asyncio
 async def test_reconcile_confirms_queue_cancellation(
@@ -75,6 +113,7 @@ async def test_reconcile_confirms_queue_cancellation(
         task_id=task_id,
         procrastinate_job_id=41,
         state=AnalysisState.CANCELLING,
+        task_type=TaskType.GENERIC,
     )
     manager = _manager(get_job_status_async=AsyncMock(return_value=status))
     monkeypatch.setattr(app, "job_manager", manager)
@@ -115,6 +154,7 @@ async def test_reconcile_handles_unexpected_terminal_jobs(
         task_id=uuid4(),
         procrastinate_job_id=43,
         state=AnalysisState.IN_PROGRESS,
+        task_type=TaskType.GENERIC,
     )
     manager = _manager(get_job_status_async=AsyncMock(return_value=status))
     monkeypatch.setattr(app, "job_manager", manager)
@@ -157,6 +197,7 @@ async def test_reconcile_marks_lost_result_for_succeeded_job(
         task_id=task_id,
         procrastinate_job_id=47,
         state=AnalysisState.IN_PROGRESS,
+        task_type=TaskType.GENERIC,
     )
     manager = _manager(get_job_status_async=AsyncMock(return_value=Status.SUCCEEDED))
     monkeypatch.setattr(app, "job_manager", manager)
@@ -194,6 +235,7 @@ async def test_reconcile_fences_missing_queue_jobs(mocker, monkeypatch):
         task_id=uuid4(),
         procrastinate_job_id=47,
         state=AnalysisState.SCHEDULED,
+        task_type=TaskType.GENERIC,
     )
     manager = _manager(
         get_job_status_async=AsyncMock(side_effect=NoResult("missing job"))
@@ -223,6 +265,7 @@ async def test_reconcile_confirms_cancellation_when_queue_job_is_missing(
         task_id=task_id,
         procrastinate_job_id=53,
         state=AnalysisState.CANCELLING,
+        task_type=TaskType.GENERIC,
     )
     manager = _manager(
         get_job_status_async=AsyncMock(side_effect=NoResult("missing job"))

@@ -4,6 +4,7 @@ import zipfile
 from typing import Dict
 from logdetective.models import (
     APIResponse,
+    TestingFarmSuiteResult,
 )
 
 
@@ -61,7 +62,7 @@ class LLMResponseCompressor:
     RESPONSE_FILE_NAME = "response.json"
     COMPRESSOR = TextCompressor()
 
-    def __init__(self, response: APIResponse):
+    def __init__(self, response: APIResponse | TestingFarmSuiteResult):
         """
         Initialize with an LLM response.
 
@@ -85,8 +86,8 @@ class LLMResponseCompressor:
 
     @classmethod
     def unzip(
-        cls, zip_data: bytes
-    ) -> APIResponse:
+        cls, zip_data: bytes, result_type: type = APIResponse
+    ) -> APIResponse | TestingFarmSuiteResult:
         """
         Uncompress the zipped content of the LLM response.
 
@@ -101,6 +102,6 @@ class LLMResponseCompressor:
             raise KeyError(
                 f"Required file {cls.RESPONSE_FILE_NAME} not found in zip archive"
             )
-        response = APIResponse.model_validate_json(items[cls.RESPONSE_FILE_NAME])
+        response = result_type.model_validate_json(items[cls.RESPONSE_FILE_NAME])
 
         return response

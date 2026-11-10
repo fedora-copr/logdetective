@@ -8,7 +8,7 @@ generated endpoint and field reference at `/docs` and `/openapi.json`.
 
 For new work, the API commits the application task and its Procrastinate job in
 one database transaction before acknowledging the request. The worker then
-processes the job independently. Generic and Koji callers can poll or cancel
+processes the job independently. Generic, Testing Farm, and Koji callers can poll or cancel
 their task; GitLab webhooks receive an acknowledgement without a public task URL.
 
 An identical retry with a client-supplied task ID reuses the existing task and
@@ -17,7 +17,7 @@ and cancellation details.
 
 ### Time-ordered UML sequence
 
-This example follows a generic or Koji request. Time moves downward; the
+This example follows a generic, Testing Farm, or Koji request. Time moves downward; the
 worker can start as soon as admission commits, while the client receives the
 `202` response and polls independently. Elapsed time is not drawn to scale.
 
@@ -28,7 +28,7 @@ sequenceDiagram
     participant DB as PostgreSQL
     participant Worker as Analysis worker
     participant External as Log sources and LLM
-    Client->>API: POST /analyze or POST /analyze/rpmbuild/koji
+    Client->>API: POST /analyze, /analyze/tft, or /analyze/rpmbuild/koji
     API->>DB: Commit application task and Procrastinate job
     DB-->>API: Commit succeeded
     par API response and client polling
@@ -130,6 +130,72 @@ runs in the worker after the analysis request has been accepted.
 
 `build_metadata.commentary` and `build_metadata.infra_status` provide context to
 the agent; `specfile` and `last_patch` are accepted but currently unused.
+
+### Testing Farm analysis
+
+`POST /analyze/tft` accepts one complete tmt suite per task. The request has
+one suite context, published shared log references, and every failed, errored,
+or `needs_inspection` testcase in `cases`. `case_id` must be unique within the
+request. Zero cases are accepted when suite `state` is `error`, `result` is
+`failed` or `error`, or error details are present. An empty case list alone
+does not establish that no tests ran.
+Cases without case-specific logs can be analyzed when a shared log is available.
+The optional UUIDv4 `id`, bearer authentication, and polling/cancellation
+lifecycle are unchanged. The endpoint accepts published log URLs, not inline logs.
+
+```json
+{
+  "suite": {"plan": "/example/plan", "result": "failed", "stage": "complete",
+            "requested_environment": {"compose": "Fedora-Rawhide", "arch": "x86_64"}},
+  "guests": {"guest-1": {"role": "server", "requested_environment":
+               {"compose": "Fedora-Rawhide", "arch": "x86_64"}}},
+  "shared_logs": [{"name": "tmt-run.log", "url": "https://example.com/tmt-run.log"}],
+  "cases": [{"case_id": "case-1", "name": "/example/test", "result": "failed",
+             "guest_name": "guest-1", "serial_number": 1,
+             "notes": ["assertion failed"],
+             "checks": [{"name": "assert", "log_refs": ["case/case-1/testout.log"]}],
+             "logs": [{"name": "testout.log", "url": "https://example.com/testout.log"}]}]
+}
+```
+
+Only non-secret requested/provisioned environment fields (`compose`, `arch`,
+`pool`) and selected check/subresult fields are accepted; local paths, secrets,
+and arbitrary testcase properties are not. Guest names resolve through the
+`guests` map; check/subresult `log_refs` must name own or shared artifacts.
+There is no reference-count or testcase-count limit. The request body and cumulative downloaded artifacts share
+the configured 50 MiB limit. Oversized requests are rejected, never chunked or
+silently reduced. URLs obey the generic endpoint's HTTP(S), query/fragment,
+size, and optional SSRF protections. Context and logs are untrusted data.
+
+Each log fetch uses `general.log_source_request_timeout`. Failed downloads
+produce `result.retrieval_warnings` entries with a stable code, namespaced
+`source_file`, and safe message. Successful own or shared logs keep a case
+eligible; a case with no usable evidence receives `artifact_error`. Failed URLs
+are cached within the task, as are successful URLs. Aggregate byte violations
+fail the entire task, including bytes read by unsuccessful downloads.
+All submitted case and guest context is supplied to one logical agent run,
+including notes, checks, and results from cases whose logs are unavailable.
+Diagnosis eligibility is supplied separately: only cases with usable own or
+shared logs may receive diagnoses; the others retain `artifact_error`. Transient
+inference timeouts and rate limits retry the whole suite under its remaining
+deadline. Context/output-limit failures are task errors, never silent truncation.
+The positive `general.testing_farm_suite_timeout` (default 600 seconds) runs
+from admission through downloads, extraction, retries and publication. It is
+reported as `deadlineAt` on suite tasks and does not change on identical retries.
+Queued suites are expired by maintenance. Polling cessation does not cancel work;
+blocking cleanup and reconciliation may delay terminal reporting past the deadline.
+
+The `202` envelope has `taskType: "tft_suite"` and a `Location` at the unchanged
+`/tasks/{id}` resource. A terminal successful task returns
+`result.cases[case_id] = {"status":"done", "analysis":{...}}` or a per-case
+`{"status":"error", "error":{"code":"artifact_error"|"missing_analysis", ...}}`.
+An evidence-less case or missing/empty case output does not discard other
+diagnoses. With zero cases, `result.cases` is empty and
+`result.suite_fallback` contains the analysis. Each analysis retains
+`explanation`, `solution`, `no_issue_found`, and `snippets`. Duplicate/unknown
+agent IDs and invalid evidence references fail the whole task; inference failure,
+timeout, and cancellation also remain task-level outcomes. Partial results are
+never visible before completion. TFT request statistics are at `/metrics/analyze-tft/`.
 
 ### Task responses
 
@@ -362,12 +428,15 @@ Here, **task envelope** means the JSON object shown in [Task responses](#task-re
 | `POST /analyze` | `202 Accepted` | Task envelope, `Location`, and `Retry-After`; a new task or an identical retry. |
 | `POST /analyze` | `400 Bad Request` | JSON `detail`; an artifact URL parses but violates remote URL restrictions. |
 | `POST /analyze` | `409 Conflict` | JSON `detail`; a supplied task ID conflicts with another request or an expired task. |
+| `POST /analyze/tft` | `202 Accepted` | Task envelope, `Location`, and `Retry-After`; a new task or an identical retry. |
+| `POST /analyze/tft` | `400 Bad Request` | JSON `detail`; an artifact URL violates remote URL restrictions. |
+| `POST /analyze/tft` | `409 Conflict` | JSON `detail`; a supplied task ID conflicts with another request or an expired task. |
 | `POST /analyze/rpmbuild/koji` | `202 Accepted` | Task envelope, `Location`, and `Retry-After`; a new task or an identical retry. |
 | `POST /analyze/rpmbuild/koji` | `401 Unauthorized` | JSON `detail`; the configured Koji token is missing or invalid. |
 | `POST /analyze/rpmbuild/koji` | `404 Not Found` | JSON `detail`; the Koji instance is unknown. |
 | `POST /analyze/rpmbuild/koji` | `409 Conflict` | JSON `detail`; a supplied task ID conflicts with another request or an expired task. |
-| Both analysis `POST` routes | `411 Length Required` | JSON `detail`; `Content-Length` is missing or invalid. |
-| Both analysis `POST` routes | `413 Content Too Large` | JSON `detail`; the declared request size exceeds `general.max_artifact_size`. |
+| Analysis `POST` routes | `411 Length Required` | JSON `detail`; `Content-Length` is missing or invalid. |
+| Analysis `POST` routes | `413 Content Too Large` | JSON `detail`; the declared request size exceeds `general.max_artifact_size`. |
 | `GET /tasks/{id}` | `200 OK` | Task envelope; active tasks include `Retry-After`, and terminal tasks include their outcome. |
 | `GET /tasks/{id}` | `404 Not Found` | JSON `detail`; the task is absent, expired, or belongs to another token. |
 | `DELETE /tasks/{id}` | `202 Accepted` | Task envelope and `Retry-After`; cancellation is still pending. |

@@ -2,6 +2,9 @@ import asyncio
 import ipaddress
 import re
 import socket
+from contextlib import asynccontextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass, field
 from collections.abc import Callable, Mapping
 from importlib.metadata import version
 from typing import (
@@ -30,6 +33,49 @@ P = ParamSpec("P")
 T = TypeVar("T")
 
 
+@dataclass
+class BlockingWork:
+    """Ownership shared with child contexts, including framework-created tasks."""
+
+    workers: set[asyncio.Task] = field(default_factory=set)
+    closed: bool = False
+
+
+_blocking_work: ContextVar[BlockingWork | None] = ContextVar("blocking_work", default=None)
+
+
+async def wait_for_cleanup(future: asyncio.Future) -> None:
+    """Join cleanup despite repeated cancellation, then propagate cancellation."""
+    cancellation = None
+    while not future.done():
+        try:
+            await asyncio.shield(future)
+        except asyncio.CancelledError as exc:
+            cancellation = exc
+    future.result()
+    if cancellation is not None:
+        raise cancellation
+
+
+@asynccontextmanager
+async def blocking_work_scope():
+    """Join descendant threads even if a framework abandons their async callers.
+
+    Closing the shared scope also prevents detached descendants from starting
+    new blocking work after the owning agent has finished or been cancelled.
+    """
+    work = BlockingWork()
+    token = _blocking_work.set(work)
+    try:
+        yield
+    finally:
+        work.closed = True
+        try:
+            await wait_for_cleanup(asyncio.gather(*work.workers, return_exceptions=True))
+        finally:
+            _blocking_work.reset(token)
+
+
 def init_sentry() -> None:
     """Enable Sentry for this process when the shared configuration has a DSN."""
     if sentry_dsn := SERVER_CONFIG.general.sentry_dsn:
@@ -43,7 +89,12 @@ async def run_blocking(function: Callable[P, T], *args: P.args, **kwargs: P.kwar
     helper waits for the blocking call to return before propagating cancellation.
     This makes cancellation eventual while keeping the work owned by the task.
     """
+    scope = _blocking_work.get()
+    if scope is not None and scope.closed:
+        raise asyncio.CancelledError("Blocking work scope is closed")
     worker = asyncio.create_task(asyncio.to_thread(function, *args, **kwargs))
+    if scope is not None:
+        scope.workers.add(worker)
     try:
         return await asyncio.shield(worker)
     except asyncio.CancelledError as cancellation:

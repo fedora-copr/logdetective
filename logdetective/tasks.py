@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from procrastinate import JobContext
 from procrastinate.exceptions import NoResult
 from procrastinate.jobs import Status
 
 from logdetective.config import LOG, SERVER_CONFIG
 from logdetective.database.models.tasks import AnalysisState, TaskAnalysis
+from logdetective.models import TaskType
 from logdetective.procrastinate_app import app
 from logdetective.task_execution import run_task
 
@@ -59,6 +62,12 @@ async def analyze_koji(context: JobContext, task_id: str) -> None:
 
 
 @app.task(queue="analysis", pass_context=True, retry=False)
+async def analyze_tft_suite(context: JobContext, task_id: str) -> None:
+    """Run one whole Testing Farm suite without automatic replay."""
+    await _execute(context, task_id)
+
+
+@app.task(queue="analysis", pass_context=True, retry=False)
 async def analyze_gitlab(context: JobContext, task_id: str) -> None:
     """Process one durable GitLab webhook without automatic replay.
 
@@ -105,6 +114,17 @@ async def reconcile_analysis_jobs(timestamp: int) -> None:  # pylint: disable=to
         LOG.info("Marked stalled analysis job %s as failed", job.id)
 
     for task in await TaskAnalysis.list_active():
+        if task.task_type == TaskType.TFT_SUITE and task.state == AnalysisState.SCHEDULED:
+            if task.deadline_at is not None and task.deadline_at <= datetime.now(UTC):
+                expired = await TaskAnalysis.expire_queued_suite(
+                    task.task_id, task.procrastinate_job_id,
+                    SERVER_CONFIG.task_queue.retention_days,
+                )
+                if expired:
+                    await app.job_manager.cancel_job_by_id_async(
+                        task.procrastinate_job_id, abort=True
+                    )
+                    continue
         if task.state == AnalysisState.CANCELLING:
             await app.job_manager.cancel_job_by_id_async(
                 task.procrastinate_job_id, abort=True
@@ -133,6 +153,7 @@ async def reconcile_analysis_jobs(timestamp: int) -> None:  # pylint: disable=to
             continue
         if status in (Status.FAILED, Status.SUCCEEDED, Status.ABORTED, Status.CANCELLED):
             if task.state == AnalysisState.CANCELLING and status in (
+                Status.FAILED,
                 Status.ABORTED,
                 Status.CANCELLED,
                 Status.SUCCEEDED,

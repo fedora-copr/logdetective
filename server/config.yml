@@ -3,7 +3,7 @@ log:
   level_file: "DEBUG"
   path: "log/logdetective.log"
 inference:
-  max_tokens: 2000 # maximum number of tokens must be a positive integer
+  max_tokens: 4000 # maximum number of tokens must be a positive integer
   log_probs: true
   api_timeout: 60.0 # Timeout for the LLM API client, how long should it wait for inference server response
   # Model name examples:
@@ -90,6 +90,7 @@ general:
   # Total timeout in seconds for downloading remote log sources
   log_source_request_timeout: 10
   analysis_timeout: 600  # Timeout on agent execution
+  testing_farm_suite_timeout: 600  # Admission-to-publication budget, including queue time
   # Enable DB lookup of annotated snippets (requires populated annotated_snippets table)
   # annotation_lookup_tool: true
   # Upper limit for returned similar annotated snippets

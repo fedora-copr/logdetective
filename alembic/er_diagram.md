@@ -91,6 +91,7 @@ erDiagram
 
     task_analysis {
         timestamp_with_time_zone cancellation_requested_at
+        timestamp_with_time_zone deadline_at
         character_varying error_code
         character_varying error_message
         timestamp_with_time_zone expires_at

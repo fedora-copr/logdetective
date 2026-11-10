@@ -27,6 +27,8 @@ from sqlalchemy import (
     Index,
     text,
     update,
+    func,
+    or_,
 )
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,7 +46,7 @@ from logdetective.exceptions import LogDetectiveMetricsError
 from logdetective.models import AnalysisState, TaskMetadata, TaskType
 
 if TYPE_CHECKING:
-    from logdetective.models import APIResponse
+    from logdetective.models import APIResponse, TestingFarmSuiteResult
 
 LOG = logging.getLogger("logdetective")
 
@@ -92,6 +94,9 @@ class TaskAnalysis(Base):  # pylint: disable=too-many-instance-attributes
     request_received_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, index=True,
         default=lambda: datetime.now(UTC),
+    )
+    deadline_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), index=True
     )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(
@@ -271,6 +276,7 @@ class TaskAnalysis(Base):  # pylint: disable=too-many-instance-attributes
         deferrable_task: Task,
         endpoint: EndpointType | None,
         source_id: str | None = None,
+        suite_timeout: int | None = None,
     ) -> tuple[TaskAnalysis, bool]:
         """Atomically admit a durable application task and Procrastinate job.
 
@@ -284,6 +290,8 @@ class TaskAnalysis(Base):  # pylint: disable=too-many-instance-attributes
             endpoint: Metrics endpoint associated with the request, or ``None`` when
                 the operation is not metered.
             source_id: Optional stable identity supplied by an external system.
+            suite_timeout: Positive suite budget in seconds, supplied by the API
+                configuration owner; required for Testing Farm admission.
 
         Returns:
             A pair containing the durable task and ``True`` when this call created
@@ -295,6 +303,8 @@ class TaskAnalysis(Base):  # pylint: disable=too-many-instance-attributes
             RuntimeError: If Procrastinate or metrics creation fails to return an
                 identifier.
         """
+        if task_type == TaskType.TFT_SUITE and (suite_timeout is None or suite_timeout <= 0):
+            raise ValueError("Testing Farm admission requires a positive suite timeout")
         request_hash = cls.hash_payload(task_type, input_payload)
         request_received_at = datetime.now(UTC)
         existing = await cls._existing(task_id)
@@ -346,6 +356,11 @@ class TaskAnalysis(Base):  # pylint: disable=too-many-instance-attributes
                     response_metrics_id=metric.id if metric is not None else None,
                     state=AnalysisState.SCHEDULED,
                     request_received_at=request_received_at,
+                    deadline_at=(
+                        request_received_at + timedelta(
+                            seconds=suite_timeout
+                        ) if task_type == TaskType.TFT_SUITE else None
+                    ),
                 )
                 session.add(task)
                 await session.flush()
@@ -420,6 +435,8 @@ class TaskAnalysis(Base):  # pylint: disable=too-many-instance-attributes
                     cls.task_id == task_id,
                     cls.procrastinate_job_id == job_id,
                     cls.state == AnalysisState.SCHEDULED,
+                    or_(cls.deadline_at.is_(None),
+                        cls.deadline_at > func.clock_timestamp()),
                 )
                 .values(state=AnalysisState.IN_PROGRESS, started_at=now)
                 .returning(cls)
@@ -433,7 +450,7 @@ class TaskAnalysis(Base):  # pylint: disable=too-many-instance-attributes
         task_id: UUIDType,
         job_id: int,
         generation: int,
-        response: APIResponse,
+        response: APIResponse | TestingFarmSuiteResult,
         task_metadata: TaskMetadata | None,
         retention_days: int,
     ) -> bool:
@@ -470,6 +487,8 @@ class TaskAnalysis(Base):  # pylint: disable=too-many-instance-attributes
                     cls.procrastinate_job_id == job_id,
                     cls.generation == generation,
                     cls.state == AnalysisState.IN_PROGRESS,
+                    or_(cls.deadline_at.is_(None),
+                        cls.deadline_at > func.clock_timestamp()),
                 )
                 .values(
                     state=AnalysisState.DONE,
@@ -732,6 +751,31 @@ class TaskAnalysis(Base):  # pylint: disable=too-many-instance-attributes
             )
 
     @classmethod
+    async def expire_queued_suite(cls, task_id: UUIDType, job_id: int,
+                                  retention_days: int) -> bool:
+        """Fence an expired, unclaimed suite before cancelling its queue job."""
+        now = datetime.now(UTC)
+        async with transaction(commit=True) as session:
+            task = await session.scalar(
+                update(cls).where(
+                    cls.task_id == task_id,
+                    cls.procrastinate_job_id == job_id,
+                    cls.task_type == TaskType.TFT_SUITE,
+                    cls.state == AnalysisState.SCHEDULED,
+                    cls.deadline_at <= now,
+                ).values(
+                    state=AnalysisState.ERROR, generation=cls.generation + 1,
+                    error_code="timeout", error_message="Analysis exceeded its time limit",
+                    input_payload=None, finished_at=now,
+                    expires_at=now + timedelta(days=retention_days),
+                ).returning(cls)
+            )
+            if task is None:
+                return False
+            await cls._finish_metric(session, task.response_metrics_id, now)
+            return True
+
+    @classmethod
     async def mark_queue_failure(cls, job_id: int, retention_days: int) -> bool:
         """Fail an active task whose queue job cannot deliver an outcome.
 
@@ -756,7 +800,7 @@ class TaskAnalysis(Base):  # pylint: disable=too-many-instance-attributes
                 update(cls)
                 .where(
                     cls.procrastinate_job_id == job_id,
-                    cls.state.in_(ACTIVE_STATES),
+                    cls.state.in_((AnalysisState.SCHEDULED, AnalysisState.IN_PROGRESS)),
                 )
                 .values(
                     state=AnalysisState.ERROR,

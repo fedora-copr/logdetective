@@ -117,8 +117,10 @@ class RemoteLog:
         total = 0
         async for chunk in response.content.iter_chunked(65536):
             total += len(chunk)
+            # Retain streamed bytes even when the next read fails. Suite-wide
+            # accounting charges unsuccessful downloads to the same budget.
+            self.remote_log_size = total
             if total > self._limit_bytes:
-                self.remote_log_size = total
                 response.close()  # prevent aiohttp from draining the body on exit
                 raise RemoteLogTooLargeError(
                     f"Content exceeds the limit of {self._limit_bytes} bytes while reading"

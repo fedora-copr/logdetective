@@ -4,7 +4,7 @@
 
 [PyPI Releases]: https://pypi.org/project/logdetective/#history
 
-A tool, service and RHEL process integration to analyze logs using Large Language Model (LLM) and a [Drain template miner](https://github.com/jpodivin/Drain3-improved) within [BeeAI agentic framework](https://github.com/i-am-bee/beeai-framework).
+A tool, service and RHEL process integration to analyze logs using Large Language Model (LLM) and a [Drain template miner](https://github.com/jpodivin/Drain3-improved) within [BeeAI agentic framework](https://github.com/i-am-bee/beeai-framework). The `/analyze/tft` endpoint analyzes one Testing Farm tmt suite per asynchronous task and returns per-case diagnoses; see [API documentation](docs/api.md#testing-farm-analysis).
 
 Service explaining logs is available at: https://logdetective.com/explain
 
@@ -94,6 +94,8 @@ client tools and the dependencies in the standard
 `[dependency-groups].migration` group. Poetry installs that group at the exact
 versions recorded in `poetry.lock`; update the group and lock together whenever
 database, model-import, or Procrastinate dependencies change.
+Database models must not import server configuration or inference libraries:
+the API supplies the configured suite timeout explicitly during admission.
 
 This release is a direct queue cut-over. Its Alembic revision refuses to replace
 or restore `task_analysis` when that table contains records, preventing silent
@@ -252,7 +254,7 @@ The container images are built with `csdiff` installed.
 
 ## Choice of LLM
 
-The agent's extractor, database lookup, and snippet annotation workflow is described
+The build agent's extractor, database lookup, and snippet annotation workflow is described
 in [Agent tools](docs/agent-tools.md).
 
 While Log Detective is compatible with a wide range of LLMs, it does require an instruction tuned model with tool calling to function properly.

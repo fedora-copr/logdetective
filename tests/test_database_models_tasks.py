@@ -11,6 +11,7 @@ import pytest_asyncio
 from procrastinate import PsycopgConnector
 from procrastinate.jobs import Status
 from sqlalchemy import text
+from sqlalchemy import update
 
 from tests.test_helpers import DatabaseFactory
 
@@ -26,7 +27,101 @@ from logdetective.database.models.exceptions import (
 )
 from logdetective.models import APIResponse, KojiTaskMetadata
 from logdetective.procrastinate_app import app
+from logdetective.database.base import transaction
 from logdetective.tasks import analyze_generic
+
+
+@pytest.mark.asyncio
+async def test_suite_deadline_admission_and_queued_expiration_in_postgres():
+    """Duplicate admission keeps its deadline; expiration wins claim once."""
+    public_id = uuid4()
+    suite_payload = {"suite": {"plan": "/plan", "state": "error"}, "cases": []}
+    async with DatabaseFactory().make_new_db():
+        task, created = await TaskAnalysis.admit(
+            task_id=public_id, owner_token_name=None, task_type=TaskType.TFT_SUITE,
+            suite_timeout=600,
+            input_payload=suite_payload, request_size=10,
+            deferrable_task=FakeDeferrable(), endpoint=EndpointType.ANALYZE_TFT,
+        )
+        assert created and task.deadline_at is not None
+        duplicate, created = await TaskAnalysis.admit(
+            task_id=public_id, owner_token_name=None, task_type=TaskType.TFT_SUITE,
+            suite_timeout=600,
+            input_payload=suite_payload, request_size=10,
+            deferrable_task=FakeDeferrable(42), endpoint=EndpointType.ANALYZE_TFT,
+        )
+        assert not created and duplicate.deadline_at == task.deadline_at
+        async with transaction(commit=True) as session:
+            await session.execute(update(TaskAnalysis).where(
+                TaskAnalysis.task_id == public_id
+            ).values(deadline_at=datetime.now(UTC) - timedelta(seconds=1)))
+        assert await TaskAnalysis.expire_queued_suite(public_id, 41, 30)
+        assert not await TaskAnalysis.expire_queued_suite(public_id, 41, 30)
+        assert await TaskAnalysis.mark_started(public_id, 41) is None
+        expired = await TaskAnalysis.get_owned(public_id, None)
+        assert expired.state == AnalysisState.ERROR
+        assert expired.error_code == "timeout"
+        assert not await TaskAnalysis.publish_result(
+            task_id=public_id, job_id=41, generation=0,
+            response=APIResponse(explanation="late"),
+            task_metadata=None, retention_days=30,
+        )
+        assert expired.response_metrics_id is not None
+        async with transaction() as session:
+            metric = await session.get(AnalyzeRequestMetrics, expired.response_metrics_id)
+            assert metric is not None and metric.analysis_completed_at is not None
+
+
+@pytest.mark.asyncio
+async def test_late_suite_result_is_rejected_by_postgres_fence():
+    """A worker cannot publish success after its persisted deadline."""
+    public_id = uuid4()
+    async with DatabaseFactory().make_new_db():
+        task, _ = await TaskAnalysis.admit(
+            task_id=public_id, owner_token_name=None, task_type=TaskType.TFT_SUITE,
+            suite_timeout=600,
+            input_payload={"suite": {"plan": "/plan", "state": "error"}, "cases": []},
+            request_size=10, deferrable_task=FakeDeferrable(),
+            endpoint=EndpointType.ANALYZE_TFT,
+        )
+        started = await TaskAnalysis.mark_started(public_id, task.procrastinate_job_id)
+        assert started is not None
+        async with transaction(commit=True) as session:
+            await session.execute(update(TaskAnalysis).where(
+                TaskAnalysis.task_id == public_id
+            ).values(deadline_at=datetime.now(UTC) - timedelta(seconds=1)))
+        assert not await TaskAnalysis.publish_result(
+            task_id=public_id, job_id=task.procrastinate_job_id,
+            generation=started.generation, response=APIResponse(explanation="late"),
+            task_metadata=None, retention_days=30,
+        )
+        assert await TaskAnalysis.publish_error(
+            task_id=public_id, job_id=task.procrastinate_job_id,
+            generation=started.generation, code="timeout",
+            message="Analysis exceeded its time limit", retention_days=30,
+        )
+        assert (await TaskAnalysis.get_owned(public_id, None)).error_code == "timeout"
+
+
+@pytest.mark.asyncio
+async def test_queue_failure_cannot_override_explicit_cancellation():
+    """A stale maintenance snapshot cannot replace cancelling with worker_lost."""
+    public_id = uuid4()
+    async with DatabaseFactory().make_new_db():
+        task, _ = await TaskAnalysis.admit(
+            task_id=public_id, owner_token_name=None, task_type=TaskType.TFT_SUITE,
+            suite_timeout=600,
+            input_payload={"suite": {"plan": "/plan", "state": "error"}, "cases": []},
+            request_size=10, deferrable_task=FakeDeferrable(),
+            endpoint=EndpointType.ANALYZE_TFT,
+        )
+        cancelling = await TaskAnalysis.request_cancellation(
+            public_id, None, FailingJobManager(), 30
+        )
+        assert cancelling.state == AnalysisState.CANCELLING
+        assert not await TaskAnalysis.mark_queue_failure(task.procrastinate_job_id, 30)
+        assert await TaskAnalysis.confirm_cancelled(public_id, task.procrastinate_job_id, 30)
+        assert (await TaskAnalysis.get_owned(public_id, None)).state == AnalysisState.CANCELLED
 
 
 def test_task_enum_values_are_lowercase_and_match_database_labels() -> None:
@@ -43,6 +138,7 @@ def test_task_enum_values_are_lowercase_and_match_database_labels() -> None:
         "generic",
         "koji",
         "gitlab",
+        "tft_suite",
     ]
     assert TaskAnalysis.__table__.c.state.type.enums == [
         state.value for state in AnalysisState

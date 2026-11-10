@@ -2,7 +2,7 @@ import datetime
 import enum
 import re
 import subprocess as sp
-from typing import List, Dict, Optional, Any, Union, Sequence
+from typing import List, Dict, Optional, Any, Union, Sequence, Literal
 from uuid import UUID
 
 from pydantic import (
@@ -167,8 +167,8 @@ class BuildMetadata(BaseModel):
     )
 
 
-class AnalysisRequest(BaseModel):
-    """Model of the request body for /analyze endpoint"""
+class ArtifactAnalysisRequest(BaseModel):
+    """Common bounded artifact input for asynchronous analysis endpoints."""
 
     model_config = ConfigDict(hide_input_in_errors=True, extra="forbid")
     id: UUID4 | None = Field(
@@ -180,17 +180,120 @@ class AnalysisRequest(BaseModel):
         min_length=1,
         max_length=15,
     )
-    build_metadata: Optional[BuildMetadata] = Field(
-        description="Optional build metadata.",
-        default=None,
-    )
 
     @model_validator(mode="after")
-    def check_unique_filenames(self) -> "AnalysisRequest":
+    def check_unique_filenames(self) -> "ArtifactAnalysisRequest":
         """Check that files do not have duplicate names."""
         names = [f.name for f in (self.files or [])]
         if len(names) != len(set(names)):
             raise ValueError("Duplicate filenames detected in 'files' list")
+        return self
+
+
+class AnalysisRequest(ArtifactAnalysisRequest):
+    """Build-oriented request body for ``/analyze``."""
+
+    build_metadata: Optional[BuildMetadata] = Field(
+        description="Optional build metadata.", default=None
+    )
+
+
+class TestingFarmEnvironment(BaseModel):
+    """Non-secret environment fields exposed by the tmt result serializer."""
+
+    model_config = ConfigDict(extra="forbid")
+    compose: str | None = None
+    arch: str | None = None
+    pool: str | None = None
+
+
+class TestingFarmCheck(BaseModel):
+    """Selected tmt check or subresult evidence, without local paths."""
+
+    model_config = ConfigDict(extra="forbid")
+    name: str
+    result: str | None = None
+    event: str | None = None
+    original_result: str | None = None
+    log_refs: list[str] = Field(default_factory=list)
+
+
+class TestingFarmGuest(BaseModel):
+    """Safe context for one provisioned or requested suite guest."""
+
+    model_config = ConfigDict(extra="forbid")
+    role: str | None = None
+    requested_environment: TestingFarmEnvironment | None = None
+    provisioned_environment: TestingFarmEnvironment | None = None
+
+
+class TestingFarmCase(BaseModel):
+    """One failed testcase in a populated tmt suite."""
+
+    model_config = ConfigDict(extra="forbid")
+    case_id: str = Field(min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9._-]+$")
+    name: str = Field(min_length=1)
+    result: Literal["failed", "error", "needs_inspection"]
+    serial_number: int | None = None
+    guest_name: str | None = None
+    notes: list[str] = Field(default_factory=list)
+    checks: list[TestingFarmCheck] = Field(default_factory=list)
+    subresults: list[TestingFarmCheck] = Field(default_factory=list)
+    logs: list[RemoteArtifactFile] = Field(default_factory=list)
+
+
+class TestingFarmSuiteContext(BaseModel):
+    """One schedule entry's context available after tmt serialization."""
+
+    model_config = ConfigDict(extra="forbid")
+    plan: str = Field(min_length=1)
+    result: str | None = None
+    state: str | None = None
+    stage: str | None = None
+    error_stage: str | None = None
+    error_guest_setup_stage: str | None = None
+    error_message: str | None = None
+    requested_environment: TestingFarmEnvironment | None = None
+    provisioned_environment: TestingFarmEnvironment | None = None
+
+
+class TestingFarmSuiteRequest(BaseModel):
+    """One indivisible tmt suite with scoped log and guest references."""
+
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+    id: UUID4 | None = None
+    suite: TestingFarmSuiteContext
+    guests: dict[str, TestingFarmGuest] = Field(default_factory=dict)
+    shared_logs: list[RemoteArtifactFile] = Field(default_factory=list)
+    cases: list[TestingFarmCase]
+
+    @model_validator(mode="after")
+    def validate_suite(self) -> "TestingFarmSuiteRequest":
+        """Keep identifiers and artifact names unambiguous without dropping cases."""
+        ids = [case.case_id for case in self.cases]
+        if len(ids) != len(set(ids)):
+            raise ValueError("Duplicate case_id")
+        if not self.cases and not any((
+            self.suite.state == "error",
+            self.suite.result in ("failed", "error"),
+            self.suite.error_stage,
+            self.suite.error_guest_setup_stage,
+            self.suite.error_message,
+        )):
+            raise ValueError("Zero cases require a suite failure")
+        logs = [self.shared_logs, *(case.logs for case in self.cases)]
+        for group in logs:
+            names = [log.name for log in group]
+            if len(names) != len(set(names)):
+                raise ValueError("Duplicate log names in one scope")
+        shared = {f"shared/{log.name}" for log in self.shared_logs}
+        for case in self.cases:
+            if case.guest_name is not None and case.guest_name not in self.guests:
+                raise ValueError("Unknown case guest_name")
+            allowed = shared | {f"case/{case.case_id}/{log.name}" for log in case.logs}
+            for check in (*case.checks, *case.subresults):
+                if any(ref not in allowed for ref in check.log_refs):
+                    raise ValueError("Check log_refs must reference own or shared logs")
         return self
 
 
@@ -303,6 +406,63 @@ class APIResponse(AgentResponse):
     snippets: Optional[List[Union[AnalyzedSnippet, Snippet]]] = None
 
 
+class TestingFarmEvidence(BaseModel):
+    """Reference to a snippet extracted from a submitted suite log."""
+
+    source_file: str
+    line_number: int
+
+
+class TestingFarmAgentCase(BaseModel):
+    """One structured diagnosis produced by the suite agent."""
+
+    case_id: str
+    explanation: str | None = None
+    solution: str | None = None
+    no_issue_found: bool = False
+    evidence: list[TestingFarmEvidence] = Field(default_factory=list)
+
+
+class TestingFarmAgentOutput(BaseModel):
+    """Agent output; duplicate and unknown IDs are checked against the request."""
+
+    cases: list[TestingFarmAgentCase] = Field(default_factory=list)
+    suite_fallback: TestingFarmAgentCase | None = None
+
+
+class TestingFarmCaseOutcome(BaseModel):
+    """A case's successful analysis or safe retrieval/output error."""
+
+    status: Literal["done", "error"]
+    analysis: APIResponse | None = None
+    error: "TaskError | None" = None
+
+    @model_validator(mode="after")
+    def validate_outcome(self) -> "TestingFarmCaseOutcome":
+        """A case publishes exactly one analysis or error."""
+        if (self.status == "done") != (self.analysis is not None) or (
+            (self.status == "error") != (self.error is not None)
+        ):
+            raise ValueError("Case outcome must have only its matching analysis or error")
+        return self
+
+
+class TestingFarmRetrievalWarning(BaseModel):
+    """Safe diagnostic for an unavailable namespaced artifact."""
+
+    code: str
+    source_file: str
+    message: str
+
+
+class TestingFarmSuiteResult(BaseModel):
+    """Terminal per-case result, or one pre-test suite fallback."""
+
+    cases: dict[str, TestingFarmCaseOutcome] = Field(default_factory=dict)
+    suite_fallback: APIResponse | None = None
+    retrieval_warnings: list[TestingFarmRetrievalWarning] = Field(default_factory=list)
+
+
 class TaskMetadata(BaseModel):
     """Base model for validated, task-specific metadata persisted as JSON."""
 
@@ -344,6 +504,7 @@ class TaskType(str, enum.Enum):
     GENERIC = "generic"
     KOJI = "koji"
     GITLAB = "gitlab"
+    TFT_SUITE = "tft_suite"
 
 
 class TaskError(BaseModel):
@@ -360,9 +521,12 @@ class TaskResponse(BaseModel):
     id: UUID
     task_type: TaskType = Field(alias="taskType")
     created_at: datetime.datetime = Field(alias="createdAt")
+    deadline_at: datetime.datetime | None = Field(
+        default=None, alias="deadlineAt", exclude_if=lambda value: value is None
+    )
     status: AnalysisState
     error: TaskError | None = None
-    result: KojiResponse | APIResponse | None = None
+    result: KojiResponse | TestingFarmSuiteResult | APIResponse | None = None
 
 
 class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attributes
@@ -536,6 +700,7 @@ class GeneralConfig(BaseModel):
     log_source_request_timeout: float = Field(default=10, gt=0)
     # Timeout for execution of analysis in seconds
     analysis_timeout: int = 900
+    testing_farm_suite_timeout: PositiveInt = 600
     annotation_lookup_tool: bool = False
     max_annotations: int = 3
     # Limits onnxruntime intra/inter-op threads per embedding model instance.

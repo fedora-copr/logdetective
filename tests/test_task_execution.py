@@ -3,13 +3,17 @@
 import asyncio
 import threading
 import time
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
+from beeai_framework.context import RunContext
+from beeai_framework.emitter import Emitter
 
 from logdetective import task_execution
+from logdetective.agents.common import run_agent
 from logdetective.database.models.tasks import TaskAnalysis, TaskType
 from logdetective.models import APIResponse, KojiTaskMetadata
 from logdetective.task_execution import TaskOutcome, run_task
@@ -103,6 +107,29 @@ def _task(task_type: TaskType = TaskType.GENERIC):
         response_metrics_id=None,
         generation=3,
     )
+
+
+@pytest.mark.asyncio
+async def test_suite_timeout_waits_for_blocking_cleanup_before_publication(monkeypatch):
+    """The worker does not publish timeout while its blocking call still runs."""
+    task = _task(TaskType.TFT_SUITE)
+    task.deadline_at = datetime.now(UTC) + timedelta(milliseconds=20)
+    monkeypatch.setattr(TaskAnalysis, "mark_started", AsyncMock(return_value=task))
+
+    async def blocking_execution(*_args):
+        await run_blocking(time.sleep, 0.07)
+        return TaskOutcome(response=APIResponse(explanation="late"), metadata=None)
+    monkeypatch.setattr(task_execution, "execute_task", blocking_execution)
+    publish = AsyncMock(return_value=True)
+    monkeypatch.setattr(TaskAnalysis, "publish_error", publish)
+    result = AsyncMock()
+    monkeypatch.setattr(TaskAnalysis, "publish_result", result)
+    started = time.monotonic()
+    with pytest.raises(RuntimeError, match="timeout"):
+        await run_task(str(uuid4()), 42)
+    assert time.monotonic() - started >= 0.07
+    assert publish.await_args.kwargs["code"] == "timeout"
+    result.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -201,3 +228,78 @@ async def test_run_task_publishes_safe_error(monkeypatch):
         message="Analysis could not be completed",
         retention_days=task_execution.SERVER_CONFIG.task_queue.retention_days,
     )
+
+
+@pytest.mark.parametrize("trigger", ["suite_timeout", "agent_timeout", "cancel"])
+@pytest.mark.asyncio
+async def test_nested_beeai_cleanup_precedes_terminal_publication(monkeypatch, trigger):
+    """Real nested BeeAI runners cannot outlive a terminal timeout/cancellation."""
+    started = threading.Event()
+    release = threading.Event()
+    finished = threading.Event()
+
+    def work():
+        started.set()
+        try:
+            assert release.wait(timeout=3)
+        finally:
+            finished.set()
+
+    class Agent:  # pylint: disable=too-few-public-methods
+        """Exercise the same RunContext nesting used by agent-directed tools."""
+        emitter = Emitter.root().child(namespace=["cleanup_test"])
+
+        def run(self, _prompt, *, signal, **_kwargs):
+            async def tool(_context):
+                await run_blocking(work)
+                return SimpleNamespace(output_structured={"explanation": {"text": "done"}})
+
+            async def agent(_context):
+                return await RunContext.enter(self, tool)
+
+            return RunContext.enter(self, agent, signal=signal)
+
+    task = _task(TaskType.TFT_SUITE)
+    budget = 0.08 if trigger == "suite_timeout" else 10
+    task.deadline_at = datetime.now(UTC) + timedelta(seconds=budget)
+    monkeypatch.setattr(TaskAnalysis, "mark_started", AsyncMock(return_value=task))
+
+    async def execute(*_args):
+        await run_agent(Agent(), "analyze",
+                        timeout_seconds=(0.08 if trigger == "agent_timeout" else 10))
+        return TaskOutcome(response=APIResponse(explanation="done"), metadata=None)
+
+    monkeypatch.setattr(task_execution, "execute_task", execute)
+    error = AsyncMock(return_value=True)
+    cancelled = AsyncMock(return_value=True)
+    result = AsyncMock(return_value=True)
+    monkeypatch.setattr(TaskAnalysis, "publish_error", error)
+    monkeypatch.setattr(TaskAnalysis, "confirm_cancelled", cancelled)
+    monkeypatch.setattr(TaskAnalysis, "publish_result", result)
+    operation = asyncio.create_task(run_task(str(uuid4()), 42))
+    try:
+        async with asyncio.timeout(2):
+            while not started.is_set():
+                await asyncio.sleep(0.001)
+        if trigger == "cancel":
+            operation.cancel()
+            await asyncio.sleep(0.01)
+            operation.cancel()
+        await asyncio.sleep(0.12)
+        assert not operation.done()
+        error.assert_not_awaited()
+        cancelled.assert_not_awaited()
+        result.assert_not_awaited()
+    finally:
+        release.set()
+        with pytest.raises(asyncio.CancelledError if trigger == "cancel" else RuntimeError):
+            await operation
+    assert finished.is_set()
+    if trigger == "cancel":
+        cancelled.assert_awaited_once()
+        error.assert_not_awaited()
+    else:
+        error.assert_awaited_once()
+        assert error.await_args.kwargs["code"] == "timeout"
+        cancelled.assert_not_awaited()
+    result.assert_not_awaited()
