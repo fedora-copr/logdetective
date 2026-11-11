@@ -47,4 +47,5 @@ class PromptManager:
             commentary=commentary,
             infra_status=infra_status,
             available_tools=available_tools or set(),
+            system_time=datetime.now(timezone.utc).date(),
         )

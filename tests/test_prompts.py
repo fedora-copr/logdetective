@@ -70,6 +70,20 @@ def test_prompt_manager_agent_start_prompt_render_artifacts():
         assert artifact in agent_start_prompt
 
 
+def test_builtin_prompts_keep_shared_prefix_before_artifact_names():
+    """Different analyses retain a common prefix for provider prompt caching."""
+    manager = PromptManager(PROMPT_PATH, server_config=Config())
+    first = manager.agent_start_prompt(["first.log"], commentary="first comment")
+    second = manager.agent_start_prompt(["second.log"], infra_status="second status")
+    artifact_marker = '<external_data source="artifact-names">'
+
+    assert manager.default_system_prompt == manager.default_system_prompt
+    assert first.split(artifact_marker, 1)[0] == second.split(artifact_marker, 1)[0]
+    assert "drain_extractor" in first.split(artifact_marker, 1)[0]
+    assert first.index("first.log") < first.index("Current date (UTC):")
+    assert second.index("second.log") < second.index("Current date (UTC):")
+
+
 def test_prompt_manager_agent_start_prompt_render_commentary():
     """Test that prompt renders commentary if supplied"""
 
