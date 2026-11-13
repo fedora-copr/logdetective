@@ -280,6 +280,8 @@ class MockGitlabJob:
     def __init__(self, project_id: int, job_id: int):
         self.project_id = project_id
         self.id = job_id
+        self.project_name = "mock-project"
+        self.mr_iid = 1
         self.job_artifacts_called = False
 
     def artifacts(self, streamed: bool = False, action=None):
