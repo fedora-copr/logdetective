@@ -50,6 +50,15 @@ from logdetective.utils import connection_error_giveup
 
 MR_REGEX = re.compile(r"refs/merge-requests/(\d+)/.*$")
 FAILURE_LOG_REGEX = re.compile(r"(\w*\.log)")
+
+# matches terminal color tags, cursor movement, clean screen garbage in the trace log
+ANSI_ESCAPE_REGEX = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+
+# identify the log file for submission based on trace
+# "step-name    StepFailed   https://gitlab.../build_logs/step-name.log\n"
+STEP_FAILED_LOG_REGEX = re.compile(
+    r"(?m)^[\w.-]+[ \t]+StepFailed[ \t]+(https?://\S+\.log)[ \t]*$"
+)
 ZIP_ENTRY_CHUNK_SIZE = 65536
 
 
@@ -67,25 +76,105 @@ def read_zip_entry_chunked(
             total += len(chunk)
             if total > limit_bytes:
                 raise LogsTooLargeError(
-                    f"Decompressed content of {filename} exceeds "
-                    f"the limit of {limit_bytes} bytes"
+                    f"Decompressing {filename} exceeded {_fmt_filesize(limit_bytes)}"
                 )
             chunks.append(chunk)
     return b"".join(chunks)
 
 
-def _select_koji_log(
+def _fmt_filesize(num: int) -> str:
+    return (
+        f"{num} B" if num < 1024 else
+        f"{num / 1024:3.1f} KiB" if num < 1024**2 else
+        f"{num / 1024**2:3.1f} MiB" if num < 1024**3 else
+        f"{num / 1024**3:.1f} GiB"
+    )
+
+
+def create_job_name(job: gitlab.v4.objects.ProjectJob):
+    """Custom gitlab job identifier for logging."""
+    return f"project {job.project_id}, job {job.id}, MR {job.project_name}#{job.mr_iid}"
+
+
+def create_job_url(gitlab_cfg: GitLabInstanceConfig, job: gitlab.v4.objects.ProjectJob) -> str:
+    """Construct URL for the gitlab job."""
+    return (
+        f"{gitlab_cfg.url.strip('/')}/"
+        f"{gitlab_cfg.api_path.strip('/')}/"
+        f"projects/{job.project_id}/"
+        f"jobs/{job.id}"
+    )
+
+
+def select_trace_log(
     gitlab_cfg: GitLabInstanceConfig,
     job: gitlab.v4.objects.ProjectJob,
     tempfile: BufferedRandom,
-):  # pylint: disable=too-many-locals
+    trace: str,
+) -> tuple[str, str]:
+    """Identify failed pipeline step in the log trace.
+    Return URL and contents of the log (from artifacts.zip loaded in tempfile).
+    """
+    job_name = create_job_name(job)
+    limit_str = _fmt_filesize(gitlab_cfg.max_artifact_size)
+    artifact_prefix = f"{create_job_url(gitlab_cfg, job)}/artifacts/"
+    tempfile.seek(0)
+    with zipfile.ZipFile(tempfile, mode="r") as artifacts_zip:
+        for match in STEP_FAILED_LOG_REGEX.finditer(trace):
+            log_url = match.group(1)
+            if not log_url.startswith(artifact_prefix):
+                continue
+            log_path = log_url[len(artifact_prefix):]
+            if not log_path.startswith(("build_logs/", "kojilogs/")):
+                continue
+            try:
+                zipinfo = artifacts_zip.getinfo(log_path)
+            except KeyError:
+                LOG.warning("%s (StepFailed) not in artifacts.zip - %s", log_path, job_name)
+                continue
+            if zipinfo.is_dir() or not zipinfo.file_size:
+                continue
+            if zipinfo.file_size > gitlab_cfg.max_artifact_size:
+                LOG.warning("%s (StepFailed) is > %s - %s", log_path, limit_str, job_name)
+                continue
+            try:
+                log_content = read_zip_entry_chunked(
+                    artifacts_zip, log_path, gitlab_cfg.max_artifact_size
+                ).decode("utf-8", errors="replace")
+            except LogsTooLargeError:
+                LOG.warning(
+                    "%s (StepFailed) is > %s (during read) - %s",
+                    log_path,
+                    limit_str,
+                    job_name,
+                )
+                continue
+            LOG.info("Selected log %s from trace - %s", log_path, job_name)
+            return log_url, log_content
+
+    LOG.info("No StepFailed detected, selecting trace log - %s", job_name)
+    return f"{create_job_url(gitlab_cfg, job)}/trace", trace
+
+
+# pylint: disable=too-many-locals
+def select_koji_log(
+    gitlab_cfg: GitLabInstanceConfig,
+    job: gitlab.v4.objects.ProjectJob,
+    tempfile: BufferedRandom,
+) -> tuple[str, str] | None:
     """Select and open the relevant log from a downloaded artifact archive."""
+    tempfile.seek(0, 2)
+    archive_size = tempfile.tell()
     tempfile.seek(0)
     failed_arches = {}
+
+    job_name = create_job_name(job)
     with zipfile.ZipFile(tempfile, mode="r") as artifacts_zip:
         size_sum = 0
+
+        LOG.info("Inspecting artifacts.zip (%s) - %s", _fmt_filesize(archive_size), job_name)
         for zipinfo in artifacts_zip.infolist():
-            if not zipinfo.filename.endswith("task_failed.log"):
+            if zipinfo.is_dir() or not zipinfo.filename.endswith("task_failed.log"):
                 continue
             # The koji logs store this file in two places: 1) in the
             # directory with the failed architecture and 2) in the parent
@@ -128,13 +217,14 @@ def _select_koji_log(
                 # task_failed.log, since it will probably contain the most
                 # relevant information
                 LOG.info(
-                    "task_failed.log does not indicate which log contains the failure."
+                    "task_failed.log does not indicate which log contains the failure - %s",
+                    job_name,
                 )
                 failed_arches[architecture] = path
 
         if not failed_arches:
-            # No failed task found in the sub-tasks.
-            raise FileNotFoundError("Could not detect failed architecture.")
+            LOG.warning("Could not detect failed architecture - %s", job_name)
+            return None
 
         # We only want to handle one arch, so we'll check them in order of
         # "most to least likely for the maintainer to have access to hardware"
@@ -155,18 +245,43 @@ def _select_koji_log(
             (arch for arch in preferred_arches if arch in failed_arches),
             sorted(failed_arches)[0],
         )
-        LOG.debug("Failed architecture: %s", failed_arch)
-
         log_path = failed_arches[failed_arch].as_posix()
-        log_url = (
-            f"{gitlab_cfg.url}/{gitlab_cfg.api_path}/projects/{job.project_id}/"
-            f"jobs/{job.id}/artifacts/{log_path}"
-        )
+        if failed_arch not in preferred_arches and failed_arch != "~toplevel":
+            LOG.info(
+                "No preferred failed architecture found; selecting %s for - %s ",
+                failed_arch,
+                job_name,
+            )
+        LOG.info("Selected failed log %s - %s", log_path, job_name)
+        log_url = f"{create_job_url(gitlab_cfg, job)}/artifacts/{log_path}"
         log_content = read_zip_entry_chunked(
             artifacts_zip, log_path, gitlab_cfg.max_artifact_size - size_sum
         ).decode("utf-8")
         LOG.debug("Returning contents of %s%s", gitlab_cfg.url, log_url)
         return log_url, log_content
+
+
+def construct_build_metadata(log_url: str) -> BuildMetadata:
+    """Based on the log, construct a commentary for the LD request."""
+    if "/artifacts/build_logs/" in log_url:
+        build_commentary = (
+            f"This log is from a failed pipeline step - {log_url.split('/')[-1]}. "
+            "If the log's name does not start with 'rpmbuild', "
+            "the failure occurred before the RPM build."
+        )
+    elif log_url.endswith("/trace"):
+        build_commentary = (
+            "This is a trace log of the GitLab job. "
+            "It is submitted when something else than an RPM build failed, "
+            "and it was also not possible to detect which pipeline step failed."
+        )
+    else:
+        build_commentary = (
+            "The package was built in Koji, using Mock. "
+            "Mock provides a temporary chroot for the build environment. "
+            "This environment can't be directly modified by the packager."
+        )
+    return BuildMetadata(commentary=build_commentary)
 
 
 # pylint: disable=too-many-locals, too-many-arguments, \
@@ -186,15 +301,10 @@ async def process_gitlab_job_event(
 
     # Look up the project this job belongs to
     project = await run_blocking(gitlab_connection.projects.get, job_hook.project_id)
-    LOG.info("Processing failed job for %s", project.name)
 
     # Retrieve data about the job from the GitLab API
     job = await run_blocking(project.jobs.get, job_hook.build_id)
-
-    # For easy retrieval later, we'll add project_name and project_url to the
-    # job object
-    job.project_name = project.name
-    job.project_url = project.web_url
+    LOG.info("Processing failed GitLab job %s", job.web_url)
 
     # Retrieve the pipeline that started this job
     pipeline = await run_blocking(project.pipelines.get, job_hook.pipeline_id)
@@ -205,13 +315,19 @@ async def process_gitlab_job_event(
         return
 
     # Extract the merge-request IID from the job
-    match = MR_REGEX.search(pipeline.ref)
-    if not match:
+    mr_number_match = MR_REGEX.search(pipeline.ref)
+    if not mr_number_match:
         LOG.error(
             "Pipeline source is merge_request_event but no merge request IID was provided."
         )
         return
-    merge_request_iid = int(match.group(1))
+
+    # For easy retrieval later, add some project details used in logs and comments.
+    job.project_name = project.name
+    job.project_id = job_hook.project_id
+    job.project_url = project.web_url
+    job.mr_iid = int(mr_number_match.group(1))
+    job_name = create_job_name(job)
 
     # Check if this is a resubmission of an existing, completed job.
     # If it is, we'll exit out here and not waste time retrieving the logs,
@@ -219,7 +335,7 @@ async def process_gitlab_job_event(
     mr_job_db = await GitlabMergeRequestJobs.get_by_details(
         forge=forge,
         project_id=project.id,
-        mr_iid=merge_request_iid,
+        mr_iid=job.mr_iid,
         job_id=job_hook.build_id,
     )
     if mr_job_db:
@@ -237,38 +353,27 @@ async def process_gitlab_job_event(
         LogDetectiveConnectionError,
         LogDetectiveArtifactsMissingError,
     ) as ex:
-        LOG.error("Could not retrieve logs due to %s", ex)
+        LOG.error("Could not retrieve logs in %s: %s", job_name, ex)
         return
 
-    # Submit log to Log Detective and await the results.
-    log_text = await run_blocking(sanitize_artifact, preprocessed_log)
     if metrics_id is None:
         metrics_id = await add_new_metrics(
             api_name=EndpointType.ANALYZE_GITLAB_JOB,
             api_token_name=api_token_name,
         )
-    build_metadata = BuildMetadata(
-        commentary=(
-            "The package was built in Koji, using Mock."
-            "Mock provides a temporary chroot for the build environment."
-            "This environment can't be directly modified by the packager."
-        )
-    )
+
+    log_name = "job-trace.log" if log_url.endswith("/trace") else PurePath(log_url).name
+    log_text = await run_blocking(sanitize_artifact, preprocessed_log)
+    build_metadata = construct_build_metadata(log_url)
 
     try:
         response = await analyze_artifacts(
-            artifacts={log_url: log_text},
+            artifacts={log_name: log_text},
             chat_model=chat_model,
             build_metadata=build_metadata,
         )
     except LogDetectiveInferenceError as exc:
-        LOG.error(
-            "%s during job %d in project %s: %s",
-            type(exc).__name__,
-            job_hook.build_id,
-            project.id,
-            exc,
-        )
+        LOG.error("%s during %s: %s", type(exc).__name__, job_name, exc)
         return
 
     # check if this project is on the opt-in list for posting comments.
@@ -280,7 +385,7 @@ async def process_gitlab_job_event(
     await comment_on_mr(
         forge,
         project,
-        merge_request_iid,
+        job.mr_iid,
         job,
         log_url,
         response,
@@ -317,6 +422,30 @@ def is_eligible_package(project_name: str):
     return True
 
 
+def read_job_trace(job: gitlab.v4.objects.ProjectJob, max_size: int) -> str:
+    """Stream a job trace without retaining more than the artifact size limit."""
+    chunks = []
+    total = 0
+    job_name = create_job_name(job)
+
+    def collect(chunk: bytes) -> None:
+        nonlocal total
+        total += len(chunk)
+        if total > max_size:
+            raise LogsTooLargeError(
+                f"Trace is larger than allowed {max_size} bytes - {job_name}"
+            )
+        chunks.append(chunk)
+
+    job.trace(streamed=True, action=collect, chunk_size=ZIP_ENTRY_CHUNK_SIZE)
+    trace_bytes = b"".join(chunks)
+    trace_clean = ANSI_ESCAPE_REGEX.sub(
+        "", trace_bytes.decode("utf-8", errors="replace")
+    ).replace("\r\n", "\n").replace("\r", "\n")
+
+    return trace_clean
+
+
 @retry(
     stop=stop_before_delay(60),
     wait=wait_exponential_jitter(),
@@ -327,29 +456,57 @@ async def retrieve_and_preprocess_koji_logs(
     gitlab_cfg: GitLabInstanceConfig,
     job: gitlab.v4.objects.ProjectJob,
     http_session: aiohttp.ClientSession,
-):
-    """Download logs from the merge request artifacts
+) -> tuple[str, str]:
+    """Select the relevant log from job artifacts or the job trace.
+    1. Search `kojilogs` for `task_failed.log` to identify the failed Koji log.
+    2. If no Koji log is selected, search the trace for a valid `StepFailed` link in `build_logs`.
+    3. If no log is selected from artifacts, analyze the job trace itself.
 
-    This function will retrieve the build logs and do some minimal
-    preprocessing to determine which log is relevant for analysis.
+    Return URL and content of the selected log.
+    """
 
-    returns: The URL pointing to the selected log file and
-    the log contents to be sent for processing by Log Detective."""
+    job_name = create_job_name(job)
 
-    # Make sure the file isn't too large to process.
-    if not await check_artifacts_file_size(gitlab_cfg, job, http_session):
-        raise LogsTooLargeError(
-            f"Oversized logs for job {job.id} in project {job.project_id}"
-        )
-
-    # Create a temporary file for the downloaded archive. The selected log is
-    # copied into a bounded in-memory stream before the archive is closed.
-    tempfile = TemporaryFile(mode="w+b")
     try:
-        await run_blocking(job.artifacts, streamed=True, action=tempfile.write)
-        return await run_blocking(_select_koji_log, gitlab_cfg, job, tempfile)
+        artifacts_are_small_enough = await check_artifacts_file_size(
+            gitlab_cfg, job, http_session
+        )
+    except LogDetectiveArtifactsMissingError:
+        tempfile = None
+    else:
+        if not artifacts_are_small_enough:
+            raise LogsTooLargeError(f"Oversized logs for {job_name}")
+        # Keep the archive open until trace selection has checked linked entries.
+        tempfile = TemporaryFile(mode="w+b")
+
+    try:
+        if tempfile:
+            await run_blocking(job.artifacts, streamed=True, action=tempfile.write)
+            selected_log = await run_blocking(select_koji_log, gitlab_cfg, job, tempfile)
+            if selected_log:
+                return selected_log
+
+        try:
+            trace_text = await run_blocking(read_job_trace, job, gitlab_cfg.max_artifact_size)
+        except gitlab.exceptions.GitlabError as exc:
+            raise LogDetectiveArtifactsMissingError(
+                f"Could not retrieve trace - {job_name} - {exc}"
+            ) from exc
+        if not trace_text:
+            raise LogDetectiveArtifactsMissingError(
+                f"Empty trace for job {job.id} ({job.project_name}#{job.mr_iid})"
+            )
+        if not tempfile:
+            LOG.info("Using job trace because artifacts are unavailable for %s", job_name)
+            return f"{create_job_url(gitlab_cfg, job)}/trace", trace_text
+
+        selected_log = await run_blocking(
+            select_trace_log, gitlab_cfg, job, tempfile, trace_text
+        )
+        return selected_log
     finally:
-        await run_blocking(tempfile.close)
+        if tempfile:
+            await run_blocking(tempfile.close)
 
 
 async def check_artifacts_file_size(
@@ -385,11 +542,10 @@ async def check_artifacts_file_size(
     except aiohttp.ClientResponseError as ex:
         if ex.status == 404:
             raise LogDetectiveArtifactsMissingError(
-                f"Requested artifacts from job {job.id} in project "
-                f"{job.project_id} are not available."
+                f"Requested artifacts are not available - {create_job_name(job)}"
             ) from ex
         raise LogDetectiveConnectionError(
-            f"Connection error checking artifacts from job {job.id} in project {job.project_id}"
+            f"Connection error checking artifacts - {create_job_name(job)}"
         ) from ex
     LOG.debug("Checking content-length for %s", artifacts_path)
     size_check: ContentSizeCheck = check_content_size(

@@ -8,6 +8,7 @@ import aiohttp
 import responses
 from aiointercept import aiointercept
 from gitlab import Gitlab
+from gitlab.exceptions import GitlabError
 from packaging.version import Version
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -46,6 +47,21 @@ def create_zip_content(filepath) -> bytes:
 
     zip_buffer.seek(0)
     return zip_buffer.read()
+
+
+def set_job_trace(job, content: str) -> None:
+    """Attach a streamed trace response to a mock GitLab job."""
+    def trace(*, streamed, action, chunk_size):
+        assert streamed
+        assert chunk_size > 0
+        action(content.encode("utf-8"))
+
+    job.trace = trace
+
+
+async def run_immediately(function, *args, **kwargs):
+    """Run blocking work inline in tests that do not exercise thread behavior."""
+    return function(*args, **kwargs)
 
 
 @pytest_asyncio.fixture
@@ -316,6 +332,111 @@ async def test_process_gitlab_job_event(
 
 
 @pytest.mark.asyncio
+async def test_missing_log_data_does_not_post_comment(gitlab_cfg, caplog):
+    project = MagicMock(id=42, web_url="https://gitlab.test/pkg")
+    project.name = "test-package"
+    project.path_with_namespace = "group/test-package"
+    job = MagicMock(id=101)
+    project.jobs.get.return_value = job
+    project.pipelines.get.return_value = MagicMock(
+        source="merge_request_event", ref="refs/merge-requests/99/source"
+    )
+    gitlab_connection = MagicMock()
+    gitlab_connection.projects.get.return_value = project
+    job_hook = JobHook(
+        object_kind="build",
+        build_id=101,
+        pipeline_id=202,
+        build_name="build_centos_stream_rpm",
+        build_status="failed",
+        project_id=42,
+    )
+    with (
+        patch("logdetective.gitlab.GitlabMergeRequestJobs.get_by_details",
+              new_callable=AsyncMock, return_value=None),
+        patch("logdetective.gitlab.retrieve_and_preprocess_koji_logs",
+              new_callable=AsyncMock,
+              side_effect=LogDetectiveArtifactsMissingError("trace unavailable")),
+        patch("logdetective.gitlab.analyze_artifacts", new_callable=AsyncMock)
+        as analyze,
+        patch("logdetective.gitlab.comment_on_mr", new_callable=AsyncMock)
+        as comment,
+    ):
+        response = await process_gitlab_job_event(
+            gitlab_cfg, gitlab_connection, AsyncMock(), Forge.gitlab_com,
+            job_hook, MagicMock(spec=ChatModel)
+        )
+
+    assert response is None
+    analyze.assert_not_awaited()
+    comment.assert_not_awaited()
+    assert "Could not retrieve logs" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("selected_url", "expected_name"),
+    (
+        (
+            "https://gitlab.test/api/v4/projects/42/jobs/101/artifacts/"
+            "kojilogs/x86_64-build/build.log",
+            "build.log",
+        ),
+        (
+            "https://gitlab.test/api/v4/projects/42/jobs/101/trace",
+            "job-trace.log",
+        ),
+    ),
+)
+@pytest.mark.asyncio
+async def test_analysis_uses_log_basename(gitlab_cfg, selected_url, expected_name):
+    project = MagicMock(id=42, name="test-package", web_url="https://gitlab.test/pkg")
+    job = MagicMock(id=101, project_id=42, web_url="https://gitlab.test/jobs/101")
+    project.jobs.get.return_value = job
+    project.pipelines.get.return_value = MagicMock(
+        source="merge_request_event", ref="refs/merge-requests/99/source"
+    )
+    gitlab_connection = MagicMock()
+    gitlab_connection.projects.get.return_value = project
+    job_hook = JobHook(
+        object_kind="build",
+        build_id=101,
+        pipeline_id=202,
+        build_name="build_centos_stream_rpm",
+        build_status="failed",
+        project_id=42,
+    )
+    response = APIResponse(explanation="Build failed", snippets=[])
+    with (
+        patch("logdetective.gitlab.GitlabMergeRequestJobs.get_by_details",
+              new_callable=AsyncMock, return_value=None),
+        patch("logdetective.gitlab.retrieve_and_preprocess_koji_logs",
+              new_callable=AsyncMock,
+              return_value=(selected_url, "raw log")),
+        patch("logdetective.gitlab.run_blocking", side_effect=run_immediately),
+        patch("logdetective.gitlab.sanitize_artifact", return_value="sanitized log"),
+        patch("logdetective.gitlab.add_new_metrics", new_callable=AsyncMock,
+              return_value=7),
+        patch("logdetective.gitlab.is_eligible_package", return_value=True),
+        patch("logdetective.gitlab.analyze_artifacts", new_callable=AsyncMock,
+              return_value=response) as analyze,
+        patch("logdetective.gitlab.comment_on_mr", new_callable=AsyncMock) as comment,
+        patch("logdetective.gitlab.update_metrics", new_callable=AsyncMock),
+    ):
+        result = await process_gitlab_job_event(
+            gitlab_cfg,
+            gitlab_connection,
+            AsyncMock(),
+            Forge.gitlab_com,
+            job_hook,
+            MagicMock(spec=ChatModel),
+        )
+
+    assert result is response
+    assert analyze.await_args.kwargs["artifacts"] == {expected_name: "sanitized log"}
+    assert comment.await_args.args[4] == selected_url
+
+
+@pytest.mark.asyncio
 async def test_is_eligible_package(mock_config):
     # Test an explicit full-text value
     assert is_eligible_package("a project")
@@ -389,22 +510,179 @@ async def test_fallback_to_task_failed_log_if_no_match(gitlab_cfg, mock_job):
 
 
 @pytest.mark.asyncio
-async def test_raises_file_not_found_on_no_failures(gitlab_cfg, mock_job):
-    """
-    Tests that FileNotFoundError is raised if no task_failed.log is found.
-    """
-    files = {"kojilogs/x86_64-build/build.log": "This build was successful."}
+async def test_trace_is_analyzed_when_no_failure_log(gitlab_cfg, mock_job):
+    """The trace is analyzed when the archive has no selected Koji log."""
+    files = {
+        "kojilogs/x86_64-build/build.log": "This build was successful.",
+        "build_logs/upload-to-quay.log": "Failed to convert license (warning)",
+    }
+    trace_text = "Pipeline setup failed before task logs were created"
+    set_job_trace(mock_job, trace_text)
     zip_content = create_zip_archive(files)
     with (
         mock_artifact_download(zip_content),
         patch("logdetective.gitlab.check_artifacts_file_size", return_value=True),
     ):
         mock_session = AsyncMock()
-        with pytest.raises(
-            FileNotFoundError, match="Could not detect failed architecture."
+        log_url, log_text = await retrieve_and_preprocess_koji_logs(
+            gitlab_cfg=gitlab_cfg,
+            job=mock_job,
+            http_session=mock_session,
+        )
+
+    assert log_url.endswith("/jobs/101/trace")
+    assert log_text == trace_text
+
+
+@pytest.mark.asyncio
+async def test_trace_selects_failed_step_log(gitlab_cfg, mock_job):
+    failed_path = "build_logs/get-build-target.log"
+    failed_url = (
+        "https://gitlab.com/api/v4/projects/42/jobs/101/artifacts/" + failed_path
+    )
+    set_job_trace(
+        mock_job,
+        "init Succeeded https://gitlab.com/example.log\n"
+        f"get-build-target \x1b[91mStepFailed\x1b[0m   {failed_url}\n",
+    )
+    files = {"build_logs/init.log": "successful", failed_path: "Koji target missing"}
+    with (
+        mock_artifact_download(create_zip_archive(files)),
+        patch("logdetective.gitlab.check_artifacts_file_size", return_value=True),
+    ):
+        log_url, log_text = await retrieve_and_preprocess_koji_logs(
+            gitlab_cfg, mock_job, AsyncMock()
+        )
+
+    assert log_url == failed_url
+    assert log_text == "Koji target missing"
+
+
+@pytest.mark.asyncio
+async def test_trace_selects_first_failed_architecture(gitlab_cfg, mock_job):
+    prefix = "https://gitlab.com/api/v4/projects/42/jobs/101/artifacts/"
+    set_job_trace(
+        mock_job,
+        f"rpmbuild-x86-64 StepFailed {prefix}build_logs/rpmbuild-x86-64.log\n"
+        f"rpmbuild-aarch64 StepFailed {prefix}build_logs/rpmbuild-aarch64.log\n",
+    )
+    files = {
+        "build_logs/rpmbuild-x86-64.log": "x86 failure",
+        "build_logs/rpmbuild-aarch64.log": "aarch64 failure",
+    }
+    with (
+        mock_artifact_download(create_zip_archive(files)),
+        patch("logdetective.gitlab.check_artifacts_file_size", return_value=True),
+    ):
+        log_url, log_text = await retrieve_and_preprocess_koji_logs(
+            gitlab_cfg, mock_job, AsyncMock()
+        )
+
+    assert log_url == prefix + "build_logs/rpmbuild-x86-64.log"
+    assert log_text == "x86 failure"
+
+
+@pytest.mark.parametrize("trace_text", (
+    "Pipeline setup failed before task logs were created",
+    "get-build-target StepFailed https://gitlab.com/api/v4/projects/99/"
+    "jobs/101/artifacts/build_logs/get-build-target.log",
+    "get-build-target StepFailed https://gitlab.com/api/v4/projects/42/"
+    "jobs/101/artifacts/build_logs/missing.log",
+))
+@pytest.mark.asyncio
+async def test_trace_analyzed_when_no_linked_log(gitlab_cfg, mock_job, trace_text):
+    set_job_trace(mock_job, trace_text)
+    with (
+        mock_artifact_download(create_zip_archive({"build_logs/init.log": "done"})),
+        patch("logdetective.gitlab.check_artifacts_file_size", return_value=True),
+    ):
+        log_url, log_text = await retrieve_and_preprocess_koji_logs(
+            gitlab_cfg, mock_job, AsyncMock()
+        )
+
+    assert log_url == "https://gitlab.com/api/v4/projects/42/jobs/101/trace"
+    assert log_text == trace_text
+
+
+@pytest.mark.asyncio
+async def test_oversized_trace_across_chunks_raises(gitlab_cfg, mock_job):
+    gitlab_cfg = gitlab_cfg.model_copy(update={"max_artifact_size": 5})
+
+    def oversized_trace(*, streamed, action, chunk_size):
+        assert streamed
+        assert chunk_size > 0
+        action(b"123")
+        action(b"456")
+
+    mock_job.trace = oversized_trace
+    with (
+        mock_artifact_download(create_zip_archive({})),
+        patch("logdetective.gitlab.check_artifacts_file_size", return_value=True),
+        pytest.raises(LogsTooLargeError),
+    ):
+        await retrieve_and_preprocess_koji_logs(gitlab_cfg, mock_job, AsyncMock())
+
+
+@pytest.mark.asyncio
+async def test_missing_artifacts_falls_back_to_sanitized_trace(gitlab_cfg, mock_job):
+    set_job_trace(mock_job, "\x1b[31mFailure\x1b[0m\r\n")
+    missing_artifacts = LogDetectiveArtifactsMissingError("artifacts unavailable")
+    with (
+        patch("logdetective.gitlab.run_blocking", side_effect=run_immediately),
+        patch(
+            "logdetective.gitlab.check_artifacts_file_size",
+            new_callable=AsyncMock,
+            side_effect=missing_artifacts,
+        ),
+    ):
+        log_url, log_text = await retrieve_and_preprocess_koji_logs(
+            gitlab_cfg, mock_job, AsyncMock()
+        )
+
+    assert log_url == "https://gitlab.com/api/v4/projects/42/jobs/101/trace"
+    assert log_text == "Failure\n"
+
+
+@pytest.mark.parametrize("artifacts_missing", (False, True))
+@pytest.mark.asyncio
+async def test_unavailable_trace_raises(
+    gitlab_cfg, mock_job, artifacts_missing
+):
+    mock_job.trace = MagicMock(side_effect=GitlabError("trace unavailable"))
+    if artifacts_missing:
+        with patch(
+            "logdetective.gitlab.run_blocking", side_effect=run_immediately
         ):
+            with patch(
+                "logdetective.gitlab.check_artifacts_file_size",
+                new_callable=AsyncMock,
+                side_effect=LogDetectiveArtifactsMissingError("artifacts unavailable"),
+            ):
+                with pytest.raises(LogDetectiveArtifactsMissingError):
+                    await retrieve_and_preprocess_koji_logs(
+                        gitlab_cfg, mock_job, AsyncMock()
+                    )
+    else:
+        with (
+            mock_artifact_download(create_zip_archive({})),
+            patch("logdetective.gitlab.check_artifacts_file_size", return_value=True),
+        ):
+            with pytest.raises(LogDetectiveArtifactsMissingError):
+                await retrieve_and_preprocess_koji_logs(
+                    gitlab_cfg, mock_job, AsyncMock()
+                )
+
+
+@pytest.mark.asyncio
+async def test_empty_artifacts_and_trace_raise(gitlab_cfg, mock_job):
+    set_job_trace(mock_job, "")
+    with (
+        mock_artifact_download(create_zip_archive({})),
+        patch("logdetective.gitlab.check_artifacts_file_size", return_value=True),
+    ):
+        with pytest.raises(LogDetectiveArtifactsMissingError):
             await retrieve_and_preprocess_koji_logs(
-                gitlab_cfg=gitlab_cfg, job=mock_job, http_session=mock_session
+                gitlab_cfg, mock_job, AsyncMock()
             )
 
 
@@ -448,7 +726,7 @@ async def test_raises_logs_too_large_error_decompression(gitlab_cfg, mock_job, l
     ):
         gitlab_cfg.max_artifact_size = limit
         mock_session = AsyncMock()
-        with pytest.raises(LogsTooLargeError, match="exceeds the limit"):
+        with pytest.raises(LogsTooLargeError, match="exceeded"):
             await retrieve_and_preprocess_koji_logs(
                 gitlab_cfg=gitlab_cfg, job=mock_job, http_session=mock_session
             )
@@ -508,12 +786,15 @@ async def test_check_artifacts_file_size_handles_http_error(gitlab_cfg, mock_job
         message="Not Found",
     )
 
-    with pytest.raises(LogDetectiveArtifactsMissingError,
-                       match=f"Requested artifacts from job {mock_job.id} in project "
-                       f"{mock_job.project_id} are not available"):
+    with pytest.raises(LogDetectiveArtifactsMissingError) as exc_info:
         await check_artifacts_file_size(
             gitlab_cfg=gitlab_cfg, job=mock_job, http_session=mock_session
         )
+
+    assert str(exc_info.value) == (
+        f"Requested artifacts are not available - project {mock_job.project_id}, "
+        f"job {mock_job.id}, MR {mock_job.project_name}#{mock_job.mr_iid}"
+    )
 
 
 @pytest.mark.asyncio
