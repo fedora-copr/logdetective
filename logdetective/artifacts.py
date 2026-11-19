@@ -63,6 +63,7 @@ async def fetch_suite_artifacts(
     aiohttp transport failures are handled here because RemoteLog may raise
     them directly during HEAD, GET, or response-body reads.
     """
+    payload.validate_limits(SERVER_CONFIG.testing_farm)
     remaining = SERVER_CONFIG.general.max_artifact_size - request_size
     if remaining <= 0:
         raise ValueError("Total submitted artifact size exceeds the limit")

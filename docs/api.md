@@ -224,7 +224,15 @@ Only non-secret requested/provisioned environment fields (`compose`, `arch`,
 `pool`) and selected check/subresult fields are accepted; local paths, secrets,
 and arbitrary testcase properties are not. Guest names resolve through the
 `guests` map; check/subresult `artifact_refs` must name own or shared artifacts.
-There is no reference-count or testcase-count limit. The request body and cumulative downloaded artifacts share
+Runtime `testing_farm` configuration defaults to `max_artifacts_per_case: 10`,
+`max_shared_artifacts: 10`, and `max_total_artifacts: 120`. Every submitted artifact entry counts,
+including repeated URLs. All applicable caps must pass; the total may be lower
+than either scope cap. Operators may raise or lower these defaults. Violations
+return `422` identifying the limit before durable admission. Workers revalidate
+against their current configuration before outbound requests, including for
+previously queued tasks; API and worker configurations should match.
+There is no testcase-count limit and suites are never silently truncated.
+The request body and cumulative downloaded artifacts share
 the configured 50 MiB limit. Oversized requests are rejected, never chunked or
 silently reduced. URLs obey the generic endpoint's HTTP(S), query/fragment,
 size, and optional SSRF protections. Context and artifacts are untrusted data.

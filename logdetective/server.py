@@ -229,8 +229,13 @@ async def accept_task(
 
     Raises:
         HTTPException: With status 409 when the public identifier conflicts with a
-            different request.
+            different request, or 422 when configured Testing Farm limits are exceeded.
     """
+    if isinstance(payload, TestingFarmSuiteRequest):
+        try:
+            payload.validate_limits(SERVER_CONFIG.testing_farm)
+        except ValueError as exc:
+            raise HTTPException(422, detail=str(exc)) from exc
     if isinstance(payload, (AnalysisRequest, TestingFarmSuiteRequest)):
         files = (
             payload.files if isinstance(payload, AnalysisRequest)

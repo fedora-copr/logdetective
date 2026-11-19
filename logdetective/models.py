@@ -225,6 +225,14 @@ class TestingFarmGuest(BaseModel):
     provisioned_environment: TestingFarmEnvironment | None = None
 
 
+class TestingFarmConfig(BaseModel):
+    """Runtime limits for one indivisible Testing Farm suite."""
+
+    max_artifacts_per_case: int = Field(default=10, gt=0, strict=True)
+    max_shared_artifacts: int = Field(default=10, gt=0, strict=True)
+    max_total_artifacts: int = Field(default=120, gt=0, strict=True)
+
+
 class TestingFarmCase(BaseModel):
     """One failed testcase in a populated tmt suite."""
 
@@ -237,7 +245,11 @@ class TestingFarmCase(BaseModel):
     notes: list[str] = Field(default_factory=list)
     checks: list[TestingFarmCheck] = Field(default_factory=list)
     subresults: list[TestingFarmCheck] = Field(default_factory=list)
-    artifacts: list[RemoteArtifactFile] = Field(default_factory=list)
+    artifacts: list[RemoteArtifactFile] = Field(
+        default_factory=list,
+        description=("Limited at runtime by testing_farm.max_artifacts_per_case "
+                     "and max_total_artifacts."),
+    )
 
 
 class TestingFarmSuiteContext(BaseModel):
@@ -262,8 +274,22 @@ class TestingFarmSuiteRequest(BaseModel):
     id: UUID4 | None = None
     suite: TestingFarmSuiteContext
     guests: dict[str, TestingFarmGuest] = Field(default_factory=dict)
-    shared_artifacts: list[RemoteArtifactFile] = Field(default_factory=list)
+    shared_artifacts: list[RemoteArtifactFile] = Field(
+        default_factory=list,
+        description=("Limited at runtime by testing_farm.max_shared_artifacts "
+                     "and max_total_artifacts."),
+    )
     cases: list[TestingFarmCase]
+
+    def validate_limits(self, config: TestingFarmConfig) -> None:
+        """Count submitted entries, including cached URLs, without exposing inputs."""
+        if len(self.shared_artifacts) > config.max_shared_artifacts:
+            raise ValueError("testing_farm.max_shared_artifacts exceeded")
+        if any(len(case.artifacts) > config.max_artifacts_per_case for case in self.cases):
+            raise ValueError("testing_farm.max_artifacts_per_case exceeded")
+        total = len(self.shared_artifacts) + sum(len(case.artifacts) for case in self.cases)
+        if total > config.max_total_artifacts:
+            raise ValueError("testing_farm.max_total_artifacts exceeded")
 
     @model_validator(mode="after")
     def validate_suite(self) -> "TestingFarmSuiteRequest":
@@ -803,6 +829,7 @@ class Config(BaseModel):
     koji: KojiConfig = Field(default_factory=KojiConfig)
     general: GeneralConfig = Field(default_factory=GeneralConfig)
     task_queue: TaskQueueConfig = Field(default_factory=TaskQueueConfig)
+    testing_farm: TestingFarmConfig = Field(default_factory=TestingFarmConfig)
     prompts: PromptConfig = Field(default_factory=PromptConfig)
 
     @field_validator("prompts", mode="before")
