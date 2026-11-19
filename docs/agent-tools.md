@@ -47,6 +47,11 @@ mandatory agent-directed Drain calls for every log. The agent may still use
 Drain and optional extractors when relevant. Snippet annotation is available
 only to build agents; historical lookup can use pre-extracted suite evidence.
 
+The suite agent validates returned case IDs once, rejecting duplicate or
+ineligible IDs for the entire suite. Result assembly consumes those validated
+answers without repeating the ID checks; missing or empty explanations remain
+case-local `missing_analysis` outcomes.
+
 ### Prose citations and attached evidence
 
 The agent is asked to support its explanation with prose citations using supplied

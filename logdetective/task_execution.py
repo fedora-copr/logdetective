@@ -124,12 +124,8 @@ def _suite_result(
     if output is None:
         return TestingFarmSuiteResult(cases=results)
 
-    requested = {case.case_id for case in eligible}
-    answers: dict[str, TestingFarmAgentCase] = {}
-    for answer in output.cases:
-        if answer.case_id in answers or answer.case_id not in requested:
-            raise ValueError("Agent returned duplicate or unknown case IDs")
-        answers[answer.case_id] = answer
+    # The suite agent validates uniqueness and eligibility before returning.
+    answers = {answer.case_id: answer for answer in output.cases}
 
     fallback = output.suite_fallback
     if fallback is not None and (payload.cases or fallback.case_id != "suite"):
