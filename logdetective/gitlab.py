@@ -31,7 +31,7 @@ from logdetective.exceptions import (
     LogDetectiveArtifactsMissingError,
     LogDetectiveInferenceError,
 )
-from logdetective.agent.agent import analyze_artifacts
+from logdetective.agents.base_analysis import analyze_artifacts
 from logdetective.metric import add_new_metrics, update_metrics
 from logdetective.models import (
     GitLabInstanceConfig,

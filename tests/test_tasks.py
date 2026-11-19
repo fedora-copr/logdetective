@@ -62,7 +62,7 @@ async def test_reconcile_fails_stalled_jobs(mocker, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "status", [Status.ABORTED, Status.CANCELLED, Status.SUCCEEDED]
+    "status", [Status.FAILED, Status.ABORTED, Status.CANCELLED, Status.SUCCEEDED]
 )
 @pytest.mark.asyncio
 async def test_reconcile_confirms_queue_cancellation(

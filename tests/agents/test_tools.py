@@ -12,7 +12,7 @@ from logdetective.exceptions import (
     RemoteLogTooLargeError,
 )
 from logdetective.remote_log import RemoteLog
-from logdetective.agent.tools import (
+from logdetective.agents.tools import (
     AnnotatedSnippetLookupTool,
     AnnotatedSnippetLookupToolInput,
     DrainExtractorTool,

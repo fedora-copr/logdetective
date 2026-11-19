@@ -12,7 +12,7 @@ from gitlab import Gitlab
 from koji import ClientSession
 from procrastinate.exceptions import JobAborted
 
-from logdetective.agent.agent import analyze_artifacts
+from logdetective.agents.base_analysis import analyze_artifacts
 from logdetective.artifacts import get_artifacts_from_payload
 from logdetective.config import LOG, SERVER_CONFIG, get_chat_model
 from logdetective.database.models import Forge
