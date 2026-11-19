@@ -261,15 +261,24 @@ Diagnosis eligibility is supplied separately: only cases with usable own or
 shared artifacts may receive diagnoses; the others retain `artifact_error`. Transient
 inference timeouts and rate limits retry the whole suite under the shared retry
 policy. Context/output-limit failures are task errors, never silent truncation.
-As with generic analysis, `general.analysis_timeout` limits each agent attempt.
-Suite pre-extraction consumes the first attempt’s budget; completed evidence is
-reused on transient inference retries, which receive fresh attempt deadlines.
-Individual downloads use `general.log_source_request_timeout`. There is no
-separate suite deadline: queue waiting, downloads, and retry delays do not
-consume the agent timeout, and total task time can exceed it. Clients cancel
-unwanted work through `DELETE /tasks/{id}`; stopping polling does not cancel it.
-Already-running blocking calls must finish before timeout or cancellation is
-reported as terminal.
+All analysis types use one positive integer `general.analysis_timeout` (default
+1200 seconds), starting after the worker marks the task running. Downloads,
+sanitization, setup, extraction, inference, retry delays, and result assembly
+share the original deadline. Retries never reset it; completed suite baseline
+evidence is reused. Expiry is a task-level `timeout`, never a retrieval warning
+or partial success. Queue waiting, terminal database publication, GitLab comment
+publication and associated records/metrics, and necessary cleanup are excluded.
+For an eligible GitLab job, the worker posts the comment and updates its metrics
+before marking the task complete; publishing is not a separate queued job.
+Existing HTTP, provider, Koji retrieval and retry limits still apply.
+
+Clients cancel unwanted work through `DELETE /tasks/{id}`; stopping polling does
+not cancel it. Already-running blocking calls must finish before terminal
+reporting. Overlapping explicit cancellation and expiry preserve cancellation,
+with acknowledgement immediately after cleanup, including repeated cancellation.
+A running thread cannot be forcibly stopped: a call that never returns can delay
+cleanup indefinitely. See
+[Cancellation and timeouts](agent-tools.md#cancellation-and-timeouts).
 
 The `202` envelope has `taskType: "tft_suite"` and a `Location` at the unchanged
 `/tasks/{id}` resource. A terminal successful task returns

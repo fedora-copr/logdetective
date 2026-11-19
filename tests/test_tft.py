@@ -1,5 +1,7 @@
 """Testing Farm request, prompt, and task-dispatch contracts."""
 
+import asyncio
+
 import json
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -37,7 +39,7 @@ from logdetective.exceptions import LogDetectiveInferenceTimeout
 
 
 def test_suite_request_boundaries():
-    """Reference count is unbounded; identifiers and healthy emptiness are not."""
+    """Schema has no fixed count ceiling; runtime configuration supplies the limits."""
     base = {"suite": {"plan": "/example"}, "cases": [{
         "case_id": "case_0", "name": "/test", "result": "failed",
         "artifacts": [{"name": f"log-{i}", "url": "https://example.org/log"}
@@ -178,6 +180,7 @@ async def test_suite_worker_preserves_mixed_case_outcomes(monkeypatch):
     ]}
     result = await task_execution._execute_tft_suite(
         payload, 100,
+        deadline=asyncio.get_running_loop().time() + 1200,
     )
     assert result.response.cases["good"].analysis.explanation == "Root cause"
     assert result.response.cases["bad"].analysis.explanation == "Partial log cause"
@@ -218,7 +221,7 @@ async def test_suite_transport_error_preserves_sibling_diagnosis(
                 {"name": "testout.log", "url": "https://example.org/good"},
             ]},
         ],
-    }, 100)
+    }, 100, deadline=asyncio.get_running_loop().time() + 1200)
 
     assert result.response.cases["bad"].error.code == "artifact_error"
     assert result.response.cases["good"].analysis.explanation == "Root cause"
@@ -249,7 +252,7 @@ async def test_shared_log_transport_error_does_not_discard_case(monkeypatch):
         "shared_artifacts": [{"name": "tmt.log", "url": "https://example.org/shared"}],
         "cases": [{"case_id": "good", "name": "/good", "result": "failed",
                    "artifacts": [{"name": "testout.log", "url": "https://example.org/good"}]}],
-    }, 100)
+    }, 100, deadline=asyncio.get_running_loop().time() + 1200)
 
     assert result.response.cases["good"].analysis.explanation == "Root cause"
     assert set(agent.await_args.args[0]) == {"case/good/testout.log"}
@@ -285,7 +288,7 @@ async def test_failed_log_preserves_later_case_evidence(monkeypatch):
                 {"name": "log", "url": "https://example.org/good"},
             ]},
         ],
-    }, 100)
+    }, 100, deadline=asyncio.get_running_loop().time() + 1200)
     assert fetched_urls == ["https://example.org/missing", "https://example.org/large",
                             "https://example.org/good"]
     assert result.response.cases["bad"].analysis.explanation == "recovered"
@@ -317,7 +320,7 @@ async def test_suite_failed_url_is_cached_and_warned_per_source(monkeypatch):
         "cases": [{"case_id": case_id, "name": "/test", "result": "failed",
                    "artifacts": [{"name": "bad", "url": "https://example.org/bad"}]}
                   for case_id in ("a", "b")],
-    }, 100)
+    }, 100, deadline=asyncio.get_running_loop().time() + 1200)
     assert attempts == ["https://example.org/good", "https://example.org/bad"]
     assert [warning.source_file for warning in result.response.retrieval_warnings] == [
         "case/a/bad", "case/b/bad"]
@@ -341,7 +344,7 @@ async def test_failed_download_bytes_count_toward_aggregate_limit(monkeypatch):
             "shared_artifacts": [{"name": "partial", "url": "https://example.org/partial"},
                                  {"name": "later", "url": "https://example.org/later"}],
             "cases": [],
-        }, 100)
+        }, 100, deadline=asyncio.get_running_loop().time() + 1200)
 
 
 @pytest.mark.asyncio
@@ -356,7 +359,7 @@ async def test_total_evidence_loss_skips_inference(monkeypatch):
         "suite": {"plan": "/plan"},
         "cases": [{"case_id": "a", "name": "/test", "result": "failed",
                    "artifacts": [{"name": "log", "url": "https://example.org/unavailable"}]}],
-    }, 100)
+    }, 100, deadline=asyncio.get_running_loop().time() + 1200)
     agent.assert_not_awaited()
     assert outcome.response.cases["a"].error.code == "artifact_error"
 
@@ -403,10 +406,12 @@ async def test_multihost_context_survives_missing_case_logs(monkeypatch, diagnos
             with pytest.raises(ValueError, match="ineligible case IDs"):
                 await task_execution._execute_tft_suite(
                     payload, 100,
+                    deadline=asyncio.get_running_loop().time() + 1200,
                 )
         else:
             outcome = await task_execution._execute_tft_suite(
                 payload, 100,
+                deadline=asyncio.get_running_loop().time() + 1200,
             )
             assert outcome.response.cases["server"].error.code == "artifact_error"
             assert outcome.response.cases["client"].analysis.explanation == (
@@ -456,6 +461,7 @@ async def test_more_than_eight_cases_use_one_suite_agent_run():
             {"shared/log": "failure", **{
                 f"case/c{i}/case.log": "failure" for i in range(9)
             }}, MagicMock(), request, eligible_case_ids={case.case_id for case in request.cases},
+            deadline=asyncio.get_running_loop().time() + 1200,
         )
     extract.assert_awaited_once()
     ids = [f"c{i}" for i in range(9)]
@@ -482,6 +488,7 @@ async def test_suite_agent_retries_transient_inference_failure():
         result, _ = await analyze_testing_farm_suite(
             {}, MagicMock(), request,
             eligible_case_ids={"c1"},
+            deadline=asyncio.get_running_loop().time() + 1200,
         )
     assert result == output
     assert run.await_count == 2
@@ -505,7 +512,7 @@ async def test_shared_log_only_case_is_analyzed(monkeypatch):
         "suite": {"plan": "/plan"},
         "shared_artifacts": [{"name": "tmt.log", "url": "https://example.org/shared"}],
         "cases": [{"case_id": "shared-only", "name": "/test", "result": "failed"}],
-    }, 100)
+    }, 100, deadline=asyncio.get_running_loop().time() + 1200)
 
     assert result.response.cases["shared-only"].analysis.explanation == "Root cause"
     assert agent.await_args.args[0] == {"shared/tmt.log": "shared failure"}
@@ -533,6 +540,7 @@ async def test_suite_worker_rejects_unknown_agent_id(monkeypatch):
     with pytest.raises(ValueError, match="unknown case IDs"):
         await task_execution._execute_tft_suite(
             payload, 100,
+            deadline=asyncio.get_running_loop().time() + 1200,
         )
 
 
@@ -571,7 +579,7 @@ async def test_suite_fallback_and_missing_case_analysis(monkeypatch, suite_error
     monkeypatch.setattr(task_execution, "get_chat_model", lambda _: MagicMock())
     fallback = await task_execution._execute_tft_suite({
         "suite": {"plan": "/plan", **suite_error}, "cases": [],
-    }, 100)
+    }, 100, deadline=asyncio.get_running_loop().time() + 1200)
     assert fallback.response.suite_fallback.explanation == "Guest setup failed"
     assert agent.await_count == 1
 
@@ -586,7 +594,7 @@ async def test_suite_fallback_and_missing_case_analysis(monkeypatch, suite_error
             "case_id": "c1", "name": "/test", "result": "failed",
             "artifacts": [{"name": "testout.log", "url": "https://example.org/log"}],
         }],
-    }, 100)
+    }, 100, deadline=asyncio.get_running_loop().time() + 1200)
     assert missing.response.cases["c1"].error.code == "missing_analysis"
 
 
@@ -614,6 +622,7 @@ async def test_suite_ignores_obsolete_citations_and_enforces_budget(monkeypatch)
     }]}
     result = await task_execution._execute_tft_suite(
         payload, 100,
+        deadline=asyncio.get_running_loop().time() + 1200,
     )
     assert result.response.cases["c1"].analysis.snippets == []
     agent.return_value = (TFTAgentOutput(cases=[{
@@ -622,11 +631,13 @@ async def test_suite_ignores_obsolete_citations_and_enforces_budget(monkeypatch)
     }]), {})
     result = await task_execution._execute_tft_suite(
         payload, 100,
+        deadline=asyncio.get_running_loop().time() + 1200,
     )
     assert result.response.cases["c1"].analysis.explanation == "cause"
     with pytest.raises(ValueError, match="exceeds the limit"):
         await task_execution._execute_tft_suite(
             payload, task_execution.SERVER_CONFIG.general.max_artifact_size,
+            deadline=asyncio.get_running_loop().time() + 1200,
         )
 
 
@@ -708,6 +719,7 @@ async def test_suite_oversize_remote_log_is_task_error(monkeypatch):
     with pytest.raises(RemoteLogTooLargeError):
         await task_execution._execute_tft_suite(
             payload, 100,
+            deadline=asyncio.get_running_loop().time() + 1200,
         )
 
 
@@ -734,6 +746,7 @@ async def test_suite_agent_preextracts_without_mandatory_tool_turns():
             {"shared/tmt.log": "ERROR: setup failed\n",
              "case/c1/testout.log": "ERROR: test failed\n"},
             model, request, eligible_case_ids={"c1"},
+            deadline=asyncio.get_running_loop().time() + 1200,
         )
     assert result == output
     assert evidence
@@ -786,7 +799,7 @@ async def test_unavailable_shared_log_does_not_discard_case(monkeypatch):
         "shared_artifacts": [{"name": "tmt.log", "url": "https://example.org/shared"}],
         "cases": [{"case_id": "c1", "name": "/test", "result": "failed",
                    "artifacts": [{"name": "testout.log", "url": "https://example.org/case"}]}],
-    }, 100)
+    }, 100, deadline=asyncio.get_running_loop().time() + 1200)
     assert outcome.response.cases["c1"].analysis.explanation == "case diagnosis"
 
 
@@ -812,7 +825,7 @@ async def test_case_without_explanation_does_not_lose_sibling(monkeypatch):
              "artifacts": [{"name": "testout.log", "url": f"https://example.org/{case_id}"}]}
             for case_id in ("c1", "c2")
         ],
-    }, 100)
+    }, 100, deadline=asyncio.get_running_loop().time() + 1200)
     assert outcome.response.cases["c1"].error.code == "missing_analysis"
     assert outcome.response.cases["c2"].analysis.explanation == "cause"
 
@@ -882,6 +895,7 @@ async def test_suite_publishes_full_traceback_evidence(monkeypatch, scope, retry
     output, evidence = await analyze_testing_farm_suite(
         {source: log}, MagicMock(), request,
         eligible_case_ids={case.case_id for case in request.cases},
+        deadline=asyncio.get_running_loop().time() + 1200,
     )
     result = task_execution._suite_result(request, request.cases, {}, output, evidence)
     analysis = result.suite_fallback if scope == "fallback" else result.cases["c1"].analysis
@@ -924,6 +938,7 @@ async def test_suite_optional_drain_keeps_preextracted_evidence():
     ):
         _, evidence = await analyze_testing_farm_suite(
             {"case/c1/log": "error"}, model, request, eligible_case_ids={"c1"},
+            deadline=asyncio.get_running_loop().time() + 1200,
         )
     assert [snippet.text for snippet in evidence["case/c1/log:1"]] == ["error"]
 

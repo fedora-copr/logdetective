@@ -1,3 +1,4 @@
+import asyncio
 import os
 import io
 from unittest.mock import MagicMock, AsyncMock, patch
@@ -24,6 +25,7 @@ from logdetective.gitlab import process_gitlab_job_event
 from logdetective.models import JobHook, GitLabInstanceConfig, APIResponse
 from logdetective.database.models import (
     AnalyzeRequestMetrics,
+    EndpointType,
     Forge,
     GitlabMergeRequestJobs,
 )
@@ -310,14 +312,19 @@ def mock_analysis(request):
     "mock_analysis", ["This is a mock message"], indirect=True
 )
 @pytest.mark.asyncio
+@pytest.mark.parametrize("eligible", [True, False])
+@pytest.mark.parametrize("preadmitted", [True, False])
 async def test_process_gitlab_job_event(
+    *,
     mock_config,
     mock_job_hook,
     mock_analysis,
     gitlab_cfg,
+    eligible,
+    preadmitted,
 ):
     async with DatabaseFactory().make_new_db() as session_factory:
-        _, _, job_hook = mock_job_hook
+        sync_responses, _, job_hook = mock_job_hook
 
         http_session = aiohttp.ClientSession()
         gitlab_connection = Gitlab(
@@ -329,19 +336,53 @@ async def test_process_gitlab_job_event(
 
         # We need a chat model for the process_gitlab_job_event
         mock_chat_model = MagicMock(spec=ChatModel)
+        metrics_id = None
+        if preadmitted:
+            metrics_id = await AnalyzeRequestMetrics.create(
+                endpoint=EndpointType.ANALYZE_GITLAB_JOB,
+                api_token_name="gitlab-client",
+            )
 
-        await process_gitlab_job_event(
-            gitlab_cfg=gitlab_cfg,
-            gitlab_connection=gitlab_connection,
-            http_session=mock_http_session,
-            forge=Forge.gitlab_com,
-            job_hook=job_hook,
-            chat_model=mock_chat_model,
-        )
+        async def check_admission_metrics(**_kwargs):
+            # Metrics must already exist during inference. Reusing admission
+            # must not create another row.
+            async with session_factory() as db_session:
+                metric = (await db_session.scalars(select(AnalyzeRequestMetrics))).one()
+                assert metric.endpoint == EndpointType.ANALYZE_GITLAB_JOB
+                assert metric.api_token_name == "gitlab-client"
+                assert metric.response_sent_at is None
+            return APIResponse(explanation="This is a mock message", snippets=[])
+
+        mock_analysis.side_effect = check_admission_metrics
+        if not eligible:
+            mock_config["server_config"].general.packages = []
+            # Publication mocks intentionally remain unused for excluded packages.
+            sync_responses.assert_all_requests_are_fired = False
+
+        async with asyncio.timeout(1200) as timeout:
+            result = await process_gitlab_job_event(
+                gitlab_cfg=gitlab_cfg,
+                gitlab_connection=gitlab_connection,
+                http_session=mock_http_session,
+                forge=Forge.gitlab_com,
+                job_hook=job_hook,
+                chat_model=mock_chat_model,
+                metrics_id=metrics_id,
+                api_token_name="gitlab-client",
+                timeout=timeout,
+            )
+        if eligible:
+            mock_analysis.assert_awaited_once()
+            assert result is not None
+        else:
+            mock_analysis.assert_not_awaited()
+            assert result is None
+            assert [call.request.url for call in sync_responses.calls] == [
+                "https://gitlab.com/api/v4/projects/678"
+            ]
         async with session_factory() as db_session:
             query = (
                 select(AnalyzeRequestMetrics)
-                .where(AnalyzeRequestMetrics.id == 1)
                 .options(
                     selectinload(AnalyzeRequestMetrics.mr_job).selectinload(
                         GitlabMergeRequestJobs.comment
@@ -349,10 +390,18 @@ async def test_process_gitlab_job_event(
                 )
             )
             query_results = await db_session.execute(query)
-            metric = query_results.scalars().first()
-            assert isinstance(metric, AnalyzeRequestMetrics)
-            assert metric.mr_job is not None
-            assert metric.mr_job.comment
+            metric = query_results.scalars().one_or_none()
+            if eligible:
+                assert metric is not None
+                assert metric.mr_job is not None
+                assert metric.mr_job.comment
+                assert metric.response_sent_at is not None
+            elif preadmitted:
+                assert metric is not None
+                assert metric.mr_job is None
+                assert metric.response_sent_at is None
+            else:
+                assert metric is None
         await http_session.close()
 
 
@@ -377,6 +426,7 @@ async def test_missing_log_data_does_not_post_comment(gitlab_cfg, caplog):
         project_id=42,
     )
     with (
+        patch("logdetective.gitlab.is_eligible_package", return_value=True),
         patch("logdetective.gitlab.GitlabMergeRequestJobs.get_by_details",
               new_callable=AsyncMock, return_value=None),
         patch("logdetective.gitlab.retrieve_and_preprocess_koji_logs",
@@ -387,14 +437,17 @@ async def test_missing_log_data_does_not_post_comment(gitlab_cfg, caplog):
         patch("logdetective.gitlab.comment_on_mr", new_callable=AsyncMock)
         as comment,
     ):
-        response = await process_gitlab_job_event(
-            gitlab_cfg, gitlab_connection, AsyncMock(), Forge.gitlab_com,
-            job_hook, MagicMock(spec=ChatModel)
-        )
+        async with asyncio.timeout(1200) as timeout:
+            response = await process_gitlab_job_event(
+                gitlab_cfg, gitlab_connection, AsyncMock(), Forge.gitlab_com,
+                job_hook, MagicMock(spec=ChatModel),
+                timeout=timeout,
+            )
 
     assert response is None
     analyze.assert_not_awaited()
     comment.assert_not_awaited()
+    assert "Could not retrieve logs" in caplog.text
 
 
 @pytest.mark.parametrize(
@@ -430,6 +483,10 @@ async def test_analysis_uses_log_basename(gitlab_cfg, selected_url, expected_nam
         project_id=42,
     )
     response = APIResponse(explanation="Build failed", snippets=[])
+
+    async def check_publication_boundary(*_args):
+        assert timeout.when() is None
+
     with (
         patch("logdetective.gitlab.GitlabMergeRequestJobs.get_by_details",
               new_callable=AsyncMock, return_value=None),
@@ -443,17 +500,20 @@ async def test_analysis_uses_log_basename(gitlab_cfg, selected_url, expected_nam
         patch("logdetective.gitlab.is_eligible_package", return_value=True),
         patch("logdetective.gitlab.analyze_artifacts", new_callable=AsyncMock,
               return_value=response) as analyze,
-        patch("logdetective.gitlab.comment_on_mr", new_callable=AsyncMock) as comment,
+        patch("logdetective.gitlab.comment_on_mr",
+              side_effect=check_publication_boundary) as comment,
         patch("logdetective.gitlab.update_metrics", new_callable=AsyncMock),
     ):
-        result = await process_gitlab_job_event(
-            gitlab_cfg,
-            gitlab_connection,
-            AsyncMock(),
-            Forge.gitlab_com,
-            job_hook,
-            MagicMock(spec=ChatModel),
-        )
+        async with asyncio.timeout(1200) as timeout:
+            result = await process_gitlab_job_event(
+                gitlab_cfg,
+                gitlab_connection,
+                AsyncMock(),
+                Forge.gitlab_com,
+                job_hook,
+                MagicMock(spec=ChatModel),
+                timeout=timeout,
+            )
 
     assert result is response
     assert analyze.await_args.kwargs["artifacts"] == {expected_name: "sanitized log"}

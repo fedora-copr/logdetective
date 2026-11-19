@@ -27,7 +27,9 @@ def request():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("trigger", ["timeout", "cancel"])
+@pytest.mark.parametrize("trigger", [
+    "timeout", "cancel", "cancel_then_expiry", "expiry_then_cancel",
+])
 async def test_preextraction_cleanup_precedes_publication(monkeypatch, trigger):  # pylint: disable=too-many-statements
     """Expiry/cancellation joins extraction, skips the next log, and never infers."""
     started = threading.Event()
@@ -50,7 +52,7 @@ async def test_preextraction_cleanup_precedes_publication(monkeypatch, trigger):
     infer = AsyncMock()
     monkeypatch.setattr(suite_agent, "run_agent", infer)
     monkeypatch.setattr(
-        SERVER_CONFIG.general, "analysis_timeout", 0.04 if trigger == "timeout" else 10,
+        SERVER_CONFIG.general, "analysis_timeout", 10 if trigger == "cancel" else 0.04,
     )
     task = SimpleNamespace(
         task_type=TaskType.TFT_SUITE, input_payload={}, request_size=0,
@@ -62,6 +64,7 @@ async def test_preextraction_cleanup_precedes_publication(monkeypatch, trigger):
         await suite_agent.analyze_testing_farm_suite(
             {"first": "error", "second": "error"}, MagicMock(), request(),
             eligible_case_ids={"c1"},
+            deadline=_args[4].when(),
         )
         raise AssertionError("Expired preparation must not return a result")
 
@@ -77,18 +80,22 @@ async def test_preextraction_cleanup_precedes_publication(monkeypatch, trigger):
         async with asyncio.timeout(2):
             while not started.is_set():
                 await asyncio.sleep(0.001)
-        if trigger == "cancel":
+        if trigger in ("cancel", "cancel_then_expiry"):
             operation.cancel()
             await asyncio.sleep(0.01)
             operation.cancel()
         await asyncio.sleep(0.08)
+        if trigger == "expiry_then_cancel":
+            operation.cancel()
+            await asyncio.sleep(0.001)
+            operation.cancel()
         assert not operation.done()
         error.assert_not_awaited()
         cancelled.assert_not_awaited()
         result.assert_not_awaited()
     finally:
         release.set()
-        with pytest.raises(asyncio.CancelledError if trigger == "cancel" else RuntimeError):
+        with pytest.raises(RuntimeError if trigger == "timeout" else asyncio.CancelledError):
             await operation
     assert finished.is_set()
     assert calls == ["first"]
@@ -104,7 +111,7 @@ async def test_preextraction_cleanup_precedes_publication(monkeypatch, trigger):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("baseline", [{}, {"first:1": "evidence"}])
-async def test_retries_reuse_baseline_with_fresh_deadlines(monkeypatch, baseline):
+async def test_retries_reuse_baseline_with_shared_deadline(monkeypatch, baseline):
     """Even empty extraction is cached; inference gets the preparation deadline."""
     attempts = []
     baselines = []
@@ -112,7 +119,7 @@ async def test_retries_reuse_baseline_with_fresh_deadlines(monkeypatch, baseline
     async def extract(_artifacts, attempt):
         attempts.append(attempt)
         # Model preparation consuming budget without slowing the test down.
-        attempt.deadline -= 1
+        await asyncio.sleep(0.001)
         return baseline
 
     async def execute(_artifacts, _model, _request, evidence, _ids, attempt):
@@ -121,7 +128,7 @@ async def test_retries_reuse_baseline_with_fresh_deadlines(monkeypatch, baseline
             assert attempt is attempts[0]
             raise LogDetectiveInferenceTimeout("transient")
         assert attempt is not attempts[0]
-        assert attempt.deadline > attempts[0].deadline
+        assert attempt.deadline == attempts[0].deadline
         return SuiteOutput(), {}
 
     extraction = AsyncMock(side_effect=extract)
@@ -131,6 +138,7 @@ async def test_retries_reuse_baseline_with_fresh_deadlines(monkeypatch, baseline
     monkeypatch.setattr(suite_agent.inference_retry, "wait", lambda _state: 0)
     await suite_agent.analyze_testing_farm_suite(
         {"first": "error"}, MagicMock(), request(), eligible_case_ids={"c1"},
+        deadline=asyncio.get_running_loop().time() + 1200,
     )
     extraction.assert_awaited_once()
     assert all(evidence is baseline for evidence in baselines)
@@ -155,7 +163,7 @@ async def test_agent_uses_preparation_signal_without_resetting_budget(monkeypatc
     monkeypatch.setattr(SERVER_CONFIG.general, "analysis_timeout", 0.08)
     agent = MagicMock()
     with pytest.raises(LogDetectiveAgentTimeoutError):
-        async with analysis_attempt() as attempt:
+        async with analysis_attempt(asyncio.get_running_loop().time() + 0.08) as attempt:
             await asyncio.sleep(0.04)
 
             async def infer(*_middleware):
