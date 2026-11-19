@@ -76,7 +76,7 @@ For CUDA GPU acceleration, uncomment the device lines in `containers/docker-comp
 
 - `logdetective/` - FastAPI app, Procrastinate worker/tasks, config, routes, GitLab/Koji integrations, extractors, prompt management, utilities
 - `logdetective/prompts/` - Prompt templates for logdetective
-- `logdetective/agent/` - BeeAI agent and tool definitions (Drain, csgrep, traceback, snippet analysis)
+- `logdetective/agents/` - build workflow, shared agent execution and tool definitions (Drain, csgrep, traceback, snippet analysis)
 - `logdetective/database/` - SQLAlchemy async engine, session factory, transaction helpers
 - `logdetective/database/models/` - ORM models (metrics, merge requests, koji, annotated builds with pgvector)
 - `logdetective/templates/` - Jinja2 response templates (HTML, GitLab markdown)

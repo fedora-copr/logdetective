@@ -133,6 +133,7 @@ async def reconcile_analysis_jobs(timestamp: int) -> None:  # pylint: disable=to
             continue
         if status in (Status.FAILED, Status.SUCCEEDED, Status.ABORTED, Status.CANCELLED):
             if task.state == AnalysisState.CANCELLING and status in (
+                Status.FAILED,
                 Status.ABORTED,
                 Status.CANCELLED,
                 Status.SUCCEEDED,

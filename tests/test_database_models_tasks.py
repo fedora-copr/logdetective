@@ -549,3 +549,23 @@ async def test_result_loss_fences_late_publication():
             task_metadata=None,
             retention_days=30,
         )
+
+
+@pytest.mark.asyncio
+async def test_queue_failure_cannot_override_explicit_cancellation():
+    """A stale maintenance snapshot cannot replace cancelling with worker_lost."""
+    public_id = uuid4()
+    async with DatabaseFactory().make_new_db():
+        task, _ = await TaskAnalysis.admit(
+            task_id=public_id, owner_token_name=None, task_type=TaskType.GENERIC,
+            input_payload={"files": []},
+            request_size=10, deferrable_task=FakeDeferrable(),
+            endpoint=EndpointType.ANALYZE,
+        )
+        cancelling = await TaskAnalysis.request_cancellation(
+            public_id, None, FailingJobManager(), 30
+        )
+        assert cancelling.state == AnalysisState.CANCELLING
+        assert not await TaskAnalysis.mark_queue_failure(task.procrastinate_job_id, 30)
+        assert await TaskAnalysis.confirm_cancelled(public_id, task.procrastinate_job_id, 30)
+        assert (await TaskAnalysis.get_owned(public_id, None)).state == AnalysisState.CANCELLED

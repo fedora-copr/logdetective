@@ -16,3 +16,14 @@ problems, and solutions describe past builds.
 `snippet_annotation` attaches a brief description to a useful extracted snippet.
 Its `source_file` and `line_number` must match extractor output. The description
 goes in the `snippet_analysis` argument.
+
+## Cancellation ownership
+
+Shared build-agent setup and execution live in `logdetective.agents.common`.
+Each attempt owns its abort controller and nested blocking-work scope. Task
+cancellation signals BeeAI and joins running work before terminal reporting.
+Repeated cancellation does not abandon threads or clear cancellation counts;
+an enclosing timeout removes only its own cancellation request. Running threads
+cannot be forcibly stopped, so cleanup can wait indefinitely for a stuck call.
+Queue reconciliation confirms cancellation even when the queue job fails and
+never overwrites an accepted cancellation with queue failure.

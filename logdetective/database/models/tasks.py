@@ -756,7 +756,7 @@ class TaskAnalysis(Base):  # pylint: disable=too-many-instance-attributes
                 update(cls)
                 .where(
                     cls.procrastinate_job_id == job_id,
-                    cls.state.in_(ACTIVE_STATES),
+                    cls.state.in_((AnalysisState.SCHEDULED, AnalysisState.IN_PROGRESS)),
                 )
                 .values(
                     state=AnalysisState.ERROR,
