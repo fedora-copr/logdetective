@@ -1,4 +1,5 @@
 import re
+from dataclasses import dataclass
 import asyncio
 import zipfile
 from pathlib import Path, PurePath
@@ -19,6 +20,7 @@ from tenacity import (
 )
 
 from logdetective.utils import (
+    check_deadline,
     run_blocking,
     sanitize_artifact,
     ContentSizeCheck,
@@ -171,6 +173,20 @@ def _select_koji_log(
 
 # pylint: disable=too-many-locals, too-many-arguments, \
 # pylint: disable=too-many-positional-arguments, too-many-return-statements
+@dataclass(frozen=True)
+class GitLabPublication:  # pylint: disable=too-many-instance-attributes
+    """In-memory diagnosis and live GitLab context for untimed publication."""
+
+    forge: Forge
+    project: gitlab.v4.objects.Project
+    merge_request_iid: int
+    job: gitlab.v4.objects.ProjectJob
+    log_url: str
+    response: APIResponse
+    metrics_id: int | None
+    api_token_name: str | None
+
+
 async def process_gitlab_job_event(
     gitlab_cfg: GitLabInstanceConfig,
     gitlab_connection: gitlab.Gitlab,
@@ -180,8 +196,10 @@ async def process_gitlab_job_event(
     chat_model: ChatModel,
     api_token_name: str | None = None,
     metrics_id: int | None = None,
-) -> APIResponse | None:
-    """Handle a received job_event webhook from GitLab"""
+    *, deadline: float,
+) -> GitLabPublication | None:
+    """Prepare a diagnosis without publishing comments or outcome metrics."""
+    check_deadline(deadline)
     LOG.debug("Received webhook message from %s:\n%s", forge.value, job_hook)
 
     # Look up the project this job belongs to
@@ -226,6 +244,7 @@ async def process_gitlab_job_event(
         LOG.info("Resubmission of an existing build. Skipping.")
         return
 
+    check_deadline(deadline)
     LOG.debug("Retrieving log artifacts")
     # Retrieve the build logs from the merge request artifacts and preprocess them
     try:
@@ -240,6 +259,7 @@ async def process_gitlab_job_event(
         LOG.error("Could not retrieve logs due to %s", ex)
         return
 
+    check_deadline(deadline)
     # Submit log to Log Detective and await the results.
     log_text = await run_blocking(sanitize_artifact, preprocessed_log)
     if metrics_id is None:
@@ -247,6 +267,7 @@ async def process_gitlab_job_event(
             api_name=EndpointType.ANALYZE_GITLAB_JOB,
             api_token_name=api_token_name,
         )
+    check_deadline(deadline)
     build_metadata = BuildMetadata(
         commentary=(
             "The package was built in Koji, using Mock."
@@ -260,6 +281,7 @@ async def process_gitlab_job_event(
             artifacts={log_url: log_text},
             chat_model=chat_model,
             build_metadata=build_metadata,
+            deadline=deadline,
         )
     except LogDetectiveInferenceError as exc:
         LOG.error(
@@ -271,25 +293,25 @@ async def process_gitlab_job_event(
         )
         return
 
+    check_deadline(deadline)
     # check if this project is on the opt-in list for posting comments.
     if not is_eligible_package(project.name):
         LOG.info("Not publishing comment for unrecognized package %s", project.name)
         return
 
-    # Add the Log Detective response as a comment to the merge request
-    await comment_on_mr(
-        forge,
-        project,
-        merge_request_iid,
-        job,
-        log_url,
-        response,
-        metrics_id,
+    return GitLabPublication(
+        forge, project, merge_request_iid, job, log_url, response, metrics_id, api_token_name,
     )
 
-    await update_metrics(metrics_id, response)
 
-    return response
+async def publish_gitlab_analysis(publication: GitLabPublication) -> None:
+    """Publish comments and associated records after successful timed analysis."""
+    metrics_id = publication.metrics_id
+    await comment_on_mr(
+        publication.forge, publication.project, publication.merge_request_iid,
+        publication.job, publication.log_url, publication.response, metrics_id,
+    )
+    await update_metrics(metrics_id, publication.response)
 
 
 def is_eligible_package(project_name: str):

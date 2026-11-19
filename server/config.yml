@@ -107,7 +107,9 @@ general:
   # delay_artifact_download: true
   # Total timeout in seconds for downloading remote log sources
   log_source_request_timeout: 10
-  analysis_timeout: 600  # Timeout on agent execution
+  # Positive integer seconds for retrieval through assembly, including all retries.
+  # Excludes queue waiting, GitLab publication, terminal state publication, and cleanup.
+  analysis_timeout: 1200
   # Enable DB lookup of annotated snippets (requires populated annotated_snippets table)
   # annotation_lookup_tool: true
   # Upper limit for returned similar annotated snippets

@@ -1,3 +1,4 @@
+import asyncio
 import os
 import io
 from unittest.mock import MagicMock, AsyncMock, patch
@@ -18,10 +19,11 @@ from logdetective.gitlab import (
     retrieve_and_preprocess_koji_logs,
     check_artifacts_file_size,
 )
-from logdetective.gitlab import process_gitlab_job_event
+from logdetective.gitlab import process_gitlab_job_event, publish_gitlab_analysis
 from logdetective.models import JobHook, GitLabInstanceConfig, APIResponse
 from logdetective.database.models import (
     AnalyzeRequestMetrics,
+    EndpointType,
     Forge,
     GitlabMergeRequestJobs,
 )
@@ -269,14 +271,19 @@ def mock_analysis(request):
     "mock_analysis", ["This is a mock message"], indirect=True
 )
 @pytest.mark.asyncio
+@pytest.mark.parametrize("eligible", [True, False])
+@pytest.mark.parametrize("preadmitted", [True, False])
 async def test_process_gitlab_job_event(
+    *,
     mock_config,
     mock_job_hook,
     mock_analysis,
     gitlab_cfg,
+    eligible,
+    preadmitted,
 ):
     async with DatabaseFactory().make_new_db() as session_factory:
-        _, _, job_hook = mock_job_hook
+        sync_responses, _, job_hook = mock_job_hook
 
         http_session = aiohttp.ClientSession()
         gitlab_connection = Gitlab(
@@ -288,15 +295,48 @@ async def test_process_gitlab_job_event(
 
         # We need a chat model for the process_gitlab_job_event
         mock_chat_model = MagicMock(spec=ChatModel)
+        metrics_id = None
+        if preadmitted:
+            metrics_id = await AnalyzeRequestMetrics.create(
+                endpoint=EndpointType.ANALYZE_GITLAB_JOB,
+                api_token_name="gitlab-client",
+            )
 
-        await process_gitlab_job_event(
+        async def check_admission_metrics(**_kwargs):
+            # Metrics must already exist during inference, even if no comment
+            # will be published. Reusing admission must not create another row.
+            async with session_factory() as db_session:
+                metric = (await db_session.scalars(select(AnalyzeRequestMetrics))).one()
+                assert metric.endpoint == EndpointType.ANALYZE_GITLAB_JOB
+                assert metric.api_token_name == "gitlab-client"
+                assert metric.response_sent_at is None
+            return APIResponse(explanation="This is a mock message", snippets=[])
+
+        mock_analysis.side_effect = check_admission_metrics
+        if not eligible:
+            mock_config["server_config"].general.packages = []
+            # Publication mocks intentionally remain unused for excluded packages.
+            sync_responses.assert_all_requests_are_fired = False
+
+        publication = await process_gitlab_job_event(
             gitlab_cfg=gitlab_cfg,
             gitlab_connection=gitlab_connection,
             http_session=mock_http_session,
             forge=Forge.gitlab_com,
             job_hook=job_hook,
             chat_model=mock_chat_model,
+            metrics_id=metrics_id,
+            api_token_name="gitlab-client",
+            deadline=asyncio.get_running_loop().time() + 1200,
         )
+        mock_analysis.assert_awaited_once()
+        if eligible:
+            assert publication is not None
+            await publish_gitlab_analysis(publication)
+        else:
+            assert publication is None
+            assert all("/merge_requests/" not in call.request.url
+                       for call in sync_responses.calls)
         async with session_factory() as db_session:
             query = (
                 select(AnalyzeRequestMetrics)
@@ -310,8 +350,14 @@ async def test_process_gitlab_job_event(
             query_results = await db_session.execute(query)
             metric = query_results.scalars().first()
             assert isinstance(metric, AnalyzeRequestMetrics)
-            assert metric.mr_job is not None
-            assert metric.mr_job.comment
+            assert len((await db_session.scalars(select(AnalyzeRequestMetrics))).all()) == 1
+            if eligible:
+                assert metric.mr_job is not None
+                assert metric.mr_job.comment
+                assert metric.response_sent_at is not None
+            else:
+                assert metric.mr_job is None
+                assert metric.response_sent_at is None
         await http_session.close()
 
 

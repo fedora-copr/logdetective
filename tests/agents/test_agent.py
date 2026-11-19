@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import AsyncMock, patch, MagicMock
 
 import pytest
@@ -47,7 +48,10 @@ async def test_analyze_artifacts_init_default(mock_agent_setup):
         MockAgent.return_value.run.return_value = mock_run_instance
 
         with patch.object(SERVER_CONFIG.extractor, "csgrep", False):
-            await analyze_artifacts(mock_artifacts, mock_chat_model)
+            await analyze_artifacts(
+                mock_artifacts, mock_chat_model,
+                deadline=asyncio.get_running_loop().time() + 1200,
+            )
 
             _, kwargs = MockAgent.call_args
             tools = kwargs.get("tools", [])
@@ -68,7 +72,10 @@ async def test_analyze_artifacts_init_with_csgrep(mock_agent_setup):
         MockAgent.return_value.run.return_value = mock_run_instance
 
         with patch.object(SERVER_CONFIG.extractor, "csgrep", True):
-            await analyze_artifacts(mock_artifacts, mock_chat_model)
+            await analyze_artifacts(
+                mock_artifacts, mock_chat_model,
+                deadline=asyncio.get_running_loop().time() + 1200,
+            )
 
             _, kwargs = MockAgent.call_args
             tools = kwargs.get("tools", [])
@@ -94,7 +101,10 @@ async def test_analyze_artifacts_execution_flow(mock_agent_setup):
         mock_agent_instance = MockAgent.return_value
         mock_agent_instance.run.return_value = mock_run_chain
 
-        response = await analyze_artifacts(mock_artifacts, mock_chat_model)
+        response = await analyze_artifacts(
+            mock_artifacts, mock_chat_model,
+            deadline=asyncio.get_running_loop().time() + 1200,
+        )
 
         assert response.explanation == expected_answer
 
@@ -132,7 +142,10 @@ async def test_analyze_artifacts_inference_errors(
             MockAgent.return_value.run.return_value = mock_run_instance
 
             with pytest.raises(LogDetectiveInferenceError) as exc_info:
-                await analyze_artifacts(mock_artifacts, mock_chat_model)
+                await analyze_artifacts(
+                    mock_artifacts, mock_chat_model,
+                    deadline=asyncio.get_running_loop().time() + 1200,
+                )
 
     assert isinstance(exc_info.value, expected_exc)
 
@@ -153,7 +166,10 @@ async def test_analyze_artifacts_solution_stripped_when_disabled(mock_agent_setu
         MockAgent.return_value.run.return_value = mock_run_chain
 
         with patch.object(SERVER_CONFIG.general, "generate_solution", False):
-            response = await analyze_artifacts(mock_artifacts, mock_chat_model)
+            response = await analyze_artifacts(
+                mock_artifacts, mock_chat_model,
+                deadline=asyncio.get_running_loop().time() + 1200,
+            )
             assert response.solution is None
 
 
@@ -173,7 +189,10 @@ async def test_analyze_artifacts_solution_kept_when_enabled(mock_agent_setup):
         MockAgent.return_value.run.return_value = mock_run_chain
 
         with patch.object(SERVER_CONFIG.general, "generate_solution", True):
-            response = await analyze_artifacts(mock_artifacts, mock_chat_model)
+            response = await analyze_artifacts(
+                mock_artifacts, mock_chat_model,
+                deadline=asyncio.get_running_loop().time() + 1200,
+            )
             assert response.solution is not None
             assert response.solution == "Mock solution"
 
@@ -216,7 +235,10 @@ async def test_analyze_artifacts_lookup_tool_included(
                 AnnotatedSnippets, "get_count", new_callable=AsyncMock, return_value=snippet_count
             ) as get_count,
         ):
-            await analyze_artifacts(mock_artifacts, mock_chat_model)
+            await analyze_artifacts(
+                mock_artifacts, mock_chat_model,
+                deadline=asyncio.get_running_loop().time() + 1200,
+            )
 
         _, kwargs = MockAgent.call_args
         tools = kwargs.get("tools", [])

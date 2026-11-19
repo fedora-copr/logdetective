@@ -3,6 +3,7 @@
 import asyncio
 import threading
 import time
+from contextlib import AsyncExitStack
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -12,7 +13,7 @@ from beeai_framework.context import RunContext
 from beeai_framework.emitter import Emitter
 
 from logdetective import task_execution
-from logdetective.agents.common import run_agent
+from logdetective.agents.common import analysis_attempt, run_agent
 from logdetective.database.models.tasks import TaskAnalysis, TaskType
 from logdetective.models import APIResponse, KojiTaskMetadata
 from logdetective.task_execution import TaskOutcome, run_task
@@ -51,10 +52,11 @@ async def test_execute_generic_uses_configured_log_source_timeout(monkeypatch):
         task_execution.SERVER_CONFIG.general, "log_source_request_timeout", 12.5
     )
 
-    outcome = await task_execution._execute_generic(  # pylint: disable=protected-access
-        {"files": [{"name": "build.log", "content": "failed"}]},
-        request_size=128,
-    )
+    async with AsyncExitStack() as stack:
+        outcome = await task_execution._execute_generic(
+            {"files": [{"name": "build.log", "content": "failed"}]},
+            request_size=128, deadline=asyncio.get_running_loop().time() + 1200, stack=stack,
+        )
 
     assert captured_timeout is not None
     assert captured_timeout.total == 12.5
@@ -105,10 +107,11 @@ async def test_execute_generic_ssrf_connector_configuration(monkeypatch, protect
         [],
     )
 
-    await task_execution._execute_generic(  # pylint: disable=protected-access
-        {"files": [{"name": "build.log", "content": "failed"}]},
-        request_size=128,
-    )
+    async with AsyncExitStack() as stack:
+        await task_execution._execute_generic(
+            {"files": [{"name": "build.log", "content": "failed"}]},
+            request_size=128, deadline=asyncio.get_running_loop().time() + 1200, stack=stack,
+        )
 
     if protection_enabled:
         assert isinstance(captured_connector, task_execution.SSRFProtectedConnector)
@@ -302,7 +305,8 @@ async def test_nested_beeai_cleanup_precedes_terminal_publication(monkeypatch, t
     monkeypatch.setattr(TaskAnalysis, "mark_started", AsyncMock(return_value=task))
 
     async def execute(*_args):
-        await run_agent(Agent(), "analyze")
+        async with analysis_attempt(_args[4]) as attempt:
+            await run_agent(Agent(), "analyze", attempt=attempt)
         return TaskOutcome(response=APIResponse(explanation="done"), metadata=None)
 
     monkeypatch.setattr(task_execution, "execute_task", execute)

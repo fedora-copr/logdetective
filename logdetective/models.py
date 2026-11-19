@@ -793,7 +793,7 @@ class GeneralConfig(BaseModel):
     delay_artifact_download: bool = False
     log_source_request_timeout: float = Field(default=10, gt=0)
     # Timeout for execution of analysis in seconds
-    analysis_timeout: int = 900
+    analysis_timeout: int = Field(default=1200, gt=0)
     annotation_lookup_tool: bool = False
     max_annotations: int = 3
     # Limits onnxruntime intra/inter-op threads per embedding model instance.

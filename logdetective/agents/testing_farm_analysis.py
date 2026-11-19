@@ -105,9 +105,10 @@ async def _analyze_suite(
     artifacts: dict[str, str], chat_model: ChatModel,
     request: TestingFarmSuiteRequest, evidence: SuiteEvidence,
     eligible_case_ids: set[str],
+    deadline: float,
 ) -> tuple[TestingFarmAgentOutput, TestingFarmEvidenceIndex]:
-    """Give each attempt a fresh budget, extracting only on the first attempt."""
-    async with analysis_attempt() as attempt:
+    """Reuse the execution deadline and completed baseline; refresh agent state."""
+    async with analysis_attempt(deadline) as attempt:
         if evidence.snippets is None:
             evidence.snippets = await _preextract_suite_evidence(artifacts, attempt)
         attempt.check_deadline()
@@ -120,8 +121,9 @@ async def analyze_testing_farm_suite(
     artifacts: dict[str, str], chat_model: ChatModel,
     request: TestingFarmSuiteRequest,
     *, eligible_case_ids: set[str],
+    deadline: float,
 ) -> tuple[TestingFarmAgentOutput, TestingFarmEvidenceIndex]:
     """Diagnose eligible IDs in one run with every submitted case as context."""
     return await _analyze_suite(
-        artifacts, chat_model, request, SuiteEvidence(), eligible_case_ids
+        artifacts, chat_model, request, SuiteEvidence(), eligible_case_ids, deadline,
     )
