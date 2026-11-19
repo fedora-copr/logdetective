@@ -25,6 +25,7 @@ from logdetective.models import (
     TestingFarmSuiteRequest as TFTSuiteRequest,
     TestingFarmAgentOutput as TFTAgentOutput,
     TestingFarmSuiteResponse as TFTSuiteResponse,
+    TestingFarmCaseResponse as TFTCaseResponse,
 )
 from logdetective.server import app, validate_request_size
 from logdetective import task_execution
@@ -89,10 +90,10 @@ def test_multihost_guest_and_check_references():
 def test_case_outcomes_cannot_mix_analysis_and_error():
     """The public result cannot claim success and failure for one case."""
     with pytest.raises(ValidationError, match="only its matching"):
-        TFTCaseOutcome(status="done", analysis=APIResponse(explanation="ok"),
+        TFTCaseOutcome(status="done", analysis=TFTCaseResponse(explanation="ok"),
                        error=TaskError(code="bad", message="bad"))
     with pytest.raises(ValidationError, match="only its matching"):
-        TFTCaseOutcome(status="error", analysis=APIResponse(explanation="ok"))
+        TFTCaseOutcome(status="error", analysis=TFTCaseResponse(explanation="ok"))
 
 
 @pytest.mark.asyncio
@@ -175,7 +176,9 @@ async def test_suite_worker_preserves_mixed_case_outcomes(monkeypatch):
          "artifacts": [{"name": "partial.log", "url": "https://example.org/partial"},
                        {"name": "testout.log", "url": "https://example.org/missing"}]},
     ]}
-    result = await task_execution._execute_tft_suite(payload, 100)
+    result = await task_execution._execute_tft_suite(
+        payload, 100,
+    )
     assert result.response.cases["good"].analysis.explanation == "Root cause"
     assert result.response.cases["bad"].analysis.explanation == "Partial log cause"
     agent.assert_awaited_once()
@@ -398,9 +401,13 @@ async def test_multihost_context_survives_missing_case_logs(monkeypatch, diagnos
     ):
         if diagnosed_case == "server":
             with pytest.raises(ValueError, match="ineligible case IDs"):
-                await task_execution._execute_tft_suite(payload, 100)
+                await task_execution._execute_tft_suite(
+                    payload, 100,
+                )
         else:
-            outcome = await task_execution._execute_tft_suite(payload, 100)
+            outcome = await task_execution._execute_tft_suite(
+                payload, 100,
+            )
             assert outcome.response.cases["server"].error.code == "artifact_error"
             assert outcome.response.cases["client"].analysis.explanation == (
                 answer.cases[0].explanation
@@ -448,7 +455,7 @@ async def test_more_than_eight_cases_use_one_suite_agent_run():
         output, _ = await analyze_testing_farm_suite(
             {"shared/log": "failure", **{
                 f"case/c{i}/case.log": "failure" for i in range(9)
-            }}, MagicMock(), request, eligible_case_ids={case.case_id for case in request.cases}
+            }}, MagicMock(), request, eligible_case_ids={case.case_id for case in request.cases},
         )
     extract.assert_awaited_once()
     ids = [f"c{i}" for i in range(9)]
@@ -524,13 +531,15 @@ async def test_suite_worker_rejects_unknown_agent_id(monkeypatch):
         "artifacts": [{"name": "testout.log", "url": "https://example.org/good"}],
     }]}
     with pytest.raises(ValueError, match="unknown case IDs"):
-        await task_execution._execute_tft_suite(payload, 100)
+        await task_execution._execute_tft_suite(
+            payload, 100,
+        )
 
 
 def test_suite_and_generic_task_results_use_their_response_models():
     """The task type selects the persisted result decoder."""
     suite_result = TFTSuiteResponse(cases={"c1": {
-        "status": "done", "analysis": APIResponse(explanation="cause"),
+        "status": "done", "analysis": TFTCaseResponse(explanation="cause"),
     }})
     task = TaskAnalysis(
         task_id=uuid4(), task_type=TaskType.TFT_SUITE,
@@ -603,17 +612,21 @@ async def test_suite_ignores_obsolete_citations_and_enforces_budget(monkeypatch)
         "case_id": "c1", "name": "/test", "result": "failed",
         "artifacts": [{"name": "log", "url": "https://example.org/log"}],
     }]}
-    result = await task_execution._execute_tft_suite(payload, 100)
+    result = await task_execution._execute_tft_suite(
+        payload, 100,
+    )
     assert result.response.cases["c1"].analysis.snippets == []
     agent.return_value = (TFTAgentOutput(cases=[{
         "case_id": "c1", "explanation": "cause",
         "evidence": [{"source_file": "case/c1/log", "line_number": 999}],
     }]), {})
-    result = await task_execution._execute_tft_suite(payload, 100)
+    result = await task_execution._execute_tft_suite(
+        payload, 100,
+    )
     assert result.response.cases["c1"].analysis.explanation == "cause"
     with pytest.raises(ValueError, match="exceeds the limit"):
         await task_execution._execute_tft_suite(
-            payload, task_execution.SERVER_CONFIG.general.max_artifact_size
+            payload, task_execution.SERVER_CONFIG.general.max_artifact_size,
         )
 
 
@@ -633,13 +646,14 @@ def test_suite_attaches_all_applicable_evidence(fallback, obsolete_evidence):
         ],
     )
     shared = Snippet(text="setup error", source_file="shared/run", line_number=2)
+    shared_later = shared.model_copy(update={"line_number": 12, "text": "later error"})
     own = Snippet(text="test error", source_file="case/c1/log", line_number=1)
     richer = own.model_copy(update={"text": "test error\ncontext"})
     later = own.model_copy(update={"line_number": 20})
     sibling = own.model_copy(update={"source_file": "case/c2/log"})
     evidence = _collect_suite_evidence(
         {"shared/run:2": shared, "case/c1/log:1": own, "case/c2/log:1": sibling},
-        [MagicMock(extracted_snippets=[own.model_copy(), richer, later])],
+        [MagicMock(extracted_snippets=[own.model_copy(), richer, later, shared_later])],
     )
     explanation = "Failure at invented.log:999 and case/c2/log:999."
     answer = {"case_id": "suite" if fallback else "c1", "explanation": explanation}
@@ -651,9 +665,18 @@ def test_suite_attaches_all_applicable_evidence(fallback, obsolete_evidence):
     result = task_execution._suite_result(request, request.cases, {}, output, evidence)
     analysis = result.suite_fallback if fallback else result.cases["c1"].analysis
     assert analysis.explanation == explanation
-    assert analysis.snippets == ([shared] if fallback else [shared, own, richer, later])
+    assert analysis.snippets == ([] if fallback else [own, richer, later])
+    assert analysis.shared_snippet_refs == ["shared/run"]
+    assert result.shared_snippets == {"shared/run": [shared, shared_later]}
     if not fallback:
-        assert result.cases["c2"].analysis.snippets == [shared, sibling]
+        assert result.cases["c2"].analysis.snippets == [sibling]
+        assert result.cases["c2"].analysis.shared_snippet_refs == ["shared/run"]
+    # Persistence and polling must retain resolvable references without copying text.
+    encoded = result.model_dump_json()
+    assert encoded.count("setup error") == 1
+    assert LLMResponseCompressor.unzip(
+        LLMResponseCompressor(result).zip_response(), TFTSuiteResponse,
+    ) == result
 
 
 def test_suite_prompt_requests_prose_citations_without_structured_coordinates():
@@ -683,7 +706,9 @@ async def test_suite_oversize_remote_log_is_task_error(monkeypatch):
         "artifacts": [{"name": "log", "url": "https://example.org/log"}],
     }]}
     with pytest.raises(RemoteLogTooLargeError):
-        await task_execution._execute_tft_suite(payload, 100)
+        await task_execution._execute_tft_suite(
+            payload, 100,
+        )
 
 
 @pytest.mark.asyncio
@@ -860,11 +885,15 @@ async def test_suite_publishes_full_traceback_evidence(monkeypatch, scope, retry
     )
     result = task_execution._suite_result(request, request.cases, {}, output, evidence)
     analysis = result.suite_fallback if scope == "fallback" else result.cases["c1"].analysis
-    assert [snippet.text for snippet in analysis.snippets] == [
+    snippets = analysis.snippets + [
+        snippet for ref in analysis.shared_snippet_refs for snippet in result.shared_snippets[ref]
+    ]
+    assert [snippet.text for snippet in snippets] == [
         log.rsplit("\n", 1)[0], log, log.rsplit("\n", 1)[1],
     ]
-    assert [snippet.line_number for snippet in analysis.snippets] == [1, 1, 4]
-    assert all(snippet.source_file == source for snippet in analysis.snippets)
+    assert [snippet.line_number for snippet in snippets] == [1, 1, 4]
+    assert all(snippet.source_file == source for snippet in snippets)
+    assert bool(analysis.snippets) == (scope == "case")
     assert len(tools_used) == (2 if retry else 1)
 
 
@@ -894,7 +923,7 @@ async def test_suite_optional_drain_keeps_preextracted_evidence():
         )),
     ):
         _, evidence = await analyze_testing_farm_suite(
-            {"case/c1/log": "error"}, model, request, eligible_case_ids={"c1"}
+            {"case/c1/log": "error"}, model, request, eligible_case_ids={"c1"},
         )
     assert [snippet.text for snippet in evidence["case/c1/log:1"]] == ["error"]
 

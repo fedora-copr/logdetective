@@ -27,6 +27,7 @@ from logdetective.database.models.exceptions import (
 )
 from logdetective.models import (
     APIResponse, KojiTaskMetadata, TestingFarmSuiteResponse as TFTSuiteResponse,
+    TestingFarmCaseResponse as TFTCaseResponse,
 )
 from logdetective.procrastinate_app import app
 from logdetective.database.base import transaction
@@ -82,7 +83,7 @@ async def test_suite_result_publication_has_no_elapsed_time_fence():
         assert await TaskAnalysis.publish_result(
             task_id=public_id, job_id=task.procrastinate_job_id,
             generation=started.generation, response=TFTSuiteResponse(
-                cases={}, suite_fallback=APIResponse(explanation="done")
+                cases={}, suite_fallback=TFTCaseResponse(explanation="done")
             ), task_metadata=None, retention_days=30,
         )
         completed = await TaskAnalysis.get_owned(public_id, None)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Collection
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
@@ -44,6 +45,7 @@ from logdetective.models import (
     TestingFarmCase,
     TaskError,
     TestingFarmEvidenceIndex,
+    TestingFarmCaseResponse,
     TaskMetadata,
 )
 from logdetective.utils import (
@@ -93,19 +95,34 @@ async def _execute_generic(
 
 def _suite_case_response(
     output: TestingFarmAgentCase, evidence: TestingFarmEvidenceIndex, allowed: set[str],
-) -> APIResponse:
-    """Attach all collected own/shared evidence without interpreting prose citations."""
+    shared_refs: list[str],
+) -> TestingFarmCaseResponse:
+    """Attach own evidence and reference shared evidence without parsing citations."""
     # The collector owns ordering, variant deduplication, and attempt isolation.
     snippets = [
         snippet for variants in evidence.values() for snippet in variants
         if snippet.source_file in allowed
     ]
-    return APIResponse(
+    return TestingFarmCaseResponse(
         explanation=output.explanation,
         solution=output.solution if SERVER_CONFIG.general.generate_solution else None,
         no_issue_found=output.no_issue_found,
         snippets=snippets,
+        shared_snippet_refs=shared_refs,
     )
+
+
+def _shared_snippets_by_file(
+    evidence: TestingFarmEvidenceIndex, shared_artifacts: Collection[str],
+) -> TestingFarmEvidenceIndex:
+    """Group shared evidence by artifact, preserving each snippet and its line number."""
+    by_file: TestingFarmEvidenceIndex = {}
+    for variants in evidence.values():
+        for snippet in variants:
+            source = snippet.source_file
+            if source is not None and source in shared_artifacts:
+                by_file.setdefault(source, []).append(snippet)
+    return by_file
 
 
 def _suite_result(
@@ -132,6 +149,8 @@ def _suite_result(
         raise ValueError("Agent returned an unexpected suite fallback")
 
     shared_artifacts = {f"shared/{log.name}" for log in payload.shared_artifacts}
+    shared_snippets = _shared_snippets_by_file(evidence, shared_artifacts)
+    shared_refs = list(shared_snippets)
     for case in eligible:
         answer = answers.get(case.case_id)
         if answer is None or not (answer.explanation or "").strip():
@@ -141,18 +160,19 @@ def _suite_result(
                 ),
             )
             continue
-        allowed = shared_artifacts | {f"case/{case.case_id}/{log.name}" for log in case.artifacts}
+        allowed = {f"case/{case.case_id}/{log.name}" for log in case.artifacts}
         results[case.case_id] = TestingFarmCaseOutcome(
-            status="done", analysis=_suite_case_response(answer, evidence, allowed)
+            status="done", analysis=_suite_case_response(answer, evidence, allowed, shared_refs)
         )
 
     if not payload.cases:
         if fallback is None or not (fallback.explanation or "").strip():
             raise ValueError("Agent returned no suite fallback")
         return TestingFarmSuiteResponse(
-            cases=results, suite_fallback=_suite_case_response(fallback, evidence, shared_artifacts)
+            cases=results, shared_snippets=shared_snippets,
+            suite_fallback=_suite_case_response(fallback, evidence, set(), shared_refs),
         )
-    return TestingFarmSuiteResponse(cases=results)
+    return TestingFarmSuiteResponse(cases=results, shared_snippets=shared_snippets)
 
 
 async def _execute_tft_suite(

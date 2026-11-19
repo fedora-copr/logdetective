@@ -425,11 +425,17 @@ class TestingFarmAgentOutput(BaseModel):
     suite_fallback: TestingFarmAgentCase | None = None
 
 
+class TestingFarmCaseResponse(APIResponse):
+    """Own snippets inline, with file references to suite-level shared variants."""
+
+    shared_snippet_refs: list[str] = Field(default_factory=list)
+
+
 class TestingFarmCaseOutcome(BaseModel):
     """A case's successful analysis or safe retrieval/output error."""
 
     status: Literal["done", "error"]
-    analysis: APIResponse | None = None
+    analysis: TestingFarmCaseResponse | None = None
     error: "TaskError | None" = None
 
     @model_validator(mode="after")
@@ -454,8 +460,21 @@ class TestingFarmSuiteResponse(BaseModel):
     """Terminal per-case result, or one pre-test suite fallback."""
 
     cases: dict[str, TestingFarmCaseOutcome] = Field(default_factory=dict)
-    suite_fallback: APIResponse | None = None
+    suite_fallback: TestingFarmCaseResponse | None = None
+    shared_snippets: TestingFarmEvidenceIndex = Field(default_factory=dict)
     retrieval_warnings: list[TestingFarmRetrievalWarning] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_shared_references(self) -> "TestingFarmSuiteResponse":
+        """Never publish or decode references absent from the shared evidence index."""
+        analyses = [outcome.analysis for outcome in self.cases.values()]
+        analyses.append(self.suite_fallback)
+        for analysis in analyses:
+            if analysis is not None and any(
+                ref not in self.shared_snippets for ref in analysis.shared_snippet_refs
+            ):
+                raise ValueError("Unknown shared snippet reference")
+        return self
 
 
 class TaskMetadata(BaseModel):
