@@ -147,13 +147,38 @@ async def build_tool_setup(
 
 @dataclass
 class AnalysisAttempt:
-    """One cooperative deadline shared by preparation and BeeAI execution."""
+    """Cooperative budget shared by preparation and one BeeAI agent attempt.
+
+    Attributes:
+        deadline: Absolute monotonic time in the running event loop's clock,
+            not a wall-clock timestamp or duration. All retries retain this value.
+        controller: Abort controller passed to BeeAI so its nested runners can
+            stop cooperatively when the deadline expires or the run is cancelled.
+
+    This object holds state; ``analysis_attempt()`` owns its timer and blocking
+    work scope. Call ``check_deadline()`` at phase boundaries to catch overruns
+    even before the event loop delivers the timer callback. Neither the check
+    nor the abort signal can terminate a running synchronous call. Cleanup waits
+    for tracked blocking work and can outlast the deadline indefinitely if a
+    call never returns. Each retry gets a new controller, but retains the
+    original execution deadline.
+    """
 
     deadline: float
     controller: AbortController
 
     def check_deadline(self) -> None:
-        """Stop between blocking calls, even if the timer has not run yet."""
+        """Signal expiry and reject further work without waiting for cleanup.
+
+        Check the event loop's monotonic clock directly, then inspect the abort
+        signal. An already-aborted controller also rejects work before the
+        deadline, regardless of the reason it was aborted.
+
+        Raises:
+            LogDetectiveAgentTimeoutError: When the deadline has elapsed or the
+                controller is already aborted. The owning context, not this
+                method, joins outstanding blocking work before propagating errors.
+        """
         if asyncio.get_running_loop().time() >= self.deadline:
             self.controller.abort("Agent deadline exceeded")
         if self.controller.signal.aborted:
@@ -161,21 +186,20 @@ class AnalysisAttempt:
 
 
 @asynccontextmanager
-async def analysis_attempt() -> AsyncIterator[AnalysisAttempt]:
-    """Own the timer and join blocking work before reporting a terminal outcome.
+async def analysis_attempt(deadline: float) -> AsyncIterator[AnalysisAttempt]:
+    """Own fresh controller/thread state using the execution's unchanged deadline.
 
-    Expiry prevents subsequent work, but cannot interrupt a running thread.
-    Each inference retry opens a new attempt after the previous one is cleaned up.
+    Preparation, inference and retries share this absolute event-loop time.
+    Cleanup joins tracked work, potentially indefinitely for a stuck thread.
     """
     loop = asyncio.get_running_loop()
-    attempt = AnalysisAttempt(
-        loop.time() + SERVER_CONFIG.general.analysis_timeout, AbortController(),
-    )
+    attempt = AnalysisAttempt(deadline, AbortController())
     async with blocking_work_scope():
         timer = loop.call_at(
             attempt.deadline, attempt.controller.abort, "Agent deadline exceeded",
         )
         try:
+            attempt.check_deadline()
             yield attempt
             attempt.check_deadline()
         finally:
@@ -185,12 +209,9 @@ async def analysis_attempt() -> AsyncIterator[AnalysisAttempt]:
 async def run_agent(
     agent: RequirementAgent, agent_input: str,
     expected_output: type = AgentResponse,
-    *, attempt: AnalysisAttempt | None = None,
+    *, attempt: AnalysisAttempt,
 ) -> AgentResponse:
-    """Run an agent using an existing preparation budget or a fresh deadline."""
-    if attempt is None:
-        async with analysis_attempt() as owned_attempt:
-            return await run_agent(agent, agent_input, expected_output, attempt=owned_attempt)
+    """Run an agent within its owning preparation attempt."""
     attempt.check_deadline()
     controller = attempt.controller
     try:

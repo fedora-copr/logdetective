@@ -123,6 +123,11 @@ detection, and the default 30-day result retention are configured under
 Testing Farm suites use the `testing_farm` section: `max_artifacts_per_case: 10`,
 `max_shared_artifacts: 10`, and `max_total_artifacts: 120`.
 These configurable defaults bound submitted entries (including repeated URLs).
+All analysis types use `general.analysis_timeout: 1200` seconds, covering
+retrieval through result assembly. Retries retain the original deadline.
+Use matching API/worker settings; queued tasks use the worker's current limits.
+Queue waiting, terminal publication, GitLab comment publication and associated
+records/metrics, and necessary cleanup are outside this budget. See [API usage](docs/api.md) for rejection and timeout semantics.
 The total timeout for downloading a remote log source is configured with
 `general.log_source_request_timeout` in that file.
 For `/analyze` and `/analyze/tft` remote logs, exact trusted DNS names may be configured

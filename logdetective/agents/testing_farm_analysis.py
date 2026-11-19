@@ -96,13 +96,14 @@ async def analyze_testing_farm_suite(
     artifacts: dict[str, str], chat_model: ChatModel,
     request: TestingFarmSuiteRequest,
     *, eligible_case_ids: set[str],
+    deadline: float,
 ) -> tuple[TestingFarmAgentOutput, TestingFarmEvidenceIndex]:
     """Diagnose eligible IDs in one run with every submitted case as context."""
     # Cache even an empty baseline across retries, but never across suites.
     evidence = None
     async for retry_attempt in inference_retry.copy():
         with retry_attempt:
-            async with analysis_attempt() as attempt:
+            async with analysis_attempt(deadline) as attempt:
                 if evidence is None:
                     evidence = await _preextract_suite_evidence(artifacts, attempt)
                 attempt.check_deadline()

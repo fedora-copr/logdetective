@@ -92,6 +92,12 @@ def init_sentry() -> None:
         sentry_sdk.init(dsn=str(sentry_dsn), traces_sample_rate=1.0)
 
 
+def check_deadline(deadline: float) -> None:
+    """Reject synchronous overruns before starting another phase or publishing."""
+    if asyncio.get_running_loop().time() >= deadline:
+        raise TimeoutError("Analysis execution deadline exceeded")
+
+
 async def run_blocking(function: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> T:
     """Run blocking work without abandoning its thread during cancellation.
 

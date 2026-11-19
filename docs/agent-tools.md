@@ -90,17 +90,28 @@ outcome, and error clues; it does not replace a testcase's detailed output in
 
 ## Cancellation and timeouts
 
-Build and Testing Farm workflows share `general.analysis_timeout` for each
-agent attempt and `general.log_source_request_timeout` for log downloads.
-Suite pre-extraction is inside the first attempt’s deadline and blocking-work
-scope. Completed baseline evidence is reused across transient inference retries;
-each retry receives a fresh deadline and fresh agent/tool state. Deadline checks
-between extraction calls prevent further extraction or inference after expiry.
-An already-running extraction thread must finish before timeout or cancellation
-is reported; this is not a hard execution-time limit. Queue waiting, downloads,
-and retry delays remain outside the attempt timeout; there is no separate
-admission-to-completion deadline. Clients can
-cancel either task type through the task API.
+All analysis tasks (generic, Koji, GitLab, and Testing Farm) share one positive,
+integer `general.analysis_timeout` (default 1200 seconds). The worker establishes
+an absolute event-loop deadline after successful `mark_started()`, immediately
+before execution. Retrieval, sanitization, setup, extraction, inference, retry
+backoff, and result assembly consume it. Every retry receives fresh agent and
+controller state but the same deadline; completed suite baseline evidence is reused.
+Phase-boundary checks reject synchronous overruns, including empty-artifact paths.
+Expiry produces a task-level `timeout`, not partial results.
+
+Queue waiting, terminal state publication, and necessary cleanup are excluded.
+GitLab preparation returns a typed in-memory diagnosis/context payload; only after
+successful deadline validation does untimed publication suppress old comments,
+render and post/update comments (including the five-second delay), and persist
+records and metrics. Clients remain open through publication and close before
+terminal state publication. Explicit cancellation and existing HTTP/provider/Koji
+limits still apply. No automatic job retries or queue middleware are added.
+
+Before admission and again before retrieval, `testing_farm.max_artifacts_per_case`,
+`max_shared_artifacts`, and `max_total_artifacts` bound submitted entries (defaults 10, 10,
+and 120). Repeated URLs count, although retrieval still caches them. These are
+configurable positive integers, not fixed ceilings; there is no testcase cap.
+API and worker deployments should use matching configuration.
 
 Agent runs translate task cancellation into BeeAI abort signals and join the
 run before returning. A task-local blocking-work scope follows nested tool
@@ -108,8 +119,14 @@ contexts, waits for their already-started threads, and prevents detached tool
 contexts from starting new blocking work after the run closes. This applies
 to both timeout and explicit cancellation, including repeated cancellation.
 
-Before admission and again before retrieval, `testing_farm.max_artifacts_per_case`,
-`max_shared_artifacts`, and `max_total_artifacts` bound submitted entries (defaults 10, 10,
-and 120). Repeated URLs count, although retrieval still caches them. These are
-configurable positive integers, not fixed ceilings; there is no testcase cap.
-API and worker deployments should use matching configuration.
+### Cancellation reporting and cleanup
+
+`run_blocking()` joins shielded workers through repeated cancellation without
+clearing the caller's cancellation counts. The enclosing timeout removes only its
+own request: timeout alone reports `timeout`, while overlapping explicit
+cancellation remains cancellation and is acknowledged immediately after cleanup.
+Database publication fences remain authoritative.
+
+Python cannot forcibly stop a running thread. Cleanup waits for it to return and
+can hold resources indefinitely if it never does; the execution deadline is not
+a hard cleanup bound. Executor threads may be reused after the call finishes.

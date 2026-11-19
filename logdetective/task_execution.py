@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Collection
+from contextlib import AsyncExitStack
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
@@ -51,6 +52,7 @@ from logdetective.models import (
 from logdetective.utils import (
     SSRFProtectedConnector,
     SSRFProtectedResolver,
+    check_deadline,
     run_blocking,
     sanitize_artifact,
 )
@@ -65,7 +67,7 @@ class TaskOutcome:
 
 
 async def _execute_generic(
-    payload_data: dict[str, Any], request_size: int
+    payload_data: dict[str, Any], request_size: int, deadline: float, stack: AsyncExitStack,
 ) -> TaskOutcome:
     payload = AnalysisRequest.model_validate(payload_data)
     ssrf_config = SERVER_CONFIG.general.ssrf_protection
@@ -83,13 +85,15 @@ async def _execute_generic(
         total=SERVER_CONFIG.general.log_source_request_timeout,
         connect=3.07,
     )
-    async with aiohttp.ClientSession(connector=connector, timeout=timeout) as http:
-        artifacts = await get_artifacts_from_payload(payload, http, request_size)
-        response = await analyze_artifacts(
-            artifacts,
-            get_chat_model(SERVER_CONFIG.inference),
-            payload.build_metadata,
-        )
+    http = await stack.enter_async_context(
+        aiohttp.ClientSession(connector=connector, timeout=timeout)
+    )
+    artifacts = await get_artifacts_from_payload(payload, http, request_size)
+    check_deadline(deadline)
+    response = await analyze_artifacts(
+        artifacts, get_chat_model(SERVER_CONFIG.inference), payload.build_metadata,
+        deadline=deadline,
+    )
     return TaskOutcome(response=response, metadata=None)
 
 
@@ -176,12 +180,14 @@ def _suite_result(
 
 
 async def _execute_tft_suite(
-    payload_data: dict[str, Any], request_size: int,
+    payload_data: dict[str, Any], request_size: int, deadline: float,
 ) -> TaskOutcome:
-    """Fetch a suite, analyze eligible cases, and publish one result."""
+    """Fetch and analyze a suite under the caller's execution deadline."""
     started = time.monotonic()
     payload = TestingFarmSuiteRequest.model_validate(payload_data)
+    check_deadline(deadline)
     fetched = await fetch_suite_artifacts(payload, request_size)
+    check_deadline(deadline)
     if fetched.eligible or not payload.cases:
         LOG.info(
             "Testing Farm suite agent run: cases=%d artifacts=%d",
@@ -190,10 +196,12 @@ async def _execute_tft_suite(
         output, evidence = await analyze_testing_farm_suite(
             fetched.artifacts, get_chat_model(SERVER_CONFIG.inference), payload,
             eligible_case_ids={case.case_id for case in fetched.eligible},
+            deadline=deadline,
         )
     else:
         output = None
         evidence = {}
+    check_deadline(deadline)
     result = _suite_result(payload, fetched.eligible, fetched.errors, output, evidence)
     result.retrieval_warnings = fetched.warnings
     LOG.info(
@@ -203,6 +211,7 @@ async def _execute_tft_suite(
         sum(case.status == "error" for case in result.cases.values()),
         time.monotonic() - started,
     )
+    check_deadline(deadline)
     return TaskOutcome(response=result, metadata=None)
 
 
@@ -212,26 +221,27 @@ async def _close_koji_session(session: ClientSession) -> None:
         await run_blocking(session.rsession.close)
 
 
-async def _execute_koji(payload_data: dict[str, Any]) -> TaskOutcome:
+async def _execute_koji(
+    payload_data: dict[str, Any], deadline: float, stack: AsyncExitStack,
+) -> TaskOutcome:
     payload = KojiAnalysisRequest.model_validate(payload_data)
     config = SERVER_CONFIG.koji.instances[payload.koji_instance]
     session = ClientSession(
         baseurl=config.xmlrpc_url,
         opts={"timeout": SERVER_CONFIG.koji.api_timeout},
     )
-    try:
-        async with asyncio.timeout(SERVER_CONFIG.koji.retrieval_timeout):
-            filename, content = await get_failed_log_from_task(
-                session,
-                payload.task_id,
-                max_size=SERVER_CONFIG.koji.max_artifact_size,
-            )
-    finally:
-        await _close_koji_session(session)
-
+    stack.push_async_callback(_close_koji_session, session)
+    async with asyncio.timeout(SERVER_CONFIG.koji.retrieval_timeout):
+        filename, content = await get_failed_log_from_task(
+            session, payload.task_id, max_size=SERVER_CONFIG.koji.max_artifact_size,
+        )
+    check_deadline(deadline)
+    sanitized = await run_blocking(sanitize_artifact, content)
+    check_deadline(deadline)
     response = await analyze_artifacts(
-        {filename: await run_blocking(sanitize_artifact, content)},
+        {filename: sanitized},
         get_chat_model(SERVER_CONFIG.inference),
+        deadline=deadline,
     )
     return TaskOutcome(
         response=response,
@@ -243,49 +253,47 @@ async def _execute_koji(payload_data: dict[str, Any]) -> TaskOutcome:
 
 
 async def _execute_gitlab(
-    payload_data: dict[str, Any], metrics_id: int | None
+    payload_data: dict[str, Any], metrics_id: int | None,
+    timeout: asyncio.Timeout, stack: AsyncExitStack,
 ) -> TaskOutcome:
     forge = Forge(payload_data["forge"])
     job_hook = JobHook.model_validate(payload_data["job_hook"])
     config = SERVER_CONFIG.gitlab.instances[forge.value]
     token = config.api_token
     connection = Gitlab(url=config.url, private_token=token, timeout=config.timeout)
-    try:
-        async with aiohttp.ClientSession(
-            base_url=config.url,
-            headers={"Authorization": f"Bearer {token}"} if token else {},
-            timeout=aiohttp.ClientTimeout(total=config.timeout, connect=3.07),
-        ) as http:
-            await process_gitlab_job_event(
-                config,
-                connection,
-                http,
-                forge,
-                job_hook,
-                get_chat_model(SERVER_CONFIG.inference),
-                payload_data.get("api_token_name"),
-                metrics_id,
-            )
-    finally:
-        await run_blocking(connection.session.close)
+    stack.push_async_callback(run_blocking, connection.session.close)
+    http = await stack.enter_async_context(aiohttp.ClientSession(
+        base_url=config.url,
+        headers={"Authorization": f"Bearer {token}"} if token else {},
+        timeout=aiohttp.ClientTimeout(total=config.timeout, connect=3.07),
+    ))
+    await process_gitlab_job_event(
+        config, connection, http, forge, job_hook,
+        get_chat_model(SERVER_CONFIG.inference),
+        payload_data.get("api_token_name"), metrics_id, timeout=timeout,
+    )
     return TaskOutcome(response=None, metadata=None)
 
 
-async def execute_task(
+async def execute_task(  # pylint: disable=too-many-arguments,too-many-positional-arguments
     task_type: TaskType,
     payload_data: dict[str, Any],
     request_size: int,
     metrics_id: int | None,
+    timeout: asyncio.Timeout,
+    stack: AsyncExitStack,
 ) -> TaskOutcome:
     """Execute one validated durable payload in the Procrastinate worker."""
-    if task_type == TaskType.GENERIC:
-        return await _execute_generic(payload_data, request_size)
-    if task_type == TaskType.TFT_SUITE:
-        return await _execute_tft_suite(payload_data, request_size)
-    if task_type == TaskType.KOJI:
-        return await _execute_koji(payload_data)
     if task_type == TaskType.GITLAB:
-        return await _execute_gitlab(payload_data, metrics_id)
+        return await _execute_gitlab(payload_data, metrics_id, timeout, stack)
+    deadline = timeout.when()
+    assert deadline is not None
+    if task_type == TaskType.GENERIC:
+        return await _execute_generic(payload_data, request_size, deadline, stack)
+    if task_type == TaskType.TFT_SUITE:
+        return await _execute_tft_suite(payload_data, request_size, deadline)
+    if task_type == TaskType.KOJI:
+        return await _execute_koji(payload_data, deadline, stack)
     raise ValueError(f"Unknown task type {task_type!r}")
 
 
@@ -334,12 +342,19 @@ async def run_task(task_id: str, job_id: int) -> None:  # pylint: disable=too-ma
         try:
             if task.input_payload is None:
                 raise RuntimeError("Durable task input is unavailable")
-            outcome = await execute_task(
-                task.task_type, task.input_payload, task.request_size,
-                task.response_metrics_id,
-            )
-            if task.task_type != TaskType.GITLAB and outcome.response is None:
-                raise RuntimeError("Analysis task returned no response")
+            async with AsyncExitStack() as stack:
+                deadline = (
+                    asyncio.get_running_loop().time() + SERVER_CONFIG.general.analysis_timeout
+                )
+                async with asyncio.timeout_at(deadline) as timeout:
+                    outcome = await execute_task(
+                        task.task_type, task.input_payload, task.request_size,
+                        task.response_metrics_id, timeout, stack,
+                    )
+                    if timeout.when() is not None:
+                        check_deadline(deadline)
+                    if task.task_type != TaskType.GITLAB and outcome.response is None:
+                        raise RuntimeError("Analysis task returned no response")
         except Exception as exc:
             LOG.exception("Analysis task %s failed", public_id)
             code, message = public_error(exc)

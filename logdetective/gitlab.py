@@ -19,6 +19,7 @@ from tenacity import (
 )
 
 from logdetective.utils import (
+    check_deadline,
     run_blocking,
     sanitize_artifact,
     ContentSizeCheck,
@@ -283,7 +284,7 @@ def construct_build_metadata(log_url: str) -> BuildMetadata:
     return BuildMetadata(commentary=build_commentary)
 
 
-# pylint: disable=too-many-arguments, too-many-positional-arguments, too-many-return-statements
+# pylint: disable=too-many-locals,too-many-arguments,too-many-positional-arguments,too-many-return-statements
 async def process_gitlab_job_event(
     gitlab_cfg: GitLabInstanceConfig,
     gitlab_connection: gitlab.Gitlab,
@@ -293,8 +294,12 @@ async def process_gitlab_job_event(
     chat_model: ChatModel,
     api_token_name: str | None = None,
     metrics_id: int | None = None,
+    *, timeout: asyncio.Timeout,
 ) -> APIResponse | None:
-    """Handle a received job_event webhook from GitLab"""
+    """Handle a job event and publish eligible analyses before returning."""
+    deadline = timeout.when()
+    assert deadline is not None
+    check_deadline(deadline)
     LOG.debug("Received webhook message from %s:\n%s", forge.value, job_hook)
 
     # Look up the project this job belongs to
@@ -345,6 +350,7 @@ async def process_gitlab_job_event(
         LOG.info("Resubmission of an existing build. Skipping.")
         return
 
+    check_deadline(deadline)
     LOG.debug("Retrieving log artifacts")
     # Retrieve the build logs from the merge request artifacts and preprocess them
     try:
@@ -359,12 +365,14 @@ async def process_gitlab_job_event(
         LOG.error("Could not retrieve logs in %s: %s", job_ctx, ex)
         return
 
+    check_deadline(deadline)
     if metrics_id is None:
         metrics_id = await add_new_metrics(
             api_name=EndpointType.ANALYZE_GITLAB_JOB,
             api_token_name=api_token_name,
         )
 
+    check_deadline(deadline)
     log_name = "job-trace.log" if log_url.endswith("/trace") else PurePath(log_url).name
     log_text = await run_blocking(sanitize_artifact, preprocessed_log)
     build_metadata = construct_build_metadata(log_url)
@@ -374,12 +382,15 @@ async def process_gitlab_job_event(
             artifacts={log_name: log_text},
             chat_model=chat_model,
             build_metadata=build_metadata,
+            deadline=deadline,
         )
     except LogDetectiveInferenceError as exc:
         LOG.error("%s during %s: %s", type(exc).__name__, job_ctx, exc)
         return
 
-    # Add the Log Detective response as a comment to the merge request
+    # Do not charge GitLab comment publication or its metrics to analysis.
+    check_deadline(deadline)
+    timeout.reschedule(None)
     await comment_on_mr(
         forge,
         project,
