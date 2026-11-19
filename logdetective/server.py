@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import secrets
 from enum import Enum
+from functools import partial
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
 from typing import Annotated, Optional
@@ -207,6 +208,14 @@ def task_representation(task: TaskAnalysis) -> TaskResponse:
     )
 
 
+def _validate_suite_admission(payload: TestingFarmSuiteRequest) -> None:
+    """Apply current artifact caps only when admitting new work."""
+    try:
+        payload.validate_limits(SERVER_CONFIG.testing_farm)
+    except ValueError as exc:
+        raise HTTPException(422, detail=str(exc)) from exc
+
+
 async def accept_task(
     payload: AnalysisRequest | KojiAnalysisRequest | TestingFarmSuiteRequest,
     request: Request,
@@ -229,7 +238,7 @@ async def accept_task(
 
     Raises:
         HTTPException: With status 409 when the public identifier conflicts with a
-            different request.
+            different request, or 422 when configured Testing Farm limits are exceeded.
     """
     if isinstance(payload, (AnalysisRequest, TestingFarmSuiteRequest)):
         files = (
@@ -259,6 +268,8 @@ async def accept_task(
             input_payload=data,
             request_size=request_size,
             deferrable_task=deferrable,
+            validate_new=(partial(_validate_suite_admission, payload)
+                          if isinstance(payload, TestingFarmSuiteRequest) else None),
             endpoint=endpoint,
         )
     except TaskConflictError as exc:

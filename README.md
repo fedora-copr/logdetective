@@ -120,6 +120,9 @@ provider settings and per-instance GitLab API tokens are configured there.
 Analysis worker concurrency, polling hints, graceful shutdown, stalled-worker
 detection, and the default 30-day result retention are configured under
 `task_queue` in `server/config.yml`.
+Testing Farm suites use the `testing_farm` section: `max_artifacts_per_case: 10`,
+`max_shared_artifacts: 10`, and `max_total_artifacts: 120`.
+These configurable defaults bound submitted entries (including repeated URLs).
 The total timeout for downloading a remote log source is configured with
 `general.log_source_request_timeout` in that file.
 For `/analyze` and `/analyze/tft` remote logs, exact trusted DNS names may be configured

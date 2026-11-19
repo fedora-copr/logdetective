@@ -132,3 +132,11 @@ task_queue:
 #       link: https://docs.fedoraproject.org/en-US/packaging-guidelines/
 #     - name: Mock user documentation
 #       link: https://rpm-software-management.github.io/mock/
+
+# TF-only limits, checked at admission.
+# Count submitted entries, including repeated URLs; all caps must pass.
+# No testcase-count limit is imposed.
+testing_farm:
+  max_artifacts_per_case: 10
+  max_shared_artifacts: 10
+  max_total_artifacts: 120

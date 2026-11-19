@@ -224,7 +224,16 @@ Only non-secret requested/provisioned environment fields (`compose`, `arch`,
 `pool`) and selected check/subresult fields are accepted; local paths, secrets,
 and arbitrary testcase properties are not. Guest names resolve through the
 `guests` map; check/subresult `artifact_refs` must name own or shared artifacts.
-There is no reference-count or testcase-count limit. The request body and cumulative downloaded artifacts share
+Runtime `testing_farm` configuration defaults to `max_artifacts_per_case: 10`,
+`max_shared_artifacts: 10`, and `max_total_artifacts: 120`. Every submitted artifact entry counts,
+including repeated URLs. All applicable caps must pass; the total may be lower
+than either scope cap. Operators may raise or lower these defaults. Violations
+return `422` identifying the limit for new tasks. Lowering a cap does not change
+an existing UUID’s retry behavior: identical retries return the original task,
+and conflicting or expired UUIDs still return `409`. New count limits do not
+apply retroactively to accepted suites.
+There is no testcase-count limit and suites are never silently truncated.
+The request body and cumulative downloaded artifacts share
 the configured 50 MiB limit. Oversized requests are rejected, never chunked or
 silently reduced. URLs obey the generic endpoint's HTTP(S), query/fragment,
 size, and optional SSRF protections. Context and artifacts are untrusted data.
@@ -617,6 +626,7 @@ Here, **task envelope** means the JSON object shown in [Task responses](#task-re
 | `POST /analyze/tft` | `202 Accepted` | Task envelope, `Location`, `Link`, and `Retry-After`; a new task or an identical retry. |
 | `POST /analyze/tft` | `400 Bad Request` | JSON `detail`; an artifact URL violates remote URL restrictions. |
 | `POST /analyze/tft` | `409 Conflict` | JSON `detail`; a supplied task ID conflicts with another request or an expired task. |
+| `POST /analyze/tft` | `422 Unprocessable Content` | JSON `detail` array for invalid suite input (such as duplicate case IDs or unknown artifact references), or a `detail` string naming the exceeded artifact-count limit. |
 | `POST /analyze/rpmbuild/koji` | `202 Accepted` | Task envelope, `Location`, `Link` and `Retry-After`; a new task or an identical retry. |
 | `POST /analyze/rpmbuild/koji` | `401 Unauthorized` | JSON `detail`; the configured Koji token is missing or invalid. |
 | `POST /analyze/rpmbuild/koji` | `404 Not Found` | JSON `detail`; the Koji instance is unknown. |
