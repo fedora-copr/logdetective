@@ -66,7 +66,8 @@ curl --header "Content-Type: application/json" --request POST \
 ```
 
 The request returns `202 Accepted` with a `Location` header for polling.
-See the [API guide](docs/api.md) for task status, authentication, Koji and GitLab
+See the [API guide](docs/api.md) for task status, authentication,
+[Testing Farm analysis](docs/api.md#testing-farm-analysis), Koji and GitLab
 integration, metrics, and a completed analysis example. Endpoint schemas are
 available from the running server at `/docs` and `/openapi.json`.
 
@@ -121,7 +122,7 @@ detection, and the default 30-day result retention are configured under
 `task_queue` in `server/config.yml`.
 The total timeout for downloading a remote log source is configured with
 `general.log_source_request_timeout` in that file.
-For generic `/analyze` remote logs, exact trusted DNS names may be configured
+For `/analyze` and `/analyze/tft` remote logs, exact trusted DNS names may be configured
 with `general.ssrf_protection.allowed_hostnames`; configure deployment-specific
 protected cluster CIDRs with `general.ssrf_protection.blocked_cluster_cidrs`
 before enabling private hosts. The latter list replaces the documented
@@ -265,7 +266,7 @@ The container images are built with `csdiff` installed.
 
 ## Choice of LLM
 
-The agent's extractor, database lookup, and snippet annotation workflow is described
+The build agent's extractor, database lookup, and snippet annotation workflow is described
 in [Agent tools](docs/agent-tools.md).
 
 While Log Detective is compatible with a wide range of LLMs, it does require an instruction tuned model with tool calling to function properly.

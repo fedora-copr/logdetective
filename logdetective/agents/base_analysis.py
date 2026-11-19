@@ -17,7 +17,7 @@ from logdetective.models import APIResponse, BuildMetadata
 from logdetective.remote_log import RemoteLog
 
 
-@inference_retry
+@inference_retry.wraps
 async def analyze_artifacts(
     artifacts: dict[str, str | RemoteLog],
     chat_model: ChatModel,

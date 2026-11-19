@@ -79,9 +79,9 @@ general:
     - .*
   excluded_packages:
     - ^redhat-internal-.*
-  # Enable SSRF address checks for user-supplied generic /analyze remote logs.
+  # Enable SSRF address checks for user-supplied /analyze and /analyze/tft remote logs.
   # block_localhost_urls: true
-  # SSRF controls for user-supplied generic /analyze remote logs.
+  # SSRF controls for user-supplied /analyze and /analyze/tft remote logs.
   # ssrf_protection:
   #   # Exact DNS names allowed to resolve to ordinary private addresses.
   #   # Case and a trailing dot are normalized; wildcards and IP literals are
