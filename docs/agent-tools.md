@@ -55,9 +55,12 @@ model-written claims: result assembly neither parses nor validates them, and an
 incorrect citation does not discard the explanation. No structured citation list
 is requested; unsolicited citation fields are ignored.
 
-The application independently attaches all collected own-case and shared-log
-snippets to each successful case, and only shared-log snippets to suite fallback.
-Sibling-case snippets are never attached. Locations retain collection order,
+The application independently attaches own-case snippets to each successful
+case. Shared snippets appear once in the suite-level `shared_snippets` index,
+keyed by `source_file:line_number`, with a list of variants at each location.
+Cases and suite fallback carry `shared_snippet_refs` to those keys; fallback
+has no inline snippets. Sibling-case snippets are never attached. References
+are application-generated, not model citations. Locations retain collection order,
 with distinct variants at each location in pre-extraction then extractor order.
 This preserves richer optional evidence, such as complete tracebacks overlapping
 Drain fragments. Identical variants are deduplicated.
