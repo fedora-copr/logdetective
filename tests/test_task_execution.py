@@ -167,7 +167,7 @@ def _task(task_type: TaskType = TaskType.GENERIC):
     )
 
 
-@pytest.mark.parametrize("task_type", [TaskType.GENERIC])
+@pytest.mark.parametrize("task_type", [TaskType.GENERIC, TaskType.TFT_SUITE])
 @pytest.mark.asyncio
 async def test_run_task_publishes_direct_result(monkeypatch, task_type):
     """A direct result is published through the application generation fence."""
@@ -266,7 +266,7 @@ async def test_run_task_publishes_safe_error(monkeypatch):
     )
 
 
-@pytest.mark.parametrize("task_type", [TaskType.GENERIC])
+@pytest.mark.parametrize("task_type", [TaskType.GENERIC, TaskType.TFT_SUITE])
 @pytest.mark.parametrize("trigger", ["agent_timeout", "cancel"])
 @pytest.mark.asyncio
 async def test_nested_beeai_cleanup_precedes_terminal_publication(monkeypatch, trigger, task_type):

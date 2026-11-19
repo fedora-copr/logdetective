@@ -39,6 +39,7 @@ class EndpointType(enum.Enum):
     ANALYZE = "analyze"
     ANALYZE_GITLAB_JOB = "analyze_gitlab_job"
     ANALYZE_KOJI_TASK = "analyze_koji_task"
+    ANALYZE_TFT = "analyze_tft"
 
 
 class TimePeriod(enum.Enum):

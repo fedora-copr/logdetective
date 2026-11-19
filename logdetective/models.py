@@ -4,7 +4,7 @@ import ipaddress
 import re
 import socket
 import subprocess as sp
-from typing import List, Dict, Optional, Any, Union, Sequence
+from typing import List, Dict, Optional, Any, Union, Sequence, Literal
 from uuid import UUID
 
 from pydantic import (
@@ -171,7 +171,7 @@ class BuildMetadata(BaseModel):
 
 
 class AnalysisRequest(BaseModel):
-    """Model of the request body for /analyze endpoint"""
+    """Build-oriented request body for ``/analyze``."""
 
     model_config = ConfigDict(hide_input_in_errors=True, extra="forbid")
     id: UUID4 | None = Field(
@@ -184,8 +184,7 @@ class AnalysisRequest(BaseModel):
         max_length=15,
     )
     build_metadata: Optional[BuildMetadata] = Field(
-        description="Optional build metadata.",
-        default=None,
+        description="Optional build metadata.", default=None
     )
 
     @model_validator(mode="after")
@@ -194,6 +193,105 @@ class AnalysisRequest(BaseModel):
         names = [f.name for f in (self.files or [])]
         if len(names) != len(set(names)):
             raise ValueError("Duplicate filenames detected in 'files' list")
+        return self
+
+
+class TestingFarmEnvironment(BaseModel):
+    """Non-secret environment fields exposed by the tmt result serializer."""
+
+    model_config = ConfigDict(extra="forbid")
+    compose: str | None = None
+    arch: str | None = None
+    pool: str | None = None
+
+
+class TestingFarmCheck(BaseModel):
+    """Selected tmt check or subresult evidence, without local paths."""
+
+    model_config = ConfigDict(extra="forbid")
+    name: str
+    result: str | None = None
+    event: str | None = None
+    original_result: str | None = None
+    artifact_refs: list[str] = Field(default_factory=list)
+
+
+class TestingFarmGuest(BaseModel):
+    """Safe context for one provisioned or requested suite guest."""
+
+    model_config = ConfigDict(extra="forbid")
+    role: str | None = None
+    requested_environment: TestingFarmEnvironment | None = None
+    provisioned_environment: TestingFarmEnvironment | None = None
+
+
+class TestingFarmCase(BaseModel):
+    """One failed testcase in a populated tmt suite."""
+
+    model_config = ConfigDict(extra="forbid")
+    case_id: str = Field(min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9._-]+$")
+    name: str = Field(min_length=1)
+    result: Literal["failed", "error", "needs_inspection"]
+    serial_number: int | None = None
+    guest_name: str | None = None
+    notes: list[str] = Field(default_factory=list)
+    checks: list[TestingFarmCheck] = Field(default_factory=list)
+    subresults: list[TestingFarmCheck] = Field(default_factory=list)
+    artifacts: list[RemoteArtifactFile] = Field(default_factory=list)
+
+
+class TestingFarmSuiteContext(BaseModel):
+    """One schedule entry's context available after tmt serialization."""
+
+    model_config = ConfigDict(extra="forbid")
+    plan: str = Field(min_length=1)
+    result: str | None = None
+    state: str | None = None
+    stage: str | None = None
+    error_stage: str | None = None
+    error_guest_setup_stage: str | None = None
+    error_message: str | None = None
+    requested_environment: TestingFarmEnvironment | None = None
+    provisioned_environment: TestingFarmEnvironment | None = None
+
+
+class TestingFarmSuiteRequest(BaseModel):
+    """One indivisible tmt suite with scoped artifact and guest references."""
+
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+    id: UUID4 | None = None
+    suite: TestingFarmSuiteContext
+    guests: dict[str, TestingFarmGuest] = Field(default_factory=dict)
+    shared_artifacts: list[RemoteArtifactFile] = Field(default_factory=list)
+    cases: list[TestingFarmCase]
+
+    @model_validator(mode="after")
+    def validate_suite(self) -> "TestingFarmSuiteRequest":
+        """Keep identifiers and artifact names unambiguous without dropping cases."""
+        ids = [case.case_id for case in self.cases]
+        if len(ids) != len(set(ids)):
+            raise ValueError("Duplicate case_id")
+        if not self.cases and not any((
+            self.suite.state == "error",
+            self.suite.result in ("failed", "error"),
+            self.suite.error_stage,
+            self.suite.error_guest_setup_stage,
+            self.suite.error_message,
+        )):
+            raise ValueError("Zero cases require a suite failure")
+        artifact_groups = [self.shared_artifacts, *(case.artifacts for case in self.cases)]
+        for group in artifact_groups:
+            names = [log.name for log in group]
+            if len(names) != len(set(names)):
+                raise ValueError("Duplicate artifact names in one scope")
+        shared = {f"shared/{log.name}" for log in self.shared_artifacts}
+        for case in self.cases:
+            if case.guest_name is not None and case.guest_name not in self.guests:
+                raise ValueError("Unknown case guest_name")
+            allowed = shared | {f"case/{case.case_id}/{log.name}" for log in case.artifacts}
+            for check in (*case.checks, *case.subresults):
+                if any(ref not in allowed for ref in check.artifact_refs):
+                    raise ValueError("Check artifact_refs must reference own or shared artifacts")
         return self
 
 
@@ -306,6 +404,59 @@ class APIResponse(AgentResponse):
     snippets: Optional[List[Union[AnalyzedSnippet, Snippet]]] = None
 
 
+# A location may have distinct snippets from multiple extractors.
+TestingFarmEvidenceIndex = dict[str, list[Snippet]]
+
+
+class TestingFarmAgentCase(BaseModel):
+    """One diagnosis; evidence is attached by the application, not the model."""
+
+    case_id: str
+    explanation: str | None = None
+    solution: str | None = None
+    no_issue_found: bool = False
+
+
+class TestingFarmAgentOutput(BaseModel):
+    """Agent output; duplicate and unknown IDs are checked against the request."""
+
+    cases: list[TestingFarmAgentCase] = Field(default_factory=list)
+    suite_fallback: TestingFarmAgentCase | None = None
+
+
+class TestingFarmCaseOutcome(BaseModel):
+    """A case's successful analysis or safe retrieval/output error."""
+
+    status: Literal["done", "error"]
+    analysis: APIResponse | None = None
+    error: "TaskError | None" = None
+
+    @model_validator(mode="after")
+    def validate_outcome(self) -> "TestingFarmCaseOutcome":
+        """A case publishes exactly one analysis or error."""
+        if (self.status == "done") != (self.analysis is not None) or (
+            (self.status == "error") != (self.error is not None)
+        ):
+            raise ValueError("Case outcome must have only its matching analysis or error")
+        return self
+
+
+class TestingFarmRetrievalWarning(BaseModel):
+    """Safe diagnostic for an unavailable namespaced artifact."""
+
+    code: str
+    source_file: str
+    message: str
+
+
+class TestingFarmSuiteResult(BaseModel):
+    """Terminal per-case result, or one pre-test suite fallback."""
+
+    cases: dict[str, TestingFarmCaseOutcome] = Field(default_factory=dict)
+    suite_fallback: APIResponse | None = None
+    retrieval_warnings: list[TestingFarmRetrievalWarning] = Field(default_factory=list)
+
+
 class TaskMetadata(BaseModel):
     """Base model for validated, task-specific metadata persisted as JSON."""
 
@@ -347,6 +498,7 @@ class TaskType(str, enum.Enum):
     GENERIC = "generic"
     KOJI = "koji"
     GITLAB = "gitlab"
+    TFT_SUITE = "tft_suite"
 
 
 class TaskError(BaseModel):
@@ -365,7 +517,7 @@ class TaskResponse(BaseModel):
     created_at: datetime.datetime = Field(alias="createdAt")
     status: AnalysisState
     error: TaskError | None = None
-    result: KojiResponse | APIResponse | None = None
+    result: KojiResponse | TestingFarmSuiteResult | APIResponse | None = None
 
 
 class InferenceConfig(BaseModel):  # pylint: disable=too-many-instance-attributes
@@ -589,7 +741,7 @@ class GeneralConfig(BaseModel):
     sentry_dsn: HttpUrl | None = None
     # max_artifact_size in config.yml is in MiBs, here (GeneralConfig class) is in bytes
     max_artifact_size: int = DEFAULT_MAXIMUM_ARTIFACT_MIB * 1024**2
-    # Enables SSRF address checks for user-supplied generic remote-log URLs.
+    # Enables SSRF address checks for user-supplied generic and Testing Farm remote-log URLs.
     block_localhost_urls: bool = True
     ssrf_protection: SSRFProtectionConfig = Field(default_factory=SSRFProtectionConfig)
     generate_solution: bool = True
