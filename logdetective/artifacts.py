@@ -34,7 +34,12 @@ async def fetch_suite_log(
     url: str, http: aiohttp.ClientSession, remaining: int,
     fetched: dict[str, tuple[str | None, int]],
 ) -> tuple[str, int]:
-    """Cache URL success/failure and account for bytes even on failed reads."""
+    """Cache URL success/failure and account for bytes even on failed reads.
+
+    Each download is limited by the suite's remaining aggregate byte allowance,
+    not a separate per-log cap. A declared or streamed size exceeding that
+    allowance raises RemoteLogTooLargeError and fails the whole suite.
+    """
     if url in fetched:
         content, _ = fetched[url]
         if content is None:
@@ -58,10 +63,13 @@ async def fetch_suite_log(
 async def fetch_suite_artifacts(
     payload: TestingFarmSuiteRequest, request_size: int,
 ) -> SuiteArtifacts:
-    """Fetch suite logs once, retaining case-local retrieval failures.
+    """Fetch suite logs once, retaining non-budget failures as scoped warnings.
 
     aiohttp transport failures are handled here because RemoteLog may raise
     them directly during HEAD, GET, or response-body reads.
+    Size-budget violations instead fail the entire suite, including when one
+    log exceeds the remaining aggregate allowance. Bytes read by unsuccessful
+    downloads also consume that allowance.
     """
     remaining = SERVER_CONFIG.general.max_artifact_size - request_size
     if remaining <= 0:
@@ -73,7 +81,7 @@ async def fetch_suite_artifacts(
     warnings: list[TestingFarmRetrievalWarning] = []
 
     async def retrieve(log: RemoteArtifactFile, source_file: str, http):
-        """Record one scoped warning without leaking URL or transport detail."""
+        """Record non-budget failures as scoped warnings; propagate size violations."""
         nonlocal remaining
         url = str(log.url)
         cached = url in fetched
@@ -82,6 +90,7 @@ async def fetch_suite_artifacts(
             remaining -= consumed
             return content
         except RemoteLogTooLargeError:
+            # The download limit is the remaining suite budget, not a per-log cap.
             raise
         except (RemoteLogError, aiohttp.ClientError, asyncio.TimeoutError) as exc:
             if not cached:
