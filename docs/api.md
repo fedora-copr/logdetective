@@ -237,14 +237,17 @@ the configured 50 MiB limit. Oversized requests are rejected, never chunked or
 silently reduced. URLs obey the generic endpoint's HTTP(S), query/fragment,
 size, and optional SSRF protections. Context and artifacts are untrusted data.
 
-Each artifact fetch uses `general.log_source_request_timeout`. Failed downloads
+Each artifact fetch uses `general.log_source_request_timeout`. Non-budget download failures
 produce `result.retrieval_warnings` entries with a stable code, namespaced
 `source_file`, and safe message. Unsupported response charsets are treated as
 artifact retrieval failures; their downloaded bytes still count toward the
 aggregate limit. Successful own or shared artifacts keep a case
 eligible; a case with no usable evidence receives `artifact_error`. Failed URLs
-are cached within the task, as are successful URLs. Aggregate byte violations
-fail the entire task, including bytes read by unsuccessful downloads.
+are cached within the task, as are successful URLs. Each download is limited by
+the remaining aggregate byte allowance, not a separate per-artifact cap. An artifact whose
+declared or streamed size exceeds that allowance fails the entire task rather
+than producing an `artifact_unavailable` warning or a partial result. Bytes read
+by unsuccessful downloads also consume the aggregate allowance.
 Artifacts are namespaced as `shared/<name>` or `case/<case_id>/<name>`.
 Names must be unique within each scope; the same name in different cases or
 in shared artifacts does not collide, even when contents or URLs are identical.
