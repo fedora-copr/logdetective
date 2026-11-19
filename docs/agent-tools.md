@@ -107,3 +107,9 @@ run before returning. A task-local blocking-work scope follows nested tool
 contexts, waits for their already-started threads, and prevents detached tool
 contexts from starting new blocking work after the run closes. This applies
 to both timeout and explicit cancellation, including repeated cancellation.
+
+Before admission and again before retrieval, `testing_farm.max_artifacts_per_case`,
+`max_shared_artifacts`, and `max_total_artifacts` bound submitted entries (defaults 10, 10,
+and 120). Repeated URLs count, although retrieval still caches them. These are
+configurable positive integers, not fixed ceilings; there is no testcase cap.
+API and worker deployments should use matching configuration.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 from datetime import datetime, timedelta, UTC
 import hashlib
@@ -271,6 +272,7 @@ class TaskAnalysis(Base):  # pylint: disable=too-many-instance-attributes
         deferrable_task: Task,
         endpoint: EndpointType | None,
         source_id: str | None = None,
+        validate_new: Callable[[], None] | None = None,
     ) -> tuple[TaskAnalysis, bool]:
         """Atomically admit a durable application task and Procrastinate job.
 
@@ -284,6 +286,7 @@ class TaskAnalysis(Base):  # pylint: disable=too-many-instance-attributes
             endpoint: Metrics endpoint associated with the request, or ``None`` when
                 the operation is not metered.
             source_id: Optional stable identity supplied by an external system.
+            validate_new: Optional admission check for new work, before any writes.
 
         Returns:
             A pair containing the durable task and ``True`` when this call created
@@ -312,6 +315,9 @@ class TaskAnalysis(Base):  # pylint: disable=too-many-instance-attributes
             if existing.request_hash != request_hash:
                 raise TaskConflictError("Source task already exists with different input")
             return existing, False
+
+        if validate_new is not None:
+            validate_new()
 
         try:
             async with transaction(commit=True) as session:
