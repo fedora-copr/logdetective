@@ -520,28 +520,36 @@ async def test_shared_log_only_case_is_analyzed(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_suite_worker_rejects_unknown_agent_id(monkeypatch):
-    """The worker rejects fabricated or duplicate IDs before publication."""
+@pytest.mark.parametrize("case_ids", [["other"], ["good", "good"]])
+async def test_suite_agent_rejects_invalid_ids_before_assembly(monkeypatch, case_ids):
+    """The agent rejects fabricated or duplicate IDs before result assembly."""
     async def download(remote):
         remote.remote_log_size = 4
         return "fail"
 
     monkeypatch.setattr(RemoteLog, "get_url_content", download)
-    monkeypatch.setattr(task_execution, "analyze_testing_farm_suite", AsyncMock(
-        return_value=(TFTAgentOutput(cases=[{
-            "case_id": "other", "explanation": "fabricated",
-        }]), {})
-    ))
     monkeypatch.setattr(task_execution, "get_chat_model", lambda _: MagicMock())
+    assemble = MagicMock()
+    monkeypatch.setattr(task_execution, "_suite_result", assemble)
     payload = {"suite": {"plan": "/plan"}, "cases": [{
         "case_id": "good", "name": "/good", "result": "failed",
         "artifacts": [{"name": "testout.log", "url": "https://example.org/good"}],
     }]}
-    with pytest.raises(ValueError, match="unknown case IDs"):
+    with (
+        patch("logdetective.agents.testing_farm_analysis.RequirementAgent"),
+        patch("logdetective.agents.testing_farm_analysis.run_agent", AsyncMock(
+            return_value=TFTAgentOutput(cases=[
+                {"case_id": case_id, "explanation": "cause"} for case_id in case_ids
+            ]),
+        )) as run,
+        pytest.raises(ValueError, match="duplicate or ineligible case IDs"),
+    ):
         await task_execution._execute_tft_suite(
             payload, 100,
             deadline=asyncio.get_running_loop().time() + 1200,
         )
+    run.assert_awaited_once()
+    assemble.assert_not_called()
 
 
 def test_suite_and_generic_task_results_use_their_response_models():
