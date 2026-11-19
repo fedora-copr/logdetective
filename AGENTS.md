@@ -44,6 +44,7 @@ For CUDA GPU acceleration, uncomment the device lines in `containers/docker-comp
 
 - Pydantic v2 for all request/response validation and config models (`BaseModel`, `Field`, `model_validator`, `field_validator`, `ConfigDict`)
 - SQLAlchemy 2.x async ORM with the psycopg 3 driver for database models
+- Database models must not import server configuration or inference libraries.
 - Alembic for DB migrations; autogenerate new ones with `CHANGE="description" make alembic-generate-revision`
 - Procrastinate owns only its `procrastinate_*` schema; do not copy its schema into Alembic revisions.
 
@@ -59,6 +60,13 @@ For CUDA GPU acceleration, uncomment the device lines in `containers/docker-comp
 - Queue reconciliation treats application state and Procrastinate job status separately. `mark_queue_failure()` fences stalled jobs and active tasks whose jobs disappear or terminate unexpectedly outside cancellation confirmation. A succeeded job with a non-cancelling active task and no application outcome uses `mark_result_lost()`.
 - GitLab's external webhook remains `204`, but acknowledgement occurs only after durable queue admission. Koji uses the same task resource as generic analysis and has no callback endpoint.
 - Database operations belong on relevant model classmethods, must be type annotated, and every nullable database result must be checked explicitly.
+
+# Remote artifact security
+
+- User-supplied artifact downloads must use `SSRFProtectedConnector` with `SSRFProtectedResolver` whenever `general.block_localhost_urls` is enabled, including generic and Testing Farm analysis.
+- Pass both `general.ssrf_protection.allowed_hostnames` and `blocked_cluster_cidrs` to the resolver. Preserve configured replacement semantics, including explicit empty lists.
+- A resolver attached to a plain `aiohttp.TCPConnector` is insufficient: aiohttp bypasses DNS resolution for IP literals. Apply the same address policy to initial URLs and every redirect destination using the existing protected connector; do not implement a separate policy.
+- Use an unprotected connector only when protection is explicitly disabled by the existing configuration switch.
 
 # Formatting conventions
 
@@ -76,7 +84,7 @@ For CUDA GPU acceleration, uncomment the device lines in `containers/docker-comp
 
 - `logdetective/` - FastAPI app, Procrastinate worker/tasks, config, routes, GitLab/Koji integrations, extractors, prompt management, utilities
 - `logdetective/prompts/` - Prompt templates for logdetective
-- `logdetective/agents/` - build workflow, shared agent execution and tool definitions (Drain, csgrep, traceback, snippet analysis)
+- `logdetective/agents/` - independent build and Testing Farm workflows, with shared extractor setup and tool definitions (Drain, csgrep, traceback, snippet analysis)
 - `logdetective/database/` - SQLAlchemy async engine, session factory, transaction helpers
 - `logdetective/database/models/` - ORM models (metrics, merge requests, koji, annotated builds with pgvector)
 - `logdetective/templates/` - Jinja2 response templates (HTML, GitLab markdown)

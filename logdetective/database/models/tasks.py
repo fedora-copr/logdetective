@@ -44,7 +44,7 @@ from logdetective.exceptions import LogDetectiveMetricsError
 from logdetective.models import AnalysisState, TaskMetadata, TaskType
 
 if TYPE_CHECKING:
-    from logdetective.models import APIResponse
+    from logdetective.models import APIResponse, TestingFarmSuiteResponse
 
 LOG = logging.getLogger("logdetective")
 
@@ -433,7 +433,7 @@ class TaskAnalysis(Base):  # pylint: disable=too-many-instance-attributes
         task_id: UUIDType,
         job_id: int,
         generation: int,
-        response: APIResponse,
+        response: APIResponse | TestingFarmSuiteResponse,
         task_metadata: TaskMetadata | None,
         retention_days: int,
     ) -> bool:

@@ -52,6 +52,7 @@ async def test_requests_statistics_defaults_to_current_time(mocker):
         ("analyze", EndpointType.ANALYZE),
         ("analyze-koji", EndpointType.ANALYZE_KOJI_TASK),
         ("analyze-gitlab", EndpointType.ANALYZE_GITLAB_JOB),
+        ("analyze-tft", EndpointType.ANALYZE_TFT),
     ],
 )
 @pytest.mark.asyncio

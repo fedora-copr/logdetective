@@ -17,7 +17,7 @@ from litellm.exceptions import RateLimitError as LiteLLMRateLimit
 from litellm.exceptions import Timeout as LiteLLMTimeout
 from pydantic import ValidationError
 from tenacity import (
-    retry, retry_if_exception_type, stop_after_attempt, stop_any,
+    AsyncRetrying, retry_if_exception_type, stop_after_attempt, stop_any,
     stop_before_delay, wait_exponential_jitter,
 )
 
@@ -42,7 +42,7 @@ from logdetective.utils import (
 )
 
 
-inference_retry = retry(
+inference_retry = AsyncRetrying(
     stop=stop_any(
         stop_after_attempt(SERVER_CONFIG.inference.retry_max_tries),
         stop_before_delay(SERVER_CONFIG.inference.retry_max_time),
