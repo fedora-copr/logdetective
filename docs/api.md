@@ -238,6 +238,9 @@ eligible; a case with no usable evidence receives `artifact_error`. Failed URLs
 are cached within the task, as are successful URLs. Aggregate byte violations
 fail the entire task, including bytes read by unsuccessful downloads.
 Artifacts are namespaced as `shared/<name>` or `case/<case_id>/<name>`.
+Names must be unique within each scope; the same name in different cases or
+in shared artifacts does not collide, even when contents or URLs are identical.
+URL caching avoids repeated downloads but does not merge source identities.
 The worker pre-extracts Drain evidence once from every available artifact before
 one logical agent run; optional extraction tools remain available. One agent
 run may make multiple model-provider requests. See [Agent tools](agent-tools.md)
@@ -266,10 +269,16 @@ The `202` envelope has `taskType: "tft_suite"` and a `Location` at the unchanged
 An evidence-less case or missing/empty case output does not discard other
 diagnoses. With zero cases, `result.cases` is empty and
 `result.suite_fallback` contains the analysis. Each analysis retains
-`explanation`, `solution`, `no_issue_found`, and `snippets`. The application attaches
-all collected snippets from the case's own artifacts and shared artifacts, never sibling
-artifacts; suite fallback receives only shared-log snippets. Locations retain collection
-order, with pre-extracted evidence before optional extractor variants at each
+`explanation`, `solution`, `no_issue_found`, and `snippets`. Case `snippets` contain
+only own-artifact evidence, never shared or sibling artifacts. Shared evidence is stored
+once in `result.shared_snippets`, an index from `source_file` to a
+list of distinct snippet variants. Each analysis has `shared_snippet_refs`, a
+list of keys into that index; each reference includes every snippet from that
+file, with its own `line_number`. The application supplies all shared files with evidence, not only
+those cited by the model. Suite fallback has empty `snippets` and uses the same
+reference mechanism. Empty shared evidence produces `{}` and empty reference
+lists. Locations retain collection order, with pre-extracted evidence before
+optional extractor variants at each
 location. Distinct texts can share a filename and starting line; identical variants
 are deduplicated. Only the successful attempt's optional extraction is included.
 The agent is still asked to cite supplied filenames and starting line numbers in
@@ -368,7 +377,8 @@ A task can finish with `status: "done"` while individual cases have errors:
               "line_number": 12,
               "source_file": "case/case-1/test.log"
             }
-          ]
+          ],
+          "shared_snippet_refs": ["shared/tmt.log"]
         },
         "error": null
       },
@@ -380,6 +390,15 @@ A task can finish with `status: "done"` while individual cases have errors:
           "message": "Unable to retrieve a case artifact"
         }
       }
+    },
+    "shared_snippets": {
+      "shared/tmt.log": [
+        {
+          "text": "Service startup failed",
+          "line_number": 5,
+          "source_file": "shared/tmt.log"
+        }
+      ]
     },
     "suite_fallback": null,
     "retrieval_warnings": []
