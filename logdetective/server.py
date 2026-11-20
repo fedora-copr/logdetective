@@ -49,12 +49,13 @@ from logdetective.database.models.exceptions import (
 
 import logdetective.database.base
 
-from logdetective.config import SERVER_CONFIG
+from logdetective.config import LOG, SERVER_CONFIG
 from logdetective.routes_gitlab import gitlab_router
 from logdetective.metric import requests_statistics, update_metrics
 from logdetective.models import (
     RemoteArtifactFile,
     AnalysisRequest,
+    TestingFarmSuiteRequest, TestingFarmSuiteResult,
     KojiResponse,
     APIResponse,
     MetricResponse,
@@ -64,7 +65,7 @@ from logdetective.models import (
     TaskResponse,
 )
 from logdetective.database.models import EndpointType, TimePeriod
-from logdetective.tasks import analyze_generic, analyze_koji
+from logdetective.tasks import analyze_generic, analyze_koji, analyze_tft_suite
 from logdetective.tasks import app as task_app
 
 
@@ -142,6 +143,11 @@ def validate_request_size(request: Request) -> int:
     if size_check.size_in_bytes is None:
         raise HTTPException(411, detail="Content-Length is missing or invalid.")
     if not size_check.proceed:
+        if request.url.path == "/analyze/tft":
+            LOG.info(
+                "Testing Farm suite limit rejection: request_bytes=%s",
+                size_check.size_in_bytes,
+            )
         raise HTTPException(413, detail="Content-Length is too large.")
     return size_check.size_in_bytes
 
@@ -159,11 +165,14 @@ def task_representation(task: TaskAnalysis) -> TaskResponse:
         RuntimeError: If a completed task lacks its required response or Koji
             metadata, or if an internal GitLab task is exposed publicly.
     """
-    result: APIResponse | KojiResponse | None = None
+    result: APIResponse | KojiResponse | TestingFarmSuiteResult | None = None
     if task.state == AnalysisState.DONE:
         if task.response is None:
             raise RuntimeError("Completed task has no persisted response")
-        response = LLMResponseCompressor.unzip(task.response)
+        response = LLMResponseCompressor.unzip(
+            task.response,
+            TestingFarmSuiteResult if task.task_type == TaskType.TFT_SUITE else APIResponse,
+        )
         if task.task_type == TaskType.KOJI:
             if task.task_metadata is None:
                 raise RuntimeError("Completed Koji task has no metadata")
@@ -199,7 +208,7 @@ def task_representation(task: TaskAnalysis) -> TaskResponse:
 
 
 async def accept_task(
-    payload: AnalysisRequest | KojiAnalysisRequest,
+    payload: AnalysisRequest | KojiAnalysisRequest | TestingFarmSuiteRequest,
     request: Request,
     task_type: TaskType,
     request_size: int,
@@ -207,7 +216,7 @@ async def accept_task(
     """Admit an analysis task and construct its HTTP 202 response.
 
     Args:
-        payload: Validated generic or Koji analysis request.
+        payload: Validated generic, Testing Farm, or Koji analysis request.
         request: FastAPI request carrying the authenticated token identity and URL
             router.
         task_type: Kind of analysis to enqueue.
@@ -220,19 +229,35 @@ async def accept_task(
 
     Raises:
         HTTPException: With status 409 when the public identifier conflicts with a
-            different request.
+            different request, or 422 when configured Testing Farm limits are exceeded.
     """
+    if isinstance(payload, TestingFarmSuiteRequest):
+        try:
+            payload.validate_limits(SERVER_CONFIG.testing_farm)
+        except ValueError as exc:
+            raise HTTPException(422, detail=str(exc)) from exc
+    if isinstance(payload, (AnalysisRequest, TestingFarmSuiteRequest)):
+        files = (
+            payload.files if isinstance(payload, AnalysisRequest)
+            else [*payload.shared_artifacts,
+                  *(artifact for case in payload.cases for artifact in case.artifacts)]
+        )
+        for artifact in files:
+            if isinstance(artifact, RemoteArtifactFile) and not RemoteLog.is_valid_url(
+                str(artifact.url)
+            ):
+                raise HTTPException(400, detail="Invalid artifact URL")
     public_id = payload.id or uuid4()
     data = payload.model_dump(mode="json", by_alias=True)
     data["id"] = str(public_id)
-    deferrable = analyze_generic if task_type == TaskType.GENERIC else analyze_koji
-    endpoint = (
-        EndpointType.ANALYZE
-        if task_type == TaskType.GENERIC
-        else EndpointType.ANALYZE_KOJI_TASK
-    )
+    dispatch = {
+        TaskType.GENERIC: (analyze_generic, EndpointType.ANALYZE),
+        TaskType.KOJI: (analyze_koji, EndpointType.ANALYZE_KOJI_TASK),
+        TaskType.TFT_SUITE: (analyze_tft_suite, EndpointType.ANALYZE_TFT),
+    }
+    deferrable, endpoint = dispatch[task_type]
     try:
-        task, _ = await TaskAnalysis.admit(
+        task, created = await TaskAnalysis.admit(
             task_id=public_id,
             owner_token_name=request.state.api_token_name,
             task_type=task_type,
@@ -243,6 +268,12 @@ async def accept_task(
         )
     except TaskConflictError as exc:
         raise HTTPException(409, detail=str(exc)) from exc
+    if task_type == TaskType.TFT_SUITE:
+        LOG.info(
+            "Testing Farm suite submission: new=%s cases=%d artifacts=%d",
+            created, len(payload.cases),
+            len(payload.shared_artifacts) + sum(len(case.artifacts) for case in payload.cases),
+        )
     representation = task_representation(task)
     return JSONResponse(
         status_code=202,
@@ -262,12 +293,17 @@ async def analyze(
     request_size: int = Depends(validate_request_size),
 ) -> JSONResponse:
     """Durably submit generic artifact analysis without downloading in the API."""
-    for artifact in payload.files:
-        if isinstance(artifact, RemoteArtifactFile) and not RemoteLog.is_valid_url(
-            str(artifact.url)
-        ):
-            raise HTTPException(400, detail="Invalid artifact URL")
     return await accept_task(payload, request, TaskType.GENERIC, request_size)
+
+
+@app.post("/analyze/tft", response_model=TaskResponse, status_code=202)
+async def analyze_tft_request(
+    payload: TestingFarmSuiteRequest,
+    request: Request,
+    request_size: int = Depends(validate_request_size),
+) -> JSONResponse:
+    """Durably submit one complete Testing Farm tmt suite for analysis."""
+    return await accept_task(payload, request, TaskType.TFT_SUITE, request_size)
 
 
 @app.post("/analyze/rpmbuild/koji", response_model=TaskResponse, status_code=202)
@@ -383,12 +419,14 @@ class MetricRoute(str, Enum):
     ANALYZE = "analyze"
     ANALYZE_GITLAB_JOB = "analyze-gitlab"
     ANALYZE_KOJI_TASK = "analyze-koji"
+    ANALYZE_TFT = "analyze-tft"
 
 
 ROUTE_TO_ENDPOINT_TYPES = {
     MetricRoute.ANALYZE: EndpointType.ANALYZE,
     MetricRoute.ANALYZE_GITLAB_JOB: EndpointType.ANALYZE_GITLAB_JOB,
     MetricRoute.ANALYZE_KOJI_TASK: EndpointType.ANALYZE_KOJI_TASK,
+    MetricRoute.ANALYZE_TFT: EndpointType.ANALYZE_TFT,
 }
 
 

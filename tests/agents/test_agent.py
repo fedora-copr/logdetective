@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import AsyncMock, patch, MagicMock
 
 import pytest
@@ -6,8 +7,8 @@ from beeai_framework.backend import ChatModel
 from beeai_framework.backend.errors import ChatModelError
 from litellm.exceptions import Timeout, RateLimitError
 
-from logdetective.agent.agent import analyze_artifacts
-from logdetective.agent.tools import (
+from logdetective.agents.base_analysis import analyze_artifacts
+from logdetective.agents.tools import (
     AnnotatedSnippetLookupTool,
     DrainExtractorTool,
     CSGrepExtractorTool,
@@ -41,13 +42,16 @@ async def test_analyze_artifacts_init_default(mock_agent_setup):
     """Test default initialization (CSGrep disabled)."""
     mock_artifacts, mock_chat_model, mock_agent_output = mock_agent_setup
 
-    with patch("logdetective.agent.agent.RequirementAgent") as MockAgent:
+    with patch("logdetective.agents.base_analysis.RequirementAgent") as MockAgent:
         mock_run_instance = MagicMock()
         mock_run_instance.middleware = AsyncMock(return_value=mock_agent_output)
         MockAgent.return_value.run.return_value = mock_run_instance
 
         with patch.object(SERVER_CONFIG.extractor, "csgrep", False):
-            await analyze_artifacts(mock_artifacts, mock_chat_model)
+            await analyze_artifacts(
+                mock_artifacts, mock_chat_model,
+                deadline=asyncio.get_running_loop().time() + 1200,
+            )
 
             _, kwargs = MockAgent.call_args
             tools = kwargs.get("tools", [])
@@ -62,13 +66,16 @@ async def test_analyze_artifacts_init_with_csgrep(mock_agent_setup):
     """Test initialization when CSGrep is enabled."""
     mock_artifacts, mock_chat_model, mock_agent_output = mock_agent_setup
 
-    with patch("logdetective.agent.agent.RequirementAgent") as MockAgent:
+    with patch("logdetective.agents.base_analysis.RequirementAgent") as MockAgent:
         mock_run_instance = MagicMock()
         mock_run_instance.middleware = AsyncMock(return_value=mock_agent_output)
         MockAgent.return_value.run.return_value = mock_run_instance
 
         with patch.object(SERVER_CONFIG.extractor, "csgrep", True):
-            await analyze_artifacts(mock_artifacts, mock_chat_model)
+            await analyze_artifacts(
+                mock_artifacts, mock_chat_model,
+                deadline=asyncio.get_running_loop().time() + 1200,
+            )
 
             _, kwargs = MockAgent.call_args
             tools = kwargs.get("tools", [])
@@ -90,11 +97,14 @@ async def test_analyze_artifacts_execution_flow(mock_agent_setup):
     mock_run_chain = MagicMock()
     mock_run_chain.middleware = AsyncMock(return_value=mock_agent_output)
 
-    with patch("logdetective.agent.agent.RequirementAgent") as MockAgent:
+    with patch("logdetective.agents.base_analysis.RequirementAgent") as MockAgent:
         mock_agent_instance = MockAgent.return_value
         mock_agent_instance.run.return_value = mock_run_chain
 
-        response = await analyze_artifacts(mock_artifacts, mock_chat_model)
+        response = await analyze_artifacts(
+            mock_artifacts, mock_chat_model,
+            deadline=asyncio.get_running_loop().time() + 1200,
+        )
 
         assert response.explanation == expected_answer
 
@@ -125,14 +135,17 @@ async def test_analyze_artifacts_inference_errors(
     mock_error = ChatModelError("model error")
     mock_error.__cause__ = cause
 
-    with patch("logdetective.agent.agent.RequirementAgent") as MockAgent:
+    with patch("logdetective.agents.base_analysis.RequirementAgent") as MockAgent:
         with patch("asyncio.sleep", new_callable=AsyncMock):
             mock_run_instance = MagicMock()
             mock_run_instance.middleware = AsyncMock(side_effect=mock_error)
             MockAgent.return_value.run.return_value = mock_run_instance
 
             with pytest.raises(LogDetectiveInferenceError) as exc_info:
-                await analyze_artifacts(mock_artifacts, mock_chat_model)
+                await analyze_artifacts(
+                    mock_artifacts, mock_chat_model,
+                    deadline=asyncio.get_running_loop().time() + 1200,
+                )
 
     assert isinstance(exc_info.value, expected_exc)
 
@@ -149,11 +162,14 @@ async def test_analyze_artifacts_solution_stripped_when_disabled(mock_agent_setu
     mock_run_chain = MagicMock()
     mock_run_chain.middleware = AsyncMock(return_value=mock_agent_output)
 
-    with patch("logdetective.agent.agent.RequirementAgent") as MockAgent:
+    with patch("logdetective.agents.base_analysis.RequirementAgent") as MockAgent:
         MockAgent.return_value.run.return_value = mock_run_chain
 
         with patch.object(SERVER_CONFIG.general, "generate_solution", False):
-            response = await analyze_artifacts(mock_artifacts, mock_chat_model)
+            response = await analyze_artifacts(
+                mock_artifacts, mock_chat_model,
+                deadline=asyncio.get_running_loop().time() + 1200,
+            )
             assert response.solution is None
 
 
@@ -169,11 +185,14 @@ async def test_analyze_artifacts_solution_kept_when_enabled(mock_agent_setup):
     mock_run_chain = MagicMock()
     mock_run_chain.middleware = AsyncMock(return_value=mock_agent_output)
 
-    with patch("logdetective.agent.agent.RequirementAgent") as MockAgent:
+    with patch("logdetective.agents.base_analysis.RequirementAgent") as MockAgent:
         MockAgent.return_value.run.return_value = mock_run_chain
 
         with patch.object(SERVER_CONFIG.general, "generate_solution", True):
-            response = await analyze_artifacts(mock_artifacts, mock_chat_model)
+            response = await analyze_artifacts(
+                mock_artifacts, mock_chat_model,
+                deadline=asyncio.get_running_loop().time() + 1200,
+            )
             assert response.solution is not None
             assert response.solution == "Mock solution"
 
@@ -198,7 +217,7 @@ async def test_analyze_artifacts_lookup_tool_included(
 ):
     """AnnotatedSnippetLookupTool is enabled only if the flag is on and the table has data."""
     mock_artifacts, mock_chat_model, mock_agent_output = mock_agent_setup
-    with patch("logdetective.agent.agent.RequirementAgent") as MockAgent:
+    with patch("logdetective.agents.base_analysis.RequirementAgent") as MockAgent:
         mock_run_instance = MagicMock()
         mock_run_instance.middleware = AsyncMock(return_value=mock_agent_output)
         MockAgent.return_value.run.return_value = mock_run_instance
@@ -209,14 +228,17 @@ async def test_analyze_artifacts_lookup_tool_included(
             ),
             patch.object(SERVER_CONFIG.general, "max_annotations", 3),
             patch(
-                "logdetective.agent.agent.get_embedding_model",
+                "logdetective.agents.common.get_embedding_model",
                 return_value=MagicMock() if model_available else None,
             ) as get_embedding_model,
             patch.object(
                 AnnotatedSnippets, "get_count", new_callable=AsyncMock, return_value=snippet_count
             ) as get_count,
         ):
-            await analyze_artifacts(mock_artifacts, mock_chat_model)
+            await analyze_artifacts(
+                mock_artifacts, mock_chat_model,
+                deadline=asyncio.get_running_loop().time() + 1200,
+            )
 
         _, kwargs = MockAgent.call_args
         tools = kwargs.get("tools", [])

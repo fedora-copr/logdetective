@@ -59,6 +59,12 @@ async def analyze_koji(context: JobContext, task_id: str) -> None:
 
 
 @app.task(queue="analysis", pass_context=True, retry=False)
+async def analyze_tft_suite(context: JobContext, task_id: str) -> None:
+    """Run one whole Testing Farm suite without automatic replay."""
+    await _execute(context, task_id)
+
+
+@app.task(queue="analysis", pass_context=True, retry=False)
 async def analyze_gitlab(context: JobContext, task_id: str) -> None:
     """Process one durable GitLab webhook without automatic replay.
 
@@ -133,6 +139,7 @@ async def reconcile_analysis_jobs(timestamp: int) -> None:  # pylint: disable=to
             continue
         if status in (Status.FAILED, Status.SUCCEEDED, Status.ABORTED, Status.CANCELLED):
             if task.state == AnalysisState.CANCELLING and status in (
+                Status.FAILED,
                 Status.ABORTED,
                 Status.CANCELLED,
                 Status.SUCCEEDED,

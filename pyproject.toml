@@ -83,6 +83,8 @@ include = [
     "logdetective/prompts/agent_start_prompt.j2",
     "logdetective/prompts/message_template.j2",
     "logdetective/prompts/system_prompt.j2",
+    "logdetective/prompts/testing_farm_system_prompt.j2",
+    "logdetective/prompts/testing_farm_suite_start_prompt.j2",
 ]
 packages = [
     { include = "logdetective" }

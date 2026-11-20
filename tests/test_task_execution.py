@@ -3,13 +3,17 @@
 import asyncio
 import threading
 import time
+from contextlib import AsyncExitStack
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
+from beeai_framework.context import RunContext
+from beeai_framework.emitter import Emitter
 
 from logdetective import task_execution
+from logdetective.agents.common import analysis_attempt, run_agent
 from logdetective.database.models.tasks import TaskAnalysis, TaskType
 from logdetective.models import APIResponse, KojiTaskMetadata
 from logdetective.task_execution import TaskOutcome, run_task
@@ -48,10 +52,11 @@ async def test_execute_generic_uses_configured_log_source_timeout(monkeypatch):
         task_execution.SERVER_CONFIG.general, "log_source_request_timeout", 12.5
     )
 
-    outcome = await task_execution._execute_generic(  # pylint: disable=protected-access
-        {"files": [{"name": "build.log", "content": "failed"}]},
-        request_size=128,
-    )
+    async with AsyncExitStack() as stack:
+        outcome = await task_execution._execute_generic(
+            {"files": [{"name": "build.log", "content": "failed"}]},
+            request_size=128, deadline=asyncio.get_running_loop().time() + 1200, stack=stack,
+        )
 
     assert captured_timeout is not None
     assert captured_timeout.total == 12.5
@@ -102,10 +107,11 @@ async def test_execute_generic_ssrf_connector_configuration(monkeypatch, protect
         [],
     )
 
-    await task_execution._execute_generic(  # pylint: disable=protected-access
-        {"files": [{"name": "build.log", "content": "failed"}]},
-        request_size=128,
-    )
+    async with AsyncExitStack() as stack:
+        await task_execution._execute_generic(
+            {"files": [{"name": "build.log", "content": "failed"}]},
+            request_size=128, deadline=asyncio.get_running_loop().time() + 1200, stack=stack,
+        )
 
     if protection_enabled:
         assert isinstance(captured_connector, task_execution.SSRFProtectedConnector)
@@ -164,12 +170,13 @@ def _task(task_type: TaskType = TaskType.GENERIC):
     )
 
 
+@pytest.mark.parametrize("task_type", [TaskType.GENERIC, TaskType.TFT_SUITE])
 @pytest.mark.asyncio
-async def test_run_task_publishes_direct_result(monkeypatch):
+async def test_run_task_publishes_direct_result(monkeypatch, task_type):
     """A direct result is published through the application generation fence."""
     task_id = uuid4()
     response = APIResponse(explanation="done")
-    monkeypatch.setattr(TaskAnalysis, "mark_started", AsyncMock(return_value=_task()))
+    monkeypatch.setattr(TaskAnalysis, "mark_started", AsyncMock(return_value=_task(task_type)))
     metadata = KojiTaskMetadata(task_id=123, log_file_name="build.log")
     execute = AsyncMock(return_value=TaskOutcome(response=response, metadata=metadata))
     monkeypatch.setattr(task_execution, "execute_task", execute)
@@ -260,3 +267,79 @@ async def test_run_task_publishes_safe_error(monkeypatch):
         message="Analysis could not be completed",
         retention_days=task_execution.SERVER_CONFIG.task_queue.retention_days,
     )
+
+
+@pytest.mark.parametrize("task_type", [TaskType.GENERIC, TaskType.TFT_SUITE])
+@pytest.mark.parametrize("trigger", ["agent_timeout", "cancel"])
+@pytest.mark.asyncio
+async def test_nested_beeai_cleanup_precedes_terminal_publication(monkeypatch, trigger, task_type):
+    """Real nested BeeAI runners cannot outlive a terminal timeout/cancellation."""
+    started = threading.Event()
+    release = threading.Event()
+    finished = threading.Event()
+
+    def work():
+        started.set()
+        try:
+            assert release.wait(timeout=3)
+        finally:
+            finished.set()
+
+    class Agent:  # pylint: disable=too-few-public-methods
+        """Exercise the same RunContext nesting used by agent-directed tools."""
+        emitter = Emitter.root().child(namespace=["cleanup_test"])
+
+        def run(self, _prompt, *, signal, **_kwargs):
+            async def tool(_context):
+                await run_blocking(work)
+                return SimpleNamespace(output_structured={"explanation": {"text": "done"}})
+
+            async def agent(_context):
+                return await RunContext.enter(self, tool)
+
+            return RunContext.enter(self, agent, signal=signal)
+
+    task = _task(task_type)
+    monkeypatch.setattr(task_execution.SERVER_CONFIG.general, "analysis_timeout",
+                        0.08 if trigger == "agent_timeout" else 10)
+    monkeypatch.setattr(TaskAnalysis, "mark_started", AsyncMock(return_value=task))
+
+    async def execute(*_args):
+        async with analysis_attempt(_args[4]) as attempt:
+            await run_agent(Agent(), "analyze", attempt=attempt)
+        return TaskOutcome(response=APIResponse(explanation="done"), metadata=None)
+
+    monkeypatch.setattr(task_execution, "execute_task", execute)
+    error = AsyncMock(return_value=True)
+    cancelled = AsyncMock(return_value=True)
+    result = AsyncMock(return_value=True)
+    monkeypatch.setattr(TaskAnalysis, "publish_error", error)
+    monkeypatch.setattr(TaskAnalysis, "confirm_cancelled", cancelled)
+    monkeypatch.setattr(TaskAnalysis, "publish_result", result)
+    operation = asyncio.create_task(run_task(str(uuid4()), 42))
+    try:
+        async with asyncio.timeout(2):
+            while not started.is_set():
+                await asyncio.sleep(0.001)
+        if trigger == "cancel":
+            operation.cancel()
+            await asyncio.sleep(0.01)
+            operation.cancel()
+        await asyncio.sleep(0.12)
+        assert not operation.done()
+        error.assert_not_awaited()
+        cancelled.assert_not_awaited()
+        result.assert_not_awaited()
+    finally:
+        release.set()
+        with pytest.raises(asyncio.CancelledError if trigger == "cancel" else RuntimeError):
+            await operation
+    assert finished.is_set()
+    if trigger == "cancel":
+        cancelled.assert_awaited_once()
+        error.assert_not_awaited()
+    else:
+        error.assert_awaited_once()
+        assert error.await_args.kwargs["code"] == "timeout"
+        cancelled.assert_not_awaited()
+    result.assert_not_awaited()

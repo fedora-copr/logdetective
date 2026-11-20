@@ -3,7 +3,7 @@ log:
   level_file: "DEBUG"
   path: "log/logdetective.log"
 inference:
-  max_tokens: 2000 # maximum number of tokens must be a positive integer
+  max_tokens: 4000 # maximum number of tokens must be a positive integer
   log_probs: true
   api_timeout: 60.0 # Timeout for the LLM API client, how long should it wait for inference server response
   # Model name examples:
@@ -79,9 +79,9 @@ general:
     - .*
   excluded_packages:
     - ^redhat-internal-.*
-  # Enable SSRF address checks for user-supplied generic /analyze remote logs.
+  # Enable SSRF address checks for user-supplied /analyze and /analyze/tft remote logs.
   # block_localhost_urls: true
-  # SSRF controls for user-supplied generic /analyze remote logs.
+  # SSRF controls for user-supplied /analyze and /analyze/tft remote logs.
   # ssrf_protection:
   #   # Exact DNS names allowed to resolve to ordinary private addresses.
   #   # Case and a trailing dot are normalized; wildcards and IP literals are
@@ -107,7 +107,9 @@ general:
   # delay_artifact_download: true
   # Total timeout in seconds for downloading remote log sources
   log_source_request_timeout: 10
-  analysis_timeout: 600  # Timeout on agent execution
+  # Positive integer seconds for retrieval through assembly, including all retries.
+  # Excludes queue waiting, GitLab publication, terminal state publication, and cleanup.
+  analysis_timeout: 1200
   # Enable DB lookup of annotated snippets (requires populated annotated_snippets table)
   # annotation_lookup_tool: true
   # Upper limit for returned similar annotated snippets
@@ -132,3 +134,11 @@ task_queue:
 #       link: https://docs.fedoraproject.org/en-US/packaging-guidelines/
 #     - name: Mock user documentation
 #       link: https://rpm-software-management.github.io/mock/
+
+# TF-only limits, checked before admission and again by the worker.
+# Count submitted entries, including repeated URLs; all caps must pass.
+# API and worker settings should match. No testcase-count limit is imposed.
+testing_farm:
+  max_artifacts_per_case: 10
+  max_shared_artifacts: 10
+  max_total_artifacts: 120
