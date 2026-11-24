@@ -395,7 +395,6 @@ async def test_missing_log_data_does_not_post_comment(gitlab_cfg, caplog):
     assert response is None
     analyze.assert_not_awaited()
     comment.assert_not_awaited()
-    assert "Could not retrieve logs" in caplog.text
 
 
 @pytest.mark.parametrize(

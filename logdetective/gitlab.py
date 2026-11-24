@@ -300,6 +300,11 @@ async def process_gitlab_job_event(
     # Look up the project this job belongs to
     project = await run_blocking(gitlab_connection.projects.get, job_hook.project_id)
 
+    # check if this project is on the opt-in list for analysis.
+    if not is_eligible_package(project.name):
+        LOG.info("Not analysing failed build of unrecognized package %s", project.name)
+        return
+
     # Retrieve data about the job from the GitLab API
     job = await run_blocking(project.jobs.get, job_hook.build_id)
     LOG.info("Processing failed GitLab job %s", job.web_url)
@@ -374,11 +379,6 @@ async def process_gitlab_job_event(
         LOG.error("%s during %s: %s", type(exc).__name__, job_ctx, exc)
         return
 
-    # check if this project is on the opt-in list for posting comments.
-    if not is_eligible_package(project.name):
-        LOG.info("Not publishing comment for unrecognized package %s", project.name)
-        return
-
     # Add the Log Detective response as a comment to the merge request
     await comment_on_mr(
         forge,
@@ -396,8 +396,8 @@ async def process_gitlab_job_event(
 
 
 def is_eligible_package(project_name: str):
-    """Check whether the provided package name is eligible for posting
-    comments to the merge request"""
+    """Check whether the provided package name is eligible for analysis of
+    builds of the merge request"""
 
     # First check the allow-list. If it's not allowed, we deny.
     allowed = False
