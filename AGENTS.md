@@ -50,7 +50,7 @@ For CUDA GPU acceleration, uncomment the device lines in `containers/docker-comp
 # Asynchronous API convention
 
 - Every endpoint that starts non-trivial or long-running work must durably admit a Procrastinate job and its application record in one database transaction, then return `202` only after commit.
-- Return a stable task envelope and `Location` plus `Retry-After` headers. Polling uses `GET /tasks/{opaque_uuid}` and returns `200` in both active and terminal states.
+- Return a stable task envelope and `Location`, `Link` and `Retry-After` headers. Polling uses `GET /tasks/{opaque_uuid}` and returns `200` in both active and terminal states.
 - Cancellation uses `DELETE /tasks/{opaque_uuid}` and application state is the durable cancellation authority. Never expose Procrastinate job IDs or tables through the public API.
 - Client UUIDs are idempotency keys. Identical retries return the same unexpired operation; conflicting or expired reuse returns `409` until the expired record is removed.
 - Keep inputs, results, ownership, public state, retention, and fencing in the application model. Procrastinate owns scheduling, claiming, and worker heartbeats.

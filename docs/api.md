@@ -153,7 +153,8 @@ the agent; `specfile` and `last_patch` are accepted but currently unused.
 ### Task responses
 
 Analysis endpoints use asynchronous request/reply. A successful `POST` returns
-`202 Accepted`, a `Location` header pointing to `/tasks/{id}`, and a
+`202 Accepted`, a `Location` header with absolute URL for retrieval of task results,
+a `Link` header with relative location for retrieval of task results, and a
 `Retry-After` header. The JSON response is a stable task envelope; it does not
 contain an analysis result until processing finishes:
 
@@ -168,7 +169,8 @@ contain an analysis result until processing finishes:
 }
 ```
 
-Poll the URL in `Location` with `GET`. It returns `200` and the same envelope
+Poll the URL in `Location` with `GET`, or construct URL using relative URI
+from `Link`. It returns `200` and the same envelope
 while `status` is `scheduled`, `in_progress`, or `cancelling`, including
 `Retry-After` while more polling is useful. A terminal response has status
 `done`, `error`, or `cancelled`; `result` is populated only for `done`.
@@ -378,10 +380,10 @@ Here, **task envelope** means the JSON object shown in [Task responses](#task-re
 
 | Method and path | HTTP status | Response and condition |
 | --- | --- | --- |
-| `POST /analyze` | `202 Accepted` | Task envelope, `Location`, and `Retry-After`; a new task or an identical retry. |
+| `POST /analyze` | `202 Accepted` | Task envelope, `Location`, `Link`, and `Retry-After`; a new task or an identical retry. |
 | `POST /analyze` | `400 Bad Request` | JSON `detail`; an artifact URL parses but violates remote URL restrictions. |
 | `POST /analyze` | `409 Conflict` | JSON `detail`; a supplied task ID conflicts with another request or an expired task. |
-| `POST /analyze/rpmbuild/koji` | `202 Accepted` | Task envelope, `Location`, and `Retry-After`; a new task or an identical retry. |
+| `POST /analyze/rpmbuild/koji` | `202 Accepted` | Task envelope, `Location`, `Link` and `Retry-After`; a new task or an identical retry. |
 | `POST /analyze/rpmbuild/koji` | `401 Unauthorized` | JSON `detail`; the configured Koji token is missing or invalid. |
 | `POST /analyze/rpmbuild/koji` | `404 Not Found` | JSON `detail`; the Koji instance is unknown. |
 | `POST /analyze/rpmbuild/koji` | `409 Conflict` | JSON `detail`; a supplied task ID conflicts with another request or an expired task. |
