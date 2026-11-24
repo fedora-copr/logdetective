@@ -86,6 +86,10 @@ submit_koji() {
         echo "Submission did not return a Retry-After header" >&2
         return 1
     }
+    [ -n "$(header_value "$RESULTS_DIR/${name}.headers" Link)" ] || {
+        echo "Submission did not return a Link header" >&2
+        return 1
+    }
     [ "$(jq --raw-output .id "$RESULTS_DIR/${name}.json")" = "$request_id" ]
 
     echo "$location"

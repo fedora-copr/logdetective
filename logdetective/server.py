@@ -244,11 +244,13 @@ async def accept_task(
     except TaskConflictError as exc:
         raise HTTPException(409, detail=str(exc)) from exc
     representation = task_representation(task)
+    task_url = request.url_for("get_analysis_task", task_id=task.task_id)
     return JSONResponse(
         status_code=202,
         content=representation.model_dump(mode="json", by_alias=True),
         headers={
-            "Location": str(request.url_for("get_analysis_task", task_id=task.task_id)),
+            "Location": str(task_url),
+            "Link": f'<{task_url.path}>; rel="status"',
             "Retry-After": str(SERVER_CONFIG.task_queue.retry_after),
             "Cache-Control": "no-store",
         },
