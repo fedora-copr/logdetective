@@ -255,7 +255,7 @@ in shared artifacts does not collide, even when contents or URLs are identical.
 URL caching avoids repeated downloads but does not merge source identities.
 The worker pre-extracts Drain evidence once from every available artifact before
 one logical agent run; optional extraction tools remain available. One agent
-run may make multiple model-provider requests. See [Agent tools](agent-tools.md)
+run may make multiple model-provider requests. See [Testing Farm suite analysis agent](agents.md#testing-farm-suite-analysis-agent)
 for extraction details. For GitLab.com downloads failing with HTTP 429, the
 agent may suggest bundling files or using an available gitlab.cee.redhat.com mirror.
 All submitted case and guest context is supplied to that agent run,
@@ -281,7 +281,7 @@ reporting. Overlapping explicit cancellation and expiry preserve cancellation,
 with acknowledgement immediately after cleanup, including repeated cancellation.
 A running thread cannot be forcibly stopped: a call that never returns can delay
 cleanup indefinitely. See
-[Cancellation and timeouts](agent-tools.md#cancellation-and-timeouts).
+[Cancellation and timeouts](workers.md#cancellation-and-timeouts).
 
 The `202` envelope has `taskType: "tft_suite"` and a `Location` at the unchanged
 `/tasks/{id}` resource. A terminal successful task returns
