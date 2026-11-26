@@ -132,13 +132,15 @@ def response_body(charset, body):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("charset", ["x-invalid", "base64"])
-async def test_unsupported_charset_retains_byte_count(charset):
-    """Unknown and non-text codecs become remote access errors after accounting."""
+@pytest.mark.parametrize(("charset", "cause"), [
+    ("x-invalid", LookupError), ("base64", LookupError), ("idna", UnicodeError),
+])
+async def test_unsupported_charset_retains_byte_count(charset, cause):
+    """Unsupported codecs or error handlers become access errors after accounting."""
     remote = RemoteLog("https://example.org/log", MagicMock())
     with pytest.raises(RemoteLogAccessError, match="Unsupported remote log charset") as error:
         await remote._read_with_size_limit(response_body(charset, b"fail"))
-    assert isinstance(error.value.__cause__, LookupError)
+    assert isinstance(error.value.__cause__, cause)
     assert remote.remote_log_size == 4
 
 
@@ -162,7 +164,7 @@ async def test_suite_charset_failure_is_cached_scoped_and_charged(monkeypatch):
 
     async def download(remote):
         downloads.append((remote.url, remote._limit_bytes))
-        charset = "x-invalid" if remote.url.endswith("bad") else "utf-8"
+        charset = "idna" if remote.url.endswith("bad") else "utf-8"
         return await remote._read_with_size_limit(response_body(charset, b"fail"))
 
     monkeypatch.setattr(RemoteLog, "get_url_content", download)

@@ -249,7 +249,8 @@ size, and optional SSRF protections. Context and artifacts are untrusted data.
 
 Each artifact fetch uses `general.log_source_request_timeout`. Non-budget download failures
 produce `result.retrieval_warnings` entries with a stable code, namespaced
-`source_file`, and safe message. Unsupported response charsets are treated as
+`source_file`, and safe message. Unsupported response charsets, including codecs that reject replacement
+decoding, are treated as
 artifact retrieval failures; their downloaded bytes still count toward the
 aggregate limit. Successful own or shared artifacts keep a case
 eligible; a case with no usable evidence receives `artifact_error`. Failed URLs

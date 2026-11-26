@@ -130,5 +130,5 @@ class RemoteLog:
         encoding = response.charset or "utf-8"
         try:
             return b"".join(chunks).decode(encoding, errors="replace")
-        except LookupError as exc:
+        except (LookupError, UnicodeError) as exc:
             raise RemoteLogAccessError("Unsupported remote log charset") from exc
