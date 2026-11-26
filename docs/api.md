@@ -156,7 +156,9 @@ the agent; `specfile` and `last_patch` are accepted but currently unused.
 regardless of guest count. The request has
 one suite context, published shared artifact references, and every failed, errored,
 or `needs_inspection` testcase in `cases`. `case_id` must be unique within the
-request. Zero cases are accepted when suite `state` is `error`, `result` is
+request; the server returns it unchanged. The Testing Farm adapter generates IDs
+like `case_0` and `case_1`; other callers need not use that format.
+Zero cases are accepted when suite `state` is `error`, `result` is
 `failed` or `error`, or error details are present. An empty case list alone
 does not establish that no tests ran.
 Cases without case-specific artifacts can be analyzed when a shared artifact is available.
@@ -194,7 +196,7 @@ named `journal.txt`, for example, is referenced as `shared/journal.txt`.
   ],
   "cases": [
     {
-      "case_id": "case-1",
+      "case_id": "case_0",
       "name": "/example/test",
       "result": "failed",
       "guest_name": "guest-1",
@@ -206,7 +208,7 @@ named `journal.txt`, for example, is referenced as `shared/journal.txt`.
         {
           "name": "assert",
           "artifact_refs": [
-            "case/case-1/testout.log"
+            "case/case_0/testout.log"
           ]
         }
       ],
@@ -374,9 +376,12 @@ For `POST /analyze`, `result` contains one analysis:
 
 #### Completed Testing Farm analysis
 
-For `POST /analyze/tft`, the same task envelope contains per-case outcomes.
-Each successful case's `analysis` uses the normal analysis structure above.
-A task can finish with `status: "done"` while individual cases have errors:
+`POST /analyze/tft` returns a task envelope. Poll `GET /tasks/{id}` for the
+completed result (HTTP `200`). The envelope’s `result` field uses the
+`TestingFarmSuiteResponse` schema. Each successful case's `analysis` contains its
+own snippets inline and references shared evidence in `result.shared_snippets`.
+A task can finish with `status: "done"` even if the agent omitted a diagnosis
+for an eligible case, as it did for `case_1` here:
 
 ```json
 {
@@ -387,7 +392,7 @@ A task can finish with `status: "done"` while individual cases have errors:
   "error": null,
   "result": {
     "cases": {
-      "case-1": {
+      "case_0": {
         "status": "done",
         "analysis": {
           "explanation": "The test failed because the service was unavailable.",
@@ -397,19 +402,19 @@ A task can finish with `status: "done"` while individual cases have errors:
             {
               "text": "Connection refused",
               "line_number": 12,
-              "source_file": "case/case-1/test.log"
+              "source_file": "case/case_0/test.log"
             }
           ],
           "shared_snippet_refs": ["shared/tmt.log"]
         },
         "error": null
       },
-      "case-2": {
+      "case_1": {
         "status": "error",
         "analysis": null,
         "error": {
-          "code": "artifact_error",
-          "message": "Unable to retrieve a case artifact"
+          "code": "missing_analysis",
+          "message": "No analysis was returned for this case"
         }
       }
     },
@@ -428,10 +433,12 @@ A task can finish with `status: "done"` while individual cases have errors:
 }
 ```
 
-When the request contains no cases, `cases` is empty and `suite_fallback`
-contains a normal analysis of the suite context and any shared artifacts.
-`retrieval_warnings` lists
-unavailable artifacts, each with `code`, `source_file`, and `message`.
+When a zero-case task finishes with `status: "done"`, `cases` is empty and
+`suite_fallback` contains the suite analysis. Its `snippets` list is empty;
+any shared evidence is linked through `shared_snippet_refs`, just as for a case.
+A case gets `artifact_error` only if neither its own artifacts nor any shared
+artifact was retrieved successfully. Nonfatal download failures appear in
+`retrieval_warnings`, each with `code`, `source_file`, and `message`.
 Task-level failures use the same top-level `error` object for both endpoints,
 with `status: "error"` and `result: null`.
 
