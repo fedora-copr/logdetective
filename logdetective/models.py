@@ -439,20 +439,25 @@ class APIResponse(AgentResponse):
 TestingFarmEvidenceIndex = dict[str, list[Snippet]]
 
 
-class TestingFarmAgentCase(BaseModel):
+class TestingFarmAgentDiagnosis(BaseModel):
     """One diagnosis; evidence is attached by the application, not the model."""
 
-    case_id: str
     explanation: str | None = None
     solution: str | None = None
     no_issue_found: bool = False
+
+
+class TestingFarmAgentCase(TestingFarmAgentDiagnosis):
+    """A diagnosis for an identified testcase."""
+
+    case_id: str
 
 
 class TestingFarmAgentOutput(BaseModel):
     """Agent output; duplicate and unknown IDs are checked against the request."""
 
     cases: list[TestingFarmAgentCase] = Field(default_factory=list)
-    suite_fallback: TestingFarmAgentCase | None = None
+    suite_fallback: TestingFarmAgentDiagnosis | None = None
 
 
 class TestingFarmCaseResponse(APIResponse):

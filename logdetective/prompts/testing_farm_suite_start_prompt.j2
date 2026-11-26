@@ -3,7 +3,7 @@ provide context, including cases without usable logs. Diagnose only
 eligible_case_ids: one entry each, none for other cases (handled as artifact_error).
 Missing/empty diagnoses become per-case errors. If cases is empty, diagnose the
 suite from its context and shared logs; do not assume no tests ran. Return only
-suite_fallback with case_id "suite".
+suite_fallback with a nonblank explanation; leave cases empty.
 
 Cite each cause in prose using supplied filenames and snippet starting lines.
 Use only that case's logs or shared logs, never sibling logs. The application

@@ -1,9 +1,15 @@
-"""Testing Farm artifact field naming contract."""
+"""Testing Farm request and agent output contracts."""
+
+import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic import ValidationError
 
-from logdetective.models import TestingFarmSuiteRequest as TFTSuiteRequest
+from logdetective.agents.testing_farm_analysis import analyze_testing_farm_suite
+from logdetective.models import (
+    TestingFarmAgentOutput as TFTAgentOutput, TestingFarmSuiteRequest as TFTSuiteRequest,
+)
 from logdetective.server import app
 
 
@@ -34,3 +40,29 @@ def test_previous_log_fields_rejected(scope):
         ]
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         TFTSuiteRequest.model_validate(payload)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("has_cases", "fallback", "error"), [
+    (True, {"explanation": "suite cause"}, "unexpected suite fallback"),
+    (False, None, "no suite fallback"),
+    (False, {}, "no suite fallback"),
+    (False, {"explanation": "  "}, "no suite fallback"),
+])
+async def test_suite_agent_rejects_invalid_fallback(has_cases, fallback, error):
+    """A fallback is mandatory for empty suites and forbidden for individual cases."""
+    request = TFTSuiteRequest(
+        suite={"plan": "/plan", "state": "error"},
+        cases=[{"case_id": "c1", "name": "/test", "result": "failed"}] if has_cases else [],
+    )
+    with (
+        patch("logdetective.agents.testing_farm_analysis.RequirementAgent"),
+        patch("logdetective.agents.testing_farm_analysis.run_agent", AsyncMock(
+            return_value=TFTAgentOutput(suite_fallback=fallback),
+        )),
+        pytest.raises(ValueError, match=error),
+    ):
+        await analyze_testing_farm_suite(
+            {}, MagicMock(), request, eligible_case_ids=set(),
+            deadline=asyncio.get_running_loop().time() + 1200,
+        )
