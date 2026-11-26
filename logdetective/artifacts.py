@@ -116,14 +116,12 @@ async def fetch_suite_artifacts(
             total=SERVER_CONFIG.general.log_source_request_timeout, connect=3.07
         ),
     ) as http:
-        for log in payload.shared_artifacts:
-            source_file = f"shared/{log.name}"
+        for source_file, log in payload.shared_artifacts_by_ref().items():
             content = await retrieve(log, source_file, http)
             if content is not None:
-                artifacts[f"shared/{log.name}"] = content
-        shared_available = any(
-            f"shared/{log.name}" in artifacts for log in payload.shared_artifacts
-        )
+                artifacts[source_file] = content
+        # Only shared artifacts have been retrieved at this point.
+        shared_available = bool(artifacts)
         for case in payload.cases:
             for log in case.artifacts:
                 source_file = f"case/{case.case_id}/{log.name}"

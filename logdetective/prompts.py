@@ -58,8 +58,7 @@ class PromptManager:
         # failed downloads must not be offered to the agent as inspectable logs.
         artifact_manifest = {
             "shared": [
-                f"shared/{log.name}" for log in request.shared_artifacts
-                if f"shared/{log.name}" in available_artifacts
+                ref for ref in request.shared_artifacts_by_ref() if ref in available_artifacts
             ],
             "cases": {
                 case.case_id: [

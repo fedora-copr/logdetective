@@ -148,7 +148,7 @@ def _suite_result(
     if fallback is not None and (payload.cases or fallback.case_id != "suite"):
         raise ValueError("Agent returned an unexpected suite fallback")
 
-    shared_artifacts = {f"shared/{log.name}" for log in payload.shared_artifacts}
+    shared_artifacts = payload.shared_artifacts_by_ref()
     shared_snippets = _shared_snippets_by_file(evidence, shared_artifacts)
     shared_refs = list(shared_snippets)
     for case in eligible:

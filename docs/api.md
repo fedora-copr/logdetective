@@ -163,7 +163,8 @@ Cases without case-specific artifacts can be analyzed when a shared artifact is 
 The optional UUIDv4 `id`, bearer authentication, and polling/cancellation
 lifecycle are unchanged. The endpoint accepts published artifact URLs, not inline file contents.
 Use `shared_artifacts` for suite-wide files, `cases[].artifacts` for case files,
-and `artifact_refs` in checks/subresults for scoped references.
+and `artifact_refs` in checks/subresults for scoped references. A shared file
+named `journal.txt`, for example, is referenced as `shared/journal.txt`.
 
 ```json
 {
