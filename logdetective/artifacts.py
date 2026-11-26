@@ -30,6 +30,21 @@ class SuiteArtifacts:
     warnings: list[TestingFarmRetrievalWarning]
 
 
+def create_artifact_session() -> aiohttp.ClientSession:
+    """Create a caller-owned session for user-supplied remote artifact URLs."""
+    general = SERVER_CONFIG.general
+    policy = general.ssrf_protection
+    connector = (
+        SSRFProtectedConnector(SSRFProtectedResolver(
+            allowed_hostnames=policy.allowed_hostnames,
+            blocked_cluster_cidrs=policy.blocked_cluster_cidrs,
+        ))
+        if general.block_localhost_urls else aiohttp.TCPConnector()
+    )
+    timeout = aiohttp.ClientTimeout(total=general.log_source_request_timeout, connect=3.07)
+    return aiohttp.ClientSession(connector=connector, timeout=timeout)
+
+
 async def fetch_suite_log(
     url: str, http: aiohttp.ClientSession, remaining: int,
     fetched: dict[str, tuple[str | None, int]],
@@ -102,20 +117,8 @@ async def fetch_suite_artifacts(
                 message="Unable to retrieve this artifact",
             ))
             return None
-    ssrf_config = SERVER_CONFIG.general.ssrf_protection
-    connector = (
-        SSRFProtectedConnector(SSRFProtectedResolver(
-            allowed_hostnames=ssrf_config.allowed_hostnames,
-            blocked_cluster_cidrs=ssrf_config.blocked_cluster_cidrs,
-        ))
-        if SERVER_CONFIG.general.block_localhost_urls else aiohttp.TCPConnector()
-    )
-    async with aiohttp.ClientSession(
-        connector=connector,
-        timeout=aiohttp.ClientTimeout(
-            total=SERVER_CONFIG.general.log_source_request_timeout, connect=3.07
-        ),
-    ) as http:
+
+    async with create_artifact_session() as http:
         for source_file, log in payload.shared_artifacts_by_ref().items():
             content = await retrieve(log, source_file, http)
             if content is not None:

@@ -17,7 +17,7 @@ from logdetective.agents.common import analysis_attempt, run_agent
 from logdetective.database.models.tasks import TaskAnalysis, TaskType
 from logdetective.models import APIResponse, KojiTaskMetadata
 from logdetective.task_execution import TaskOutcome, run_task
-from logdetective.utils import run_blocking
+from logdetective.utils import SSRFProtectedConnector, run_blocking
 
 
 @pytest.mark.asyncio
@@ -60,13 +60,14 @@ async def test_execute_generic_uses_configured_log_source_timeout(monkeypatch):
 
     assert captured_timeout is not None
     assert captured_timeout.total == 12.5
+    assert captured_timeout.connect == 3.07
     assert outcome.response == response
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("protection_enabled", [True, False])
 async def test_execute_generic_ssrf_connector_configuration(monkeypatch, protection_enabled):
-    """Only generic downloads use the configured resolver, unless opted out."""
+    """Generic downloads use the configured resolver, unless opted out."""
     captured_connector = None
 
     class ClientSession:
@@ -114,12 +115,12 @@ async def test_execute_generic_ssrf_connector_configuration(monkeypatch, protect
         )
 
     if protection_enabled:
-        assert isinstance(captured_connector, task_execution.SSRFProtectedConnector)
+        assert isinstance(captured_connector, SSRFProtectedConnector)
         assert captured_connector._ssrf_resolver._blocked_cluster_cidrs == ()  # pylint: disable=protected-access
         assert captured_connector._ssrf_resolver._allowed_hostnames == {"trusted.example"}  # pylint: disable=protected-access
     else:
         assert isinstance(captured_connector, task_execution.aiohttp.TCPConnector)
-        assert not isinstance(captured_connector, task_execution.SSRFProtectedConnector)
+        assert not isinstance(captured_connector, SSRFProtectedConnector)
     await captured_connector.close()
 
 

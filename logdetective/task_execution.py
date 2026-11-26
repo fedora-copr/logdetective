@@ -19,7 +19,9 @@ from logdetective.agents.base_analysis import analyze_artifacts
 from logdetective.agents.testing_farm_analysis import (
     analyze_testing_farm_suite,
 )
-from logdetective.artifacts import fetch_suite_artifacts, get_artifacts_from_payload
+from logdetective.artifacts import (
+    create_artifact_session, fetch_suite_artifacts, get_artifacts_from_payload,
+)
 from logdetective.config import LOG, SERVER_CONFIG, get_chat_model
 from logdetective.database.models import Forge
 from logdetective.database.models.tasks import TaskAnalysis, TaskType
@@ -50,8 +52,6 @@ from logdetective.models import (
     TaskMetadata,
 )
 from logdetective.utils import (
-    SSRFProtectedConnector,
-    SSRFProtectedResolver,
     check_deadline,
     run_blocking,
     sanitize_artifact,
@@ -70,24 +70,7 @@ async def _execute_generic(
     payload_data: dict[str, Any], request_size: int, deadline: float, stack: AsyncExitStack,
 ) -> TaskOutcome:
     payload = AnalysisRequest.model_validate(payload_data)
-    ssrf_config = SERVER_CONFIG.general.ssrf_protection
-    connector = (
-        SSRFProtectedConnector(
-            SSRFProtectedResolver(
-                allowed_hostnames=ssrf_config.allowed_hostnames,
-                blocked_cluster_cidrs=ssrf_config.blocked_cluster_cidrs,
-            )
-        )
-        if SERVER_CONFIG.general.block_localhost_urls
-        else aiohttp.TCPConnector()
-    )
-    timeout = aiohttp.ClientTimeout(
-        total=SERVER_CONFIG.general.log_source_request_timeout,
-        connect=3.07,
-    )
-    http = await stack.enter_async_context(
-        aiohttp.ClientSession(connector=connector, timeout=timeout)
-    )
+    http = await stack.enter_async_context(create_artifact_session())
     artifacts = await get_artifacts_from_payload(payload, http, request_size)
     check_deadline(deadline)
     response = await analyze_artifacts(
