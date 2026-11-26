@@ -6,6 +6,9 @@ and other utilities live in `logdetective.agents.common`.
 Behavior of tools used by agents is described in [tools.md](./tools.md).
 
 Agent runs are executed as tasks in [worker](./workers.md) pods.
+Both workflows reject a final answer when the provider reports an output-token
+limit, even if the partial answer can be parsed. This is a task error, not a
+successful build diagnosis or a set of missing suite cases.
 
 ## Prompts
 
