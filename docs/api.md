@@ -136,6 +136,9 @@ set it to the deployment's actual cluster ranges to avoid blocking unrelated
 private hosts. Set `general.block_localhost_urls: false` to disable these
 address checks for generic and Testing Farm remote-log downloads; configured allow-list and CIDR
 values are still validated but have no effect while disabled.
+Both endpoints use the same HTTP session setup: each artifact request uses
+`general.log_source_request_timeout` as its total timeout and 3.07 seconds as
+its connection timeout.
 Analysis submissions require a valid `Content-Length` header; the declared
 request size must fit within `general.max_artifact_size` in
 `server/config.yml`. A missing or invalid length returns `411`, and an
