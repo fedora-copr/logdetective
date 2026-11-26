@@ -282,6 +282,10 @@ class TestingFarmSuiteRequest(BaseModel):
     )
     cases: list[TestingFarmCase]
 
+    def shared_artifacts_by_ref(self) -> dict[str, RemoteArtifactFile]:
+        """Index shared artifacts by scoped reference, preserving submission order."""
+        return {f"shared/{log.name}": log for log in self.shared_artifacts}
+
     def validate_limits(self, config: TestingFarmConfig) -> None:
         """Count submitted entries, including cached URLs, without exposing inputs."""
         if len(self.shared_artifacts) > config.max_shared_artifacts:
@@ -311,7 +315,7 @@ class TestingFarmSuiteRequest(BaseModel):
             names = [log.name for log in group]
             if len(names) != len(set(names)):
                 raise ValueError("Duplicate artifact names in one scope")
-        shared = {f"shared/{log.name}" for log in self.shared_artifacts}
+        shared = self.shared_artifacts_by_ref().keys()
         for case in self.cases:
             if case.guest_name is not None and case.guest_name not in self.guests:
                 raise ValueError("Unknown case guest_name")
