@@ -87,8 +87,11 @@ async def _run_suite_attempt(
     ids = [case.case_id for case in output.cases]
     if len(ids) != len(set(ids)) or set(ids) - eligible_case_ids:
         raise ValueError("Agent returned duplicate or ineligible case IDs")
-    if request.cases and output.suite_fallback is not None:
+    fallback = output.suite_fallback
+    if request.cases and fallback is not None:
         raise ValueError("Agent returned an unexpected suite fallback")
+    if not request.cases and (fallback is None or not (fallback.explanation or "").strip()):
+        raise ValueError("Agent returned no suite fallback")
     return output, _collect_suite_evidence(evidence, setup.extractors)
 
 

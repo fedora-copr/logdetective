@@ -43,7 +43,7 @@ from logdetective.models import (
     TestingFarmSuiteRequest,
     TestingFarmSuiteResponse,
     TestingFarmCaseOutcome,
-    TestingFarmAgentCase,
+    TestingFarmAgentDiagnosis,
     TestingFarmAgentOutput,
     TestingFarmCase,
     TaskError,
@@ -81,7 +81,7 @@ async def _execute_generic(
 
 
 def _suite_case_response(
-    output: TestingFarmAgentCase, evidence: TestingFarmEvidenceIndex, allowed: set[str],
+    output: TestingFarmAgentDiagnosis, evidence: TestingFarmEvidenceIndex, allowed: set[str],
     shared_refs: list[str],
 ) -> TestingFarmCaseResponse:
     """Attach own evidence and reference shared evidence without parsing citations."""
@@ -128,8 +128,6 @@ def _suite_result(
     answers = {answer.case_id: answer for answer in output.cases}
 
     fallback = output.suite_fallback
-    if fallback is not None and (payload.cases or fallback.case_id != "suite"):
-        raise ValueError("Agent returned an unexpected suite fallback")
 
     shared_artifacts = payload.shared_artifacts_by_ref()
     shared_snippets = _shared_snippets_by_file(evidence, shared_artifacts)
@@ -148,14 +146,13 @@ def _suite_result(
             status="done", analysis=_suite_case_response(answer, evidence, allowed, shared_refs)
         )
 
-    if not payload.cases:
-        if fallback is None or not (fallback.explanation or "").strip():
-            raise ValueError("Agent returned no suite fallback")
-        return TestingFarmSuiteResponse(
-            cases=results, shared_snippets=shared_snippets,
-            suite_fallback=_suite_case_response(fallback, evidence, set(), shared_refs),
-        )
-    return TestingFarmSuiteResponse(cases=results, shared_snippets=shared_snippets)
+    return TestingFarmSuiteResponse(
+        cases=results, shared_snippets=shared_snippets,
+        suite_fallback=(
+            _suite_case_response(fallback, evidence, set(), shared_refs)
+            if fallback is not None else None
+        ),
+    )
 
 
 async def _execute_tft_suite(

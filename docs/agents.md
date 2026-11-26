@@ -113,8 +113,9 @@ outcome for each submitted case, keyed by ID. A case with no usable evidence
 gets `artifact_error`; an eligible case with no diagnosis or a blank explanation
 gets `missing_analysis`. Neither error discards diagnoses for other cases.
 
-Only when the request contains no cases does the agent return a suite-wide
-diagnosis in `suite_fallback`, with `case_id` set to `"suite"` and `cases` empty.
+Only when the request contains no cases should the agent return a suite-wide
+diagnosis in `suite_fallback` and leave `cases` empty. This diagnosis needs a
+nonblank explanation, but no case ID.
 
 ### Evidence
 

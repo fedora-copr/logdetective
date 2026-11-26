@@ -581,7 +581,7 @@ def test_suite_and_generic_task_results_use_their_response_models():
 async def test_suite_fallback_and_missing_case_analysis(monkeypatch, suite_error):
     """Failure-only suites get context fallback; missing case output stays local."""
     agent = AsyncMock(return_value=(TFTAgentOutput(suite_fallback={
-        "case_id": "suite", "explanation": "Guest setup failed",
+        "explanation": "Guest setup failed",
     }), {}))
     monkeypatch.setattr(task_execution, "analyze_testing_farm_suite", agent)
     monkeypatch.setattr(task_execution, "get_chat_model", lambda _: MagicMock())
@@ -675,11 +675,11 @@ def test_suite_attaches_all_applicable_evidence(fallback, obsolete_evidence):
         [MagicMock(extracted_snippets=[own.model_copy(), richer, later, shared_later])],
     )
     explanation = "Failure at invented.log:999 and case/c2/log:999."
-    answer = {"case_id": "suite" if fallback else "c1", "explanation": explanation}
+    answer = {"explanation": explanation}
     if obsolete_evidence is not None:
         answer["evidence"] = obsolete_evidence
     output = (TFTAgentOutput(suite_fallback=answer) if fallback else TFTAgentOutput(cases=[
-        answer, {"case_id": "c2", "explanation": "Second case"},
+        dict(answer, case_id="c1"), {"case_id": "c2", "explanation": "Second case"},
     ]))
     result = task_execution._suite_result(request, request.cases, {}, output, evidence)
     analysis = result.suite_fallback if fallback else result.cases["c1"].analysis
@@ -710,6 +710,7 @@ def test_suite_prompt_requests_prose_citations_without_structured_coordinates():
     assert set(schema["$defs"]["TestingFarmAgentCase"]["properties"]) == {
         "case_id", "explanation", "solution", "no_issue_found",
     }
+    assert "case_id" not in schema["$defs"]["TestingFarmAgentDiagnosis"]["properties"]
     assert "TestingFarmEvidence" not in schema["$defs"]
 
 
@@ -892,11 +893,10 @@ async def test_suite_publishes_full_traceback_evidence(monkeypatch, scope, retry
             ))
             raise LogDetectiveInferenceTimeout("transient")
         answer = {
-            "case_id": "suite" if scope == "fallback" else "c1",
             "explanation": "Missing module",
         }
         return (TFTAgentOutput(suite_fallback=answer) if scope == "fallback"
-                else TFTAgentOutput(cases=[answer]))
+                else TFTAgentOutput(cases=[dict(answer, case_id="c1")]))
 
     monkeypatch.setattr(SERVER_CONFIG.extractor, "python_traceback", True)
     monkeypatch.setattr("logdetective.agents.testing_farm_analysis.run_agent", diagnose)
