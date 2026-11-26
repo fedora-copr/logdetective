@@ -152,6 +152,9 @@ the agent; `specfile` and `last_patch` are accepted but currently unused.
 
 ### Testing Farm analysis
 
+See Testing Farm’s [Anatomy of the Test Results](https://docs.testing-farm.io/Testing%20Farm/0.1/test-results.html#anatomy)
+for how tests are grouped and where to find per-test logs and plan-level artifacts.
+
 `POST /analyze/tft` accepts one complete tmt schedule entry/suite per task,
 regardless of guest count. The request has
 one suite context, published shared artifact references, and every failed, errored,
@@ -252,7 +255,12 @@ the remaining aggregate byte allowance, not a separate per-artifact cap. An arti
 declared or streamed size exceeds that allowance fails the entire task rather
 than producing an `artifact_unavailable` warning or a partial result. Bytes read
 by unsuccessful downloads also consume the aggregate allowance.
-Artifacts are namespaced as `shared/<name>` or `case/<case_id>/<name>`.
+
+The JSON field `cases` is the collection of cases. In `case/<case_id>/<name>`,
+`case/` is a scope prefix, not a path into that collection.
+For example, `case/case_0/test.log` identifies the `test.log` artifact belonging
+to the case whose `case_id` is `case_0`; `shared/test.log` identifies a
+suite-wide artifact with the same name.
 Names must be unique within each scope; the same name in different cases or
 in shared artifacts does not collide, even when contents or URLs are identical.
 URL caching avoids repeated downloads but does not merge source identities.
