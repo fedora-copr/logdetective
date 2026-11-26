@@ -1,26 +1,32 @@
 import asyncio
+import json
 from unittest.mock import AsyncMock, patch, MagicMock
 
 import pytest
+from beeai_framework.agents.requirement import RequirementAgent
 from beeai_framework.tools.think import ThinkTool
 from beeai_framework.backend import ChatModel
 from beeai_framework.backend.errors import ChatModelError
 from litellm.exceptions import Timeout, RateLimitError
+from litellm.types.utils import ModelResponse
 
 from logdetective.agents.base_analysis import analyze_artifacts
+from logdetective.agents.common import analysis_attempt, run_agent
 from logdetective.agents.tools import (
     AnnotatedSnippetLookupTool,
     DrainExtractorTool,
     CSGrepExtractorTool,
 )
-from logdetective.config import SERVER_CONFIG
+from logdetective.config import SERVER_CONFIG, get_chat_model
 from logdetective.database.models.annotated_builds import AnnotatedSnippets
 from logdetective.exceptions import (
     LogDetectiveInferenceError,
     LogDetectiveInferenceTimeout,
     LogDetectiveInferenceRateLimit,
 )
-from logdetective.models import AgentResponse, Explanation, Solution
+from logdetective.models import (
+    AgentResponse, Explanation, InferenceConfig, Solution, TestingFarmAgentOutput as SuiteOutput,
+)
 
 
 @pytest.fixture
@@ -250,3 +256,31 @@ async def test_analyze_artifacts_lookup_tool_included(
         assert "`snippet_analysis` argument" in agent_prompt
         assert get_count.await_count == int(config_option)
         assert get_embedding_model.call_count == int(config_option and snippet_count > 0)
+
+
+@pytest.mark.parametrize(("schema", "answer"), [
+    (AgentResponse, {"explanation": {"text": "first failure"}}),
+    (SuiteOutput, {"cases": [{"case_id": "c1", "explanation": "first failure"}]}),
+])
+@pytest.mark.parametrize(("reason", "cut"), [("length", 3), ("length", 0), ("stop", 0)])
+@pytest.mark.asyncio
+async def test_provider_final_answer_limit(monkeypatch, schema, answer, reason, cut):
+    """A repaired or valid but length-limited final answer must not become a success."""
+    content = json.dumps({"item": {"name": "final_answer", "parameters": answer}})
+    completion = AsyncMock(return_value=ModelResponse(choices=[{
+        "message": {"role": "assistant", "content": content[:-cut] if cut else content},
+        "finish_reason": reason,
+    }]))
+    monkeypatch.setattr("beeai_framework.adapters.litellm.chat.acompletion", completion)
+    model = get_chat_model(InferenceConfig(
+        model="openai:gpt-4o", provider_settings={"api_key": "unused"},
+    ))
+    agent = RequirementAgent(llm=model, tools=[ThinkTool()])
+    async with analysis_attempt(asyncio.get_running_loop().time() + 30) as attempt:
+        if reason == "length":
+            with pytest.raises(LogDetectiveInferenceError, match="output limit"):
+                await run_agent(agent, "Analyze the failure", schema, attempt=attempt)
+        else:
+            result = await run_agent(agent, "Analyze the failure", schema, attempt=attempt)
+            assert result == schema.model_validate(answer)
+    completion.assert_awaited_once()

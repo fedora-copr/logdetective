@@ -6,9 +6,12 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from beeai_framework.agents.requirement import RequirementAgent
+from beeai_framework.agents.requirement.events import RequirementAgentSuccessEvent
 from beeai_framework.agents.requirement.requirements.conditional import ConditionalRequirement
 from beeai_framework.backend.errors import ChatModelError
 from beeai_framework.cache import UnconstrainedCache
+from beeai_framework.context import RunContext
+from beeai_framework.emitter import EventMeta
 from beeai_framework.errors import AbortError
 from beeai_framework.middleware.trajectory import GlobalTrajectoryMiddleware
 from beeai_framework.tools import Tool
@@ -214,6 +217,17 @@ async def run_agent(
     """Run an agent within its owning preparation attempt."""
     attempt.check_deadline()
     controller = attempt.controller
+    truncated = False
+
+    def observe_answer(event: RequirementAgentSuccessEvent, _meta: EventMeta) -> None:
+        # The agent output drops the finish reason, but its final iteration retains it.
+        nonlocal truncated
+        if event.state.answer is not None:
+            truncated = event.response.finish_reason == "length"
+
+    def watch_iterations(context: RunContext) -> None:
+        context.emitter.on("success", observe_answer)
+
     try:
         operation = asyncio.ensure_future(agent.run(
             agent_input,
@@ -221,7 +235,7 @@ async def run_agent(
             total_max_retries=SERVER_CONFIG.inference.total_max_retries,
             expected_output=expected_output,
             signal=controller.signal,
-        ).middleware(GlobalTrajectoryMiddleware(pretty=True)))
+        ).middleware(GlobalTrajectoryMiddleware(pretty=True), watch_iterations))
         try:
             raw_output = await asyncio.shield(operation)
         except asyncio.CancelledError:
@@ -245,6 +259,8 @@ async def run_agent(
         raise LogDetectiveAgentTimeoutError(exc.message) from exc
 
     attempt.check_deadline()
+    if truncated:
+        raise LogDetectiveInferenceError("Model reached its output limit while generating the final answer")
     if not raw_output.output_structured:
         raise LogDetectiveAgentResponseFailure
     try:
