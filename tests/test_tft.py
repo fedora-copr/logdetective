@@ -152,6 +152,7 @@ async def test_tft_post_rejects_unsupported_url_before_admission(mocker):
     finally:
         app.dependency_overrides.clear()
     assert response.status_code == 400
+    assert response.json() == {"detail": "Invalid artifact URL: https://example.com/log?q=1"}
     admit.assert_not_awaited()
 
 
