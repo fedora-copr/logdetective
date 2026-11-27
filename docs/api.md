@@ -653,10 +653,10 @@ Here, **task envelope** means the JSON object shown in [Task responses](#task-re
 | Method and path | HTTP status | Response and condition |
 | --- | --- | --- |
 | `POST /analyze` | `202 Accepted` | Task envelope, `Location`, `Link`, and `Retry-After`; a new task or an identical retry. |
-| `POST /analyze` | `400 Bad Request` | JSON `detail`; an artifact URL parses but violates remote URL restrictions. |
+| `POST /analyze` | `400 Bad Request` | JSON `detail`; the identified artifact URL violates remote URL restrictions. |
 | `POST /analyze` | `409 Conflict` | JSON `detail`; a supplied task ID conflicts with another request or an expired task. |
 | `POST /analyze/tft` | `202 Accepted` | Task envelope, `Location`, `Link`, and `Retry-After`; a new task or an identical retry. |
-| `POST /analyze/tft` | `400 Bad Request` | JSON `detail`; an artifact URL violates remote URL restrictions. |
+| `POST /analyze/tft` | `400 Bad Request` | JSON `detail`; the identified artifact URL violates remote URL restrictions. |
 | `POST /analyze/tft` | `409 Conflict` | JSON `detail`; a supplied task ID conflicts with another request or an expired task. |
 | `POST /analyze/tft` | `422 Unprocessable Content` | JSON `detail` array for invalid suite input (such as duplicate case IDs or unknown artifact references), or a `detail` string naming the exceeded artifact-count limit. |
 | `POST /analyze/rpmbuild/koji` | `202 Accepted` | Task envelope, `Location`, `Link` and `Retry-After`; a new task or an identical retry. |

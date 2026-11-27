@@ -250,7 +250,7 @@ async def accept_task(
             if isinstance(artifact, RemoteArtifactFile) and not RemoteLog.is_valid_url(
                 str(artifact.url)
             ):
-                raise HTTPException(400, detail="Invalid artifact URL")
+                raise HTTPException(400, detail=f"Invalid artifact URL: {artifact.url}")
     public_id = payload.id or uuid4()
     data = payload.model_dump(mode="json", by_alias=True)
     data["id"] = str(public_id)
